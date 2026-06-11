@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS app_metadata;
+DROP EXTENSION IF EXISTS pg_trgm;

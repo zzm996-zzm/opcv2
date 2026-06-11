@@ -1,0 +1,7 @@
+.git
+.github
+.env
+.env.*
+apps/web/node_modules
+apps/web/dist
+coverage

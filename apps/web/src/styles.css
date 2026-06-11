@@ -1,0 +1,276 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #14261f;
+  background: #f5f4ed;
+  font-family: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --ink: #14261f;
+  --muted: #68746f;
+  --paper: #fbfaf5;
+  --line: rgba(20, 38, 31, 0.12);
+  --accent: #256f55;
+  --accent-dark: #164b39;
+  --warm: #df6c3f;
+  --radius-lg: 28px;
+  --radius-md: 18px;
+  --shadow: 0 24px 70px rgba(28, 48, 40, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 24px 5vw 64px;
+  background:
+    radial-gradient(circle at 82% 12%, rgba(226, 174, 102, 0.22), transparent 25%),
+    linear-gradient(rgba(37, 111, 85, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 111, 85, 0.035) 1px, transparent 1px),
+    #f5f4ed;
+  background-size: auto, 48px 48px, 48px 48px, auto;
+}
+
+.site-header {
+  display: grid;
+  grid-template-columns: 180px 1fr 180px;
+  align-items: center;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.brand-mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  color: white;
+  background: var(--ink);
+  border-radius: 12px 12px 12px 4px;
+  place-items: center;
+}
+
+.main-nav {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  color: #3f4d47;
+  font-size: 14px;
+}
+
+.main-nav a {
+  padding: 10px 0;
+  transition: color 160ms ease;
+}
+
+.main-nav a:hover,
+.main-nav a:focus-visible {
+  color: var(--accent);
+}
+
+.primary-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background: var(--ink);
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(20, 38, 31, 0.18);
+}
+
+.primary-action.compact {
+  justify-self: end;
+  min-width: 112px;
+  padding: 12px 18px;
+  font-size: 14px;
+}
+
+.hero {
+  max-width: 940px;
+  margin: 13vh auto 0;
+  text-align: center;
+}
+
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.hero-kicker span {
+  width: 28px;
+  height: 2px;
+  background: var(--warm);
+}
+
+.hero h1 {
+  max-width: 760px;
+  margin: 22px auto 18px;
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: clamp(44px, 7vw, 76px);
+  line-height: 1.05;
+  letter-spacing: -0.045em;
+}
+
+.hero > p {
+  max-width: 680px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.9;
+}
+
+.intent-box {
+  margin-top: 48px;
+  padding: 16px 18px 18px;
+  text-align: left;
+  background: rgba(251, 250, 245, 0.94);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.intent-box label {
+  display: block;
+  padding: 2px 8px 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.intent-control {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 14px;
+}
+
+.intent-control textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 16px;
+  color: var(--ink);
+  background: #f3f1e9;
+  border: 0;
+  border-radius: var(--radius-md);
+  outline: none;
+  resize: none;
+}
+
+.intent-control textarea:focus-visible {
+  box-shadow: 0 0 0 3px rgba(37, 111, 85, 0.18);
+}
+
+.intent-control button {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+  padding: 0 22px;
+  color: white;
+  background: var(--accent);
+  border: 0;
+  border-radius: 16px;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.intent-control button:hover {
+  background: var(--accent-dark);
+  transform: translateY(-2px);
+}
+
+.quick-intents {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.quick-intents a {
+  padding: 9px 14px;
+  color: #53605b;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .site-header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .main-nav {
+    display: none;
+  }
+
+  .hero {
+    margin-top: 10vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 18px 18px 48px;
+  }
+
+  .primary-action.compact {
+    min-width: auto;
+  }
+
+  .intent-control {
+    grid-template-columns: 1fr;
+  }
+
+  .intent-control button {
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
