@@ -1,4 +1,4 @@
-.PHONY: test test-go test-web lint build up down
+.PHONY: test test-go test-web lint build up down deploy deploy-build deploy-logs deploy-ps
 
 test: test-go test-web
 
@@ -21,3 +21,15 @@ up:
 
 down:
 	docker compose down --remove-orphans
+
+deploy:
+	bash scripts/deploy_server.sh deploy
+
+deploy-build:
+	bash scripts/deploy_server.sh deploy --build
+
+deploy-logs:
+	bash scripts/deploy_server.sh logs
+
+deploy-ps:
+	bash scripts/deploy_server.sh ps

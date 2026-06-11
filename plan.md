@@ -645,10 +645,16 @@ GET /api/v1/community
 
 **完成项：**
 
-- [ ] API、Worker、Web、PostgreSQL、Redis 可本地一键启动。
+- [x] API、Worker、Web、PostgreSQL、Redis 可本地一键启动。
 - [x] `/health/live` 和 `/health/ready` 可用。
 - [x] 数据库迁移可正向执行和回滚。
 - [x] Go lint、单元测试、前端 lint 和构建进入 CI。
+
+**当前实现说明（2026-06-11）：**
+
+- 本地开发使用 `docker compose up --build`。
+- 服务器部署使用 `.env.server`、`docker-compose.server.yml` 和 `scripts/deploy_server.sh`，Web 统一暴露端口并反代 API。
+- 生产短信 Provider 尚未实现，因此服务器示例仍以 `OPCV2_ENV=development` 跑 MVP 演示；正式上线前必须切换真实短信服务商。
 
 ### 阶段 1：UI 基础与账号
 
