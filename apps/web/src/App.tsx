@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { authApi } from "./lib/authApi";
 import { authSession, useAuthSession } from "./lib/authSession";
+import AnalysisPage from "./pages/AnalysisPage";
 import HomePage from "./pages/HomePage";
 import LegalPage from "./pages/LegalPage";
 import LoginPage from "./pages/LoginPage";
@@ -10,7 +11,6 @@ import MembershipPage from "./pages/MembershipPage";
 import ProductPlaceholder from "./pages/ProductPlaceholder";
 
 const productRoutes = [
-  ["/analysis", "免费分析", "把你的资源和目标整理成可执行的方向。"],
   ["/leads", "VIP获客", "从公开来源发现企业线索，并沉淀到客户库。"],
   ["/insights", "咨询通", "查看行业动态、案例和商业机会证据。"],
   ["/tools", "工具箱", "集中管理适合一人公司的效率工具。"],
@@ -53,6 +53,14 @@ function App() {
           </RequireAuth>
         }
         path="/membership"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <AnalysisPage />
+          </RequireAuth>
+        }
+        path="/analysis"
       />
       {productRoutes.map(([path, title, description]) => (
         <Route

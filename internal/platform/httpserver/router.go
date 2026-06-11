@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/zzm/opcv2/internal/analysis"
 	"github.com/zzm/opcv2/internal/auth"
 	"github.com/zzm/opcv2/internal/membership"
 )
@@ -16,6 +17,7 @@ func NewRouter(
 	checks HealthChecks,
 	authHandler *auth.HTTPHandler,
 	membershipHandler *membership.HTTPHandler,
+	analysisHandler *analysis.HTTPHandler,
 ) http.Handler {
 	router := gin.New()
 	router.Use(gin.Recovery())
@@ -38,6 +40,11 @@ func NewRouter(
 		protected := api.Group("")
 		protected.Use(authHandler.RequireAccessToken())
 		membershipHandler.Register(protected)
+	}
+	if authHandler != nil && analysisHandler != nil {
+		protected := api.Group("")
+		protected.Use(authHandler.RequireAccessToken())
+		analysisHandler.Register(protected)
 	}
 
 	return router

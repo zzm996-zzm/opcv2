@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/zzm/opcv2/internal/analysis"
 	"github.com/zzm/opcv2/internal/auth"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/platform/config"
@@ -60,13 +61,16 @@ func main() {
 	membershipRepository := membership.NewPostgresRepository(db)
 	membershipService := membership.NewService(membershipRepository)
 	membershipHTTP := membership.NewHTTPHandler(membershipService)
+	analysisRepository := analysis.NewPostgresRepository(db)
+	analysisService := analysis.NewService(analysisRepository, analysis.NewDevelopmentProvider())
+	analysisHTTP := analysis.NewHTTPHandler(analysisService)
 
 	checker := health.NewChecker(db, redisClient)
 	server := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.HealthChecks{
 			Ready: func() bool { return checker.Ready(context.Background()) },
-		}, authHTTP, membershipHTTP),
+		}, authHTTP, membershipHTTP, analysisHTTP),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

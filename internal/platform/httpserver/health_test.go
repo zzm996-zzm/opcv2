@@ -15,7 +15,7 @@ import (
 func TestHealthEndpoints(t *testing.T) {
 	router := NewRouter(HealthChecks{
 		Ready: func() bool { return true },
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	tests := []struct {
 		name       string
@@ -57,7 +57,7 @@ func TestHealthEndpoints(t *testing.T) {
 func TestReadyEndpointReportsUnavailableDependency(t *testing.T) {
 	router := NewRouter(HealthChecks{
 		Ready: func() bool { return false },
-	}, nil, nil)
+	}, nil, nil, nil)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 
@@ -107,7 +107,7 @@ func (fakeMembershipApp) Redeem(context.Context, membership.RedeemInput) (member
 func TestMembershipRoutesAreMountedBehindAuth(t *testing.T) {
 	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
 	membershipHTTP := membership.NewHTTPHandler(fakeMembershipApp{})
-	router := NewRouter(HealthChecks{}, authHTTP, membershipHTTP)
+	router := NewRouter(HealthChecks{}, authHTTP, membershipHTTP, nil)
 
 	unauthorized := httptest.NewRecorder()
 	router.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/membership/me", nil))
