@@ -85,12 +85,12 @@ function LoginPage() {
     <main className="login-page">
       <section className="login-story" aria-label="产品价值">
         <Link className="brand login-brand" to="/" aria-label="智活AI OPC 首页">
-          <span className="brand-mark">智</span>
-          <span>智活AI</span>
+          <span className="brand-mark" aria-hidden="true" />
+          <span>智活AI · OPC</span>
         </Link>
         <div className="login-story-copy">
           <p className="section-eyebrow">AI 商业行动伙伴</p>
-          <h1>先找到方向，再找到客户。</h1>
+          <h1>登录后继续你的增长分析。</h1>
           <p>
             从一句话开始，补齐关键信息，获得可执行的商业分析和真实企业线索。
           </p>
@@ -105,7 +105,7 @@ function LoginPage() {
             <dd>具体行动计划</dd>
           </div>
           <div>
-            <dt>公开来源</dt>
+            <dt>公开数据</dt>
             <dd>企业信息可追溯</dd>
           </div>
           <div>

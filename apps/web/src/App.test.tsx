@@ -18,7 +18,7 @@ describe("App", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "把商业想法，变成下一步行动" })
+      screen.getByRole("heading", { name: "一框输入，开始增长" })
     ).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "免费分析" })).toHaveAttribute(

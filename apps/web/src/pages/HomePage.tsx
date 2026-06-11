@@ -32,8 +32,8 @@ function HomePage() {
     <div className="app-shell antialiased">
       <header className="site-header">
         <Link className="brand" to="/" aria-label="智活AI OPC 首页">
-          <span className="brand-mark">智</span>
-          <span>智活AI</span>
+          <span className="brand-mark" aria-hidden="true" />
+          <span>智活AI · OPC</span>
         </Link>
 
         <nav className="main-nav" aria-label="主导航">
@@ -69,43 +69,58 @@ function HomePage() {
             )}
           </div>
         ) : (
-          <Link className="primary-action compact" to="/login">
-            开始体验
-          </Link>
+          <div className="header-actions">
+            <Link className="ghost-action compact" to="/analysis">
+              查看案例
+            </Link>
+            <Link className="primary-action compact" to="/login">
+              开始体验
+            </Link>
+          </div>
         )}
       </header>
 
       <main className="hero">
-        <div className="hero-kicker">
-          <span />
-          从判断方向，到找到客户
-        </div>
-        <h1>把商业想法，变成下一步行动</h1>
-        <p>
-          描述你的资源、经验或目标。AI 会补充关键问题，给出可执行的方向，
-          再帮你找到真实企业线索。
-        </p>
+        <h1 aria-label="一框输入，开始增长">一框输入，<span>开始增长</span></h1>
+        <p>告诉 AI 你的资源、目标或问题，快速获得方向与行动建议。</p>
 
         <div className="intent-box">
-          <label htmlFor="business-intent">今天想解决什么问题？</label>
+          <label htmlFor="business-intent">输入你的资源、行业、目标客户，或你现在遇到的问题...</label>
           <div className="intent-control">
+            <span className="input-spark" aria-hidden="true">✦</span>
             <textarea
               id="business-intent"
               rows={3}
-              placeholder="例如：我有 10 年教培经验和 5 万预算，在成都适合做什么？"
+              placeholder="我有 10 年教培经验，3 万预算，想在线上做副业，适合从什么方向切入？"
             />
-            <button type="button" aria-label="提交需求">
+            <Link to="/analysis" aria-label="提交需求">
               <span>开始分析</span>
-              <span aria-hidden="true">↗</span>
-            </button>
+            </Link>
+          </div>
+          <div className="intent-presets" aria-label="快捷问题">
+            <Link to="/analysis?mode=direction">我适合做什么</Link>
+            <Link to="/analysis?mode=competitor">拆解一个对标公司</Link>
+            <Link to="/leads">帮我找成都教培客户</Link>
+            <Link to="/tools">推荐适合我的工具</Link>
           </div>
         </div>
 
-        <div className="quick-intents" aria-label="快捷问题">
-          <Link to="/analysis?mode=direction">我适合做什么</Link>
-          <Link to="/analysis?mode=competitor">拆解一个对标公司</Link>
-          <Link to="/leads">帮我找成都教培客户</Link>
-          <Link to="/tools">推荐适合我的工具</Link>
+        <div className="hero-benefits" aria-label="产品能力">
+          <div>
+            <span>💬</span>
+            <strong>AI 追问补充</strong>
+            <small>更准确理解需求</small>
+          </div>
+          <div>
+            <span>📈</span>
+            <strong>输出行动建议</strong>
+            <small>给出下一步方向</small>
+          </div>
+          <div>
+            <span>🔄</span>
+            <strong>持续优化结果</strong>
+            <small>边用边迭代</small>
+          </div>
         </div>
       </main>
     </div>

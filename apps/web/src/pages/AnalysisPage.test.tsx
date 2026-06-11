@@ -37,7 +37,7 @@ describe("AnalysisPage", () => {
     fireEvent.change(screen.getByLabelText("描述你的资源和目标"), {
       target: { value: "想创业" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "开始分析" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成分析" }));
 
     expect(await screen.findByText("你大概有多少启动资金？")).toBeInTheDocument();
   });
@@ -73,7 +73,7 @@ describe("AnalysisPage", () => {
     fireEvent.change(screen.getByLabelText("描述你的资源和目标"), {
       target: { value: "我有10年教培经验，5万本金，每周20小时，想在成都创业" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "开始分析" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成分析" }));
 
     await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(3));
     expect(screen.getByText("本地教培小班陪跑")).toBeInTheDocument();

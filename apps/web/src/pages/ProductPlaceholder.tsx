@@ -14,8 +14,8 @@ function ProductPlaceholder({ description, title }: ProductPlaceholderProps) {
     <main className="product-placeholder">
       <header className="placeholder-header">
         <Link className="brand" to="/" aria-label="返回智活AI OPC 首页">
-          <span className="brand-mark">智</span>
-          <span>智活AI</span>
+          <span className="brand-mark" aria-hidden="true" />
+          <span>智活AI · OPC</span>
         </Link>
         <span>{session.user?.nickname}</span>
       </header>

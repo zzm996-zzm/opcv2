@@ -60,34 +60,38 @@ function MembershipPage() {
     <main className="membership-page">
       <header className="placeholder-header">
         <Link className="brand" to="/" aria-label="返回智活AI OPC 首页">
-          <span className="brand-mark">智</span>
-          <span>智活AI</span>
+          <span className="brand-mark" aria-hidden="true" />
+          <span>智活AI · OPC</span>
         </Link>
         <Link to="/">返回首页</Link>
       </header>
 
       <section className="membership-card">
-        <p className="section-eyebrow">会员中心</p>
-        <h1>权益和积分</h1>
+        <p className="section-eyebrow">会员兑换</p>
+        <h1>使用兑换码激活会员权益或兑换积分</h1>
         <div className="membership-grid">
           <article>
-            <span>当前套餐</span>
+            <span>当前会员</span>
             <strong>{status === "loading" ? "读取中" : snapshot?.plan.name ?? "免费版"}</strong>
             <p>每月分析 {snapshot?.plan.monthly_analysis_limit ?? 0} 次</p>
           </article>
           <article>
-            <span>积分余额</span>
+            <span>当前积分</span>
             <strong>{snapshot?.credit_balance ?? 0}</strong>
             <p>后续 AI 分析和获客任务会从这里扣减</p>
           </article>
           <article>
-            <span>线索导出</span>
+            <span>获客额度</span>
             <strong>{snapshot?.plan.lead_export_limit ?? 0}</strong>
             <p>由服务端权益判断，前端只展示结果</p>
           </article>
         </div>
 
         <form className="redeem-card" onSubmit={redeem}>
+          <div className="redeem-tabs" aria-hidden="true">
+            <span>兑换会员/权益</span>
+            <span>兑换积分</span>
+          </div>
           <label className="field">
             <span>兑换码</span>
             <input

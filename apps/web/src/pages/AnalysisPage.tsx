@@ -28,16 +28,20 @@ function AnalysisPage() {
     <main className="analysis-page">
       <header className="placeholder-header">
         <Link className="brand" to="/" aria-label="返回智活AI OPC 首页">
-          <span className="brand-mark">智</span>
-          <span>智活AI</span>
+          <span className="brand-mark" aria-hidden="true" />
+          <span>智活AI · OPC</span>
         </Link>
         <Link to="/membership">会员中心</Link>
       </header>
 
       <section className="analysis-hero">
-        <p className="section-eyebrow">Tab A · 我有什么，适合做什么</p>
-        <h1>把你的资源，拆成 3 个可执行方向</h1>
+        <p className="section-eyebrow">免费分析</p>
+        <h1>告诉我们你的资源或目标，AI 将为你生成可落地的方向与策略建议。</h1>
         <form className="analysis-form" onSubmit={submit}>
+          <div className="analysis-tabs" aria-label="分析类型">
+            <span>✦ 我有什么，适合做什么</span>
+            <span>▣ 拆解一个对标公司</span>
+          </div>
           <label htmlFor="analysis-intent">描述你的资源和目标</label>
           <textarea
             id="analysis-intent"
@@ -48,7 +52,7 @@ function AnalysisPage() {
             value={intent}
           />
           <button disabled={!intent.trim() || status === "submitting"} type="submit">
-            {status === "submitting" ? "分析中" : "开始分析"}
+            {status === "submitting" ? "分析中" : "生成分析"}
           </button>
         </form>
         {error && <p className="form-error" role="alert">{error}</p>}
@@ -56,7 +60,7 @@ function AnalysisPage() {
 
       {result?.status === "needs_input" && (
         <section className="question-panel">
-          <p className="section-eyebrow">需要再补充一点</p>
+          <p className="section-eyebrow">中间提问</p>
           <h2>先回答这几个关键问题，结果会更可执行</h2>
           <div className="question-list">
             {result.questions?.map((question) => (
@@ -75,8 +79,8 @@ function AnalysisPage() {
 
       {result?.status === "completed" && (
         <section className="direction-results">
-          <p className="section-eyebrow">方向卡</p>
-          <h2>优先尝试这 3 个方向</h2>
+          <p className="section-eyebrow">你的创业分析结果</p>
+          <h2>AI 已根据你的输入生成 3 份方向报告。</h2>
           <div className="direction-grid">
             {result.cards?.map((card) => (
               <article key={card.name} className="direction-card">
