@@ -12,7 +12,7 @@ import (
 
 const (
 	refreshCookieName = "opcv2_refresh"
-	userIDContextKey  = "auth_user_id"
+	UserIDContextKey  = "auth_user_id"
 )
 
 type AuthApplication interface {
@@ -39,7 +39,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	authRoutes.POST("/login", h.login)
 	authRoutes.POST("/refresh", h.refresh)
 	authRoutes.POST("/logout", h.logout)
-	router.GET("/me", h.requireAccessToken(), h.me)
+	router.GET("/me", h.RequireAccessToken(), h.me)
 }
 
 func (h *HTTPHandler) sendCode(c *gin.Context) {
@@ -111,7 +111,7 @@ func (h *HTTPHandler) logout(c *gin.Context) {
 }
 
 func (h *HTTPHandler) me(c *gin.Context) {
-	userID := c.GetInt64(userIDContextKey)
+	userID := c.GetInt64(UserIDContextKey)
 	user, err := h.app.CurrentUser(c.Request.Context(), userID)
 	if err != nil {
 		writeAuthError(c, err)
@@ -120,7 +120,7 @@ func (h *HTTPHandler) me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
-func (h *HTTPHandler) requireAccessToken() gin.HandlerFunc {
+func (h *HTTPHandler) RequireAccessToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := strings.TrimSpace(c.GetHeader("Authorization"))
 		if !strings.HasPrefix(header, "Bearer ") {
@@ -132,7 +132,7 @@ func (h *HTTPHandler) requireAccessToken() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_access_token"})
 			return
 		}
-		c.Set(userIDContextKey, userID)
+		c.Set(UserIDContextKey, userID)
 		c.Next()
 	}
 }

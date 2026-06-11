@@ -176,6 +176,14 @@ a {
   cursor: pointer;
 }
 
+.account-menu a {
+  margin-top: 6px;
+  padding: 10px 12px;
+  color: var(--accent-dark);
+  background: #eaf4ef;
+  border-radius: 10px;
+}
+
 .hero {
   max-width: 940px;
   margin: 13vh auto 0;
@@ -600,6 +608,90 @@ a {
   padding: 24px 5vw 64px;
 }
 
+.membership-page {
+  min-height: 100vh;
+  padding: 24px 5vw 72px;
+  background:
+    radial-gradient(circle at 82% 12%, rgba(226, 174, 102, 0.2), transparent 25%),
+    #f5f4ed;
+}
+
+.membership-card {
+  max-width: 980px;
+  margin: 10vh auto 0;
+  padding: clamp(28px, 5vw, 58px);
+  background: rgba(255, 255, 251, 0.96);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.membership-card h1 {
+  margin: 0 0 28px;
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: clamp(46px, 8vw, 72px);
+}
+
+.membership-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.membership-grid article {
+  min-height: 150px;
+  padding: 22px;
+  background: #f5f3ec;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.membership-grid span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.membership-grid strong {
+  display: block;
+  margin-top: 12px;
+  color: var(--ink);
+  font-family: "STKaiti", "KaiTi", serif;
+  font-size: 34px;
+}
+
+.membership-grid p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.redeem-card {
+  display: grid;
+  grid-template-columns: 1fr 132px;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 18px;
+  background: #fdfbf4;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.redeem-card button {
+  align-self: end;
+  height: 52px;
+  color: white;
+  background: var(--accent);
+  border: 0;
+  border-radius: 15px;
+  cursor: pointer;
+}
+
+.redeem-card button:disabled {
+  color: #9ca6a1;
+  background: #e6e7e3;
+  cursor: not-allowed;
+}
+
 .placeholder-header {
   display: flex;
   align-items: center;
@@ -653,6 +745,10 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .membership-grid {
+    grid-template-columns: 1fr;
+  }
+
   .login-story {
     min-height: auto;
     padding: 28px;
@@ -691,6 +787,10 @@ a {
   .login-card {
     padding: 30px 22px;
     border-radius: 24px;
+  }
+
+  .redeem-card {
+    grid-template-columns: 1fr;
   }
 
   .login-story h1 {

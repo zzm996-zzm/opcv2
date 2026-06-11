@@ -61,6 +61,7 @@ function HomePage() {
               <div className="account-menu">
                 <strong>{session.user.nickname}</strong>
                 <span>{maskPhone(session.user.phone)}</span>
+                <Link to="/membership">会员中心</Link>
                 <button onClick={logout} type="button">
                   退出登录
                 </button>

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/health"
 	"github.com/zzm/opcv2/internal/platform/httpserver"
@@ -56,13 +57,16 @@ func main() {
 		GenerateCode: func() (string, error) { return cfg.SMSDevCode, nil },
 	})
 	authHTTP := auth.NewHTTPHandler(authService, tokenManager, cfg.Environment == "production")
+	membershipRepository := membership.NewPostgresRepository(db)
+	membershipService := membership.NewService(membershipRepository)
+	membershipHTTP := membership.NewHTTPHandler(membershipService)
 
 	checker := health.NewChecker(db, redisClient)
 	server := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.HealthChecks{
 			Ready: func() bool { return checker.Ready(context.Background()) },
-		}, authHTTP),
+		}, authHTTP, membershipHTTP),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

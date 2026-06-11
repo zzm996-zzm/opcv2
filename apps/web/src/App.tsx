@@ -6,6 +6,7 @@ import { authSession, useAuthSession } from "./lib/authSession";
 import HomePage from "./pages/HomePage";
 import LegalPage from "./pages/LegalPage";
 import LoginPage from "./pages/LoginPage";
+import MembershipPage from "./pages/MembershipPage";
 import ProductPlaceholder from "./pages/ProductPlaceholder";
 
 const productRoutes = [
@@ -45,6 +46,14 @@ function App() {
       <Route element={<LoginPage />} path="/login" />
       <Route element={<LegalPage kind="terms" />} path="/terms" />
       <Route element={<LegalPage kind="privacy" />} path="/privacy" />
+      <Route
+        element={
+          <RequireAuth>
+            <MembershipPage />
+          </RequireAuth>
+        }
+        path="/membership"
+      />
       {productRoutes.map(([path, title, description]) => (
         <Route
           key={path}
