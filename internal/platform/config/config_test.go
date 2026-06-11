@@ -7,6 +7,9 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	t.Setenv("OPCV2_HTTP_ADDR", "")
 	t.Setenv("OPCV2_DATABASE_URL", "")
 	t.Setenv("OPCV2_REDIS_ADDR", "")
+	t.Setenv("OPCV2_JWT_SECRET", "")
+	t.Setenv("OPCV2_SMS_PROVIDER", "")
+	t.Setenv("OPCV2_SMS_DEV_CODE", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -25,6 +28,9 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	if cfg.RedisAddr != "localhost:6379" {
 		t.Fatalf("RedisAddr = %q, want localhost:6379", cfg.RedisAddr)
 	}
+	if cfg.JWTSecret == "" || cfg.SMSProvider != "development" || cfg.SMSDevCode != "246810" {
+		t.Fatalf("development auth defaults = %+v", cfg)
+	}
 }
 
 func TestLoadUsesEnvironmentOverrides(t *testing.T) {
@@ -32,6 +38,9 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	t.Setenv("OPCV2_HTTP_ADDR", ":9090")
 	t.Setenv("OPCV2_DATABASE_URL", "postgres://example")
 	t.Setenv("OPCV2_REDIS_ADDR", "redis:6380")
+	t.Setenv("OPCV2_JWT_SECRET", "test-jwt-secret")
+	t.Setenv("OPCV2_SMS_PROVIDER", "development")
+	t.Setenv("OPCV2_SMS_DEV_CODE", "123456")
 
 	cfg, err := Load()
 	if err != nil {
@@ -43,5 +52,18 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	}
 	if cfg.DatabaseURL != "postgres://example" || cfg.RedisAddr != "redis:6380" {
 		t.Fatalf("database/redis overrides were not loaded: %+v", cfg)
+	}
+	if cfg.JWTSecret != "test-jwt-secret" || cfg.SMSDevCode != "123456" {
+		t.Fatalf("auth overrides were not loaded: %+v", cfg)
+	}
+}
+
+func TestLoadRejectsProductionWithoutSecrets(t *testing.T) {
+	t.Setenv("OPCV2_ENV", "production")
+	t.Setenv("OPCV2_JWT_SECRET", "")
+	t.Setenv("OPCV2_SMS_PROVIDER", "")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want production configuration error")
 	}
 }

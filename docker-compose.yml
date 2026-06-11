@@ -52,6 +52,9 @@ services:
       OPCV2_HTTP_ADDR: :8080
       OPCV2_DATABASE_URL: postgres://${POSTGRES_USER:-opcv2}:${POSTGRES_PASSWORD:-opcv2}@postgres:5432/${POSTGRES_DB:-opcv2}?sslmode=disable
       OPCV2_REDIS_ADDR: redis:6379
+      OPCV2_JWT_SECRET: ${OPCV2_JWT_SECRET:-development-only-change-me}
+      OPCV2_SMS_PROVIDER: ${OPCV2_SMS_PROVIDER:-development}
+      OPCV2_SMS_DEV_CODE: ${OPCV2_SMS_DEV_CODE:-246810}
     depends_on:
       migrate:
         condition: service_completed_successfully

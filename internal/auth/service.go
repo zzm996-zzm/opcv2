@@ -1,0 +1,247 @@
+package auth
+
+import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
+	"math/big"
+	"regexp"
+	"strings"
+	"time"
+)
+
+var (
+	ErrInvalidPhone        = errors.New("invalid phone")
+	ErrInvalidCode         = errors.New("invalid verification code")
+	ErrCodeRateLimited     = errors.New("verification code rate limited")
+	ErrAgreementRequired   = errors.New("agreement acceptance required")
+	ErrNicknameRequired    = errors.New("nickname required")
+	ErrUserNotFound        = errors.New("user not found")
+	ErrUserDisabled        = errors.New("user disabled")
+	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+)
+
+var mainlandPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
+
+type User struct {
+	ID        int64     `json:"id"`
+	Nickname  string    `json:"nickname"`
+	Phone     string    `json:"phone"`
+	Wechat    string    `json:"wechat,omitempty"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type LoginMeta struct {
+	IP        string
+	UserAgent string
+}
+
+type LoginInput struct {
+	Nickname          string
+	Phone             string
+	Code              string
+	AgreementAccepted bool
+	IP                string
+	UserAgent         string
+}
+
+type LoginResult struct {
+	User               User      `json:"user"`
+	AccessToken        string    `json:"access_token"`
+	AccessTokenExpires time.Time `json:"access_token_expires_at"`
+	RefreshToken       string    `json:"refresh_token"`
+	IsNewUser          bool      `json:"is_new_user"`
+}
+
+type CodeStore interface {
+	Issue(ctx context.Context, phone, code string, ttl, cooldown time.Duration) error
+	Verify(ctx context.Context, phone, code string) error
+}
+
+type SMSProvider interface {
+	SendCode(ctx context.Context, phone, code string) error
+}
+
+type UserRepository interface {
+	FindOrCreateByPhone(ctx context.Context, nickname, phone string, agreementAcceptedAt time.Time) (User, bool, error)
+	RecordLogin(ctx context.Context, userID int64, meta LoginMeta) error
+	FindByID(ctx context.Context, userID int64) (User, error)
+}
+
+type TokenManager interface {
+	IssueAccess(user User) (token string, expiresAt time.Time, err error)
+	ParseAccess(token string) (userID int64, err error)
+}
+
+type SessionStore interface {
+	Create(ctx context.Context, userID int64, ttl time.Duration) (string, error)
+	Consume(ctx context.Context, token string) (userID int64, err error)
+	Delete(ctx context.Context, token string) error
+}
+
+type Dependencies struct {
+	Codes        CodeStore
+	SMS          SMSProvider
+	Users        UserRepository
+	Tokens       TokenManager
+	Sessions     SessionStore
+	GenerateCode func() (string, error)
+	CodeTTL      time.Duration
+	CodeCooldown time.Duration
+	RefreshTTL   time.Duration
+}
+
+type Service struct {
+	deps Dependencies
+}
+
+func NewService(deps Dependencies) *Service {
+	if deps.GenerateCode == nil {
+		deps.GenerateCode = generateSixDigitCode
+	}
+	if deps.CodeTTL <= 0 {
+		deps.CodeTTL = 5 * time.Minute
+	}
+	if deps.CodeCooldown <= 0 {
+		deps.CodeCooldown = 60 * time.Second
+	}
+	if deps.RefreshTTL <= 0 {
+		deps.RefreshTTL = 7 * 24 * time.Hour
+	}
+	return &Service{deps: deps}
+}
+
+func (s *Service) SendCode(ctx context.Context, rawPhone string) error {
+	phone := strings.TrimSpace(rawPhone)
+	if !mainlandPhonePattern.MatchString(phone) {
+		return ErrInvalidPhone
+	}
+	if s.deps.Codes == nil || s.deps.SMS == nil {
+		return errors.New("SMS service is not configured")
+	}
+	code, err := s.deps.GenerateCode()
+	if err != nil {
+		return fmt.Errorf("generate code: %w", err)
+	}
+	if err := s.deps.Codes.Issue(ctx, phone, code, s.deps.CodeTTL, s.deps.CodeCooldown); err != nil {
+		return err
+	}
+	if err := s.deps.SMS.SendCode(ctx, phone, code); err != nil {
+		return fmt.Errorf("send SMS code: %w", err)
+	}
+	return nil
+}
+
+func (s *Service) Login(ctx context.Context, input LoginInput) (LoginResult, error) {
+	input.Nickname = strings.TrimSpace(input.Nickname)
+	input.Phone = strings.TrimSpace(input.Phone)
+	input.Code = strings.TrimSpace(input.Code)
+
+	if !input.AgreementAccepted {
+		return LoginResult{}, ErrAgreementRequired
+	}
+	if input.Nickname == "" {
+		return LoginResult{}, ErrNicknameRequired
+	}
+	if !mainlandPhonePattern.MatchString(input.Phone) {
+		return LoginResult{}, ErrInvalidPhone
+	}
+	if s.deps.Codes == nil {
+		return LoginResult{}, errors.New("auth service is not configured")
+	}
+	if err := s.deps.Codes.Verify(ctx, input.Phone, input.Code); err != nil {
+		return LoginResult{}, err
+	}
+	if s.deps.Users == nil || s.deps.Tokens == nil || s.deps.Sessions == nil {
+		return LoginResult{}, errors.New("auth service is not configured")
+	}
+
+	user, created, err := s.deps.Users.FindOrCreateByPhone(ctx, input.Nickname, input.Phone, time.Now())
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("find or create user: %w", err)
+	}
+	if user.Status != "active" {
+		return LoginResult{}, ErrUserDisabled
+	}
+	if err := s.deps.Users.RecordLogin(ctx, user.ID, LoginMeta{IP: input.IP, UserAgent: input.UserAgent}); err != nil {
+		return LoginResult{}, fmt.Errorf("record login: %w", err)
+	}
+	accessToken, expiresAt, err := s.deps.Tokens.IssueAccess(user)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("issue access token: %w", err)
+	}
+	refreshToken, err := s.deps.Sessions.Create(ctx, user.ID, s.deps.RefreshTTL)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("create refresh session: %w", err)
+	}
+	return LoginResult{
+		User:               user,
+		AccessToken:        accessToken,
+		AccessTokenExpires: expiresAt,
+		RefreshToken:       refreshToken,
+		IsNewUser:          created,
+	}, nil
+}
+
+func (s *Service) Refresh(ctx context.Context, refreshToken string) (LoginResult, error) {
+	if s.deps.Sessions == nil || s.deps.Users == nil || s.deps.Tokens == nil {
+		return LoginResult{}, errors.New("auth service is not configured")
+	}
+	userID, err := s.deps.Sessions.Consume(ctx, strings.TrimSpace(refreshToken))
+	if err != nil {
+		return LoginResult{}, err
+	}
+	user, err := s.deps.Users.FindByID(ctx, userID)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	if user.Status != "active" {
+		return LoginResult{}, ErrUserDisabled
+	}
+	accessToken, expiresAt, err := s.deps.Tokens.IssueAccess(user)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	nextRefreshToken, err := s.deps.Sessions.Create(ctx, user.ID, s.deps.RefreshTTL)
+	if err != nil {
+		return LoginResult{}, err
+	}
+	return LoginResult{
+		User:               user,
+		AccessToken:        accessToken,
+		AccessTokenExpires: expiresAt,
+		RefreshToken:       nextRefreshToken,
+	}, nil
+}
+
+func (s *Service) Logout(ctx context.Context, refreshToken string) error {
+	if s.deps.Sessions == nil {
+		return nil
+	}
+	return s.deps.Sessions.Delete(ctx, strings.TrimSpace(refreshToken))
+}
+
+func (s *Service) CurrentUser(ctx context.Context, userID int64) (User, error) {
+	if s.deps.Users == nil {
+		return User{}, errors.New("auth service is not configured")
+	}
+	user, err := s.deps.Users.FindByID(ctx, userID)
+	if err != nil {
+		return User{}, err
+	}
+	if user.Status != "active" {
+		return User{}, ErrUserDisabled
+	}
+	return user, nil
+}
+
+func generateSixDigitCode() (string, error) {
+	max := big.NewInt(1_000_000)
+	number, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", number.Int64()), nil
+}

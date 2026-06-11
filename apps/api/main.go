@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/zzm/opcv2/internal/auth"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/health"
 	"github.com/zzm/opcv2/internal/platform/httpserver"
@@ -37,12 +38,31 @@ func main() {
 	redisClient := rediscache.NewClient(cfg.RedisAddr)
 	defer func() { _ = redisClient.Close() }()
 
+	userRepository := auth.NewPostgresUserRepository(db)
+	codeStore := auth.NewRedisCodeStore(redisClient.Client)
+	sessionStore := auth.NewRedisSessionStore(redisClient.Client)
+	tokenManager := auth.NewJWTManager(cfg.JWTSecret, 15*time.Minute)
+	if cfg.SMSProvider != "development" {
+		logger.Error("unsupported SMS provider", "provider", cfg.SMSProvider)
+		os.Exit(1)
+	}
+	smsProvider := auth.NewDevelopmentSMSProvider(cfg.SMSDevCode)
+	authService := auth.NewService(auth.Dependencies{
+		Codes:        codeStore,
+		SMS:          smsProvider,
+		Users:        userRepository,
+		Tokens:       tokenManager,
+		Sessions:     sessionStore,
+		GenerateCode: func() (string, error) { return cfg.SMSDevCode, nil },
+	})
+	authHTTP := auth.NewHTTPHandler(authService, tokenManager, cfg.Environment == "production")
+
 	checker := health.NewChecker(db, redisClient)
 	server := &http.Server{
 		Addr: cfg.HTTPAddr,
 		Handler: httpserver.NewRouter(httpserver.HealthChecks{
 			Ready: func() bool { return checker.Ready(context.Background()) },
-		}),
+		}, authHTTP),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

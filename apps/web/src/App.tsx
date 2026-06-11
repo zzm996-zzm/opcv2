@@ -1,71 +1,76 @@
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
-const navigation = [
-  { label: "首页", href: "/" },
-  { label: "免费分析", href: "/analysis" },
-  { label: "VIP获客", href: "/leads" },
-  { label: "咨询通", href: "/insights" },
-  { label: "工具箱", href: "/tools" },
-  { label: "社群", href: "/community" }
-];
+import { authApi } from "./lib/authApi";
+import { authSession, useAuthSession } from "./lib/authSession";
+import HomePage from "./pages/HomePage";
+import LegalPage from "./pages/LegalPage";
+import LoginPage from "./pages/LoginPage";
+import ProductPlaceholder from "./pages/ProductPlaceholder";
+
+const productRoutes = [
+  ["/analysis", "免费分析", "把你的资源和目标整理成可执行的方向。"],
+  ["/leads", "VIP获客", "从公开来源发现企业线索，并沉淀到客户库。"],
+  ["/insights", "咨询通", "查看行业动态、案例和商业机会证据。"],
+  ["/tools", "工具箱", "集中管理适合一人公司的效率工具。"],
+  ["/community", "社群", "查看活动、权益与同行交流入口。"]
+] as const;
 
 function App() {
+  useEffect(() => {
+    const session = authSession.get();
+    if (session.accessToken || session.ready) return;
+
+    let active = true;
+    authApi
+      .restore()
+      .then((result) => {
+        if (active) authSession.set(result);
+      })
+      .catch(() => {
+        // A missing refresh cookie is the normal signed-out state.
+      })
+      .finally(() => {
+        if (active) authSession.finishRestore();
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
-    <div className="app-shell antialiased">
-      <header className="site-header">
-        <Link className="brand" to="/" aria-label="智活AI OPC 首页">
-          <span className="brand-mark">智</span>
-          <span>智活AI</span>
-        </Link>
-
-        <nav className="main-nav" aria-label="主导航">
-          {navigation.map((item) => (
-            <Link key={item.href} to={item.href}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <Link className="primary-action compact" to="/login">
-          开始体验
-        </Link>
-      </header>
-
-      <main className="hero">
-        <div className="hero-kicker">
-          <span />
-          从判断方向，到找到客户
-        </div>
-        <h1>把商业想法，变成下一步行动</h1>
-        <p>
-          描述你的资源、经验或目标。AI 会补充关键问题，给出可执行的方向，
-          再帮你找到真实企业线索。
-        </p>
-
-        <div className="intent-box">
-          <label htmlFor="business-intent">今天想解决什么问题？</label>
-          <div className="intent-control">
-            <textarea
-              id="business-intent"
-              rows={3}
-              placeholder="例如：我有 10 年教培经验和 5 万预算，在成都适合做什么？"
-            />
-            <button type="button" aria-label="提交需求">
-              <span>开始分析</span>
-              <span aria-hidden="true">↗</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="quick-intents" aria-label="快捷问题">
-          <Link to="/analysis?mode=direction">我适合做什么</Link>
-          <Link to="/analysis?mode=competitor">拆解一个对标公司</Link>
-          <Link to="/leads">帮我找成都教培客户</Link>
-          <Link to="/tools">推荐适合我的工具</Link>
-        </div>
-      </main>
-    </div>
+    <Routes>
+      <Route element={<HomePage />} path="/" />
+      <Route element={<LoginPage />} path="/login" />
+      <Route element={<LegalPage kind="terms" />} path="/terms" />
+      <Route element={<LegalPage kind="privacy" />} path="/privacy" />
+      {productRoutes.map(([path, title, description]) => (
+        <Route
+          key={path}
+          element={
+            <RequireAuth>
+              <ProductPlaceholder description={description} title={title} />
+            </RequireAuth>
+          }
+          path={path}
+        />
+      ))}
+    </Routes>
   );
+}
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const session = useAuthSession();
+  const location = useLocation();
+
+  if (!session.ready) {
+    return <main className="session-loading">正在恢复登录状态...</main>;
+  }
+  if (!session.user) {
+    return <Navigate replace state={{ returnTo: location.pathname + location.search }} to="/login" />;
+  }
+  return children;
 }
 
 export default App;
