@@ -17,17 +17,16 @@ describe("LoginPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("昵称"), { target: { value: "张晨" } });
-    fireEvent.change(screen.getByLabelText("手机号"), {
+    fireEvent.change(screen.getByLabelText("账号/用户名"), {
       target: { value: "13800138000" }
     });
-    fireEvent.change(screen.getByLabelText("验证码"), {
+    fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "246810" }
     });
 
-    expect(screen.getByRole("button", { name: "开始使用" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "登录" })).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
-    expect(screen.getByRole("button", { name: "开始使用" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "登录" })).toBeEnabled();
   });
 
   it("sends a code and logs in", async () => {
@@ -57,18 +56,17 @@ describe("LoginPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("昵称"), { target: { value: "张晨" } });
-    fireEvent.change(screen.getByLabelText("手机号"), {
+    fireEvent.change(screen.getByLabelText("账号/用户名"), {
       target: { value: "13800138000" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
+    fireEvent.click(screen.getByRole("button", { name: "手机号快捷登录" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    fireEvent.change(screen.getByLabelText("验证码"), {
+    fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "246810" }
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
-    fireEvent.click(screen.getByRole("button", { name: "开始使用" }));
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("登录成功，正在进入工作台")).toBeInTheDocument();
@@ -104,15 +102,14 @@ describe("LoginPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("昵称"), { target: { value: "张晨" } });
-    fireEvent.change(screen.getByLabelText("手机号"), {
+    fireEvent.change(screen.getByLabelText("账号/用户名"), {
       target: { value: "13800138000" }
     });
-    fireEvent.change(screen.getByLabelText("验证码"), {
+    fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "246810" }
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
-    fireEvent.click(screen.getByRole("button", { name: "开始使用" }));
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
 
     await vi.runAllTimersAsync();
     expect(screen.getByRole("heading", { name: "VIP获客" })).toBeInTheDocument();

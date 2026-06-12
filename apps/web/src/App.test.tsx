@@ -36,9 +36,10 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(
-      await screen.findByRole("heading", { name: "登录或创建账号" })
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "登录" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
   it("renders a product route for a signed-in user", () => {
