@@ -1367,13 +1367,13 @@ body {
   min-height: 100vh;
   overflow: hidden;
   color: #07152f;
-  background: linear-gradient(90deg, #f5f8ff 0%, #edf4ff 54%, #fbfdff 54%, #ffffff 100%);
+  background: linear-gradient(90deg, #f4f8ff 0%, #edf4ff 54%, #fbfdff 54%, #ffffff 100%);
 }
 
 .login-story {
   position: relative;
   min-height: 100vh;
-  padding: 40px 44px 30px 92px;
+  padding: 34px 44px 30px clamp(48px, 4.6vw, 76px);
   background:
     radial-gradient(circle at 78% 56%, rgba(67, 133, 255, 0.15), transparent 34%),
     radial-gradient(circle at 10% 92%, rgba(21, 91, 255, 0.08), transparent 28%),
@@ -1401,7 +1401,7 @@ body {
   gap: 14px;
   color: #07152f;
   font-family: "Noto Sans SC", "PingFang SC", sans-serif;
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 900;
   letter-spacing: -0.04em;
 }
@@ -1409,7 +1409,7 @@ body {
 .auth-logo small {
   margin-left: 6px;
   color: #10234d;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 800;
   letter-spacing: 0;
 }
@@ -1417,16 +1417,16 @@ body {
 .auth-logo-symbol {
   position: relative;
   display: inline-block;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
 }
 
 .auth-logo-symbol::before,
 .auth-logo-symbol::after {
   position: absolute;
   bottom: 4px;
-  width: 17px;
-  height: 42px;
+  width: 18px;
+  height: 46px;
   content: "";
   background: linear-gradient(180deg, #43e9ff 0%, #1769ff 58%, #624dff 100%);
   border-radius: 999px;
@@ -1434,12 +1434,12 @@ body {
 }
 
 .auth-logo-symbol::before {
-  left: 8px;
+  left: 9px;
   transform: rotate(24deg);
 }
 
 .auth-logo-symbol::after {
-  right: 8px;
+  right: 9px;
   transform: rotate(-24deg);
 }
 
@@ -1447,7 +1447,7 @@ body {
   position: relative;
   z-index: 4;
   max-width: 610px;
-  margin: 132px 0 0;
+  margin: 64px 0 0;
 }
 
 .login-story-copy .section-eyebrow {
@@ -1487,28 +1487,28 @@ body {
 .auth-stage {
   position: absolute;
   z-index: 2;
-  right: 68px;
-  bottom: 126px;
-  width: 470px;
-  height: 470px;
+  right: 54px;
+  bottom: 112px;
+  width: 500px;
+  height: 500px;
   perspective: 900px;
-  opacity: 0.98;
+  opacity: 0.92;
 }
 
 .orbit {
   position: absolute;
   left: 50%;
   top: 43%;
-  width: 430px;
-  height: 145px;
+  width: 470px;
+  height: 154px;
   border: 2px solid rgba(82, 136, 255, 0.2);
   border-radius: 50%;
   transform: translate(-50%, -50%) rotate(-16deg);
 }
 
 .orbit-b {
-  width: 388px;
-  height: 116px;
+  width: 424px;
+  height: 126px;
   transform: translate(-50%, -50%) rotate(26deg);
 }
 
@@ -1516,8 +1516,8 @@ body {
   position: absolute;
   right: 38px;
   bottom: 10px;
-  width: 380px;
-  height: 198px;
+  width: 414px;
+  height: 214px;
   transform: rotateX(62deg) rotateZ(-4deg);
   transform-style: preserve-3d;
 }
@@ -1549,10 +1549,10 @@ body {
 .floating-a {
   position: absolute;
   left: 50%;
-  top: -136px;
+  top: -152px;
   display: block;
-  width: 206px;
-  height: 228px;
+  width: 224px;
+  height: 246px;
   background:
     radial-gradient(circle at 46% 24%, rgba(101, 230, 255, 0.95), transparent 26%),
     linear-gradient(135deg, rgba(105, 224, 255, 0.9), rgba(25, 101, 255, 0.92) 56%, rgba(120, 90, 255, 0.88));
@@ -1679,25 +1679,29 @@ body {
   position: relative;
   display: grid;
   min-height: 100vh;
-  padding: 58px 86px 58px 76px;
+  padding: 82px clamp(58px, 5vw, 86px) 48px clamp(54px, 4.5vw, 76px);
   background:
     radial-gradient(circle at 42% 14%, rgba(70, 132, 255, 0.07), transparent 30%),
     #fbfdff;
-  place-items: center;
+  align-items: start;
+  justify-items: center;
 }
 
 .auth-help {
   position: absolute;
-  top: 52px;
-  right: 68px;
+  z-index: 5;
+  top: 48px;
+  right: clamp(58px, 5vw, 82px);
   color: #142651;
   font-size: 15px;
   font-weight: 800;
 }
 
 .login-card {
+  position: relative;
+  z-index: 2;
   width: min(100%, 690px);
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 116px);
   padding: 42px 44px 34px;
   overflow: auto;
   background: rgba(255, 255, 255, 0.92);
@@ -1774,13 +1778,29 @@ body {
 .code-control input {
   width: 100%;
   height: 52px;
-  padding: 0 18px;
+  padding: 0 18px 0 48px;
   color: #0a1736;
   background: rgba(255, 255, 255, 0.96);
+  background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 18 18' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='9' cy='6' r='3' stroke='%2399A9C8' stroke-width='1.7'/%3E%3Cpath d='M3.8 15c.8-3 2.7-4.5 5.2-4.5S13.4 12 14.2 15' stroke='%2399A9C8' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 18px 50%;
+  background-size: 18px 18px;
   border: 1px solid #d8e2f1;
   border-radius: 6px;
   outline: none;
   box-shadow: inset 0 1px 2px rgba(15, 45, 95, 0.02);
+}
+
+.auth-input:has(input[type="password"]) input {
+  background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 18 18' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='3.4' y='7.4' width='11.2' height='7.6' rx='1.6' stroke='%2399A9C8' stroke-width='1.7'/%3E%3Cpath d='M6 7.4V5.8a3 3 0 0 1 6 0v1.6' stroke='%2399A9C8' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.auth-input:has(input[type="email"]) input {
+  background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 18 18' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='2.8' y='4.4' width='12.4' height='9.2' rx='1.6' stroke='%2399A9C8' stroke-width='1.7'/%3E%3Cpath d='m3.5 5.5 5.5 4 5.5-4' stroke='%2399A9C8' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.auth-input:has(.code-control) input {
+  background-image: url("data:image/svg+xml,%3Csvg width='18' height='18' viewBox='0 0 18 18' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='5' y='2.8' width='8' height='12.4' rx='1.6' stroke='%2399A9C8' stroke-width='1.7'/%3E%3Cpath d='M8 12.8h2' stroke='%2399A9C8' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 
 .auth-input input::placeholder,
@@ -1968,18 +1988,18 @@ body {
 
 @media (max-width: 1500px) {
   .login-story {
-    padding-left: 64px;
+    padding-left: 48px;
   }
 
   .login-story-copy {
-    max-width: 560px;
+    max-width: 570px;
   }
 
   .auth-stage {
-    right: -48px;
-    bottom: 112px;
-    opacity: 0.82;
-    transform: scale(0.88);
+    right: -28px;
+    bottom: 96px;
+    opacity: 0.78;
+    transform: scale(0.86);
     transform-origin: right bottom;
   }
 
@@ -1988,8 +2008,7 @@ body {
   }
 
   .login-panel {
-    padding-right: 58px;
-    padding-left: 58px;
+    padding: 80px 58px 48px;
   }
 }
 
