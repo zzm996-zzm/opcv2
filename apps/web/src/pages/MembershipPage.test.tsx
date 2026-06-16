@@ -1,55 +1,22 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { authSession } from "../lib/authSession";
 import MembershipPage from "./MembershipPage";
 
 describe("MembershipPage", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    authSession.clear();
   });
 
-  it("shows current plan and redeems a code", async () => {
+  it("renders the V4 membership and billing page", () => {
     authSession.set({
       access_token: "access-token",
       access_token_expires_at: "2026-06-11T12:00:00Z",
       is_new_user: false,
       user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
     });
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            plan: {
-              code: "free",
-              name: "免费版",
-              monthly_analysis_limit: 3,
-              lead_export_limit: 0
-            },
-            credit_balance: 0
-          }),
-          { status: 200 }
-        )
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            snapshot: {
-              plan: {
-                code: "pro",
-                name: "专业版",
-                monthly_analysis_limit: 100,
-                lead_export_limit: 1000
-              },
-              credit_balance: 100
-            },
-            already_redeemed: false
-          }),
-          { status: 200 }
-        )
-      );
 
     render(
       <MemoryRouter>
@@ -57,12 +24,22 @@ describe("MembershipPage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("免费版")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("兑换码"), { target: { value: "PRO100" } });
-    fireEvent.click(screen.getByRole("button", { name: "兑换" }));
+    expect(screen.getByRole("heading", { name: "会员与账单" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "企业版 会员生效" })).toBeInTheDocument();
+    expect(screen.getByText("订单记录")).toBeInTheDocument();
+    expect(screen.getByText("ZS-20250531-0012")).toBeInTheDocument();
+  });
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText("专业版")).toBeInTheDocument();
-    expect(screen.getByText("100")).toBeInTheDocument();
+  it("renders the upgrade modal state", () => {
+    render(
+      <MemoryRouter>
+        <MembershipPage showUpgrade />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("dialog", { name: "升级套餐" })).toBeInTheDocument();
+    expect(screen.getByText("会员版")).toBeInTheDocument();
+    expect(screen.getByText("权益对比一览")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "立即开通" })).toBeInTheDocument();
   });
 });

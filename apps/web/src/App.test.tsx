@@ -18,12 +18,12 @@ describe("App", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "一框输入，开始增长" })
+      screen.getByRole("heading", { name: "欢迎来到 智活AI" })
     ).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "主导航" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "免费分析" })).toHaveAttribute(
+    expect(screen.getByRole("navigation", { name: "顶部全局功能区" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "工具箱" })).toHaveAttribute(
       "href",
-      "/analysis"
+      "/tools"
     );
   });
 
@@ -61,6 +61,51 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("heading", { name: "VIP获客" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI线索开发" })).toBeInTheDocument();
+  });
+
+  it("renders first-class V4 account routes for a signed-in user", () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-11T12:00:00Z",
+      is_new_user: false,
+      user: {
+        id: 7,
+        nickname: "张晨",
+        phone: "13800138000",
+        status: "active"
+      }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/profile/settings"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "账号与资料设置" })).toBeInTheDocument();
+  });
+
+  it("renders the free-loop V4 product routes for a signed-in user", () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-11T12:00:00Z",
+      is_new_user: false,
+      user: {
+        id: 7,
+        nickname: "张晨",
+        phone: "13800138000",
+        status: "active"
+      }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/projects"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "项目超市" })).toBeInTheDocument();
+    expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
   });
 });

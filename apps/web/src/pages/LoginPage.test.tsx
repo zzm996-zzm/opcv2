@@ -2,10 +2,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { authSession } from "../lib/authSession";
 import LoginPage from "./LoginPage";
 
 describe("LoginPage", () => {
   afterEach(() => {
+    authSession.clear();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -17,10 +19,10 @@ describe("LoginPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("账号/用户名"), {
+    fireEvent.change(screen.getByLabelText("手机号"), {
       target: { value: "13800138000" }
     });
-    fireEvent.change(screen.getByLabelText("密码"), {
+    fireEvent.change(screen.getByLabelText("验证码"), {
       target: { value: "246810" }
     });
 
@@ -56,13 +58,13 @@ describe("LoginPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("账号/用户名"), {
+    fireEvent.change(screen.getByLabelText("手机号"), {
       target: { value: "13800138000" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "手机号快捷登录" }));
+    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    fireEvent.change(screen.getByLabelText("密码"), {
+    fireEvent.change(screen.getByLabelText("验证码"), {
       target: { value: "246810" }
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
@@ -72,8 +74,24 @@ describe("LoginPage", () => {
     expect(await screen.findByText("登录成功，正在进入工作台")).toBeInTheDocument();
   });
 
+  it("renders the registration fields from the UI design", () => {
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "注册" }));
+
+    expect(screen.getByLabelText("账号")).toBeInTheDocument();
+    expect(screen.getByLabelText("密码")).toBeInTheDocument();
+    expect(screen.getByLabelText("确认密码")).toBeInTheDocument();
+    expect(screen.getByLabelText("邮箱")).toBeInTheDocument();
+    expect(screen.getByLabelText("微信或企业微信")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "注册并创建账号" })).toBeDisabled();
+  });
+
   it("returns to the requested route after login", async () => {
-    vi.useFakeTimers();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -97,21 +115,21 @@ describe("LoginPage", () => {
       >
         <Routes>
           <Route element={<LoginPage />} path="/login" />
-          <Route element={<h1>VIP获客</h1>} path="/leads" />
+          <Route element={<h1>AI线索开发</h1>} path="/leads" />
         </Routes>
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("账号/用户名"), {
+    fireEvent.change(screen.getByLabelText("手机号"), {
       target: { value: "13800138000" }
     });
-    fireEvent.change(screen.getByLabelText("密码"), {
+    fireEvent.change(screen.getByLabelText("验证码"), {
       target: { value: "246810" }
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
 
-    await vi.runAllTimersAsync();
-    expect(screen.getByRole("heading", { name: "VIP获客" })).toBeInTheDocument();
+    expect(await screen.findByText("登录成功，正在进入工作台")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "AI线索开发" })).toBeInTheDocument();
   });
 });
