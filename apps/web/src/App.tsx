@@ -9,9 +9,16 @@ import CommunityMembersPage from "./pages/CommunityMembersPage";
 import CommunityPage from "./pages/CommunityPage";
 import CopilotPage from "./pages/CopilotPage";
 import CompetitorDataPage from "./pages/CompetitorDataPage";
+import CompetitorMonitoringPage from "./pages/CompetitorMonitoringPage";
+import CrmPage from "./pages/CrmPage";
+import DashboardPage from "./pages/DashboardPage";
+import EnterprisePage from "./pages/EnterprisePage";
+import GeoAcquisitionPage from "./pages/GeoAcquisitionPage";
+import GrowthCalculatorPage from "./pages/GrowthCalculatorPage";
 import HelpPage from "./pages/HelpPage";
 import HomePage from "./pages/HomePage";
 import InsightsPage from "./pages/InsightsPage";
+import LeadDevelopmentPage from "./pages/LeadDevelopmentPage";
 import LegalPage from "./pages/LegalPage";
 import LearningAssessmentPage from "./pages/LearningAssessmentPage";
 import LearningCourseDetailPage from "./pages/LearningCourseDetailPage";
@@ -28,23 +35,12 @@ import LearningReportPage from "./pages/LearningReportPage";
 import LoginPage from "./pages/LoginPage";
 import MembershipPage from "./pages/MembershipPage";
 import MessagesPage from "./pages/MessagesPage";
-import ProductPlaceholder from "./pages/ProductPlaceholder";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterDetailsPage from "./pages/RegisterDetailsPage";
 import SandboxPage from "./pages/SandboxPage";
 import TasksPage from "./pages/TasksPage";
 import ToolsPage from "./pages/ToolsPage";
-
-const productRoutes = [
-  ["/competitor-monitoring", "竞品动态监测", "持续盯招聘、内容、投放与新品动态。"],
-  ["/growth-calculator", "增长测算", "用成本、客单价和转化假设测算营收。"],
-  ["/geo", "GEO获客", "占位展示 AI 搜索收录获客能力。"],
-  ["/leads", "AI线索开发", "占位展示精准线索开发能力。"],
-  ["/dashboard", "仪表盘", "占位展示经营数据看板。"],
-  ["/crm", "CRM客户管理", "占位展示客户全生命周期管理。"],
-  ["/enterprise", "企业定制化陪跑", "展示企业陪跑服务、案例与咨询入口。"]
-] as const;
 
 function App() {
   useEffect(() => {
@@ -431,6 +427,62 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <CompetitorMonitoringPage />
+          </RequireAuth>
+        }
+        path="/competitor-monitoring"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <GrowthCalculatorPage />
+          </RequireAuth>
+        }
+        path="/growth-calculator"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <GeoAcquisitionPage />
+          </RequireAuth>
+        }
+        path="/geo"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LeadDevelopmentPage />
+          </RequireAuth>
+        }
+        path="/leads"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <DashboardPage />
+          </RequireAuth>
+        }
+        path="/dashboard"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CrmPage />
+          </RequireAuth>
+        }
+        path="/crm"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <EnterprisePage />
+          </RequireAuth>
+        }
+        path="/enterprise"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <ProfilePage />
           </RequireAuth>
         }
@@ -508,17 +560,6 @@ function App() {
         }
         path="/help"
       />
-      {productRoutes.map(([path, title, description]) => (
-        <Route
-          key={path}
-          element={
-            <RequireAuth>
-              <ProductPlaceholder description={description} title={title} />
-            </RequireAuth>
-          }
-          path={path}
-        />
-      ))}
     </Routes>
   );
 }

@@ -23,15 +23,15 @@
 | --- | --- | --- | --- |
 | 3 | 任务中心 | `/tasks` | 已完成 |
 | 4 | 竞品全盘数据破解 | `/competitor-data` | 已完成 |
-| 5 | 竞品动态监测 | `/competitor-monitoring` | 待复刻 |
-| 6 | 增长测算 | `/growth-calculator` | 待复刻 |
+| 5 | 竞品动态监测 | `/competitor-monitoring` | 已完成 |
+| 6 | 增长测算 | `/growth-calculator` | 已完成 |
 
 ## 增长
 
 | 顺序 | 入口 | 目标路由 | 状态 |
 | --- | --- | --- | --- |
-| 7 | GEO获客 | `/geo` | 待复刻 |
-| 8 | AI线索开发 | `/leads` | 待复刻 |
-| 9 | 仪表盘 | `/dashboard` | 待复刻 |
-| 10 | CRM客户管理 | `/crm` | 待复刻 |
-| 11 | 企业定制化陪跑 | `/enterprise` | 待复刻 |
+| 7 | GEO获客 | `/geo` | 已完成 |
+| 8 | AI线索开发 | `/leads` | 已完成 |
+| 9 | 仪表盘 | `/dashboard` | 已完成 |
+| 10 | CRM客户管理 | `/crm` | 已完成 |
+| 11 | 企业定制化陪跑 | `/enterprise` | 已完成 |
