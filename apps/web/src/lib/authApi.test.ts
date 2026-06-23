@@ -27,6 +27,70 @@ describe("authApi", () => {
     );
   });
 
+  it("posts account password login payload", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-token",
+          access_token_expires_at: "2026-06-18T12:00:00Z",
+          is_new_user: false,
+          user: { id: 42, nickname: "部署测试", account: "deploy_user", phone: "", status: "active" }
+        }),
+        { status: 200 }
+      )
+    );
+
+    await authApi.login({
+      account: "deploy_user",
+      password: "secret123"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/auth/login",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          account: "deploy_user",
+          password: "secret123"
+        })
+      })
+    );
+  });
+
+  it("posts account password registration payload", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-token",
+          access_token_expires_at: "2026-06-18T12:00:00Z",
+          is_new_user: true,
+          user: { id: 42, nickname: "部署测试", account: "deploy_user", phone: "", status: "active" }
+        }),
+        { status: 200 }
+      )
+    );
+
+    await authApi.register({
+      nickname: "部署测试",
+      account: "deploy_user",
+      password: "secret123",
+      agreementAccepted: true
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/auth/register",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          nickname: "部署测试",
+          account: "deploy_user",
+          password: "secret123",
+          agreement_accepted: true
+        })
+      })
+    );
+  });
+
   it("deduplicates concurrent session restore requests", async () => {
     let resolveRequest!: (response: Response) => void;
     const responsePromise = new Promise<Response>((resolve) => {

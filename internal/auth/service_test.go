@@ -39,6 +39,9 @@ type fakeUserRepository struct {
 	user         User
 	created      bool
 	findErr      error
+	account      string
+	passwordHash string
+	registered   bool
 	recordedMeta LoginMeta
 }
 
@@ -50,6 +53,29 @@ func (r *fakeUserRepository) FindOrCreateByPhone(_ context.Context, nickname, ph
 		r.user = User{ID: 42, Nickname: nickname, Phone: phone, Status: "active"}
 	}
 	return r.user, r.created, nil
+}
+
+func (r *fakeUserRepository) RegisterAccount(_ context.Context, nickname, account, passwordHash string, _ time.Time) (User, error) {
+	if r.findErr != nil {
+		return User{}, r.findErr
+	}
+	r.account = account
+	r.passwordHash = passwordHash
+	r.registered = true
+	r.user = User{ID: 42, Nickname: nickname, Account: account, Status: "active"}
+	return r.user, nil
+}
+
+func (r *fakeUserRepository) FindCredentialsByAccount(_ context.Context, account string) (UserCredentials, error) {
+	if r.findErr != nil {
+		return UserCredentials{}, r.findErr
+	}
+	if r.user.ID == 0 || r.account != account {
+		return UserCredentials{}, ErrUserNotFound
+	}
+	user := r.user
+	user.Account = account
+	return UserCredentials{User: user, PasswordHash: r.passwordHash}, nil
 }
 
 func (r *fakeUserRepository) RecordLogin(_ context.Context, _ int64, meta LoginMeta) error {
@@ -154,6 +180,93 @@ func TestLoginCreatesSessionAfterCodeVerification(t *testing.T) {
 	}
 	if users.recordedMeta.IP != "127.0.0.1" || users.recordedMeta.UserAgent != "test-agent" {
 		t.Fatalf("login meta = %+v", users.recordedMeta)
+	}
+}
+
+func TestRegisterWithAccountPasswordHashesPasswordAndCreatesSession(t *testing.T) {
+	users := &fakeUserRepository{}
+	sessions := &fakeSessionStore{}
+	service := NewService(Dependencies{
+		Users:      users,
+		Tokens:     fakeTokenManager{},
+		Sessions:   sessions,
+		RefreshTTL: 7 * 24 * time.Hour,
+	})
+
+	result, err := service.Register(context.Background(), RegisterInput{
+		Nickname:          "部署测试",
+		Account:           "deploy_user",
+		Password:          "secret123",
+		AgreementAccepted: true,
+		IP:                "127.0.0.1",
+		UserAgent:         "test-agent",
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if result.User.Account != "deploy_user" || result.AccessToken != "access-token" || result.RefreshToken != "refresh-token" {
+		t.Fatalf("Register() result = %+v", result)
+	}
+	if !users.registered || users.passwordHash == "" || users.passwordHash == "secret123" {
+		t.Fatalf("stored password hash = %q", users.passwordHash)
+	}
+	if users.recordedMeta.IP != "127.0.0.1" || users.recordedMeta.UserAgent != "test-agent" {
+		t.Fatalf("login meta = %+v", users.recordedMeta)
+	}
+}
+
+func TestLoginWithAccountPasswordCreatesSession(t *testing.T) {
+	hash, err := hashPassword("secret123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	users := &fakeUserRepository{
+		account:      "deploy_user",
+		passwordHash: hash,
+		user:         User{ID: 42, Nickname: "部署测试", Account: "deploy_user", Status: "active"},
+	}
+	sessions := &fakeSessionStore{}
+	service := NewService(Dependencies{
+		Users:    users,
+		Tokens:   fakeTokenManager{},
+		Sessions: sessions,
+	})
+
+	result, err := service.Login(context.Background(), LoginInput{
+		Account:   "deploy_user",
+		Password:  "secret123",
+		IP:        "127.0.0.1",
+		UserAgent: "test-agent",
+	})
+	if err != nil {
+		t.Fatalf("Login() error = %v", err)
+	}
+	if result.User.ID != 42 || result.AccessToken != "access-token" || result.RefreshToken != "refresh-token" {
+		t.Fatalf("Login() result = %+v", result)
+	}
+}
+
+func TestLoginWithAccountPasswordRejectsInvalidPassword(t *testing.T) {
+	hash, err := hashPassword("secret123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(Dependencies{
+		Users: &fakeUserRepository{
+			account:      "deploy_user",
+			passwordHash: hash,
+			user:         User{ID: 42, Nickname: "部署测试", Account: "deploy_user", Status: "active"},
+		},
+		Tokens:   fakeTokenManager{},
+		Sessions: &fakeSessionStore{},
+	})
+
+	_, err = service.Login(context.Background(), LoginInput{
+		Account:  "deploy_user",
+		Password: "wrong-password",
+	})
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("Login() error = %v, want ErrInvalidCredentials", err)
 	}
 }
 

@@ -14,7 +14,9 @@ FROM alpine:3.20
 
 RUN apk add --no-cache ca-certificates tzdata
 RUN addgroup -S app && adduser -S app -G app
+WORKDIR /app
 USER app
 COPY --from=builder /out/service /usr/local/bin/service
+COPY migrations ./migrations
 
 ENTRYPOINT ["/usr/local/bin/service"]

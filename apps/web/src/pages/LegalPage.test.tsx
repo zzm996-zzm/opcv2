@@ -13,6 +13,6 @@ describe("LegalPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "隐私政策" })).toBeInTheDocument();
-    expect(screen.getByText(/手机号码仅用于账号登录/)).toBeInTheDocument();
+    expect(screen.getByText(/账号、密码与可选联系方式/)).toBeInTheDocument();
   });
 });

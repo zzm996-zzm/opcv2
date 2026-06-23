@@ -18,6 +18,7 @@ const (
 type AuthApplication interface {
 	SendCode(ctx context.Context, phone string) error
 	Login(ctx context.Context, input LoginInput) (LoginResult, error)
+	Register(ctx context.Context, input RegisterInput) (LoginResult, error)
 	Refresh(ctx context.Context, refreshToken string) (LoginResult, error)
 	Logout(ctx context.Context, refreshToken string) error
 	CurrentUser(ctx context.Context, userID int64) (User, error)
@@ -37,6 +38,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	authRoutes := router.Group("/auth")
 	authRoutes.POST("/sms/send", h.sendCode)
 	authRoutes.POST("/login", h.login)
+	authRoutes.POST("/register", h.register)
 	authRoutes.POST("/refresh", h.refresh)
 	authRoutes.POST("/logout", h.logout)
 	router.GET("/me", h.RequireAccessToken(), h.me)
@@ -62,6 +64,8 @@ func (h *HTTPHandler) login(c *gin.Context) {
 		Nickname          string `json:"nickname"`
 		Phone             string `json:"phone"`
 		Code              string `json:"code"`
+		Account           string `json:"account"`
+		Password          string `json:"password"`
 		AgreementAccepted bool   `json:"agreement_accepted"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -72,6 +76,35 @@ func (h *HTTPHandler) login(c *gin.Context) {
 		Nickname:          request.Nickname,
 		Phone:             request.Phone,
 		Code:              request.Code,
+		Account:           request.Account,
+		Password:          request.Password,
+		AgreementAccepted: request.AgreementAccepted,
+		IP:                c.ClientIP(),
+		UserAgent:         c.Request.UserAgent(),
+	})
+	if err != nil {
+		writeAuthError(c, err)
+		return
+	}
+	h.setRefreshCookie(c, result.RefreshToken)
+	writeLoginResult(c, result)
+}
+
+func (h *HTTPHandler) register(c *gin.Context) {
+	var request struct {
+		Nickname          string `json:"nickname"`
+		Account           string `json:"account"`
+		Password          string `json:"password"`
+		AgreementAccepted bool   `json:"agreement_accepted"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	result, err := h.app.Register(c.Request.Context(), RegisterInput{
+		Nickname:          request.Nickname,
+		Account:           request.Account,
+		Password:          request.Password,
 		AgreementAccepted: request.AgreementAccepted,
 		IP:                c.ClientIP(),
 		UserAgent:         c.Request.UserAgent(),
@@ -178,10 +211,20 @@ func writeAuthError(c *gin.Context, err error) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_code"})
 	case errors.Is(err, ErrCodeRateLimited):
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "code_rate_limited"})
+	case errors.Is(err, ErrSMSUnavailable):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "sms_unavailable"})
 	case errors.Is(err, ErrAgreementRequired):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "agreement_required"})
 	case errors.Is(err, ErrNicknameRequired):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "nickname_required"})
+	case errors.Is(err, ErrInvalidAccount):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_account"})
+	case errors.Is(err, ErrInvalidPassword):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_password"})
+	case errors.Is(err, ErrInvalidCredentials):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
+	case errors.Is(err, ErrAccountExists):
+		c.JSON(http.StatusConflict, gin.H{"error": "account_exists"})
 	case errors.Is(err, ErrInvalidRefreshToken), errors.Is(err, ErrInvalidAccessToken):
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
 	case errors.Is(err, ErrUserNotFound):

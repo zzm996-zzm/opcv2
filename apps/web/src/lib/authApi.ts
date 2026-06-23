@@ -2,6 +2,7 @@ export type User = {
   id: number;
   nickname: string;
   phone: string;
+  account?: string;
   wechat?: string;
   status: string;
   created_at?: string;
@@ -44,17 +45,30 @@ export const authApi = {
   },
 
   login(input: {
-    nickname: string;
-    phone: string;
-    code: string;
-    agreementAccepted: boolean;
+    account: string;
+    password: string;
   }) {
     return request<LoginResponse>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify({
+        account: input.account,
+        password: input.password
+      })
+    });
+  },
+
+  register(input: {
+    nickname: string;
+    account: string;
+    password: string;
+    agreementAccepted: boolean;
+  }) {
+    return request<LoginResponse>("/api/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
         nickname: input.nickname,
-        phone: input.phone,
-        code: input.code,
+        account: input.account,
+        password: input.password,
         agreement_accepted: input.agreementAccepted
       })
     });

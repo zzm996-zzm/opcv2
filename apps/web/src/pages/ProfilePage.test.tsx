@@ -68,8 +68,9 @@ describe("ProfilePage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "账号与资料设置" })).toBeInTheDocument();
-    expect(screen.getAllByText("未绑定")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "立即绑定" })).toBeInTheDocument();
+    expect(screen.getByText("可选联系方式")).toBeInTheDocument();
+    expect(screen.getByText("未绑定")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "去填写" })).toBeInTheDocument();
   });
 
   it("renders my content records", () => {

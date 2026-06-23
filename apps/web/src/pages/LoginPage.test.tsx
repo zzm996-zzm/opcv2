@@ -12,18 +12,18 @@ describe("LoginPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("requires agreement before login", () => {
+  it("requires agreement before account password login", () => {
     render(
       <MemoryRouter>
         <LoginPage />
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("手机号"), {
-      target: { value: "13800138000" }
+    fireEvent.change(screen.getByLabelText("账号"), {
+      target: { value: "deploy_user" }
     });
-    fireEvent.change(screen.getByLabelText("验证码"), {
-      target: { value: "246810" }
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "secret123" }
     });
 
     expect(screen.getByRole("button", { name: "登录" })).toBeDisabled();
@@ -31,26 +31,24 @@ describe("LoginPage", () => {
     expect(screen.getByRole("button", { name: "登录" })).toBeEnabled();
   });
 
-  it("sends a code and logs in", async () => {
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify({ status: "sent" }), { status: 202 }))
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            access_token: "access-token",
-            access_token_expires_at: new Date(Date.now() + 60000).toISOString(),
-            user: {
-              id: 42,
-              nickname: "张晨",
-              phone: "13800138000",
-              status: "active"
-            },
-            is_new_user: true
-          }),
-          { status: 200 }
-        )
-      );
+  it("logs in with account and password", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-token",
+          access_token_expires_at: new Date(Date.now() + 60000).toISOString(),
+          user: {
+            id: 42,
+            nickname: "部署测试",
+            account: "deploy_user",
+            phone: "",
+            status: "active"
+          },
+          is_new_user: false
+        }),
+        { status: 200 }
+      )
+    );
 
     render(
       <MemoryRouter>
@@ -58,19 +56,16 @@ describe("LoginPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("手机号"), {
-      target: { value: "13800138000" }
+    fireEvent.change(screen.getByLabelText("账号"), {
+      target: { value: "deploy_user" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "获取验证码" }));
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    fireEvent.change(screen.getByLabelText("验证码"), {
-      target: { value: "246810" }
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "secret123" }
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("登录成功，正在进入工作台")).toBeInTheDocument();
   });
 
@@ -88,7 +83,50 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("确认密码")).toBeInTheDocument();
     expect(screen.getByLabelText("邮箱")).toBeInTheDocument();
     expect(screen.getByLabelText("微信或企业微信")).toBeInTheDocument();
+    expect(screen.queryByLabelText("手机号")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "注册并创建账号" })).toBeDisabled();
+  });
+
+  it("registers with account and password without phone", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-token",
+          access_token_expires_at: new Date(Date.now() + 60000).toISOString(),
+          user: {
+            id: 42,
+            nickname: "deploy_user",
+            account: "deploy_user",
+            phone: "",
+            status: "active"
+          },
+          is_new_user: true
+        }),
+        { status: 200 }
+      )
+    );
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "注册" }));
+    fireEvent.change(screen.getByLabelText("账号"), {
+      target: { value: "deploy_user" }
+    });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "secret123" }
+    });
+    fireEvent.change(screen.getByLabelText("确认密码"), {
+      target: { value: "secret123" }
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
+    fireEvent.click(screen.getByRole("button", { name: "注册并创建账号" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("注册成功，正在进入工作台")).toBeInTheDocument();
   });
 
   it("returns to the requested route after login", async () => {
@@ -120,11 +158,11 @@ describe("LoginPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("手机号"), {
-      target: { value: "13800138000" }
+    fireEvent.change(screen.getByLabelText("账号"), {
+      target: { value: "deploy_user" }
     });
-    fireEvent.change(screen.getByLabelText("验证码"), {
-      target: { value: "246810" }
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "secret123" }
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
     fireEvent.click(screen.getByRole("button", { name: "登录" }));

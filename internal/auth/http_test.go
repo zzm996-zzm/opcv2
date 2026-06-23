@@ -13,10 +13,11 @@ import (
 )
 
 type fakeAuthApplication struct {
-	sendPhone string
-	loginIn   LoginInput
-	result    LoginResult
-	err       error
+	sendPhone  string
+	loginIn    LoginInput
+	registerIn RegisterInput
+	result     LoginResult
+	err        error
 }
 
 func (a *fakeAuthApplication) SendCode(_ context.Context, phone string) error {
@@ -26,6 +27,11 @@ func (a *fakeAuthApplication) SendCode(_ context.Context, phone string) error {
 
 func (a *fakeAuthApplication) Login(_ context.Context, input LoginInput) (LoginResult, error) {
 	a.loginIn = input
+	return a.result, a.err
+}
+
+func (a *fakeAuthApplication) Register(_ context.Context, input RegisterInput) (LoginResult, error) {
+	a.registerIn = input
 	return a.result, a.err
 }
 
@@ -128,6 +134,71 @@ func TestLoginEndpointSetsRefreshCookie(t *testing.T) {
 	}
 	if response["access_token"] != "access-token" {
 		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestRegisterEndpointAcceptsAccountPasswordAndSetsRefreshCookie(t *testing.T) {
+	app := &fakeAuthApplication{result: LoginResult{
+		User:               User{ID: 42, Nickname: "部署测试", Account: "deploy_user", Status: "active"},
+		AccessToken:        "access-token",
+		AccessTokenExpires: time.Now().Add(15 * time.Minute),
+		RefreshToken:       "refresh-token",
+		IsNewUser:          true,
+	}}
+	router := newAuthTestRouter(app, staticTokenManager{})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/register",
+		strings.NewReader(`{
+			"nickname":"部署测试",
+			"account":"deploy_user",
+			"password":"secret123",
+			"agreement_accepted":true
+		}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.registerIn.Account != "deploy_user" || app.registerIn.Password != "secret123" || !app.registerIn.AgreementAccepted {
+		t.Fatalf("register input = %+v", app.registerIn)
+	}
+	cookie := recorder.Result().Cookies()[0]
+	if cookie.Name != refreshCookieName || cookie.Value != "refresh-token" || !cookie.HttpOnly {
+		t.Fatalf("refresh cookie = %+v", cookie)
+	}
+}
+
+func TestLoginEndpointAcceptsAccountPassword(t *testing.T) {
+	app := &fakeAuthApplication{result: LoginResult{
+		User:               User{ID: 42, Nickname: "部署测试", Account: "deploy_user", Status: "active"},
+		AccessToken:        "access-token",
+		AccessTokenExpires: time.Now().Add(15 * time.Minute),
+		RefreshToken:       "refresh-token",
+	}}
+	router := newAuthTestRouter(app, staticTokenManager{})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/login",
+		strings.NewReader(`{
+			"account":"deploy_user",
+			"password":"secret123"
+		}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.loginIn.Account != "deploy_user" || app.loginIn.Password != "secret123" {
+		t.Fatalf("login input = %+v", app.loginIn)
 	}
 }
 

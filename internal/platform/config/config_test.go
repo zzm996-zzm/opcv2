@@ -10,6 +10,8 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	t.Setenv("OPCV2_JWT_SECRET", "")
 	t.Setenv("OPCV2_SMS_PROVIDER", "")
 	t.Setenv("OPCV2_SMS_DEV_CODE", "")
+	t.Setenv("OPCV2_AUTO_MIGRATE", "")
+	t.Setenv("OPCV2_MIGRATIONS_PATH", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -31,6 +33,9 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	if cfg.JWTSecret == "" || cfg.SMSProvider != "development" || cfg.SMSDevCode != "246810" {
 		t.Fatalf("development auth defaults = %+v", cfg)
 	}
+	if !cfg.AutoMigrate || cfg.MigrationsPath != "migrations" {
+		t.Fatalf("migration defaults = %+v, want auto migrate using migrations", cfg)
+	}
 }
 
 func TestLoadUsesEnvironmentOverrides(t *testing.T) {
@@ -41,6 +46,8 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	t.Setenv("OPCV2_JWT_SECRET", "test-jwt-secret")
 	t.Setenv("OPCV2_SMS_PROVIDER", "development")
 	t.Setenv("OPCV2_SMS_DEV_CODE", "123456")
+	t.Setenv("OPCV2_AUTO_MIGRATE", "false")
+	t.Setenv("OPCV2_MIGRATIONS_PATH", "/app/migrations")
 
 	cfg, err := Load()
 	if err != nil {
@@ -56,6 +63,9 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	if cfg.JWTSecret != "test-jwt-secret" || cfg.SMSDevCode != "123456" {
 		t.Fatalf("auth overrides were not loaded: %+v", cfg)
 	}
+	if cfg.AutoMigrate || cfg.MigrationsPath != "/app/migrations" {
+		t.Fatalf("migration overrides were not loaded: %+v", cfg)
+	}
 }
 
 func TestLoadRejectsProductionWithoutSecrets(t *testing.T) {
@@ -65,5 +75,29 @@ func TestLoadRejectsProductionWithoutSecrets(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want production configuration error")
+	}
+}
+
+func TestLoadDefaultsProductionSMSToDisabled(t *testing.T) {
+	t.Setenv("OPCV2_ENV", "production")
+	t.Setenv("OPCV2_JWT_SECRET", "production-secret")
+	t.Setenv("OPCV2_SMS_PROVIDER", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.SMSProvider != "disabled" {
+		t.Fatalf("SMSProvider = %q, want disabled", cfg.SMSProvider)
+	}
+}
+
+func TestLoadRejectsDevelopmentSMSInProduction(t *testing.T) {
+	t.Setenv("OPCV2_ENV", "production")
+	t.Setenv("OPCV2_JWT_SECRET", "production-secret")
+	t.Setenv("OPCV2_SMS_PROVIDER", "development")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want production SMS provider error")
 	}
 }

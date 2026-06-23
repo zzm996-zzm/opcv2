@@ -33,24 +33,6 @@ services:
       retries: 20
       start_period: 5s
 
-  migrate:
-    image: migrate/migrate:v4.18.1
-    container_name: opcv2-server-migrate
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./migrations:/migrations:ro
-    command:
-      [
-        "-path",
-        "/migrations",
-        "-database",
-        "postgres://${POSTGRES_USER:-opcv2}:${POSTGRES_PASSWORD:-opcv2-change-me}@postgres:5432/${POSTGRES_DB:-opcv2}?sslmode=disable",
-        "up"
-      ]
-    restart: "no"
-
   api:
     build:
       context: .
@@ -65,14 +47,16 @@ services:
       OPCV2_DATABASE_URL: postgres://${POSTGRES_USER:-opcv2}:${POSTGRES_PASSWORD:-opcv2-change-me}@postgres:5432/${POSTGRES_DB:-opcv2}?sslmode=disable
       OPCV2_REDIS_ADDR: redis:6379
       OPCV2_JWT_SECRET: ${OPCV2_JWT_SECRET:-change-me-in-production}
-      OPCV2_SMS_PROVIDER: ${OPCV2_SMS_PROVIDER:-development}
+      OPCV2_SMS_PROVIDER: ${OPCV2_SMS_PROVIDER:-disabled}
       OPCV2_SMS_DEV_CODE: ${OPCV2_SMS_DEV_CODE:-246810}
       OPCV2_TYC_API_KEY: ${OPCV2_TYC_API_KEY:-}
       OPCV2_SERPER_API_KEY: ${OPCV2_SERPER_API_KEY:-}
       OPCV2_SERPAPI_API_KEY: ${OPCV2_SERPAPI_API_KEY:-}
+      OPCV2_AUTO_MIGRATE: ${OPCV2_AUTO_MIGRATE:-true}
+      OPCV2_MIGRATIONS_PATH: ${OPCV2_MIGRATIONS_PATH:-migrations}
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     expose:
@@ -97,8 +81,8 @@ services:
       OPCV2_DATABASE_URL: postgres://${POSTGRES_USER:-opcv2}:${POSTGRES_PASSWORD:-opcv2-change-me}@postgres:5432/${POSTGRES_DB:-opcv2}?sslmode=disable
       OPCV2_REDIS_ADDR: redis:6379
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
 

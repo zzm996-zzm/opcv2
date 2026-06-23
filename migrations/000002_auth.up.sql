@@ -1,7 +1,9 @@
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     nickname VARCHAR(50) NOT NULL,
-    phone VARCHAR(20) NOT NULL UNIQUE,
+    phone VARCHAR(20) UNIQUE,
+    account VARCHAR(32) UNIQUE,
+    password_hash TEXT,
     wechat VARCHAR(100),
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     agreement_accepted_at TIMESTAMPTZ NOT NULL,

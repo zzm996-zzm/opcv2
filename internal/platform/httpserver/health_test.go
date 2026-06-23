@@ -77,6 +77,9 @@ func (fakeAuthApp) SendCode(context.Context, string) error { return nil }
 func (fakeAuthApp) Login(context.Context, auth.LoginInput) (auth.LoginResult, error) {
 	return auth.LoginResult{}, nil
 }
+func (fakeAuthApp) Register(context.Context, auth.RegisterInput) (auth.LoginResult, error) {
+	return auth.LoginResult{}, nil
+}
 func (fakeAuthApp) Refresh(context.Context, string) (auth.LoginResult, error) {
 	return auth.LoginResult{}, nil
 }

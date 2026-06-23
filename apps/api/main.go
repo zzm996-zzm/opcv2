@@ -16,6 +16,7 @@ import (
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/health"
 	"github.com/zzm/opcv2/internal/platform/httpserver"
+	"github.com/zzm/opcv2/internal/platform/migrations"
 	"github.com/zzm/opcv2/internal/platform/postgres"
 	"github.com/zzm/opcv2/internal/platform/rediscache"
 )
@@ -37,6 +38,15 @@ func main() {
 	}
 	defer db.Close()
 
+	if cfg.AutoMigrate {
+		result, err := migrations.Run(ctx, db, cfg.MigrationsPath)
+		if err != nil {
+			logger.Error("run migrations", "path", cfg.MigrationsPath, "error", err)
+			os.Exit(1)
+		}
+		logger.Info("migrations complete", "path", cfg.MigrationsPath, "current_version", result.CurrentVersion, "applied_count", len(result.Applied))
+	}
+
 	redisClient := rediscache.NewClient(cfg.RedisAddr)
 	defer func() { _ = redisClient.Close() }()
 
@@ -44,11 +54,16 @@ func main() {
 	codeStore := auth.NewRedisCodeStore(redisClient.Client)
 	sessionStore := auth.NewRedisSessionStore(redisClient.Client)
 	tokenManager := auth.NewJWTManager(cfg.JWTSecret, 15*time.Minute)
-	if cfg.SMSProvider != "development" {
+	var smsProvider auth.SMSProvider
+	switch cfg.SMSProvider {
+	case "development":
+		smsProvider = auth.NewDevelopmentSMSProvider(cfg.SMSDevCode)
+	case "disabled":
+		smsProvider = auth.DisabledSMSProvider{}
+	default:
 		logger.Error("unsupported SMS provider", "provider", cfg.SMSProvider)
 		os.Exit(1)
 	}
-	smsProvider := auth.NewDevelopmentSMSProvider(cfg.SMSDevCode)
 	authService := auth.NewService(auth.Dependencies{
 		Codes:        codeStore,
 		SMS:          smsProvider,

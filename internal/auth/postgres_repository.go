@@ -32,7 +32,7 @@ func (r *PostgresUserRepository) FindOrCreateByPhone(
 		INSERT INTO users (nickname, phone, agreement_accepted_at)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (phone) DO UPDATE SET updated_at = users.updated_at
-		RETURNING id, nickname, phone, COALESCE(wechat, ''), status, created_at, (xmax = 0) AS created
+		RETURNING id, nickname, COALESCE(phone, ''), COALESCE(account, ''), COALESCE(wechat, ''), status, created_at, (xmax = 0) AS created
 	`
 	var user User
 	var created bool
@@ -40,12 +40,65 @@ func (r *PostgresUserRepository) FindOrCreateByPhone(
 		&user.ID,
 		&user.Nickname,
 		&user.Phone,
+		&user.Account,
 		&user.Wechat,
 		&user.Status,
 		&user.CreatedAt,
 		&created,
 	)
 	return user, created, err
+}
+
+func (r *PostgresUserRepository) RegisterAccount(
+	ctx context.Context,
+	nickname string,
+	account string,
+	passwordHash string,
+	agreementAcceptedAt time.Time,
+) (User, error) {
+	const query = `
+		INSERT INTO users (nickname, account, password_hash, agreement_accepted_at)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, nickname, COALESCE(phone, ''), account, COALESCE(wechat, ''), status, created_at
+	`
+	var user User
+	err := r.db.QueryRow(ctx, query, nickname, account, passwordHash, agreementAcceptedAt).Scan(
+		&user.ID,
+		&user.Nickname,
+		&user.Phone,
+		&user.Account,
+		&user.Wechat,
+		&user.Status,
+		&user.CreatedAt,
+	)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return User{}, ErrAccountExists
+	}
+	return user, err
+}
+
+func (r *PostgresUserRepository) FindCredentialsByAccount(ctx context.Context, account string) (UserCredentials, error) {
+	const query = `
+		SELECT id, nickname, COALESCE(phone, ''), account, password_hash, COALESCE(wechat, ''), status, created_at
+		FROM users
+		WHERE account = $1
+	`
+	var credentials UserCredentials
+	err := r.db.QueryRow(ctx, query, account).Scan(
+		&credentials.User.ID,
+		&credentials.User.Nickname,
+		&credentials.User.Phone,
+		&credentials.User.Account,
+		&credentials.PasswordHash,
+		&credentials.User.Wechat,
+		&credentials.User.Status,
+		&credentials.User.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UserCredentials{}, ErrUserNotFound
+	}
+	return credentials, err
 }
 
 func (r *PostgresUserRepository) RecordLogin(ctx context.Context, userID int64, meta LoginMeta) error {
@@ -59,7 +112,7 @@ func (r *PostgresUserRepository) RecordLogin(ctx context.Context, userID int64, 
 
 func (r *PostgresUserRepository) FindByID(ctx context.Context, userID int64) (User, error) {
 	const query = `
-		SELECT id, nickname, phone, COALESCE(wechat, ''), status, created_at
+		SELECT id, nickname, COALESCE(phone, ''), COALESCE(account, ''), COALESCE(wechat, ''), status, created_at
 		FROM users
 		WHERE id = $1
 	`
@@ -68,6 +121,7 @@ func (r *PostgresUserRepository) FindByID(ctx context.Context, userID int64) (Us
 		&user.ID,
 		&user.Nickname,
 		&user.Phone,
+		&user.Account,
 		&user.Wechat,
 		&user.Status,
 		&user.CreatedAt,

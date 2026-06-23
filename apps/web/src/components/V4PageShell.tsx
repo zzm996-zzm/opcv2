@@ -52,13 +52,17 @@ const accountLinks: Array<[string, string, string]> = [
 
 type V4PageShellProps = {
   children: ReactNode;
+  className?: string;
+  showCopilotMini?: boolean;
 };
 
-function V4PageShell({ children }: V4PageShellProps) {
+function V4PageShell({ children, className = "", showCopilotMini = true }: V4PageShellProps) {
   const session = useAuthSession();
   const location = useLocation();
   const [accountOpen, setAccountOpen] = useState(false);
   const nickname = session.user?.nickname || "张婧";
+  const isTopNavActive = (href: string) =>
+    location.pathname === href || (href !== "/" && location.pathname.startsWith(`${href}/`));
 
   async function logout() {
     try {
@@ -72,7 +76,7 @@ function V4PageShell({ children }: V4PageShellProps) {
   }
 
   return (
-    <div className="v4-shell">
+    <div className={"v4-shell " + className}>
       <aside className="v4-sidebar" aria-label="产品侧边导航">
         <Link className="v4-brand" to="/" aria-label="智活AI OPC V4.0 首页">
           <span className="v4-logo" aria-hidden="true" />
@@ -123,7 +127,7 @@ function V4PageShell({ children }: V4PageShellProps) {
             {topNav.map((item) => (
               <Link
                 key={item.href}
-                className={location.pathname === item.href ? "active" : item.featured ? "featured" : ""}
+                className={isTopNavActive(item.href) ? "active" : item.featured ? "featured" : ""}
                 to={item.href}
               >
                 {item.featured && <span className="mini-logo" aria-hidden="true" />}
@@ -186,13 +190,15 @@ function V4PageShell({ children }: V4PageShellProps) {
           {children}
         </main>
 
-        <Link className="v4-page-copilot-mini" to="/copilot" aria-label="打开智活 Copilot">
-          <span className="mini-logo" aria-hidden="true" />
-          <span>
-            <strong>智活 Copilot</strong>
-            <small>问我任何问题</small>
-          </span>
-        </Link>
+        {showCopilotMini && (
+          <Link className="v4-page-copilot-mini" to="/copilot" aria-label="打开智活 Copilot">
+            <span className="mini-logo" aria-hidden="true" />
+            <span>
+              <strong>智活 Copilot</strong>
+              <small>问我任何问题</small>
+            </span>
+          </Link>
+        )}
       </div>
     </div>
   );

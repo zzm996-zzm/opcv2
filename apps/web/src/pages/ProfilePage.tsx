@@ -37,11 +37,11 @@ const profileForms = [
 
 const accountBindings = {
   bound: [
-    ["手机号", "138****5678", "已绑定", "更换手机号"],
+    ["联系手机", "138****5678", "已填写", "更换手机"],
     ["微信", "zhihuo_ai", "已绑定", "解绑"]
   ],
   unbound: [
-    ["手机号", "未绑定", "存在安全风险", "立即绑定"],
+    ["联系手机", "未填写", "可选联系方式", "去填写"],
     ["微信", "未绑定", "暂未同步微信消息", "去绑定"]
   ]
 } as const;
@@ -207,7 +207,7 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
         <div className="settings-card-head">
           <div>
             <h2>账号绑定</h2>
-            <p>用于登录验证、消息同步与账号安全通知</p>
+            <p>用于消息同步、服务联系与账号安全通知</p>
           </div>
         </div>
         <div className="binding-list">
@@ -218,7 +218,7 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
                 <strong>{type}</strong>
                 <small>{value}</small>
               </div>
-              <b className={state === "已绑定" ? "bound" : ""}>{state}</b>
+              <b className={["已绑定", "已填写"].includes(state) ? "bound" : ""}>{state}</b>
               <button type="button">{action}</button>
             </article>
           ))}
@@ -230,7 +230,7 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
           <span className="security-icon password" aria-hidden="true" />
           <div>
             <h2>登录方式</h2>
-            <p>当前使用手机号 + 验证码登录，可设置密码作为备用登录方式</p>
+            <p>当前使用账号 + 密码登录，联系手机仅作为可选资料</p>
           </div>
           <Link to="/profile/settings/password">修改登录方式</Link>
         </article>
@@ -350,7 +350,7 @@ function DeleteAccountModal() {
 
 function CompleteProfileModal() {
   const leftFields = [
-    ["手机号", "138 **** 5678"],
+    ["联系手机", "138 **** 5678"],
     ["微信 / 企业微信", "zhihuo_ai"],
     ["公司名称", "智活AI科技有限公司"],
     ["所在行业", "人工智能"],

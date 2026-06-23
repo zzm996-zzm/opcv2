@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -17,20 +19,32 @@ var (
 	ErrCodeRateLimited     = errors.New("verification code rate limited")
 	ErrAgreementRequired   = errors.New("agreement acceptance required")
 	ErrNicknameRequired    = errors.New("nickname required")
+	ErrInvalidAccount      = errors.New("invalid account")
+	ErrInvalidPassword     = errors.New("invalid password")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrAccountExists       = errors.New("account already exists")
+	ErrSMSUnavailable      = errors.New("SMS service is unavailable")
 	ErrUserNotFound        = errors.New("user not found")
 	ErrUserDisabled        = errors.New("user disabled")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 )
 
 var mainlandPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
+var accountPattern = regexp.MustCompile(`^[A-Za-z0-9_]{4,32}$`)
 
 type User struct {
 	ID        int64     `json:"id"`
 	Nickname  string    `json:"nickname"`
 	Phone     string    `json:"phone"`
+	Account   string    `json:"account,omitempty"`
 	Wechat    string    `json:"wechat,omitempty"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type UserCredentials struct {
+	User         User
+	PasswordHash string
 }
 
 type LoginMeta struct {
@@ -42,6 +56,17 @@ type LoginInput struct {
 	Nickname          string
 	Phone             string
 	Code              string
+	Account           string
+	Password          string
+	AgreementAccepted bool
+	IP                string
+	UserAgent         string
+}
+
+type RegisterInput struct {
+	Nickname          string
+	Account           string
+	Password          string
 	AgreementAccepted bool
 	IP                string
 	UserAgent         string
@@ -66,6 +91,8 @@ type SMSProvider interface {
 
 type UserRepository interface {
 	FindOrCreateByPhone(ctx context.Context, nickname, phone string, agreementAcceptedAt time.Time) (User, bool, error)
+	RegisterAccount(ctx context.Context, nickname, account, passwordHash string, agreementAcceptedAt time.Time) (User, error)
+	FindCredentialsByAccount(ctx context.Context, account string) (UserCredentials, error)
 	RecordLogin(ctx context.Context, userID int64, meta LoginMeta) error
 	FindByID(ctx context.Context, userID int64) (User, error)
 }
@@ -138,6 +165,12 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (LoginResult, err
 	input.Nickname = strings.TrimSpace(input.Nickname)
 	input.Phone = strings.TrimSpace(input.Phone)
 	input.Code = strings.TrimSpace(input.Code)
+	input.Account = normalizeAccount(input.Account)
+	input.Password = strings.TrimSpace(input.Password)
+
+	if input.Account != "" || input.Password != "" {
+		return s.loginWithPassword(ctx, input)
+	}
 
 	if !input.AgreementAccepted {
 		return LoginResult{}, ErrAgreementRequired
@@ -185,6 +218,71 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (LoginResult, err
 	}, nil
 }
 
+func (s *Service) Register(ctx context.Context, input RegisterInput) (LoginResult, error) {
+	input.Nickname = strings.TrimSpace(input.Nickname)
+	input.Account = normalizeAccount(input.Account)
+	input.Password = strings.TrimSpace(input.Password)
+
+	if !input.AgreementAccepted {
+		return LoginResult{}, ErrAgreementRequired
+	}
+	if !accountPattern.MatchString(input.Account) {
+		return LoginResult{}, ErrInvalidAccount
+	}
+	if err := validatePassword(input.Password); err != nil {
+		return LoginResult{}, err
+	}
+	if input.Nickname == "" {
+		input.Nickname = input.Account
+	}
+	if s.deps.Users == nil || s.deps.Tokens == nil || s.deps.Sessions == nil {
+		return LoginResult{}, errors.New("auth service is not configured")
+	}
+	passwordHash, err := hashPassword(input.Password)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("hash password: %w", err)
+	}
+	user, err := s.deps.Users.RegisterAccount(ctx, input.Nickname, input.Account, passwordHash, time.Now())
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("register account: %w", err)
+	}
+	if user.Status != "active" {
+		return LoginResult{}, ErrUserDisabled
+	}
+	result, err := s.issueLoginResult(ctx, user, LoginMeta{IP: input.IP, UserAgent: input.UserAgent})
+	if err != nil {
+		return LoginResult{}, err
+	}
+	result.IsNewUser = true
+	return result, nil
+}
+
+func (s *Service) loginWithPassword(ctx context.Context, input LoginInput) (LoginResult, error) {
+	if !accountPattern.MatchString(input.Account) {
+		return LoginResult{}, ErrInvalidCredentials
+	}
+	if strings.TrimSpace(input.Password) == "" {
+		return LoginResult{}, ErrInvalidCredentials
+	}
+	if s.deps.Users == nil || s.deps.Tokens == nil || s.deps.Sessions == nil {
+		return LoginResult{}, errors.New("auth service is not configured")
+	}
+	credentials, err := s.deps.Users.FindCredentialsByAccount(ctx, input.Account)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return LoginResult{}, ErrInvalidCredentials
+		}
+		return LoginResult{}, err
+	}
+	if err := verifyPassword(credentials.PasswordHash, input.Password); err != nil {
+		return LoginResult{}, ErrInvalidCredentials
+	}
+	if credentials.User.Status != "active" {
+		return LoginResult{}, ErrUserDisabled
+	}
+	return s.issueLoginResult(ctx, credentials.User, LoginMeta{IP: input.IP, UserAgent: input.UserAgent})
+}
+
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (LoginResult, error) {
 	if s.deps.Sessions == nil || s.deps.Users == nil || s.deps.Tokens == nil {
 		return LoginResult{}, errors.New("auth service is not configured")
@@ -216,6 +314,26 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (LoginResult
 	}, nil
 }
 
+func (s *Service) issueLoginResult(ctx context.Context, user User, meta LoginMeta) (LoginResult, error) {
+	if err := s.deps.Users.RecordLogin(ctx, user.ID, meta); err != nil {
+		return LoginResult{}, fmt.Errorf("record login: %w", err)
+	}
+	accessToken, expiresAt, err := s.deps.Tokens.IssueAccess(user)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("issue access token: %w", err)
+	}
+	refreshToken, err := s.deps.Sessions.Create(ctx, user.ID, s.deps.RefreshTTL)
+	if err != nil {
+		return LoginResult{}, fmt.Errorf("create refresh session: %w", err)
+	}
+	return LoginResult{
+		User:               user,
+		AccessToken:        accessToken,
+		AccessTokenExpires: expiresAt,
+		RefreshToken:       refreshToken,
+	}, nil
+}
+
 func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 	if s.deps.Sessions == nil {
 		return nil
@@ -244,4 +362,24 @@ func generateSixDigitCode() (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%06d", number.Int64()), nil
+}
+
+func normalizeAccount(account string) string {
+	return strings.ToLower(strings.TrimSpace(account))
+}
+
+func validatePassword(password string) error {
+	if len(password) < 6 || len(password) > 72 {
+		return ErrInvalidPassword
+	}
+	return nil
+}
+
+func hashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+func verifyPassword(passwordHash, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password))
 }

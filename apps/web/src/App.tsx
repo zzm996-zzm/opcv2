@@ -4,11 +4,27 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { authApi } from "./lib/authApi";
 import { authSession, useAuthSession } from "./lib/authSession";
 import AnalysisPage from "./pages/AnalysisPage";
+import CommunityEnterprisePage from "./pages/CommunityEnterprisePage";
+import CommunityMembersPage from "./pages/CommunityMembersPage";
+import CommunityPage from "./pages/CommunityPage";
+import CopilotPage from "./pages/CopilotPage";
+import CompetitorDataPage from "./pages/CompetitorDataPage";
 import HelpPage from "./pages/HelpPage";
 import HomePage from "./pages/HomePage";
+import InsightsPage from "./pages/InsightsPage";
 import LegalPage from "./pages/LegalPage";
+import LearningAssessmentPage from "./pages/LearningAssessmentPage";
+import LearningCourseDetailPage from "./pages/LearningCourseDetailPage";
+import LearningCourseIntroPage from "./pages/LearningCourseIntroPage";
+import LearningCoursesPage from "./pages/LearningCoursesPage";
 import LearningDiagnosisPage from "./pages/LearningDiagnosisPage";
+import LearningGapAnalysisPage from "./pages/LearningGapAnalysisPage";
+import LearningHistoryPage from "./pages/LearningHistoryPage";
 import LearningPage from "./pages/LearningPage";
+import LearningPlanPage from "./pages/LearningPlanPage";
+import LearningRecommendationPage from "./pages/LearningRecommendationPage";
+import LearningRecommendedCoursesPage from "./pages/LearningRecommendedCoursesPage";
+import LearningReportPage from "./pages/LearningReportPage";
 import LoginPage from "./pages/LoginPage";
 import MembershipPage from "./pages/MembershipPage";
 import MessagesPage from "./pages/MessagesPage";
@@ -16,15 +32,11 @@ import ProductPlaceholder from "./pages/ProductPlaceholder";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterDetailsPage from "./pages/RegisterDetailsPage";
+import SandboxPage from "./pages/SandboxPage";
 import TasksPage from "./pages/TasksPage";
 import ToolsPage from "./pages/ToolsPage";
 
 const productRoutes = [
-  ["/copilot", "智活 Copilot", "全屏对话、多模型问答与全站能力调度。"],
-  ["/insights", "咨询通", "查看商业与 AI 资讯，追踪行业动态。"],
-  ["/community", "AI社群", "会员社群与企业社群的真实引流入口。"],
-  ["/sandbox", "商业沙盘", "用多角色推演判断项目可行性。"],
-  ["/competitor-data", "竞品全盘数据破解", "发起脚本代查，拿到竞品数据与 AI 结论。"],
   ["/competitor-monitoring", "竞品动态监测", "持续盯招聘、内容、投放与新品动态。"],
   ["/growth-calculator", "增长测算", "用成本、客单价和转化假设测算营收。"],
   ["/geo", "GEO获客", "占位展示 AI 搜索收录获客能力。"],
@@ -155,6 +167,94 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <ToolsPage variant="all" />
+          </RequireAuth>
+        }
+        path="/tools/all"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ToolsPage variant="recommend" />
+          </RequireAuth>
+        }
+        path="/tools/recommend"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ToolsPage variant="plan" />
+          </RequireAuth>
+        }
+        path="/tools/recommendation-plan"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ToolsPage variant="detail" />
+          </RequireAuth>
+        }
+        path="/tools/detail"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CopilotPage />
+          </RequireAuth>
+        }
+        path="/copilot"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CopilotPage variant="new" />
+          </RequireAuth>
+        }
+        path="/copilot/new"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CopilotPage variant="models" />
+          </RequireAuth>
+        }
+        path="/copilot/models"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CopilotPage variant="files" />
+          </RequireAuth>
+        }
+        path="/copilot/files"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CopilotPage variant="compare" />
+          </RequireAuth>
+        }
+        path="/copilot/compare"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CopilotPage variant="rename" />
+          </RequireAuth>
+        }
+        path="/copilot/rename"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CopilotPage variant="delete" />
+          </RequireAuth>
+        }
+        path="/copilot/delete"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <LearningPage />
           </RequireAuth>
         }
@@ -171,6 +271,134 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <LearningAssessmentPage />
+          </RequireAuth>
+        }
+        path="/learning/assessment"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningGapAnalysisPage />
+          </RequireAuth>
+        }
+        path="/learning/gap-analysis"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningRecommendationPage />
+          </RequireAuth>
+        }
+        path="/learning/recommendation"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningPlanPage />
+          </RequireAuth>
+        }
+        path="/learning/plan"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningReportPage />
+          </RequireAuth>
+        }
+        path="/learning/report"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningCoursesPage />
+          </RequireAuth>
+        }
+        path="/learning/courses"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningCourseIntroPage />
+          </RequireAuth>
+        }
+        path="/learning/courses/intro"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningCourseDetailPage />
+          </RequireAuth>
+        }
+        path="/learning/courses/detail"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningRecommendedCoursesPage />
+          </RequireAuth>
+        }
+        path="/learning/recommended-courses"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningHistoryPage />
+          </RequireAuth>
+        }
+        path="/learning/history"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CommunityPage />
+          </RequireAuth>
+        }
+        path="/community"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CommunityMembersPage />
+          </RequireAuth>
+        }
+        path="/community/members"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CommunityEnterprisePage />
+          </RequireAuth>
+        }
+        path="/community/enterprise"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <InsightsPage />
+          </RequireAuth>
+        }
+        path="/insights"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <InsightsPage variant="detail" />
+          </RequireAuth>
+        }
+        path="/insights/detail"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <InsightsPage variant="fileAnalysis" />
+          </RequireAuth>
+        }
+        path="/insights/file-analysis"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <ProjectsPage />
           </RequireAuth>
         }
@@ -179,10 +407,26 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <SandboxPage />
+          </RequireAuth>
+        }
+        path="/sandbox"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <TasksPage />
           </RequireAuth>
         }
         path="/tasks"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CompetitorDataPage />
+          </RequireAuth>
+        }
+        path="/competitor-data"
       />
       <Route
         element={

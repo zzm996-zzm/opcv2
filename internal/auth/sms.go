@@ -19,3 +19,9 @@ func (p *DevelopmentSMSProvider) SendCode(_ context.Context, _, code string) err
 	}
 	return nil
 }
+
+type DisabledSMSProvider struct{}
+
+func (DisabledSMSProvider) SendCode(context.Context, string, string) error {
+	return ErrSMSUnavailable
+}
