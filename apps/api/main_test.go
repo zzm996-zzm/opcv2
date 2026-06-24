@@ -17,8 +17,24 @@ func TestNewAIProviderUsesDevelopmentProvider(t *testing.T) {
 	}
 }
 
+func TestNewAIProviderUsesOpenAIProvider(t *testing.T) {
+	provider, err := newAIProvider(config.Config{
+		AIProvider:       "openai",
+		AIAPIKey:         "test-key",
+		AIModel:          "gpt-test",
+		AIBaseURL:        "https://api.example.test/v1",
+		AITimeoutSeconds: 7,
+	})
+	if err != nil {
+		t.Fatalf("newAIProvider() error = %v", err)
+	}
+	if _, ok := provider.(*ai.OpenAIProvider); !ok {
+		t.Fatalf("provider = %T, want *ai.OpenAIProvider", provider)
+	}
+}
+
 func TestNewAIProviderRejectsUnsupportedProvider(t *testing.T) {
-	if _, err := newAIProvider(config.Config{AIProvider: "openai"}); err == nil {
+	if _, err := newAIProvider(config.Config{AIProvider: "anthropic"}); err == nil {
 		t.Fatal("newAIProvider() error = nil, want unsupported provider error")
 	}
 }

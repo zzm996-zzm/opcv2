@@ -169,6 +169,13 @@ func newAIProvider(cfg config.Config) (ai.Provider, error) {
 	switch cfg.AIProvider {
 	case "development":
 		return ai.NewDevelopmentProvider(), nil
+	case "openai":
+		return ai.NewOpenAIProvider(ai.OpenAIConfig{
+			BaseURL: cfg.AIBaseURL,
+			APIKey:  cfg.AIAPIKey,
+			Model:   cfg.AIModel,
+			Timeout: time.Duration(cfg.AITimeoutSeconds) * time.Second,
+		}), nil
 	default:
 		return nil, errors.New("unsupported AI provider")
 	}

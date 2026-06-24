@@ -213,6 +213,22 @@ func TestLoadRejectsProductionAIProviderWithoutAPIKey(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsProductionAIProviderWithoutExplicitModel(t *testing.T) {
+	t.Setenv("OPCV2_ENV", "production")
+	t.Setenv("OPCV2_JWT_SECRET", "production-secret")
+	t.Setenv("OPCV2_SMS_PROVIDER", "disabled")
+	t.Setenv("OPCV2_AI_PROVIDER", "openai")
+	t.Setenv("OPCV2_AI_MODEL", "")
+	t.Setenv("OPCV2_AI_API_KEY", "production-ai-key")
+	t.Setenv("OPCV2_LEAD_PROVIDER", "tianyancha")
+	t.Setenv("OPCV2_TYC_API_KEY", "production-tyc-key")
+	t.Setenv("OPCV2_CORS_ALLOWED_ORIGINS", "https://app.example.com")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want production AI model error")
+	}
+}
+
 func TestLoadRejectsProductionWithoutExplicitLeadProvider(t *testing.T) {
 	t.Setenv("OPCV2_ENV", "production")
 	t.Setenv("OPCV2_JWT_SECRET", "production-secret")

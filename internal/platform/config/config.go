@@ -76,6 +76,9 @@ func Load() (Config, error) {
 		if cfg.AIProvider == "development" {
 			return Config{}, errors.New("OPCV2_AI_PROVIDER=development is not allowed in production")
 		}
+		if os.Getenv("OPCV2_AI_MODEL") == "" {
+			return Config{}, errors.New("OPCV2_AI_MODEL is required in production")
+		}
 		if cfg.AIAPIKey == "" {
 			return Config{}, errors.New("OPCV2_AI_API_KEY is required in production")
 		}
