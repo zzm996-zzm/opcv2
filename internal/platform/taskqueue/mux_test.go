@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hibiken/asynq"
+	"github.com/zzm/opcv2/internal/jobs"
 )
 
 func TestNewMuxRejectsUnregisteredTask(t *testing.T) {
@@ -13,5 +14,13 @@ func TestNewMuxRejectsUnregisteredTask(t *testing.T) {
 
 	if err := mux.ProcessTask(context.Background(), task); err == nil {
 		t.Fatal("ProcessTask() error = nil, want unregistered task error")
+	}
+}
+
+func TestDefaultRegistryIncludesLeadSearch(t *testing.T) {
+	registry := DefaultRegistry()
+
+	if !registry[jobs.TypeLeadSearch] {
+		t.Fatalf("DefaultRegistry() = %+v, want lead search type", registry)
 	}
 }

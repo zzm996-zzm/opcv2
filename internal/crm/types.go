@@ -1,0 +1,102 @@
+package crm
+
+import (
+	"errors"
+	"time"
+)
+
+const (
+	StageNew         = "new"
+	StageContacted   = "contacted"
+	StageQualified   = "qualified"
+	StageProposal    = "proposal"
+	StageWon         = "won"
+	StageLost        = "lost"
+	SourceLead       = "lead"
+	defaultListLimit = 20
+)
+
+const (
+	ActivityStageChanged     = "stage_changed"
+	ActivityFollowUpRecorded = "follow_up_recorded"
+)
+
+var (
+	ErrServiceNotReady  = errors.New("crm service is not configured")
+	ErrInvalidInput     = errors.New("invalid crm input")
+	ErrCustomerNotFound = errors.New("crm customer not found")
+	ErrInvalidAIResult  = errors.New("invalid crm ai result")
+)
+
+type ImportLeadInput struct {
+	UserID       int64  `json:"-"`
+	LeadResultID int64  `json:"lead_result_id"`
+	Name         string `json:"name"`
+	Phone        string `json:"phone,omitempty"`
+	Email        string `json:"email,omitempty"`
+	Website      string `json:"website,omitempty"`
+}
+
+type UpdateStageInput struct {
+	UserID     int64  `json:"-"`
+	CustomerID int64  `json:"-"`
+	Stage      string `json:"stage"`
+	Note       string `json:"note,omitempty"`
+}
+
+type RecordFollowUpInput struct {
+	UserID         int64     `json:"-"`
+	CustomerID     int64     `json:"-"`
+	Note           string    `json:"note"`
+	NextFollowUpAt time.Time `json:"next_follow_up_at"`
+}
+
+type ListDueInput struct {
+	UserID int64
+	Limit  int
+}
+
+type FollowUpCopyInput struct {
+	UserID     int64  `json:"-"`
+	CustomerID int64  `json:"-"`
+	Goal       string `json:"goal"`
+}
+
+type FollowUpCopy struct {
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
+	Channel string `json:"channel"`
+}
+
+type Customer struct {
+	ID             int64     `json:"id"`
+	UserID         int64     `json:"user_id"`
+	ImportKey      string    `json:"import_key"`
+	Name           string    `json:"name"`
+	Phone          string    `json:"phone,omitempty"`
+	Email          string    `json:"email,omitempty"`
+	Website        string    `json:"website,omitempty"`
+	Stage          string    `json:"stage"`
+	Source         string    `json:"source"`
+	NextFollowUpAt time.Time `json:"next_follow_up_at,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type Activity struct {
+	ID         int64     `json:"id"`
+	UserID     int64     `json:"user_id"`
+	CustomerID int64     `json:"customer_id"`
+	Type       string    `json:"type"`
+	Note       string    `json:"note,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+type FollowUp struct {
+	ID             int64     `json:"id"`
+	UserID         int64     `json:"user_id"`
+	CustomerID     int64     `json:"customer_id"`
+	Note           string    `json:"note"`
+	NextFollowUpAt time.Time `json:"next_follow_up_at"`
+	CreatedAt      time.Time `json:"created_at"`
+}
