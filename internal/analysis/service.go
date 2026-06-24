@@ -2,9 +2,13 @@ package analysis
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
+
+	"github.com/zzm/opcv2/internal/ai"
 )
 
 const (
@@ -13,7 +17,11 @@ const (
 	StatusCompleted  = "completed"
 )
 
-var ErrServiceNotReady = errors.New("analysis service is not configured")
+var (
+	ErrServiceNotReady = errors.New("analysis service is not configured")
+	ErrInvalidAIResult = errors.New("invalid analysis ai result")
+	ErrSessionNotFound = errors.New("analysis session not found")
+)
 
 type DirectionInput struct {
 	UserID  int64    `json:"-"`
@@ -64,29 +72,49 @@ type Session struct {
 	Questions []Question      `json:"questions,omitempty"`
 	Result    DirectionResult `json:"result,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 type Repository interface {
 	CreateSession(ctx context.Context, session Session) (Session, error)
+	ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error)
+	GetSession(ctx context.Context, userID, id int64) (Session, error)
 }
 
-type Provider interface {
-	GenerateDirection(ctx context.Context, input DirectionInput) (DirectionResult, error)
+type JSONGenerator interface {
+	GenerateJSON(ctx context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error)
 }
 
 type Service struct {
 	repository Repository
-	provider   Provider
+	generator  JSONGenerator
 	now        func() time.Time
 }
 
-func NewService(repository Repository, provider Provider) *Service {
-	return &Service{repository: repository, provider: provider, now: time.Now}
+func NewService(repository Repository, generator JSONGenerator) *Service {
+	return &Service{repository: repository, generator: generator, now: time.Now}
+}
+
+func (s *Service) ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	return s.repository.ListSessions(ctx, userID, limit)
+}
+
+func (s *Service) GetSession(ctx context.Context, userID, id int64) (Session, error) {
+	if s.repository == nil {
+		return Session{}, ErrServiceNotReady
+	}
+	return s.repository.GetSession(ctx, userID, id)
 }
 
 func (s *Service) StartDirection(ctx context.Context, input DirectionInput) (DirectionResult, error) {
 	input.Intent = strings.TrimSpace(input.Intent)
-	if s.repository == nil || s.provider == nil {
+	if s.repository == nil || s.generator == nil {
 		return DirectionResult{}, ErrServiceNotReady
 	}
 
@@ -106,7 +134,7 @@ func (s *Service) StartDirection(ctx context.Context, input DirectionInput) (Dir
 		return DirectionResult{SessionID: session.ID, Status: StatusNeedsInput, Questions: questions}, nil
 	}
 
-	result, err := s.provider.GenerateDirection(ctx, input)
+	result, err := s.generateDirection(ctx, input)
 	if err != nil {
 		return DirectionResult{}, err
 	}
@@ -124,6 +152,70 @@ func (s *Service) StartDirection(ctx context.Context, input DirectionInput) (Dir
 	}
 	result.SessionID = session.ID
 	return result, nil
+}
+
+func (s *Service) generateDirection(ctx context.Context, input DirectionInput) (DirectionResult, error) {
+	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
+		UserID:         input.UserID,
+		Feature:        "analysis.direction",
+		PromptVersion:  "analysis_direction_v1",
+		SystemPrompt:   directionSystemPrompt(),
+		UserPrompt:     directionUserPrompt(input),
+		SchemaName:     "analysis_direction_result",
+		Validate:       validateDirectionResultJSON,
+		RepairAttempts: 1,
+	})
+	if err != nil {
+		return DirectionResult{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
+	}
+	var result DirectionResult
+	if err := json.Unmarshal(aiResult.Content, &result); err != nil {
+		return DirectionResult{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
+	}
+	if err := validateDirectionResult(result); err != nil {
+		return DirectionResult{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
+	}
+	result.Status = StatusCompleted
+	return result, nil
+}
+
+func directionSystemPrompt() string {
+	return "你是创业方向分析助手。必须只返回 JSON，字段严格匹配 analysis_direction_result。"
+}
+
+func directionUserPrompt(input DirectionInput) string {
+	if len(input.Answers) == 0 {
+		return input.Intent
+	}
+	return input.Intent + "\n补充回答：" + answerText(input.Answers)
+}
+
+func validateDirectionResultJSON(data []byte) error {
+	var result DirectionResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		return err
+	}
+	return validateDirectionResult(result)
+}
+
+func validateDirectionResult(result DirectionResult) error {
+	if len(result.Cards) == 0 {
+		return errors.New("cards are required")
+	}
+	for _, card := range result.Cards {
+		if card.Name == "" ||
+			card.Score == 0 ||
+			len(card.Reasons) == 0 ||
+			card.MarketEvidence == "" ||
+			card.Difficulty.Level == "" ||
+			len(card.Difficulty.Notes) == 0 ||
+			len(card.Benchmarks) == 0 ||
+			len(card.Actions) == 0 ||
+			card.Upsell == "" {
+			return errors.New("direction card is missing required fields")
+		}
+	}
+	return nil
 }
 
 func missingQuestions(input DirectionInput) []Question {

@@ -1,6 +1,11 @@
 package analysis
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/zzm/opcv2/internal/ai"
+)
 
 type DevelopmentProvider struct{}
 
@@ -8,7 +13,7 @@ func NewDevelopmentProvider() *DevelopmentProvider {
 	return &DevelopmentProvider{}
 }
 
-func (p *DevelopmentProvider) GenerateDirection(_ context.Context, input DirectionInput) (DirectionResult, error) {
+func (p *DevelopmentProvider) GenerateJSON(_ context.Context, _ ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
 	cards := []DirectionCard{
 		{
 			Name:           "本地教培小班陪跑",
@@ -41,5 +46,9 @@ func (p *DevelopmentProvider) GenerateDirection(_ context.Context, input Directi
 			Upsell:         "升级后可批量搜索本地教培机构并加入CRM跟进。",
 		},
 	}
-	return DirectionResult{Status: StatusCompleted, Cards: cards}, nil
+	content, err := json.Marshal(DirectionResult{Status: StatusCompleted, Cards: cards})
+	if err != nil {
+		return ai.GenerateJSONResult{}, err
+	}
+	return ai.GenerateJSONResult{Content: content}, nil
 }

@@ -9,14 +9,27 @@ import (
 )
 
 type fakeApplication struct {
-	input  DirectionInput
-	result DirectionResult
-	err    error
+	input    DirectionInput
+	result   DirectionResult
+	sessions []Session
+	session  Session
+	err      error
 }
 
 func (a *fakeApplication) StartDirection(_ context.Context, input DirectionInput) (DirectionResult, error) {
 	a.input = input
 	return a.result, a.err
+}
+
+func (a *fakeApplication) ListSessions(_ context.Context, userID int64, limit int) ([]Session, error) {
+	a.input.UserID = userID
+	return a.sessions, a.err
+}
+
+func (a *fakeApplication) GetSession(_ context.Context, userID, id int64) (Session, error) {
+	a.input.UserID = userID
+	a.session.ID = id
+	return a.session, a.err
 }
 
 func TestDirectionEndpointUsesAuthenticatedUser(t *testing.T) {
@@ -44,5 +57,65 @@ func TestDirectionEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"needs_input"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestListSessionsEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{sessions: []Session{
+		{ID: 99, UserID: 42, Mode: ModeDirection, Intent: "我的项目", Status: StatusCompleted},
+	}}
+	router := testRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/analysis/sessions", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.input.UserID != 42 {
+		t.Fatalf("user id = %d, want 42", app.input.UserID)
+	}
+	if !strings.Contains(recorder.Body.String(), `"intent":"我的项目"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestGetSessionEndpointReturnsStoredReport(t *testing.T) {
+	app := &fakeApplication{session: Session{
+		ID:     99,
+		UserID: 42,
+		Mode:   ModeDirection,
+		Intent: "我的项目",
+		Status: StatusCompleted,
+		Result: DirectionResult{Cards: []DirectionCard{{Name: "本地教培小班陪跑", Score: 91}}},
+	}}
+	router := testRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/analysis/sessions/99", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.input.UserID != 42 || app.session.ID != 99 {
+		t.Fatalf("input user/session = %d/%d", app.input.UserID, app.session.ID)
+	}
+	if !strings.Contains(recorder.Body.String(), `"name":"本地教培小班陪跑"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestGetSessionEndpointReturnsNotFoundForMissingSession(t *testing.T) {
+	app := &fakeApplication{err: ErrSessionNotFound}
+	router := testRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/analysis/sessions/99", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
