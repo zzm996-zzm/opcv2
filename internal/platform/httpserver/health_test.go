@@ -1,7 +1,9 @@
 package httpserver
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,13 +11,14 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/content"
 	"github.com/zzm/opcv2/internal/membership"
 )
 
 func TestHealthEndpoints(t *testing.T) {
 	router := NewRouter(HealthChecks{
 		Ready: func() bool { return true },
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name       string
@@ -57,7 +60,7 @@ func TestHealthEndpoints(t *testing.T) {
 func TestReadyEndpointReportsUnavailableDependency(t *testing.T) {
 	router := NewRouter(HealthChecks{
 		Ready: func() bool { return false },
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil, nil, nil)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/health/ready", nil)
 
@@ -110,7 +113,7 @@ func (fakeMembershipApp) Redeem(context.Context, membership.RedeemInput) (member
 func TestMembershipRoutesAreMountedBehindAuth(t *testing.T) {
 	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
 	membershipHTTP := membership.NewHTTPHandler(fakeMembershipApp{})
-	router := NewRouter(HealthChecks{}, authHTTP, membershipHTTP, nil)
+	router := NewRouter(HealthChecks{}, authHTTP, membershipHTTP, nil, nil, nil, nil, nil)
 
 	unauthorized := httptest.NewRecorder()
 	router.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/membership/me", nil))
@@ -127,5 +130,125 @@ func TestMembershipRoutesAreMountedBehindAuth(t *testing.T) {
 	}
 	if !strings.Contains(authorized.Body.String(), `"credit_balance":7`) {
 		t.Fatalf("body = %s", authorized.Body.String())
+	}
+}
+
+type fakeContentApp struct{}
+
+func (fakeContentApp) ListArticles(context.Context) ([]content.Article, error) {
+	return []content.Article{}, nil
+}
+func (fakeContentApp) GetArticle(context.Context, string) (content.Article, error) {
+	return content.Article{}, content.ErrArticleNotFound
+}
+func (fakeContentApp) CreateArticle(context.Context, int64, content.ArticleInput) (content.Article, error) {
+	return content.Article{}, content.ErrAdminRequired
+}
+func (fakeContentApp) ListTools(context.Context) ([]content.Tool, error) {
+	return []content.Tool{}, nil
+}
+func (fakeContentApp) UpsertTool(context.Context, int64, content.ToolInput) (content.Tool, error) {
+	return content.Tool{}, content.ErrAdminRequired
+}
+func (fakeContentApp) GetCommunityConfig(context.Context) (content.CommunityConfig, error) {
+	return content.CommunityConfig{}, nil
+}
+func (fakeContentApp) UpdateCommunityConfig(context.Context, int64, content.CommunityConfigInput) (content.CommunityConfig, error) {
+	return content.CommunityConfig{}, content.ErrAdminRequired
+}
+func (fakeContentApp) GetBrand(context.Context) (content.BrandContent, error) {
+	return content.BrandContent{Metrics: []content.BrandMetric{}, Cases: []content.BrandCase{}}, nil
+}
+func (fakeContentApp) UpsertBrandMetric(context.Context, int64, content.BrandMetricInput) (content.BrandMetric, error) {
+	return content.BrandMetric{}, content.ErrAdminRequired
+}
+func (fakeContentApp) UpsertBrandCase(context.Context, int64, content.BrandCaseInput) (content.BrandCase, error) {
+	return content.BrandCase{}, content.ErrAdminRequired
+}
+
+func TestContentRoutesExposePublicReadsAndProtectAdminWrites(t *testing.T) {
+	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
+	contentHTTP := content.NewHTTPHandler(fakeContentApp{})
+	router := NewRouter(HealthChecks{}, authHTTP, nil, nil, nil, nil, nil, contentHTTP)
+
+	public := httptest.NewRecorder()
+	router.ServeHTTP(public, httptest.NewRequest(http.MethodGet, "/api/v1/content/articles", nil))
+	if public.Code != http.StatusOK {
+		t.Fatalf("public status = %d body=%s", public.Code, public.Body.String())
+	}
+
+	unauthorized := httptest.NewRecorder()
+	router.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodPost, "/api/v1/admin/content/articles", strings.NewReader(`{}`)))
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/content/articles", strings.NewReader(`{}`))
+	request.Header.Set("Authorization", "Bearer access-token")
+	authorized := httptest.NewRecorder()
+	router.ServeHTTP(authorized, request)
+	if authorized.Code != http.StatusForbidden {
+		t.Fatalf("authorized status = %d body=%s, want forbidden from app role check", authorized.Code, authorized.Body.String())
+	}
+}
+
+func TestRouterAppliesExplicitCORSOrigins(t *testing.T) {
+	router := NewRouter(HealthChecks{
+		AllowedOrigins: []string{"https://app.example.com"},
+	}, nil, nil, nil, nil, nil, nil, nil)
+
+	allowed := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	request.Header.Set("Origin", "https://app.example.com")
+	router.ServeHTTP(allowed, request)
+	if allowed.Header().Get("Access-Control-Allow-Origin") != "https://app.example.com" {
+		t.Fatalf("allowed origin header = %q", allowed.Header().Get("Access-Control-Allow-Origin"))
+	}
+
+	disallowed := httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodGet, "/health/live", nil)
+	request.Header.Set("Origin", "https://evil.example.com")
+	router.ServeHTTP(disallowed, request)
+	if disallowed.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatalf("disallowed origin header = %q", disallowed.Header().Get("Access-Control-Allow-Origin"))
+	}
+}
+
+func TestRouterLogsRequestsWithoutSensitiveHeaders(t *testing.T) {
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buffer, nil))
+	router := NewRouter(HealthChecks{Logger: logger}, nil, nil, nil, nil, nil, nil, nil)
+	request := httptest.NewRequest(http.MethodGet, "/health/live?token=query-secret", nil)
+	request.Header.Set("Authorization", "Bearer header-secret")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	logs := buffer.String()
+	if !strings.Contains(logs, "request_complete") || !strings.Contains(logs, "path=/health/live") {
+		t.Fatalf("logs = %s", logs)
+	}
+	if strings.Contains(logs, "header-secret") || strings.Contains(logs, "query-secret") {
+		t.Fatalf("logs leaked sensitive data: %s", logs)
+	}
+}
+
+func TestRouterRateLimitsExpensiveEndpoints(t *testing.T) {
+	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
+	router := NewRouter(HealthChecks{
+		ExpensiveEndpointLimit: 1,
+	}, authHTTP, nil, nil, nil, nil, nil, nil)
+
+	for i := 0; i < 2; i++ {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/analysis/direction", strings.NewReader(`{}`))
+		request.Header.Set("Authorization", "Bearer access-token")
+		router.ServeHTTP(recorder, request)
+		if i == 0 && recorder.Code == http.StatusTooManyRequests {
+			t.Fatalf("first request was rate limited: body=%s", recorder.Body.String())
+		}
+		if i == 1 && recorder.Code != http.StatusTooManyRequests {
+			t.Fatalf("second status = %d body=%s, want 429", recorder.Code, recorder.Body.String())
+		}
 	}
 }
