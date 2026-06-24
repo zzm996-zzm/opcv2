@@ -403,6 +403,86 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <ProjectsPage variant="match" />
+          </RequireAuth>
+        }
+        path="/projects/match"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="explore" />
+          </RequireAuth>
+        }
+        path="/projects/explore"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="cases" />
+          </RequireAuth>
+        }
+        path="/projects/cases"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="questions" />
+          </RequireAuth>
+        }
+        path="/projects/questions"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="results" />
+          </RequireAuth>
+        }
+        path="/projects/results"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="paywall" />
+          </RequireAuth>
+        }
+        path="/projects/results/paywall"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="history" />
+          </RequireAuth>
+        }
+        path="/projects/history"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="detail" />
+          </RequireAuth>
+        }
+        path="/projects/detail"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="compare" />
+          </RequireAuth>
+        }
+        path="/projects/compare"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="export" />
+          </RequireAuth>
+        }
+        path="/projects/export"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <SandboxPage />
           </RequireAuth>
         }
