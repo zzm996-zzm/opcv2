@@ -1,0 +1,60 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { authSession } from "./authSession";
+import { projectsApi } from "./projectsApi";
+
+describe("projectsApi", () => {
+  afterEach(() => {
+    authSession.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("creates project match with bearer token", async () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-24T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "", status: "active" }
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ session_id: 99, status: "completed", projects: [] }), { status: 200 })
+    );
+
+    await projectsApi.createMatch({ intent: "我想做一人公司项目" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/matches",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ intent: "我想做一人公司项目" }),
+        headers: expect.objectContaining({ Authorization: "Bearer access-token" })
+      })
+    );
+  });
+
+  it("lists project match history", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ matches: [] }), { status: 200 })
+    );
+
+    await projectsApi.listMatches();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/matches",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("favorites a project match", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 7, user_id: 42, session_id: 99 }), { status: 200 })
+    );
+
+    await projectsApi.favoriteMatch(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/matches/99/favorite",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+});

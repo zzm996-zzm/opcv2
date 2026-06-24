@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 import { authSession } from "../lib/authSession";
@@ -32,6 +32,7 @@ function renderProjectRoute(path: string) {
 describe("ProjectsPage", () => {
   afterEach(() => {
     authSession.clear();
+    vi.restoreAllMocks();
   });
 
   it("renders the project market home from the design reference", () => {
@@ -51,6 +52,39 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "告诉我你的目标、资源与偏好" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交给 AI 分析" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "匹配历史" })).toHaveAttribute("href", "/projects/history");
+  });
+
+  it("submits match request and renders API result", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        session_id: 99,
+        status: "completed",
+        projects: [
+          {
+            rank: 1,
+            title: "本地AI获客顾问",
+            score: 91,
+            tags: ["B端服务", "轻资产"],
+            budget: "¥2,000 - ¥6,000",
+            reasons: ["客户需求明确", "交付可标准化"],
+            risk: "需要控制交付边界"
+          }
+        ]
+      }), { status: 200 })
+    );
+    renderProjectRoute("/projects/match");
+
+    fireEvent.change(screen.getByLabelText("项目匹配需求"), {
+      target: { value: "我想做一个本地B端AI获客服务，预算6000元" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "提交给 AI 分析" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/matches",
+      expect.objectContaining({ method: "POST" })
+    ));
+    expect(await screen.findByRole("heading", { name: "本地AI获客顾问" })).toBeInTheDocument();
+    expect(screen.getByText("91分")).toBeInTheDocument();
   });
 
   it("renders opportunity exploration page", () => {
@@ -89,11 +123,31 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "为什么推荐这些项目" })).toBeInTheDocument();
   });
 
-  it("renders history and saved matches", () => {
+  it("renders history and saved matches", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        matches: [
+          {
+            id: 99,
+            user_id: 7,
+            intent: "线上轻资产项目",
+            status: "completed",
+            result: {
+              session_id: 99,
+              status: "completed",
+              projects: [{ rank: 1, title: "本地AI获客顾问", score: 91, tags: [], budget: "¥2,000", reasons: [], risk: "获客验证" }]
+            },
+            created_at: "2026-06-24T12:00:00Z",
+            updated_at: "2026-06-24T12:00:00Z"
+          }
+        ]
+      }), { status: 200 })
+    );
     renderProjectRoute("/projects/history");
 
     expect(screen.getByRole("heading", { name: "匹配历史与收藏" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "历史匹配" })).toBeInTheDocument();
+    expect(await screen.findByText("本地AI获客顾问")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "收藏项目" })).toBeInTheDocument();
   });
 

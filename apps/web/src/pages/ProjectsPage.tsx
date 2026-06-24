@@ -1,6 +1,8 @@
+import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { projectsApi, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession } from "../lib/projectsApi";
 
 type ProjectMarketVariant =
   | "home"
@@ -17,6 +19,22 @@ type ProjectMarketVariant =
 
 type ProjectsPageProps = {
   variant?: ProjectMarketVariant;
+};
+
+type DisplayProject = {
+  rank: string;
+  title: string;
+  score: string;
+  tags: readonly string[];
+  budget: string;
+  reasons: readonly string[];
+  risk: string;
+};
+
+type MatchHistoryRow = {
+  title: string;
+  count: string;
+  detail: string;
 };
 
 const opportunityBadges = [
@@ -158,6 +176,28 @@ const historyItems = [
   ["本地服务项目", "15 个匹配机会", "低成本试跑 · 可复制"]
 ] as const;
 
+function toDisplayProject(project: ProjectMatch): DisplayProject {
+  return {
+    rank: String(project.rank),
+    title: project.title,
+    score: `${project.score}分`,
+    tags: project.tags,
+    budget: project.budget,
+    reasons: project.reasons,
+    risk: project.risk
+  };
+}
+
+function toHistoryRow(session: ProjectMatchSession): MatchHistoryRow {
+  const projects = session.result?.projects ?? [];
+  const firstProject = projects[0];
+  return {
+    title: firstProject?.title ?? session.intent,
+    count: `${projects.length || 0} 个匹配机会`,
+    detail: session.intent || session.status
+  };
+}
+
 function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
   return (
     <V4PageShell className="project-market-shell" showCopilotMini={false}>
@@ -258,35 +298,85 @@ function MarketHome() {
 }
 
 function MatchRequest() {
+  const [intent, setIntent] = useState("");
+  const [result, setResult] = useState<ProjectMatchResult | null>(null);
+  const [status, setStatus] = useState<"idle" | "submitting">("idle");
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!intent.trim() || status === "submitting") return;
+    setStatus("submitting");
+    setError("");
+    try {
+      const next = await projectsApi.createMatch({ intent });
+      setResult(next);
+    } catch {
+      setError("暂时无法生成项目匹配，请稍后重试");
+    } finally {
+      setStatus("idle");
+    }
+  }
+
+  const matchedProjects = result?.projects?.map(toDisplayProject) ?? [];
+
   return (
     <>
       <ProjectHero title="AI匹配" subtitle="让智活 Copilot 根据你的目标、资源与偏好，帮你筛出最适合的项目机会" action="匹配历史" href="/projects/history" />
-      <section className="pm-panel pm-input-panel">
+      <form onSubmit={submit}>
+        <section className="pm-panel pm-input-panel">
         <h2>告诉我你的目标、资源与偏好</h2>
-        <textarea aria-label="项目匹配需求" placeholder="例如：我想找适合一个人做的线上项目，预算3万以内，有1-2小时/天时间，希望尽快见到收入..." />
+        <textarea
+          aria-label="项目匹配需求"
+          onChange={(event) => setIntent(event.target.value)}
+          placeholder="例如：我想找适合一个人做的线上项目，预算3万以内，有1-2小时/天时间，希望尽快见到收入..."
+          value={intent}
+        />
         <div className="pm-input-tools">
           <span>参考案例</span>
           <span>上传资料</span>
           <span>语音输入</span>
           <Link to="/projects/questions">→</Link>
         </div>
-      </section>
-      <section className="pm-panel pm-recognized">
-        <div className="pm-section-head">
-          <h2>已识别的信息（示例）</h2>
-          <button type="button">清空重填</button>
-        </div>
-        <div className="pm-factor-grid">
-          {matchFactors.map(([title, detail]) => (
-            <article key={title}>
-              <span aria-hidden="true" />
-              <strong>{title}</strong>
-              <small>{detail}</small>
+        </section>
+        <section className="pm-panel pm-recognized">
+          <div className="pm-section-head">
+            <h2>已识别的信息（示例）</h2>
+            <button onClick={() => setIntent("")} type="button">清空重填</button>
+          </div>
+          <div className="pm-factor-grid">
+            {matchFactors.map(([title, detail]) => (
+              <article key={title}>
+                <span aria-hidden="true" />
+                <strong>{title}</strong>
+                <small>{detail}</small>
+              </article>
+            ))}
+          </div>
+          <button className="pm-primary-button" disabled={!intent.trim() || status === "submitting"} type="submit">
+            {status === "submitting" ? "匹配中..." : "提交给 AI 分析"}
+          </button>
+          {error && <p className="form-error" role="alert">{error}</p>}
+        </section>
+      </form>
+      {result?.status === "needs_input" && (
+        <section className="pm-panel pm-question-panel">
+          <h2>Copilot 还想确认以下问题</h2>
+          {result.questions?.map((question, index) => (
+            <article key={question.key}>
+              <b>{String(index + 1).padStart(2, "0")}</b>
+              <span>
+                <strong>{question.text}</strong>
+                <small>补充后可以提升项目匹配准确度</small>
+              </span>
+              <div>
+                {question.options.map((option) => <button key={option} type="button">{option}</button>)}
+              </div>
             </article>
           ))}
-        </div>
-        <button className="pm-primary-button" type="button">提交给 AI 分析</button>
-      </section>
+        </section>
+      )}
+      {result?.status === "completed" && matchedProjects.length > 0 && <MatchResults projects={matchedProjects} />}
       <Considerations />
     </>
   );
@@ -416,7 +506,7 @@ function MatchQuestions() {
   );
 }
 
-function MatchResults() {
+function MatchResults({ projects = resultProjects }: { projects?: readonly DisplayProject[] }) {
   return (
     <>
       <div className="pm-result-head">
@@ -437,7 +527,7 @@ function MatchResults() {
       </div>
       <section className="pm-results-layout">
         <div className="pm-result-list">
-          {resultProjects.map((project) => (
+          {projects.map((project) => (
             <article key={project.title} className="pm-result-card">
               <b>{project.rank}</b>
               <div className="pm-result-image" />
@@ -473,13 +563,36 @@ function MatchResults() {
 }
 
 function MatchHistory() {
+  const [sessions, setSessions] = useState<ProjectMatchSession[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    projectsApi
+      .listMatches()
+      .then((payload) => {
+        if (active) setSessions(payload.matches);
+      })
+      .catch(() => {
+        if (active) setError("暂时无法读取匹配历史");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const rows = sessions.length > 0
+    ? sessions.map(toHistoryRow)
+    : historyItems.map(([title, count, detail]) => ({ title, count, detail }));
+
   return (
     <>
       <ProjectHero title="匹配历史与收藏" subtitle="查看过往 AI 匹配记录、收藏项目和最近浏览的项目机会" action="重新匹配" href="/projects/match" />
       <section className="pm-history-layout">
         <div className="pm-panel">
           <h2>历史匹配</h2>
-          {historyItems.map(([title, count, detail]) => (
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {rows.map(({ title, count, detail }) => (
             <article className="pm-history-row" key={title}>
               <strong>{title}</strong>
               <span>{count}</span>
