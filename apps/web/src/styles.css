@@ -62,8 +62,10 @@ a {
   inset: 0 auto 0 0;
   display: flex;
   width: 260px;
+  height: 100vh;
   padding: 28px 24px 26px;
   flex-direction: column;
+  overflow: hidden;
   background: rgba(255, 255, 255, 0.72);
   border-right: 1px solid var(--line);
   box-shadow: 18px 0 46px rgba(51, 90, 160, 0.06);
@@ -146,8 +148,28 @@ a {
 
 .v4-side-nav {
   display: grid;
+  flex: 1 1 auto;
   gap: 26px;
+  min-height: 0;
   margin-top: 54px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(21, 87, 255, 0.32) transparent;
+}
+
+.v4-side-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.v4-side-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.v4-side-nav::-webkit-scrollbar-thumb {
+  background: rgba(21, 87, 255, 0.26);
+  border-radius: 999px;
 }
 
 .v4-side-group {
@@ -187,8 +209,9 @@ a {
 
 .v4-sidebar-bottom {
   display: grid;
+  flex: 0 0 auto;
   gap: 16px;
-  margin-top: auto;
+  margin-top: 26px;
   padding-top: 26px;
   border-top: 1px solid var(--line);
 }
@@ -20929,7 +20952,9 @@ a {
   .v4-sidebar {
     position: static;
     width: auto;
+    height: auto;
     min-height: auto;
+    overflow: visible;
   }
 
   .v4-shell {
@@ -21330,6 +21355,8 @@ a {
 
   .v4-side-nav {
     margin-top: 26px;
+    overflow: visible;
+    padding-right: 0;
   }
 
   .v4-topnav a {
