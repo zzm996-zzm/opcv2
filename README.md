@@ -38,20 +38,32 @@ make build
 ```bash
 cp .env.server.example .env.server
 # 修改 .env.server 里的密码、JWT secret、端口和 Provider key
-bash scripts/deploy_server.sh deploy --build
+./deploy.sh deploy
 ```
 
 更新部署：
 
 ```bash
-bash scripts/deploy_server.sh update --build
+./deploy.sh
+```
+
+本地一键触发服务器更新：
+
+```bash
+./update.sh
+```
+
+默认会执行 `ssh prod`，进入服务器 `~/data/www/opcv2` 后运行 `./deploy.sh`。如需覆盖：
+
+```bash
+DEPLOY_HOST=prod DEPLOY_PATH=~/data/www/opcv2 ./update.sh
 ```
 
 查看状态和日志：
 
 ```bash
-bash scripts/deploy_server.sh ps
-bash scripts/deploy_server.sh logs
+./deploy.sh ps
+./deploy.sh logs
 ```
 
 默认服务器端口：
