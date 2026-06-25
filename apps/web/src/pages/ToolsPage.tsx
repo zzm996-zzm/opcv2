@@ -1,9 +1,21 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { contentApi, type ContentTool } from "../lib/contentApi";
 
 type ToolsPageProps = {
   variant?: "library" | "all" | "recommend" | "plan" | "detail";
+};
+
+type DisplayTool = {
+  name: string;
+  desc: string;
+  tags: readonly string[];
+  price: string;
+  platform: string;
+  accent: string;
+  category: string;
 };
 
 const categories = ["全部", "写作", "绘图", "视频", "营销", "办公", "自动化", "数据分析"] as const;
@@ -155,6 +167,18 @@ const adviceCards = [
   ["关键注意事项", "执行前确认", ["明确目标受众与核心卖点。", "准备品牌素材和参数说明。", "投放前建议进行小范围 A/B 测试。"]]
 ] as const;
 
+function toDisplayTool(tool: ContentTool): DisplayTool {
+  return {
+    name: tool.name,
+    desc: tool.description || "AI 工具能力已收录，可进入详情查看适用场景。",
+    tags: ["AI工具", "已收录", tool.status === "published" ? "公开可见" : "草稿"],
+    price: "可用",
+    platform: tool.url ? "Web" : "待补充",
+    accent: "notion",
+    category: "办公"
+  };
+}
+
 function ToolsPage({ variant = "library" }: ToolsPageProps) {
   const withCopilot = variant !== "all";
 
@@ -174,7 +198,26 @@ function ToolsPage({ variant = "library" }: ToolsPageProps) {
 }
 
 function ToolLibrary({ full }: { full: boolean }) {
-  const visibleTools = full ? tools : tools.slice(0, 6);
+  const [apiTools, setApiTools] = useState<DisplayTool[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    contentApi
+      .listTools()
+      .then((payload) => {
+        if (active) setApiTools(payload.tools.map(toDisplayTool));
+      })
+      .catch(() => {
+        if (active) setError("暂时无法读取工具库");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const sourceTools = apiTools.length > 0 ? apiTools : tools;
+  const visibleTools = full ? sourceTools : sourceTools.slice(0, 6);
   const visibleScenarios = full ? hotScenarios : hotScenarios.slice(0, 3);
 
   return (
@@ -223,6 +266,7 @@ function ToolLibrary({ full }: { full: boolean }) {
       </section>
 
       <section className={`toolhub-grid ${full ? "full" : ""}`} aria-label="工具列表">
+        {error && <p className="form-error" role="alert">{error}</p>}
         {visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
       </section>
 
@@ -231,7 +275,7 @@ function ToolLibrary({ full }: { full: boolean }) {
   );
 }
 
-function ToolCard({ tool }: { tool: (typeof tools)[number] }) {
+function ToolCard({ tool }: { tool: DisplayTool }) {
   return (
     <article className="toolhub-card">
       <header>

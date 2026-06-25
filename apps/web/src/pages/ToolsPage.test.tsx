@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authSession } from "../lib/authSession";
 import ToolsPage from "./ToolsPage";
@@ -8,6 +8,7 @@ import ToolsPage from "./ToolsPage";
 describe("ToolsPage", () => {
   afterEach(() => {
     authSession.clear();
+    vi.restoreAllMocks();
   });
 
   function renderPage(variant?: "library" | "all" | "recommend" | "plan" | "detail") {
@@ -42,6 +43,29 @@ describe("ToolsPage", () => {
     expect(screen.getByText("Claude")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台⌄" })).toBeInTheDocument();
     expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
+  });
+
+  it("loads public tools from content API", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        tools: [
+          {
+            id: 99,
+            slug: "deep-research-agent",
+            name: "Deep Research Agent",
+            description: "自动整理行业资料和竞品线索。",
+            url: "https://example.com",
+            status: "published",
+            created_at: "2026-06-25T12:00:00Z",
+            updated_at: "2026-06-25T12:00:00Z"
+          }
+        ]
+      }), { status: 200 })
+    );
+    renderPage("all");
+
+    expect(await screen.findByText("Deep Research Agent")).toBeInTheDocument();
+    expect(screen.getByText("自动整理行业资料和竞品线索。")).toBeInTheDocument();
   });
 
   it("renders tool recommendations", () => {
