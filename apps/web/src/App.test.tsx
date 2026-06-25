@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -62,6 +62,36 @@ describe("App", () => {
     );
 
     expect(screen.getByRole("heading", { name: "AI线索开发" })).toBeInTheDocument();
+  });
+
+  it("toggles the product sidebar collapsed state", () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-11T12:00:00Z",
+      is_new_user: false,
+      user: {
+        id: 7,
+        nickname: "张晨",
+        phone: "13800138000",
+        status: "active"
+      }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/leads"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    const collapseButton = screen.getByRole("button", { name: "收起侧栏" });
+    const shell = collapseButton.closest(".v4-shell");
+
+    expect(shell).not.toHaveClass("v4-shell-sidebar-collapsed");
+
+    fireEvent.click(collapseButton);
+
+    expect(shell).toHaveClass("v4-shell-sidebar-collapsed");
+    expect(screen.getByRole("button", { name: "展开侧栏" })).toBeInTheDocument();
   });
 
   it("renders first-class V4 account routes for a signed-in user", () => {

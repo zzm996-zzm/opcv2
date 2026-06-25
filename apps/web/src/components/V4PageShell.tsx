@@ -60,6 +60,7 @@ function V4PageShell({ children, className = "", showCopilotMini = true }: V4Pag
   const session = useAuthSession();
   const location = useLocation();
   const [accountOpen, setAccountOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const nickname = session.user?.nickname || "张婧";
   const isTopNavActive = (href: string) =>
     location.pathname === href || (href !== "/" && location.pathname.startsWith(`${href}/`));
@@ -76,7 +77,7 @@ function V4PageShell({ children, className = "", showCopilotMini = true }: V4Pag
   }
 
   return (
-    <div className={"v4-shell " + className}>
+    <div className={`v4-shell ${className} ${sidebarCollapsed ? "v4-shell-sidebar-collapsed" : ""}`}>
       <aside className="v4-sidebar" aria-label="产品侧边导航">
         <Link className="v4-brand" to="/" aria-label="智活AI OPC V4.0 首页">
           <span className="v4-logo" aria-hidden="true" />
@@ -114,9 +115,16 @@ function V4PageShell({ children, className = "", showCopilotMini = true }: V4Pag
             <span className="v4-line-icon help" aria-hidden="true" />
             <span>帮助与反馈</span>
           </Link>
-          <button className="sidebar-collapse" type="button">
-            <span aria-hidden="true">‹</span>
-            收起侧栏
+          <button
+            aria-label={sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
+            className="sidebar-collapse"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            type="button"
+          >
+            <span aria-hidden="true">{sidebarCollapsed ? "›" : "‹"}</span>
+            <span className="sidebar-collapse-label">
+              {sidebarCollapsed ? "展开侧栏" : "收起侧栏"}
+            </span>
           </button>
         </div>
       </aside>

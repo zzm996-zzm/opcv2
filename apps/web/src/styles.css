@@ -70,6 +70,7 @@ a {
   border-right: 1px solid var(--line);
   box-shadow: 18px 0 46px rgba(51, 90, 160, 0.06);
   backdrop-filter: blur(22px);
+  transition: width 180ms ease, padding 180ms ease;
 }
 
 .v4-brand,
@@ -372,6 +373,7 @@ a {
 .v4-workspace {
   min-height: 100vh;
   padding-left: 260px;
+  transition: padding-left 180ms ease;
 }
 
 .v4-topbar {
@@ -386,6 +388,69 @@ a {
   background: rgba(255, 255, 255, 0.64);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(20px);
+}
+
+.v4-shell-sidebar-collapsed .v4-sidebar {
+  width: 88px;
+  padding-inline: 20px;
+}
+
+.v4-shell-sidebar-collapsed .v4-brand {
+  justify-content: center;
+}
+
+.v4-shell-sidebar-collapsed .v4-brand-name,
+.v4-shell-sidebar-collapsed .v4-brand small,
+.v4-shell-sidebar-collapsed .v4-group-title span:first-child,
+.v4-shell-sidebar-collapsed .v4-group-title span:last-child,
+.v4-shell-sidebar-collapsed .v4-side-link span:last-child,
+.v4-shell-sidebar-collapsed .sidebar-collapse-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.v4-shell-sidebar-collapsed .v4-side-nav {
+  justify-items: center;
+  padding-right: 0;
+}
+
+.v4-shell-sidebar-collapsed .v4-side-group {
+  justify-items: center;
+}
+
+.v4-shell-sidebar-collapsed .v4-group-title {
+  justify-content: center;
+  min-height: 8px;
+  pointer-events: none;
+}
+
+.v4-shell-sidebar-collapsed .v4-side-link,
+.v4-shell-sidebar-collapsed .sidebar-collapse {
+  justify-content: center;
+  width: 48px;
+  gap: 0;
+}
+
+.v4-shell-sidebar-collapsed .v4-side-link.with-dot::after {
+  position: absolute;
+  right: 8px;
+  margin-left: 0;
+}
+
+.v4-shell-sidebar-collapsed .v4-sidebar-bottom {
+  justify-items: center;
+}
+
+.v4-shell-sidebar-collapsed .v4-workspace {
+  padding-left: 88px;
+}
+
+.v4-shell-sidebar-collapsed .v4-topbar {
+  padding-left: 46px;
 }
 
 .v4-topnav {
@@ -20963,6 +21028,46 @@ a {
 
   .v4-workspace {
     padding-left: 0;
+  }
+
+  .v4-shell-sidebar-collapsed .v4-workspace {
+    padding-left: 0;
+  }
+
+  .v4-shell-sidebar-collapsed .v4-sidebar {
+    width: auto;
+    padding: 28px 24px 26px;
+  }
+
+  .v4-shell-sidebar-collapsed .v4-brand {
+    justify-content: flex-start;
+  }
+
+  .v4-shell-sidebar-collapsed .v4-brand-name,
+  .v4-shell-sidebar-collapsed .v4-brand small,
+  .v4-shell-sidebar-collapsed .v4-group-title span:first-child,
+  .v4-shell-sidebar-collapsed .v4-group-title span:last-child,
+  .v4-shell-sidebar-collapsed .v4-side-link span:last-child,
+  .v4-shell-sidebar-collapsed .sidebar-collapse-label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
+  .v4-shell-sidebar-collapsed .v4-side-nav,
+  .v4-shell-sidebar-collapsed .v4-side-group,
+  .v4-shell-sidebar-collapsed .v4-sidebar-bottom {
+    justify-items: stretch;
+  }
+
+  .v4-shell-sidebar-collapsed .v4-side-link,
+  .v4-shell-sidebar-collapsed .sidebar-collapse {
+    justify-content: flex-start;
+    width: auto;
+    gap: 15px;
   }
 
   .v4-topbar {
