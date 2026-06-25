@@ -1,6 +1,17 @@
+import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { leadsApi, type LeadTask } from "../lib/leadsApi";
+
+type LeadCompany = {
+  name: string;
+  industry: string;
+  score: string;
+  stage: string;
+  signals: readonly string[];
+  next: string;
+};
 
 const leadStats = [
   ["可触达企业", "328"],
@@ -63,7 +74,68 @@ const scoringRules = [
   ["成交价值", "客单价、复购潜力和交付复杂度综合判断"]
 ] as const;
 
+const statusLabels: Record<LeadTask["status"], string> = {
+  queued: "排队中",
+  running: "采集中",
+  succeeded: "已完成",
+  failed: "失败",
+  cancelled: "已取消",
+  refunded: "已退回"
+};
+
+function toLeadCompany(task: LeadTask): LeadCompany {
+  return {
+    name: task.query,
+    industry: `线索任务 #${task.id}`,
+    score: task.status === "succeeded" ? "90" : "72",
+    stage: statusLabels[task.status],
+    signals: [`消耗 ${task.credit_cost} 点额度`, `任务状态：${statusLabels[task.status]}`, `更新于 ${new Date(task.updated_at).toLocaleDateString("zh-CN")}`],
+    next: task.status === "succeeded" ? "查看采集结果并筛选高优先级客户" : "任务已提交，等待线索采集和 AI 评分"
+  };
+}
+
 function LeadDevelopmentPage() {
+  const [query, setQuery] = useState("");
+  const [tasks, setTasks] = useState<LeadTask[]>([]);
+  const [status, setStatus] = useState<"idle" | "submitting">("idle");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    leadsApi
+      .listTasks(20)
+      .then((payload) => {
+        if (active) setTasks(payload.tasks);
+      })
+      .catch(() => {
+        if (active) setError("暂时无法读取线索任务");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (!query.trim() || status === "submitting") return;
+    setStatus("submitting");
+    setError("");
+    try {
+      const task = await leadsApi.createTask({
+        query,
+        idempotencyKey: `lead-task-${Date.now()}`
+      });
+      setTasks((current) => [task, ...current.filter((item) => item.id !== task.id)]);
+      setQuery("");
+    } catch {
+      setError("暂时无法创建线索任务，请稍后重试");
+    } finally {
+      setStatus("idle");
+    }
+  }
+
+  const companies = tasks.length > 0 ? tasks.map(toLeadCompany) : leadCompanies;
+
   return (
     <V4PageShell className="lead-development-shell">
       <section className="module-page lead-development-page" aria-label="AI线索开发">
@@ -90,14 +162,19 @@ function LeadDevelopmentPage() {
             </div>
           </div>
 
-          <form className="module-ai-box compact leads-query-card">
+          <form className="module-ai-box compact leads-query-card" onSubmit={submit}>
             <label htmlFor="lead-target">描述目标客户画像</label>
             <textarea
               id="lead-target"
               aria-label="描述目标客户画像"
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="例如：华东地区、连锁教育培训机构、正在扩张校区、需要提升客服响应和私域转化..."
+              value={query}
             />
-            <button type="button">生成线索池</button>
+            <button disabled={!query.trim() || status === "submitting"} type="submit">
+              {status === "submitting" ? "生成中..." : "生成线索池"}
+            </button>
+            {error && <p className="form-error" role="alert">{error}</p>}
           </form>
         </section>
 
@@ -116,7 +193,7 @@ function LeadDevelopmentPage() {
             </div>
 
             <div className="leads-company-list">
-              {leadCompanies.map((company) => (
+              {companies.map((company) => (
                 <article key={company.name}>
                   <header>
                     <div>
