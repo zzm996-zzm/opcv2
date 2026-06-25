@@ -1,6 +1,18 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { crmApi, type CrmCustomer, type CrmStage } from "../lib/crmApi";
+
+type CustomerCard = {
+  name: string;
+  owner: string;
+  value: string;
+  stage: string;
+  health: string;
+  next: string;
+  tags: readonly string[];
+};
 
 const crmStats = [
   ["客户总数", "146"],
@@ -59,7 +71,51 @@ const activities = [
   ["14:00", "领航企业内训", "待发送行业案例，当前处于报价评估阶段"]
 ] as const;
 
+const stageLabels: Record<CrmStage, string> = {
+  new: "新线索",
+  contacted: "需求确认",
+  qualified: "方案演示",
+  proposal: "报价谈判",
+  won: "已成交",
+  lost: "已流失"
+};
+
+function toCustomerCard(customer: CrmCustomer): CustomerCard {
+  const nextDate = customer.next_follow_up_at
+    ? new Date(customer.next_follow_up_at).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+    : "待安排";
+  return {
+    name: customer.name,
+    owner: "张婧",
+    value: "待评估",
+    stage: stageLabels[customer.stage],
+    health: customer.stage === "proposal" || customer.stage === "qualified" ? "高意向" : "可推进",
+    next: `${nextDate} 跟进客户进展`,
+    tags: [customer.source === "lead" ? "AI线索" : customer.source, customer.phone ? "电话可触达" : "待补联系方式", stageLabels[customer.stage]]
+  };
+}
+
 function CrmPage() {
+  const [dueCustomers, setDueCustomers] = useState<CrmCustomer[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    crmApi
+      .listDueCustomers(20)
+      .then((payload) => {
+        if (active) setDueCustomers(payload.customers);
+      })
+      .catch(() => {
+        if (active) setError("暂时无法读取 CRM 客户");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleCustomers = dueCustomers.length > 0 ? dueCustomers.map(toCustomerCard) : customers;
+
   return (
     <V4PageShell className="crm-shell">
       <section className="module-page crm-page" aria-label="CRM客户管理">
@@ -112,7 +168,8 @@ function CrmPage() {
             </div>
 
             <div className="crm-customer-list">
-              {customers.map((customer) => (
+              {error && <p className="form-error" role="alert">{error}</p>}
+              {visibleCustomers.map((customer) => (
                 <article key={customer.name}>
                   <header>
                     <div>
