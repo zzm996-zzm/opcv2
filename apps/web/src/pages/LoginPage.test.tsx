@@ -129,6 +129,33 @@ describe("LoginPage", () => {
     expect(await screen.findByText("注册成功，正在进入工作台")).toBeInTheDocument();
   });
 
+  it("shows a specific registration error when the account already exists", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "account_exists" }), { status: 409 })
+    );
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "注册" }));
+    fireEvent.change(screen.getByLabelText("账号"), {
+      target: { value: "deploy_user" }
+    });
+    fireEvent.change(screen.getByLabelText("密码"), {
+      target: { value: "secret123" }
+    });
+    fireEvent.change(screen.getByLabelText("确认密码"), {
+      target: { value: "secret123" }
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
+    fireEvent.click(screen.getByRole("button", { name: "注册并创建账号" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("账号已存在，请直接登录");
+  });
+
   it("returns to the requested route after login", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

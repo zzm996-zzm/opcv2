@@ -68,7 +68,7 @@ function LoginPage() {
       window.setTimeout(() => navigate(returnTo ?? "/"), 600);
     } catch (requestError) {
       setStatus("idle");
-      setError(resolveError(requestError));
+      setError(resolveError(requestError, mode));
     }
   }
 
@@ -286,9 +286,10 @@ function LoginPage() {
   );
 }
 
-function resolveError(error: unknown) {
-  if (!(error instanceof Error)) return "暂时无法完成登录";
-  return errorMessages[error.message] ?? "暂时无法完成登录";
+function resolveError(error: unknown, mode: AuthMode) {
+  const fallback = mode === "login" ? "暂时无法完成登录" : "暂时无法完成注册";
+  if (!(error instanceof Error)) return fallback;
+  return errorMessages[error.message] ?? fallback;
 }
 
 export default LoginPage;
