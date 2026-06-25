@@ -75,6 +75,29 @@ DEPLOY_HOST=prod DEPLOY_PATH=~/data/www/opcv2 ./update.sh
 
 > MVP 阶段还未接真实短信服务商，`.env.server.example` 默认 `OPCV2_ENV=development` 和固定验证码。正式上线前必须接入真实 SMS Provider，再切到 `OPCV2_ENV=production`。
 
+### 国内服务器构建慢
+
+服务器 compose 默认使用国内可访问性更好的镜像源和包源：
+
+- Docker 基础镜像：`docker.m.daocloud.io/library/...`
+- Alpine apk：`https://mirrors.aliyun.com/alpine`
+- Go modules：`https://goproxy.cn,direct`
+- npm：`https://registry.npmmirror.com`
+
+如果你的服务器已经配置了 Docker Hub 加速器，或部署在海外，可以在 `.env.server` 中把这些变量改回官方源：
+
+```bash
+OPCV2_POSTGRES_IMAGE=postgres:16-alpine
+OPCV2_REDIS_IMAGE=redis:7-alpine
+OPCV2_GO_BUILDER_IMAGE=golang:1.22.3-alpine
+OPCV2_RUNTIME_IMAGE=alpine:3.20
+OPCV2_NODE_BUILDER_IMAGE=node:22-alpine
+OPCV2_NGINX_IMAGE=nginx:1.27-alpine
+OPCV2_ALPINE_REPOSITORY=
+OPCV2_GOPROXY=https://proxy.golang.org,direct
+OPCV2_NPM_REGISTRY=https://registry.npmjs.org/
+```
+
 ## 已完成
 
 - 手机验证码登录/注册、Refresh Token 轮换、退出登录

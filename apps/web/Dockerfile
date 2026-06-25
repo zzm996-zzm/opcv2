@@ -1,13 +1,18 @@
-FROM node:22-alpine AS builder
+ARG NODE_BUILDER_IMAGE=node:22-alpine
+ARG NGINX_IMAGE=nginx:1.27-alpine
+
+FROM ${NODE_BUILDER_IMAGE} AS builder
 
 WORKDIR /app
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
+ENV npm_config_registry=${NPM_CONFIG_REGISTRY}
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
 RUN npm run build
 
-FROM nginx:1.27-alpine
+FROM ${NGINX_IMAGE}
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 

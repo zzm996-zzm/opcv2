@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: ${OPCV2_POSTGRES_IMAGE:-docker.m.daocloud.io/library/postgres:16-alpine}
     container_name: opcv2-server-postgres
     restart: unless-stopped
     environment:
@@ -19,7 +19,7 @@ services:
       start_period: 10s
 
   redis:
-    image: redis:7-alpine
+    image: ${OPCV2_REDIS_IMAGE:-docker.m.daocloud.io/library/redis:7-alpine}
     container_name: opcv2-server-redis
     restart: unless-stopped
     ports:
@@ -38,6 +38,10 @@ services:
       context: .
       args:
         APP: api
+        GO_BUILDER_IMAGE: ${OPCV2_GO_BUILDER_IMAGE:-docker.m.daocloud.io/library/golang:1.22.3-alpine}
+        RUNTIME_IMAGE: ${OPCV2_RUNTIME_IMAGE:-docker.m.daocloud.io/library/alpine:3.20}
+        GOPROXY: ${OPCV2_GOPROXY:-https://goproxy.cn,direct}
+        ALPINE_REPOSITORY: ${OPCV2_ALPINE_REPOSITORY:-https://mirrors.aliyun.com/alpine}
     image: opcv2-server-api:latest
     container_name: opcv2-server-api
     restart: unless-stopped
@@ -85,6 +89,10 @@ services:
       context: .
       args:
         APP: worker
+        GO_BUILDER_IMAGE: ${OPCV2_GO_BUILDER_IMAGE:-docker.m.daocloud.io/library/golang:1.22.3-alpine}
+        RUNTIME_IMAGE: ${OPCV2_RUNTIME_IMAGE:-docker.m.daocloud.io/library/alpine:3.20}
+        GOPROXY: ${OPCV2_GOPROXY:-https://goproxy.cn,direct}
+        ALPINE_REPOSITORY: ${OPCV2_ALPINE_REPOSITORY:-https://mirrors.aliyun.com/alpine}
     image: opcv2-server-worker:latest
     container_name: opcv2-server-worker
     restart: unless-stopped
@@ -108,6 +116,10 @@ services:
   web:
     build:
       context: ./apps/web
+      args:
+        NODE_BUILDER_IMAGE: ${OPCV2_NODE_BUILDER_IMAGE:-docker.m.daocloud.io/library/node:22-alpine}
+        NGINX_IMAGE: ${OPCV2_NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:1.27-alpine}
+        NPM_CONFIG_REGISTRY: ${OPCV2_NPM_REGISTRY:-https://registry.npmmirror.com}
     image: opcv2-server-web:latest
     container_name: opcv2-server-web
     restart: unless-stopped
