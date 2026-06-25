@@ -12,5 +12,13 @@ apps/web/*.tsbuildinfo
 apps/web/vite.config.js
 apps/web/vite.config.d.ts
 
+docs/design-references/**/*.jpg
+docs/design-references/**/*.jpeg
+docs/design-references/**/*.png
+docs/design-references/**/*.gif
+docs/design-references/**/*.webp
+docs/design-references/**/*.mp4
+docs/design-references/**/*.mov
+
 .idea/
 .vscode/
