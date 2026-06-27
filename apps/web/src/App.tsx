@@ -491,6 +491,70 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <SandboxPage variant="setup" />
+          </RequireAuth>
+        }
+        path="/sandbox/setup"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <SandboxPage variant="roles" />
+          </RequireAuth>
+        }
+        path="/sandbox/roles"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <SandboxPage variant="start" />
+          </RequireAuth>
+        }
+        path="/sandbox/start"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <SandboxPage variant="questions" />
+          </RequireAuth>
+        }
+        path="/sandbox/questions"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <SandboxPage variant="run" />
+          </RequireAuth>
+        }
+        path="/sandbox/run"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <SandboxPage variant="report" />
+          </RequireAuth>
+        }
+        path="/sandbox/report"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <SandboxPage variant="history" />
+          </RequireAuth>
+        }
+        path="/sandbox/history"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <SandboxPage variant="quota" />
+          </RequireAuth>
+        }
+        path="/sandbox/quota"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <TasksPage />
           </RequireAuth>
         }
