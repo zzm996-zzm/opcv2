@@ -90,6 +90,7 @@ describe("HomePage", () => {
     expect(screen.getByRole("dialog", { name: "通知下拉框" })).toBeInTheDocument();
     expect(screen.getByText("项目分析完成")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "打开智活 Copilot" }));
     fireEvent.click(screen.getByRole("button", { name: "打开 Copilot 设置" }));
     expect(screen.getByText("Copilot 设置")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Claude opus4.8" })).toBeInTheDocument();

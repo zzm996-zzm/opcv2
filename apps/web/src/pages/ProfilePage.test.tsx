@@ -55,8 +55,8 @@ describe("ProfilePage", () => {
 
     expect(screen.getByRole("heading", { name: "账号与资料设置" })).toBeInTheDocument();
     expect(screen.getByText("资料完成度")).toBeInTheDocument();
-    expect(screen.getByText("用户资料")).toBeInTheDocument();
-    expect(screen.getByText("智活科技有限公司")).toBeInTheDocument();
+    expect(screen.getByText("用户画像资料编辑")).toBeInTheDocument();
+    expect(screen.getByText("公司名称：智活AI科技有限公司")).toBeInTheDocument();
     expect(screen.getByText("138****5678")).toBeInTheDocument();
   });
 

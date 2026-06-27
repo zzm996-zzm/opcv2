@@ -58,6 +58,7 @@ func (r *PostgresRepository) RedeemCode(ctx context.Context, input RedeemInput, 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	code, err := r.lockRedemptionCode(ctx, tx, input.Code)
+
 	if err != nil {
 		return RedeemResult{}, err
 	}

@@ -38,7 +38,7 @@ describe("MembershipPage", () => {
     );
 
     expect(screen.getByRole("dialog", { name: "升级套餐" })).toBeInTheDocument();
-    expect(screen.getByText("会员版")).toBeInTheDocument();
+    expect(screen.getAllByText("会员版").length).toBeGreaterThan(0);
     expect(screen.getByText("权益对比一览")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "立即开通" })).toBeInTheDocument();
   });

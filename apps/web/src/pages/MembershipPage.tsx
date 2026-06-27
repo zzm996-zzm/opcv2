@@ -19,6 +19,32 @@ const orders = [
   ["ZS-20230810-0002", "企业版（新付）", "2025-08-10 16:44", "已支付", "¥2,999.00", "已开票"]
 ] as const;
 
+const planSummary = [
+  ["团队成员上限", "", "team"],
+  ["项目数上限", "不限", "project"],
+  ["数据策略查询", "", "data"],
+  ["专属客户成功", "1v1服务", "service"],
+  ["更多高级功能", "全部开放", "more"]
+] as const;
+
+const upgradePlans = {
+  normal: [
+    ["商业沙盘推演", "1 次/月"],
+    ["竞品全盘数据破解", "5 次/月"],
+    ["竞品动态监测", "共用查询额度"],
+    ["其他功能", "本版暂不限次"],
+    ["默认单一模型", ""]
+  ],
+  member: [
+    ["商业沙盘推演", "20 次/月"],
+    ["竞品全盘数据破解", "200 次/月"],
+    ["竞品动态监测", "共用查询额度"],
+    ["其他功能", "本版暂不限次"],
+    ["支持 GPT / Claude / Grok 模型切换", ""],
+    ["支持深度思考", ""]
+  ]
+} as const;
+
 type MembershipPageProps = {
   showUpgrade?: boolean;
 };
@@ -69,8 +95,12 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
               </div>
               <div className="plan-summary">
                 <strong>权益摘要</strong>
-                {["团队成员上限", "项目数上限", "数据策略查询", "专属客户成功", "更多高级功能"].map((item, index) => (
-                  <span key={item}>{item}<b>{index === 1 ? "不限" : index === 3 ? "1v1服务" : index === 4 ? "全部开放" : ""}</b></span>
+                {planSummary.map(([item, value, icon]) => (
+                  <span key={item}>
+                    <i className={`plan-summary-icon ${icon}`} aria-hidden="true" />
+                    {item}
+                    <b>{value}</b>
+                  </span>
                 ))}
               </div>
             </section>
@@ -116,14 +146,23 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
           </div>
 
           <aside className="billing-copilot-card" aria-label="智活 Copilot">
-            <strong>智活 <b>Copilot</b></strong>
+            <header>
+              <strong>智活 <b>Copilot</b></strong>
+              <span aria-hidden="true">⚙ ˄</span>
+            </header>
             <p>你的全球 AI 助手，随时为你提供帮助</p>
-            <article>嗨，{nickname}！今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</article>
+            <article><em>A</em>嗨，{nickname}！今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</article>
             <article className="blue">帮我分析一下智能客服系统的市场机会和落地关键点。</article>
-            <article>好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点。</article>
+            <article><em>A</em>好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点。</article>
+            <div className="copilot-file-chip"><span aria-hidden="true">PDF</span>智能客服系统机会分析报告<small>PDF · 1.2 MB</small></div>
             <Link to="/analysis">分析项目机会 ›</Link>
             <Link to="/tools">推荐工具 ›</Link>
             <Link to="/tasks">制定落地计划 ›</Link>
+            <label className="billing-copilot-input">
+              <span aria-hidden="true">⊕</span>
+              <input aria-label="询问 Copilot" placeholder="询问任何问题..." />
+              <b aria-hidden="true">➤</b>
+            </label>
           </aside>
         </div>
         {showUpgrade && <MembershipUpgradeModal />}
@@ -156,8 +195,12 @@ function MembershipUpgradeModal() {
               <small>当前方案</small>
             </div>
             <p><b>¥0</b> / 免费</p>
-            {["商业沙盘推演：1 次/月", "竞品全盘数据破解：5 次/月", "竞品动态监测：共用查询额度", "其他功能：本版暂不限次", "默认单一模型"].map((item) => (
-              <span key={item}>{item}</span>
+            {upgradePlans.normal.map(([name, value]) => (
+              <span className="upgrade-benefit" key={name}>
+                <i aria-hidden="true" />
+                <em>{name}</em>
+                {value && <strong>{value}</strong>}
+              </span>
             ))}
           </article>
 
@@ -169,21 +212,23 @@ function MembershipUpgradeModal() {
               <small>推荐</small>
             </div>
             <p><b>¥980</b> / 年 <em>折合 ¥81.67 / 月</em></p>
-            {[
-              "商业沙盘推演：20 次/月",
-              "竞品全盘数据破解：200 次/月",
-              "竞品动态监测：共用查询额度",
-              "其他功能：本版暂不限次",
-              "支持 GPT / Claude / Grok 模型切换",
-              "支持深度思考"
-            ].map((item) => (
-              <span key={item}>{item}</span>
+            {upgradePlans.member.map(([name, value]) => (
+              <span className="upgrade-benefit" key={name}>
+                <i aria-hidden="true" />
+                <em>{name}</em>
+                {value && <strong>{value}</strong>}
+              </span>
             ))}
           </article>
         </div>
 
         <div className="benefit-table">
           <h3>权益对比一览</h3>
+          <div className="benefit-table-head">
+            <span />
+            <span>普通版</span>
+            <strong>会员版</strong>
+          </div>
           {[
             ["商业沙盘推演", "1 次 / 月", "20 次 / 月"],
             ["竞品全盘数据破解查询", "5 次 / 月", "200 次 / 月"],

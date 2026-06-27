@@ -26,6 +26,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [wechat, setWechat] = useState("");
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
@@ -39,11 +40,12 @@ function LoginPage() {
       return (
         accountReady &&
         passwordReady &&
+        phone.trim().length >= 11 &&
         (!confirmPassword || confirmPassword === password)
       );
     }
     return accountReady && passwordReady;
-  }, [account, agreementAccepted, confirmPassword, mode, password, status]);
+  }, [account, agreementAccepted, confirmPassword, mode, password, phone, status]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -163,13 +165,13 @@ function LoginPage() {
             {mode === "login" ? (
               <>
                 <label className="field auth-input">
-                  <span>账号</span>
+                  <span>账号 / 用户名</span>
                   <input
                     aria-label="账号"
                     autoComplete="username"
                     maxLength={32}
                     onChange={(event) => setAccount(event.target.value)}
-                    placeholder="请输入账号"
+                    placeholder="请输入账号 / 用户名"
                     value={account}
                   />
                 </label>
@@ -185,6 +187,7 @@ function LoginPage() {
                     value={password}
                   />
                 </label>
+                <Link className="forgot-password-link" to="/help">忘记密码</Link>
               </>
             ) : (
               <div className="register-field-grid">
@@ -233,6 +236,18 @@ function LoginPage() {
                   />
                 </label>
                 <label className="field auth-input">
+                  <span>手机号 <em>*</em></span>
+                  <input
+                    aria-label="手机号"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    maxLength={11}
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="请输入手机号"
+                    value={phone}
+                  />
+                </label>
+                <label className="field auth-input">
                   <span>微信 / 企业微信 <small>（选填）</small></span>
                   <input
                     aria-label="微信或企业微信"
@@ -271,7 +286,21 @@ function LoginPage() {
                 : mode === "login" ? "登录" : "注册并创建账号"}
             </button>
 
-            <p className="auth-note">当前临时开放账号密码登录，部署检查时无需手机号。</p>
+            {mode === "login" && (
+              <>
+                <div className="auth-divider">其他登录方式</div>
+                <div className="auth-secondary-actions">
+                  <button type="button">
+                    <span className="wechat-mark" aria-hidden="true">●</span>
+                    微信快捷登录
+                  </button>
+                  <button type="button">
+                    <span className="phone-mark" aria-hidden="true" />
+                    手机号快捷登录
+                  </button>
+                </div>
+              </>
+            )}
 
             <p className="auth-switch">
               {mode === "login" ? "还没有账号？" : "已有账号？"}

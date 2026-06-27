@@ -82,8 +82,8 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("密码")).toBeInTheDocument();
     expect(screen.getByLabelText("确认密码")).toBeInTheDocument();
     expect(screen.getByLabelText("邮箱")).toBeInTheDocument();
+    expect(screen.getByLabelText("手机号")).toBeInTheDocument();
     expect(screen.getByLabelText("微信或企业微信")).toBeInTheDocument();
-    expect(screen.queryByLabelText("手机号")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "注册并创建账号" })).toBeDisabled();
   });
 
@@ -122,6 +122,9 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText("确认密码"), {
       target: { value: "secret123" }
     });
+    fireEvent.change(screen.getByLabelText("手机号"), {
+      target: { value: "13800138000" }
+    });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
     fireEvent.click(screen.getByRole("button", { name: "注册并创建账号" }));
 
@@ -149,6 +152,9 @@ describe("LoginPage", () => {
     });
     fireEvent.change(screen.getByLabelText("确认密码"), {
       target: { value: "secret123" }
+    });
+    fireEvent.change(screen.getByLabelText("手机号"), {
+      target: { value: "13800138000" }
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
     fireEvent.click(screen.getByRole("button", { name: "注册并创建账号" }));

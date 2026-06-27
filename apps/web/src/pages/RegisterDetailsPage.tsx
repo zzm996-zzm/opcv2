@@ -20,9 +20,14 @@ function RegisterDetailsPage() {
         </Link>
         <nav>
           <Link to="/help">帮助中心</Link>
+          <Link aria-label="通知" className="details-bell" to="/messages">
+            <span />
+          </Link>
           <Link className="details-user" to="/profile">
             <span aria-hidden="true" />
-            张婧 · 智活AI
+            <strong>张婧 · 智活AI</strong>
+            <small>企业管理员</small>
+            <b aria-hidden="true">⌄</b>
           </Link>
         </nav>
       </header>

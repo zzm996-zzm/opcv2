@@ -147,6 +147,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   const [accountOpen, setAccountOpen] = useState(menuState === "account");
   const [noticeOpen, setNoticeOpen] = useState(menuState === "notice");
   const [assistantOpen, setAssistantOpen] = useState(assistantState !== "collapsed" && Boolean(session.user));
+  const [assistantDismissed, setAssistantDismissed] = useState(false);
   const [assistantMode, setAssistantMode] = useState<"chat" | "settings">(assistantState === "settings" ? "settings" : "chat");
   const [filesOpen, setFilesOpen] = useState(assistantState === "files");
   const signedIn = Boolean(session.user);
@@ -155,9 +156,15 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   useEffect(() => {
     if (!assistantState) return;
     setAssistantOpen(assistantState !== "collapsed" && Boolean(session.user));
+    setAssistantDismissed(assistantState === "collapsed");
     setAssistantMode(assistantState === "settings" ? "settings" : "chat");
     setFilesOpen(assistantState === "files");
   }, [assistantState, session.user]);
+
+  useEffect(() => {
+    if (assistantState || assistantDismissed || !session.user) return;
+    setAssistantOpen(true);
+  }, [assistantDismissed, assistantState, session.user]);
 
   useEffect(() => {
     setNoticeOpen(menuState === "notice");
@@ -240,6 +247,8 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   onClick={() => {
                     setNoticeOpen((open) => !open);
                     setAccountOpen(false);
+                    setAssistantDismissed(true);
+                    setAssistantOpen(false);
                   }}
                   type="button"
                 >
@@ -285,6 +294,8 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   onClick={() => {
                     setAccountOpen((open) => !open);
                     setNoticeOpen(false);
+                    setAssistantDismissed(true);
+                    setAssistantOpen(false);
                   }}
                   type="button"
                 >
@@ -427,7 +438,16 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     >
                       ⚙
                     </button>
-                    <button aria-label="收起智活 Copilot" onClick={() => setAssistantOpen(false)} type="button">⌄</button>
+                    <button
+                      aria-label="收起智活 Copilot"
+                      onClick={() => {
+                        setAssistantDismissed(true);
+                        setAssistantOpen(false);
+                      }}
+                      type="button"
+                    >
+                      ⌄
+                    </button>
                   </div>
                 </div>
                 {assistantMode === "settings" && (
@@ -496,6 +516,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               <button
                 className="copilot-mini"
                 onClick={() => {
+                  setAssistantDismissed(false);
                   setAssistantOpen(true);
                   setAssistantMode("chat");
                 }}
@@ -503,12 +524,25 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               >
                 <span className="mini-logo" aria-hidden="true" />
                 <strong>智活 Copilot</strong>
-                <small>输入问题，发送后自动展开回复</small>
+                <span className="mini-caret" aria-hidden="true">⌃</span>
+                <span className="mini-input" aria-hidden="true">
+                  <i>+</i>
+                  <small>输入问题，发送后自动展开回复</small>
+                  <b>↗</b>
+                </span>
               </button>
             )}
           </aside>
 
-          <button className="floating-orb" onClick={() => setAssistantOpen(true)} type="button" aria-label="打开智活 Copilot">
+          <button
+            className="floating-orb"
+            onClick={() => {
+              setAssistantDismissed(false);
+              setAssistantOpen(true);
+            }}
+            type="button"
+            aria-label="打开智活 Copilot"
+          >
             <span className="v4-logo" aria-hidden="true" />
           </button>
         </main>

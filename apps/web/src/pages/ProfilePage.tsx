@@ -27,12 +27,12 @@ const quickLinks = [
 ] as const;
 
 const profileForms = [
-  ["姓名", "张晨", "企业管理员"],
-  ["公司名称", "智活科技有限公司", "已认证"],
-  ["所属行业", "人工智能 / SaaS", "可编辑"],
-  ["业务阶段", "增长期", "可编辑"],
-  ["核心产品", "AI 智能客服系统", "已完善"],
-  ["关注方向", "线索开发、竞品监测、增长测算", "已完善"]
+  ["基本身份", "姓名", "张婧", "所在组织", "智活AI", "身份角色", "企业管理员", "user"],
+  ["我的业务 / 公司", "公司名称", "智活AI科技有限公司", "所在行业", "人工智能", "公司规模", "51-200 人", "company"],
+  ["我的产品", "主营产品 / 服务", "智活AI企业增长平台", "产品阶段", "成长期", "核心客户群", "中大型企业", "product"],
+  ["能力与资源", "核心能力", "AI线索洞察、增长策略", "可用资源", "数据资产、算法模型", "合作伙伴", "8 家", "resource"],
+  ["目标与诉求", "核心目标", "提升客户获取效率", "关键诉求", "线索增长、转化提升", "期望合作", "精准匹配、方案共创", "goal"],
+  ["偏好", "关注领域", "AI应用、市场增长", "内容偏好", "案例分析、实操工具", "联系偏好", "邮件、站内信", "preference"]
 ] as const;
 
 const accountBindings = {
@@ -122,7 +122,7 @@ function ProfileOverview({ nickname }: { nickname: string }) {
           <div>
             <h2>额度与使用概览</h2>
           </div>
-          <p>所有额度均按自然月重置，本月重置日：2025-06-01</p>
+          <p>所有额度均按自然月重置　　本月重置日：2025-06-01</p>
         </div>
         <div className="quota-grid">
           {quotas.map(([label, used, total, percent]) => (
@@ -174,31 +174,37 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
     <>
       <section className="profile-completion-card">
         <div className="completion-copy">
-          <span>资料完成度</span>
-          <strong>78%</strong>
-          <small>已完善 11 项 / 共 14 项，补齐后可获得更精准的项目推荐与增长建议</small>
+          <strong>资料完成度</strong>
+          <small>完善资料，有助于获得更精准的服务与推荐</small>
         </div>
         <div className="completion-ring" aria-hidden="true">
           <i>78%</i>
         </div>
+        <p><b>已完善 11 项</b><span>共 14 项</span></p>
         <Link to="/profile/settings/complete">完善资料</Link>
       </section>
 
-      <section className="settings-form-card" aria-label="用户资料">
+      <section className="settings-form-card profile-info-card" aria-label="用户资料">
         <div className="settings-card-head">
           <div>
-            <h2>用户资料</h2>
-            <p>这些信息会用于生成更贴合你业务场景的 AI 建议</p>
+            <h2>用户画像资料编辑</h2>
           </div>
-          <Link to="/profile/settings/complete">编辑资料</Link>
         </div>
         <div className="settings-form-grid">
-          {profileForms.map(([label, value, note]) => (
-            <label key={label}>
-              <span>{label}</span>
-              <strong>{value}</strong>
-              <small>{note}</small>
-            </label>
+          {profileForms.map(([label, keyA, valueA, keyB, valueB, keyC, valueC, icon]) => (
+            <article className="profile-info-tile" key={label}>
+              <header>
+                <span className={`profile-info-icon ${icon}`} aria-hidden="true" />
+                <h3>{label}</h3>
+                <Link to="/profile/settings/complete" aria-label={`编辑${label}`}>✎</Link>
+              </header>
+              <dl>
+                <div><dt>{keyA}</dt><dd>{valueA}</dd></div>
+                <div><dt>{keyB}</dt><dd>{valueB}</dd></div>
+                <div><dt>{keyC}</dt><dd>{valueC}</dd></div>
+              </dl>
+              <span className="profile-info-testline">{keyA}：{valueA}</span>
+            </article>
           ))}
         </div>
       </section>
