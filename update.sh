@@ -11,12 +11,17 @@ quoted_args=()
 for arg in "$@"; do
   quoted_args+=("$(printf '%q' "$arg")")
 done
+if ((${#quoted_args[@]} > 0)); then
+  remote_args=" ${quoted_args[*]}"
+else
+  remote_args=""
+fi
 
 remote_script=$(cat <<EOF
 set -euo pipefail
 cd ${REMOTE_DIR}
 if [ -x ./deploy.sh ]; then
-  ./deploy.sh $(printf '%q' "$REMOTE_COMMAND") ${quoted_args[*]}
+  ./deploy.sh $(printf '%q' "$REMOTE_COMMAND")${remote_args}
 else
   bash scripts/deploy_server.sh update --build
 fi
