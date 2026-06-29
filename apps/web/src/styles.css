@@ -20755,6 +20755,14 @@ a {
 .toolhub-logo.claude::before { content: "AI"; color: #2c1706; }
 .toolhub-logo.chatgpt::before { content: "◎"; color: white; }
 .toolhub-logo.canva::before { content: "C"; color: white; }
+.toolhub-logo.deepseek::before { content: "⌁"; color: white; }
+.toolhub-logo.feishu::before { content: "飞"; color: #1557ff; }
+.toolhub-logo.apollo::before { content: "A"; color: white; }
+.toolhub-logo.amap::before { content: "➤"; color: #1285ff; }
+.toolhub-logo.xiaohongshu::before { content: "小"; color: white; }
+.toolhub-logo.tencent::before { content: "T"; color: white; }
+.toolhub-logo.google::before { content: "G"; color: #1557ff; }
+.toolhub-logo.similarweb::before { content: "◇"; color: white; }
 
 .toolhub-logo.chatgpt,
 .toolhub-logo.canva {
@@ -20764,6 +20772,41 @@ a {
 
 .toolhub-logo.canva {
   background: linear-gradient(145deg, #19d5ff, #7d56ff);
+}
+
+.toolhub-logo.deepseek {
+  background: linear-gradient(145deg, #4b74ff, #1557ff);
+}
+
+.toolhub-logo.feishu {
+  background: linear-gradient(145deg, #eff6ff, #d9f7ff);
+}
+
+.toolhub-logo.apollo {
+  background: linear-gradient(145deg, #111827, #050914);
+}
+
+.toolhub-logo.amap {
+  background: linear-gradient(145deg, #e8fff2, #ddf0ff);
+}
+
+.toolhub-logo.xiaohongshu {
+  background: #ff2442;
+}
+
+.toolhub-logo.tencent {
+  background: linear-gradient(145deg, #715cff, #2265ff);
+}
+
+.toolhub-logo.google {
+  background:
+    radial-gradient(circle at 50% 80%, #34a853 0 7px, transparent 8px),
+    linear-gradient(90deg, transparent 0 18%, #4285f4 19% 31%, transparent 32% 45%, #fbbc05 46% 62%, transparent 63% 78%, #ea4335 79% 91%, transparent 92%),
+    #ffffff;
+}
+
+.toolhub-logo.similarweb {
+  background: linear-gradient(145deg, #246bff, #18d0ff);
 }
 
 .toolhub-logo.claude {

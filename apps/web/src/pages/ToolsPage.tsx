@@ -18,7 +18,7 @@ type DisplayTool = {
   category: string;
 };
 
-const categories = ["全部", "写作", "绘图", "视频", "营销", "办公", "自动化", "数据分析"] as const;
+const categories = ["精选", "最新", "热门", "收藏"] as const;
 const sidebarCategories = ["全部工具", "创业获客", "内容生产", "图片设计", "视频剪辑", "客户管理", "数据分析", "跨境外贸"] as const;
 
 const hotScenarios = [
@@ -30,76 +30,85 @@ const hotScenarios = [
 
 const tools = [
   {
-    name: "Notion AI",
-    desc: "智能写作助手，帮助你快速总结、起草文档和管理知识。",
-    tags: ["写作", "办公", "知识管理"],
+    name: "Canva AI",
+    desc: "AI驱动的在线设计工具，快速生成高质量海报、PPT、社媒内容等。",
+    tags: ["图片设计", "AI设计", "营销素材"],
     price: "免费试用",
     platform: "Web",
-    accent: "notion",
+    accent: "canva",
+    category: "图片设计"
+  },
+  {
+    name: "DeepSeek",
+    desc: "强大的AI对话助手，擅长深度思考与复杂问题解答。",
+    tags: ["AI对话", "内容生成", "效率提升"],
+    price: "免费",
+    platform: "Web",
+    accent: "deepseek",
+    category: "内容生产"
+  },
+  {
+    name: "飞书多维表格",
+    desc: "AI驱动的多维表格，轻松搭建业务流程与数据管理系统。",
+    tags: ["数据管理", "团队协作", "自动化"],
+    price: "免费试用",
+    platform: "Web",
+    accent: "feishu",
     category: "办公"
   },
   {
-    name: "Midjourney",
-    desc: "根据文本生成高质量图像，激发无限创意灵感。",
-    tags: ["绘图", "设计", "创意"],
-    price: "付费",
-    platform: "Web",
-    accent: "midjourney",
-    category: "绘图"
-  },
-  {
-    name: "Runway",
-    desc: "AI视频创作平台，轻松生成、编辑和特效处理视频。",
-    tags: ["视频", "创作", "剪辑"],
+    name: "Apollo",
+    desc: "AI文案与内容生产平台，快速产出高转化营销文案与广告内容。",
+    tags: ["文案写作", "广告营销", "内容生成"],
     price: "免费试用",
     platform: "Web",
-    accent: "runway",
-    category: "视频"
+    accent: "apollo",
+    category: "创业获客"
   },
   {
-    name: "Jasper",
-    desc: "AI文案写作工具，打造高转化率的营销内容。",
-    tags: ["写作", "营销", "内容生成"],
-    price: "付费",
+    name: "高德 POI",
+    desc: "高德地图POI数据服务，精准获取地理位置与商户信息。",
+    tags: ["数据获取", "线索挖掘", "本地生活"],
+    price: "可用",
     platform: "Web",
-    accent: "jasper",
-    category: "营销"
-  },
-  {
-    name: "Perplexity",
-    desc: "基于AI的智能搜索引擎，提供精准可靠的答案与来源。",
-    tags: ["搜索", "研究", "信息检索"],
-    price: "免费",
-    platform: "Web / iOS / Android",
-    accent: "perplexity",
+    accent: "amap",
     category: "数据分析"
   },
   {
-    name: "Gamma",
-    desc: "AI生成演示文稿和文档，快速将想法变成精美内容。",
-    tags: ["办公", "演示", "文档"],
-    price: "免费试用",
+    name: "小红书需求监听",
+    desc: "实时监测小红书平台用户需求与热门话题，发现潜在商机。",
+    tags: ["社媒监听", "需求洞察", "热点挖掘"],
+    price: "可用",
     platform: "Web",
-    accent: "gamma",
-    category: "办公"
+    accent: "xiaohongshu",
+    category: "创业获客"
   },
   {
-    name: "Zapier AI",
-    desc: "自动化连接数千款应用，AI助你构建智能工作流。",
-    tags: ["自动化", "集成", "效率提升"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "zapier",
-    category: "自动化"
-  },
-  {
-    name: "Claude",
-    desc: "强大的AI对话助手，擅长理解、分析和创作复杂内容。",
-    tags: ["对话", "写作", "分析"],
+    name: "腾讯企点",
+    desc: "智能客户管理与营销平台，连接客户，提升转化与复购。",
+    tags: ["客户管理", "营销自动化", "客户服务"],
     price: "付费",
-    platform: "Web / iOS",
-    accent: "claude",
-    category: "写作"
+    platform: "Web",
+    accent: "tencent",
+    category: "客户管理"
+  },
+  {
+    name: "Google Analytics",
+    desc: "专业的网站数据分析工具，洞察流量来源与用户行为。",
+    tags: ["数据分析", "用户洞察", "网站分析"],
+    price: "免费",
+    platform: "Web",
+    accent: "google",
+    category: "数据分析"
+  },
+  {
+    name: "SimilarWeb",
+    desc: "全球网站流量与竞争分析，洞察行业趋势与竞品表现。",
+    tags: ["竞争分析", "流量分析", "市场洞察"],
+    price: "免费试用",
+    platform: "Web",
+    accent: "similarweb",
+    category: "数据分析"
   }
 ] as const;
 
@@ -201,7 +210,8 @@ function ToolsPage({ variant = "library" }: ToolsPageProps) {
 
 function ToolLibrary({ full }: { full: boolean }) {
   const [apiTools, setApiTools] = useState<DisplayTool[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState("全部");
+  const [selectedCategory, setSelectedCategory] = useState("全部工具");
+  const [selectedTab, setSelectedTab] = useState("精选");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -219,9 +229,8 @@ function ToolLibrary({ full }: { full: boolean }) {
     };
   }, []);
 
-  const sourceTools = apiTools.length > 0 ? apiTools : tools;
-  const filteredTools = sourceTools.filter((tool) => toolMatchesCategory(tool, selectedCategory));
-  const visibleTools = full ? filteredTools : filteredTools.slice(0, 6);
+  const sourceTools = full && apiTools.length > 0 ? apiTools : tools;
+  const visibleTools = full ? sourceTools : sourceTools.slice(0, 9);
   const visibleScenarios = full ? hotScenarios : hotScenarios.slice(0, 3);
 
   return (
@@ -238,12 +247,12 @@ function ToolLibrary({ full }: { full: boolean }) {
         </label>
         <div className="toolhub-filter-row">
           <div className="toolhub-tabs" role="tablist" aria-label="工具分类">
-            {categories.map((category, index) => (
+            {categories.map((category) => (
               <button
-                aria-selected={selectedCategory === category || (category === "全部" && selectedCategory === "全部工具")}
-                className={selectedCategory === category || (category === "全部" && selectedCategory === "全部工具") ? "active" : ""}
+                aria-selected={selectedTab === category}
+                className={selectedTab === category ? "active" : ""}
                 key={category}
-                onClick={() => setSelectedCategory(category)}
+                onClick={() => setSelectedTab(category)}
                 role="tab"
                 type="button"
               >
@@ -280,7 +289,7 @@ function ToolLibrary({ full }: { full: boolean }) {
         <aside className="cdk-toolhub-sidebar" aria-label="工具分类">
           {sidebarCategories.map((item) => (
             <button
-              className={selectedCategory === item || (item === "全部工具" && selectedCategory === "全部") ? "active" : ""}
+              className={selectedCategory === item ? "active" : ""}
               key={item}
               onClick={() => setSelectedCategory(item)}
               type="button"
@@ -298,9 +307,6 @@ function ToolLibrary({ full }: { full: boolean }) {
         <div className={`toolhub-grid ${full ? "full" : ""}`} aria-label="工具列表">
           {error && <p className="form-error" role="alert">{error}</p>}
           {visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
-          {visibleTools.length === 0 && (
-            <p className="cdk-toolhub-empty">当前分类暂无工具，换个分类继续看看。</p>
-          )}
         </div>
       </section>
 
@@ -328,29 +334,6 @@ function ToolCard({ tool }: { tool: DisplayTool }) {
       </footer>
     </article>
   );
-}
-
-function toolMatchesCategory(tool: DisplayTool, category: string) {
-  if (category === "全部" || category === "全部工具") return true;
-
-  const values = [tool.category, ...tool.tags, tool.name].join(" ");
-  const matchers: Record<string, string[]> = {
-    写作: ["写作", "文案", "内容生成"],
-    绘图: ["绘图", "设计", "图片"],
-    视频: ["视频", "剪辑", "创作"],
-    营销: ["营销", "获客", "广告"],
-    办公: ["办公", "知识管理", "协作", "演示", "文档"],
-    自动化: ["自动化", "集成", "效率"],
-    数据分析: ["数据分析", "搜索", "研究", "信息检索", "分析"],
-    创业获客: ["营销", "获客", "客户", "广告"],
-    内容生产: ["写作", "内容", "文案", "创意"],
-    图片设计: ["绘图", "设计", "图片", "创意"],
-    视频剪辑: ["视频", "剪辑", "创作"],
-    客户管理: ["客户", "CRM", "管理"],
-    跨境外贸: ["跨境", "外贸", "Web", "营销"]
-  };
-
-  return (matchers[category] || [category]).some((keyword) => values.includes(keyword));
 }
 
 function ToolRecommendation() {

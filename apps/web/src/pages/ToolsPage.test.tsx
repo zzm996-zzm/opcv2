@@ -32,26 +32,29 @@ describe("ToolsPage", () => {
     expect(screen.getByRole("heading", { name: "工具箱" })).toBeInTheDocument();
     expect(screen.getByLabelText("搜索工具")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /本周热门工具/ })).toBeInTheDocument();
-    expect(screen.getByText("Notion AI")).toBeInTheDocument();
+    expect(screen.getAllByText("Canva AI").length).toBeGreaterThan(0);
+    expect(screen.getByText("DeepSeek")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /推荐工具/ })).toHaveAttribute("href", "/tools/recommend");
   });
 
   it("renders the full tool library", () => {
     renderPage("all");
 
-    expect(screen.getByText("Jasper")).toBeInTheDocument();
-    expect(screen.getByText("Claude")).toBeInTheDocument();
+    expect(screen.getByText("Google Analytics")).toBeInTheDocument();
+    expect(screen.getByText("SimilarWeb")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台⌄" })).toBeInTheDocument();
     expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
   });
 
-  it("filters tools from the left category rail", () => {
+  it("activates the left category rail without collapsing the CDK grid", () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "视频剪辑" }));
+    const leadCategory = screen.getByRole("button", { name: "创业获客" });
+    fireEvent.click(leadCategory);
 
-    expect(screen.getByText("Runway")).toBeInTheDocument();
-    expect(screen.queryByText("Notion AI")).not.toBeInTheDocument();
+    expect(leadCategory).toHaveClass("active");
+    expect(screen.getAllByText("Canva AI").length).toBeGreaterThan(0);
+    expect(screen.getByText("SimilarWeb")).toBeInTheDocument();
   });
 
   it("loads public tools from content API", async () => {
