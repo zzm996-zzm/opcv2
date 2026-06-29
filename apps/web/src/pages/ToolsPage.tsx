@@ -19,6 +19,7 @@ type DisplayTool = {
 };
 
 const categories = ["全部", "写作", "绘图", "视频", "营销", "办公", "自动化", "数据分析"] as const;
+const sidebarCategories = ["全部工具", "创业获客", "内容生产", "图片设计", "视频剪辑", "客户管理", "数据分析", "跨境外贸"] as const;
 
 const hotScenarios = [
   ["内容创作加速", "提升内容生产效率", "write"],
@@ -200,6 +201,7 @@ function ToolsPage({ variant = "library" }: ToolsPageProps) {
 
 function ToolLibrary({ full }: { full: boolean }) {
   const [apiTools, setApiTools] = useState<DisplayTool[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("全部");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -218,7 +220,8 @@ function ToolLibrary({ full }: { full: boolean }) {
   }, []);
 
   const sourceTools = apiTools.length > 0 ? apiTools : tools;
-  const visibleTools = full ? sourceTools : sourceTools.slice(0, 6);
+  const filteredTools = sourceTools.filter((tool) => toolMatchesCategory(tool, selectedCategory));
+  const visibleTools = full ? filteredTools : filteredTools.slice(0, 6);
   const visibleScenarios = full ? hotScenarios : hotScenarios.slice(0, 3);
 
   return (
@@ -236,7 +239,14 @@ function ToolLibrary({ full }: { full: boolean }) {
         <div className="toolhub-filter-row">
           <div className="toolhub-tabs" role="tablist" aria-label="工具分类">
             {categories.map((category, index) => (
-              <button className={index === 0 ? "active" : ""} key={category} role="tab" type="button">
+              <button
+                aria-selected={selectedCategory === category || (category === "全部" && selectedCategory === "全部工具")}
+                className={selectedCategory === category || (category === "全部" && selectedCategory === "全部工具") ? "active" : ""}
+                key={category}
+                onClick={() => setSelectedCategory(category)}
+                role="tab"
+                type="button"
+              >
                 {category}
               </button>
             ))}
@@ -268,8 +278,15 @@ function ToolLibrary({ full }: { full: boolean }) {
 
       <section className="cdk-toolhub-library">
         <aside className="cdk-toolhub-sidebar" aria-label="工具分类">
-          {["全部工具", "创业获客", "内容生产", "图片设计", "视频剪辑", "客户管理", "数据分析", "跨境外贸"].map((item, index) => (
-            <button className={index === 0 ? "active" : ""} key={item} type="button">{item}</button>
+          {sidebarCategories.map((item) => (
+            <button
+              className={selectedCategory === item || (item === "全部工具" && selectedCategory === "全部") ? "active" : ""}
+              key={item}
+              onClick={() => setSelectedCategory(item)}
+              type="button"
+            >
+              {item}
+            </button>
           ))}
           <div>
             <strong>提交优质工具</strong>
@@ -281,6 +298,9 @@ function ToolLibrary({ full }: { full: boolean }) {
         <div className={`toolhub-grid ${full ? "full" : ""}`} aria-label="工具列表">
           {error && <p className="form-error" role="alert">{error}</p>}
           {visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
+          {visibleTools.length === 0 && (
+            <p className="cdk-toolhub-empty">当前分类暂无工具，换个分类继续看看。</p>
+          )}
         </div>
       </section>
 
@@ -292,15 +312,15 @@ function ToolLibrary({ full }: { full: boolean }) {
 function ToolCard({ tool }: { tool: DisplayTool }) {
   return (
     <article className="toolhub-card">
-      <header>
-        <span className={`toolhub-logo ${tool.accent}`} aria-hidden="true" />
-        <button aria-label={`收藏${tool.name}`} type="button">♡</button>
-      </header>
-      <h2>{tool.name}</h2>
-      <p>{tool.desc}</p>
-      <div className="toolhub-tag-row">
-        {tool.tags.map((tag) => <span key={tag}>{tag}</span>)}
+      <span className={`toolhub-logo ${tool.accent}`} aria-hidden="true" />
+      <div className="toolhub-card-copy">
+        <h2>{tool.name}</h2>
+        <p>{tool.desc}</p>
+        <div className="toolhub-tag-row">
+          {tool.tags.map((tag) => <span key={tag}>{tag}</span>)}
+        </div>
       </div>
+      <button className="toolhub-favorite" aria-label={`收藏${tool.name}`} type="button">♡</button>
       <footer>
         <span className={tool.price.includes("付费") ? "paid" : "free"}>{tool.price}</span>
         <small>{tool.platform}</small>
@@ -308,6 +328,29 @@ function ToolCard({ tool }: { tool: DisplayTool }) {
       </footer>
     </article>
   );
+}
+
+function toolMatchesCategory(tool: DisplayTool, category: string) {
+  if (category === "全部" || category === "全部工具") return true;
+
+  const values = [tool.category, ...tool.tags, tool.name].join(" ");
+  const matchers: Record<string, string[]> = {
+    写作: ["写作", "文案", "内容生成"],
+    绘图: ["绘图", "设计", "图片"],
+    视频: ["视频", "剪辑", "创作"],
+    营销: ["营销", "获客", "广告"],
+    办公: ["办公", "知识管理", "协作", "演示", "文档"],
+    自动化: ["自动化", "集成", "效率"],
+    数据分析: ["数据分析", "搜索", "研究", "信息检索", "分析"],
+    创业获客: ["营销", "获客", "客户", "广告"],
+    内容生产: ["写作", "内容", "文案", "创意"],
+    图片设计: ["绘图", "设计", "图片", "创意"],
+    视频剪辑: ["视频", "剪辑", "创作"],
+    客户管理: ["客户", "CRM", "管理"],
+    跨境外贸: ["跨境", "外贸", "Web", "营销"]
+  };
+
+  return (matchers[category] || [category]).some((keyword) => values.includes(keyword));
 }
 
 function ToolRecommendation() {

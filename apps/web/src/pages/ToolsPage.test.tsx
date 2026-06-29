@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -43,6 +43,15 @@ describe("ToolsPage", () => {
     expect(screen.getByText("Claude")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台⌄" })).toBeInTheDocument();
     expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
+  });
+
+  it("filters tools from the left category rail", () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "视频剪辑" }));
+
+    expect(screen.getByText("Runway")).toBeInTheDocument();
+    expect(screen.queryByText("Notion AI")).not.toBeInTheDocument();
   });
 
   it("loads public tools from content API", async () => {

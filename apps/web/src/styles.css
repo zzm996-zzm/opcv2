@@ -32338,12 +32338,16 @@ a {
 }
 
 .cdk-toolhub-library {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr);
   gap: 18px;
 }
 
 .cdk-toolhub-sidebar {
+  position: relative;
+  z-index: 3;
   display: grid;
   align-content: start;
   gap: 10px;
@@ -32356,6 +32360,8 @@ a {
 }
 
 .cdk-toolhub-sidebar button {
+  position: relative;
+  z-index: 4;
   min-height: 42px;
   padding: 0 14px;
   color: #315195;
@@ -32364,6 +32370,7 @@ a {
   border: 0;
   border-radius: 8px;
   font-weight: 900;
+  cursor: pointer;
 }
 
 .cdk-toolhub-sidebar button.active {
@@ -32402,44 +32409,81 @@ a {
 
 .cdk-tools-page .toolhub-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  min-width: 0;
 }
 
 .cdk-tools-page .toolhub-card {
-  min-height: 180px;
-  padding: 24px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 28px;
+  gap: 14px;
+  align-items: start;
+  min-height: 150px;
+  min-width: 0;
+  padding: 24px 22px;
+  overflow: hidden;
   border-radius: 14px;
 }
 
-.cdk-tools-page .toolhub-card header {
-  align-items: start;
-}
-
-.cdk-tools-page .toolhub-card {
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 8px 16px;
-}
-
-.cdk-tools-page .toolhub-card header {
-  grid-row: span 3;
+.cdk-tools-page .toolhub-card-copy {
   display: grid;
+  min-width: 0;
   gap: 10px;
 }
 
 .cdk-tools-page .toolhub-card h2,
 .cdk-tools-page .toolhub-card p,
-.cdk-tools-page .toolhub-tag-row,
-.cdk-tools-page .toolhub-card footer {
-  grid-column: 2;
+.cdk-tools-page .toolhub-tag-row {
+  margin: 0;
 }
 
-.cdk-tools-page .toolhub-card footer {
-  grid-template-columns: 1fr;
+.cdk-tools-page .toolhub-card h2 {
+  overflow: hidden;
+  color: #071947;
+  font-size: 18px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cdk-tools-page .toolhub-card p {
+  display: -webkit-box;
+  min-height: 42px;
+  overflow: hidden;
+  color: #526895;
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.cdk-tools-page .toolhub-logo {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+}
+
+.cdk-tools-page .toolhub-favorite {
+  width: 28px;
+  height: 32px;
+  color: #9aadcf;
+  background: transparent;
+  border: 0;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .cdk-tools-page .toolhub-card footer span,
 .cdk-tools-page .toolhub-card footer small,
-.cdk-tools-page .toolhub-card footer a {
+.cdk-tools-page .toolhub-card footer a,
+.cdk-tools-page .toolhub-card footer {
   display: none;
+}
+
+.cdk-tools-page .toolhub-tag-row {
+  gap: 8px;
 }
 
 .cdk-tools-page .toolhub-tag-row span {
@@ -32447,6 +32491,21 @@ a {
   color: #6075a4;
   background: #f3f6fb;
   border-radius: 8px;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.cdk-toolhub-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 28px;
+  color: #536894;
+  background: rgba(255,255,255,0.86);
+  border: 1px dashed #c9d7ee;
+  border-radius: 14px;
+  text-align: center;
+  font-weight: 850;
 }
 
 .toolhub-ai-head {
