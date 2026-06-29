@@ -137,3 +137,82 @@ func TestPostgresRepositoryGetsSessionForUser(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryCreatesAndListsActionItems(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Now()
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO analysis_action_items (user_id, session_id, day_index, title, detail, completed, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, user_id, session_id, day_index, title, detail, completed, created_at, updated_at
+	`)).
+		WithArgs(int64(42), int64(99), 1, "整理资源清单", "写成一页表格", false, now, now).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "session_id", "day_index", "title", "detail", "completed", "created_at", "updated_at",
+		}).AddRow(int64(7), int64(42), int64(99), 1, "整理资源清单", "写成一页表格", false, now, now))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, session_id, day_index, title, detail, completed, created_at, updated_at
+		FROM analysis_action_items
+		WHERE user_id = $1 AND session_id = $2
+		ORDER BY day_index ASC, id ASC
+	`)).
+		WithArgs(int64(42), int64(99)).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "session_id", "day_index", "title", "detail", "completed", "created_at", "updated_at",
+		}).AddRow(int64(7), int64(42), int64(99), 1, "整理资源清单", "写成一页表格", false, now, now))
+
+	repository := NewPostgresRepository(db)
+	created, err := repository.CreateActionItems(context.Background(), []ActionItem{{
+		UserID: 42, SessionID: 99, DayIndex: 1, Title: "整理资源清单", Detail: "写成一页表格", CreatedAt: now, UpdatedAt: now,
+	}})
+	if err != nil {
+		t.Fatalf("CreateActionItems() error = %v", err)
+	}
+	items, err := repository.ListActionItems(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ListActionItems() error = %v", err)
+	}
+	if len(created) != 1 || len(items) != 1 || items[0].Title != "整理资源清单" {
+		t.Fatalf("created/items = %+v/%+v", created, items)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryUpdatesActionItem(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Now()
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE analysis_action_items
+		SET completed = $4, updated_at = NOW()
+		WHERE user_id = $1 AND session_id = $2 AND id = $3
+		RETURNING id, user_id, session_id, day_index, title, detail, completed, created_at, updated_at
+	`)).
+		WithArgs(int64(42), int64(99), int64(7), true).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "session_id", "day_index", "title", "detail", "completed", "created_at", "updated_at",
+		}).AddRow(int64(7), int64(42), int64(99), 1, "整理资源清单", "写成一页表格", true, now, now))
+
+	repository := NewPostgresRepository(db)
+	item, err := repository.UpdateActionItem(context.Background(), 42, 99, 7, true)
+	if err != nil {
+		t.Fatalf("UpdateActionItem() error = %v", err)
+	}
+	if !item.Completed {
+		t.Fatalf("item = %+v, want completed", item)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

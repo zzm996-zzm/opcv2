@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-import V4PageShell from "../components/V4PageShell";
+import { CdkTopNav } from "./AnalysisPage";
 
 type InsightsPageProps = {
   variant?: "list" | "detail" | "fileAnalysis";
@@ -80,14 +80,15 @@ const references = [
 
 function InsightsPage({ variant = "list" }: InsightsPageProps) {
   return (
-    <V4PageShell>
+    <main className="cdk-analysis-page cdk-insights-page">
+      <CdkTopNav active="咨询通" />
       <section className={`insights-page ${variant === "detail" ? "detail" : ""}`} aria-label="咨询通">
         <main className="insights-main">
           {variant === "detail" ? <InsightDetail /> : <InsightList compact={variant === "fileAnalysis"} />}
         </main>
         <InsightsCopilot variant={variant} />
       </section>
-    </V4PageShell>
+    </main>
   );
 }
 
@@ -95,17 +96,21 @@ function InsightList({ compact }: { compact: boolean }) {
   return (
     <>
       <header className="insights-title">
-        <h1>咨询通</h1>
-        <p>浏览商业 / AI / 行业资讯，快速获取与你业务相关的动态与洞察</p>
+        <span className="insights-title-icon" aria-hidden="true">•••</span>
+        <div>
+          <h1>咨询通</h1>
+          <p>AI创业资讯、案例、政策、经营趋势，一站掌握，助你决策快人一步</p>
+          <div className="insights-benefits">
+            {["AI筛选高价值内容", "行业主题实时追踪", "每日更新，节省信息搜集时间"].map((item) => (
+              <span key={item}>✓ {item}</span>
+            ))}
+          </div>
+        </div>
       </header>
 
       <section className="insights-filter-bar" aria-label="资讯筛选">
-        <label className="insights-search">
-          <span aria-hidden="true">⌕</span>
-          <input aria-label="搜索资讯" placeholder="搜索资讯关键词，如：AI客服、出海、SaaS" />
-        </label>
         <div className="insights-tabs" role="tablist" aria-label="资讯分类">
-          {categories.map((category, index) => (
+          {["精选", "融资", "获客案例", "工具更新", "政策风险", "行业趋势"].map((category, index) => (
             <button className={index === 0 ? "active" : ""} key={category} role="tab" type="button">
               {category}
             </button>
@@ -262,16 +267,18 @@ function InsightsCopilot({ variant }: { variant: NonNullable<InsightsPageProps["
 
   return (
     <aside className={`learning-copilot insights-copilot ${isFileAnalysis ? "analysis-open" : ""}`} aria-label="智活 Copilot 咨询助手">
-      <header>
+      <header className="insights-ai-head">
+        <span className="insights-bot-art" aria-hidden="true" />
         <div>
-          <strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong>
-          <p>你的全球 AI 助手，随时为你提供帮助</p>
-        </div>
-        <div className="learning-copilot-tools" aria-hidden="true">
-          <span>⚙</span>
-          <span>⌄</span>
+          <strong><span aria-hidden="true">✦</span> AI咨询通助手 <b>✦</b></strong>
+          <p>有什么想了解的咨询？输入关键词，AI为你推荐相关文章</p>
         </div>
       </header>
+
+      <label className="insights-side-search">
+        <input aria-label="搜索资讯" placeholder="输入关键词，例如：AI获客、政策补贴、内容营销..." />
+        <button type="button">⌕</button>
+      </label>
 
       {isFileAnalysis ? <FileAnalysisChat /> : isDetail ? <DetailChat /> : <ListChat />}
 
@@ -286,6 +293,20 @@ function InsightsCopilot({ variant }: { variant: NonNullable<InsightsPageProps["
         <input aria-label="向咨询通 Copilot 提问" placeholder={isFileAnalysis ? "继续提问，获取更精准的资讯..." : "询问任何问题..."} />
         <button aria-label="发送" type="button">⌁</button>
       </form>
+
+      <section className="insights-question-card" aria-label="可复用选题">
+        <header><h2>可复用选题</h2><button type="button">换一批</button></header>
+        {["AI创业如何选择第一个落地场景？", "AI产品冷启动的3种低成本获客策略", "2024年AI创业的政策红利有哪些？"].map((topic, index) => (
+          <p key={topic}><span>{topic}</span><small>热度 {index === 0 ? 86 : index === 1 ? 74 : 68}</small></p>
+        ))}
+      </section>
+
+      <section className="insights-topic-card" aria-label="社群讨论话题">
+        <header><h2>社群讨论话题</h2><Link to="/community">去社群 ›</Link></header>
+        {["你在用哪些AI工具提升团队效率？", "AI创业者如何构建自己的护城河？", "最近有哪些值得关注的AI融资事件？"].map((topic, index) => (
+          <p key={topic}><span>{topic}</span><small>{[128, 96, 73][index]}条讨论</small></p>
+        ))}
+      </section>
     </aside>
   );
 }

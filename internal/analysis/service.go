@@ -18,9 +18,10 @@ const (
 )
 
 var (
-	ErrServiceNotReady = errors.New("analysis service is not configured")
-	ErrInvalidAIResult = errors.New("invalid analysis ai result")
-	ErrSessionNotFound = errors.New("analysis session not found")
+	ErrServiceNotReady    = errors.New("analysis service is not configured")
+	ErrInvalidAIResult    = errors.New("invalid analysis ai result")
+	ErrSessionNotFound    = errors.New("analysis session not found")
+	ErrActionItemNotFound = errors.New("analysis action item not found")
 )
 
 type DirectionInput struct {
@@ -75,10 +76,25 @@ type Session struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
+type ActionItem struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	SessionID int64     `json:"session_id"`
+	DayIndex  int       `json:"day_index"`
+	Title     string    `json:"title"`
+	Detail    string    `json:"detail"`
+	Completed bool      `json:"completed"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Repository interface {
 	CreateSession(ctx context.Context, session Session) (Session, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error)
 	GetSession(ctx context.Context, userID, id int64) (Session, error)
+	ListActionItems(ctx context.Context, userID, sessionID int64) ([]ActionItem, error)
+	CreateActionItems(ctx context.Context, items []ActionItem) ([]ActionItem, error)
+	UpdateActionItem(ctx context.Context, userID, sessionID, itemID int64, completed bool) (ActionItem, error)
 }
 
 type JSONGenerator interface {
@@ -110,6 +126,34 @@ func (s *Service) GetSession(ctx context.Context, userID, id int64) (Session, er
 		return Session{}, ErrServiceNotReady
 	}
 	return s.repository.GetSession(ctx, userID, id)
+}
+
+func (s *Service) ListActionItems(ctx context.Context, userID, sessionID int64) ([]ActionItem, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	session, err := s.repository.GetSession(ctx, userID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.repository.ListActionItems(ctx, userID, session.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) > 0 || session.Status != StatusCompleted {
+		return items, nil
+	}
+	return s.repository.CreateActionItems(ctx, defaultActionItems(userID, session.ID, s.now()))
+}
+
+func (s *Service) UpdateActionItem(ctx context.Context, userID, sessionID, itemID int64, completed bool) (ActionItem, error) {
+	if s.repository == nil {
+		return ActionItem{}, ErrServiceNotReady
+	}
+	if _, err := s.repository.GetSession(ctx, userID, sessionID); err != nil {
+		return ActionItem{}, err
+	}
+	return s.repository.UpdateActionItem(ctx, userID, sessionID, itemID, completed)
 }
 
 func (s *Service) StartDirection(ctx context.Context, input DirectionInput) (DirectionResult, error) {
@@ -263,4 +307,32 @@ func containsAny(value string, needles ...string) bool {
 		}
 	}
 	return false
+}
+
+func defaultActionItems(userID, sessionID int64, now time.Time) []ActionItem {
+	rows := []struct {
+		title  string
+		detail string
+	}{
+		{"整理资源清单", "把技能、预算、时间和人脉写成一页表格"},
+		{"确定目标客群", "选择最容易触达的一类客户做首轮验证"},
+		{"制作样板", "做出一份客户能看懂的交付样板或诊断表"},
+		{"验证市场证据", "收集竞品案例、公开需求和客户痛点"},
+		{"触达首批客户", "向 10 个潜在客户发出诊断邀约"},
+		{"复盘反馈", "整理价格、信任、交付和时机四类反馈"},
+		{"决定下一步", "保留高信号方向，进入获客或 CRM 跟进"},
+	}
+	items := make([]ActionItem, 0, len(rows))
+	for index, row := range rows {
+		items = append(items, ActionItem{
+			UserID:    userID,
+			SessionID: sessionID,
+			DayIndex:  index + 1,
+			Title:     row.title,
+			Detail:    row.detail,
+			CreatedAt: now,
+			UpdatedAt: now,
+		})
+	}
+	return items
 }

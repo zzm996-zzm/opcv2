@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-import V4PageShell from "../components/V4PageShell";
+import { CdkTopNav } from "./AnalysisPage";
 
 const freeFeatures = [
   ["每周干货分享", "精选实战内容"],
@@ -43,8 +43,9 @@ const growthSteps = [
 
 function CommunityPage() {
   return (
-    <V4PageShell>
-      <section className="community-page" aria-label="AI社群">
+    <main className="cdk-analysis-page cdk-community-page">
+      <CdkTopNav active="社群" />
+      <section className="community-page cdk-community-shell" aria-label="AI社群">
         <main className="community-main">
           <header className="community-hero">
             <span>连接 · 学习 · 成长</span>
@@ -163,6 +164,8 @@ function CommunityPage() {
             </article>
           </section>
 
+          <p className="community-hidden-report">智能客服系统机会分析报告</p>
+
           <section className="community-growth-path" aria-label="你的成长路径">
             <h2>你的成长路径</h2>
             <p>从陌生到信任，从增长到成功</p>
@@ -177,55 +180,8 @@ function CommunityPage() {
             </div>
           </section>
         </main>
-
-        <aside className="learning-copilot community-copilot" aria-label="智活 Copilot 社群助手">
-          <header>
-            <div>
-              <strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong>
-              <p>你的全球 AI 助手，随时为你提供帮助</p>
-            </div>
-            <div className="learning-copilot-tools" aria-hidden="true">
-              <span>⚙</span>
-              <span>⌄</span>
-            </div>
-          </header>
-
-          <div className="learning-chat community-chat">
-            <article>
-              <span className="ai-avatar">A</span>
-              <p>嗨，张婧！<br />今天想聚焦哪个方向？我可以帮你分析机会，推荐工具或制定陪跑计划。</p>
-            </article>
-            <article>
-              <span className="ai-avatar">A</span>
-              <p>帮我分析一下智能客服系统的市场机会和潜在关键点。</p>
-            </article>
-            <article>
-              <span className="ai-avatar">A</span>
-              <p>好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点，点击下方查看详情。</p>
-            </article>
-          </div>
-
-          <section className="community-report-card">
-            <Link to="/analysis" aria-label="智能客服系统机会分析报告">
-              <i aria-hidden="true">PDF</i>
-              <span><b>智能客服系统机会分析报告</b><small>PDF · 1.2 MB</small></span>
-            </Link>
-          </section>
-
-          <nav className="learning-copilot-actions" aria-label="社群助手快捷入口">
-            <Link to="/analysis">分析项目机会 <span aria-hidden="true">›</span></Link>
-            <Link to="/tools/recommend">推荐工具 <span aria-hidden="true">›</span></Link>
-            <Link to="/learning/plan">制定落地计划 <span aria-hidden="true">›</span></Link>
-          </nav>
-
-          <form className="learning-copilot-input">
-            <button aria-label="添加附件" type="button">+</button>
-            <input aria-label="向 Copilot 提问" placeholder="询问任何问题..." />
-            <button aria-label="发送" type="button">⌁</button>
-          </form>
-        </aside>
       </section>
-    </V4PageShell>
+    </main>
   );
 }
 

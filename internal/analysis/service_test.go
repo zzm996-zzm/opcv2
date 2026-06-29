@@ -9,8 +9,9 @@ import (
 )
 
 type memoryRepository struct {
-	session  Session
-	sessions []Session
+	session     Session
+	sessions    []Session
+	actionItems []ActionItem
 }
 
 func (r *memoryRepository) CreateSession(_ context.Context, session Session) (Session, error) {
@@ -40,6 +41,34 @@ func (r *memoryRepository) GetSession(_ context.Context, userID, id int64) (Sess
 		}
 	}
 	return Session{}, ErrSessionNotFound
+}
+
+func (r *memoryRepository) ListActionItems(_ context.Context, userID, sessionID int64) ([]ActionItem, error) {
+	var items []ActionItem
+	for _, item := range r.actionItems {
+		if item.UserID == userID && item.SessionID == sessionID {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
+func (r *memoryRepository) CreateActionItems(_ context.Context, items []ActionItem) ([]ActionItem, error) {
+	for index := range items {
+		items[index].ID = int64(len(r.actionItems) + index + 1)
+	}
+	r.actionItems = append(r.actionItems, items...)
+	return items, nil
+}
+
+func (r *memoryRepository) UpdateActionItem(_ context.Context, userID, sessionID, itemID int64, completed bool) (ActionItem, error) {
+	for index, item := range r.actionItems {
+		if item.UserID == userID && item.SessionID == sessionID && item.ID == itemID {
+			r.actionItems[index].Completed = completed
+			return r.actionItems[index], nil
+		}
+	}
+	return ActionItem{}, ErrActionItemNotFound
 }
 
 type fakeJSONGenerator struct {
@@ -221,5 +250,41 @@ func TestServiceDoesNotReturnAnotherUsersSession(t *testing.T) {
 	_, err := service.GetSession(context.Background(), 42, 99)
 	if !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("GetSession() error = %v, want ErrSessionNotFound", err)
+	}
+}
+
+func TestServiceCreatesDefaultActionItemsForCompletedSession(t *testing.T) {
+	repository := &memoryRepository{sessions: []Session{
+		{ID: 99, UserID: 42, Mode: ModeDirection, Intent: "我的项目", Status: StatusCompleted},
+	}}
+	service := NewService(repository, NewDevelopmentProvider())
+
+	items, err := service.ListActionItems(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ListActionItems() error = %v", err)
+	}
+	if len(items) != 7 {
+		t.Fatalf("items = %+v, want 7 default action items", items)
+	}
+	if items[0].SessionID != 99 || items[0].UserID != 42 || items[0].Title == "" {
+		t.Fatalf("first item = %+v", items[0])
+	}
+}
+
+func TestServiceUpdatesOwnedActionItem(t *testing.T) {
+	repository := &memoryRepository{
+		sessions: []Session{{ID: 99, UserID: 42, Mode: ModeDirection, Intent: "我的项目", Status: StatusCompleted}},
+		actionItems: []ActionItem{{
+			ID: 7, UserID: 42, SessionID: 99, DayIndex: 1, Title: "整理资源清单",
+		}},
+	}
+	service := NewService(repository, NewDevelopmentProvider())
+
+	item, err := service.UpdateActionItem(context.Background(), 42, 99, 7, true)
+	if err != nil {
+		t.Fatalf("UpdateActionItem() error = %v", err)
+	}
+	if !item.Completed {
+		t.Fatalf("item.Completed = false, want true")
 	}
 }

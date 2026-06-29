@@ -13,6 +13,8 @@ type fakeApplication struct {
 	result   DirectionResult
 	sessions []Session
 	session  Session
+	items    []ActionItem
+	item     ActionItem
 	err      error
 }
 
@@ -30,6 +32,20 @@ func (a *fakeApplication) GetSession(_ context.Context, userID, id int64) (Sessi
 	a.input.UserID = userID
 	a.session.ID = id
 	return a.session, a.err
+}
+
+func (a *fakeApplication) ListActionItems(_ context.Context, userID, sessionID int64) ([]ActionItem, error) {
+	a.input.UserID = userID
+	a.session.ID = sessionID
+	return a.items, a.err
+}
+
+func (a *fakeApplication) UpdateActionItem(_ context.Context, userID, sessionID, itemID int64, completed bool) (ActionItem, error) {
+	a.input.UserID = userID
+	a.session.ID = sessionID
+	a.item.ID = itemID
+	a.item.Completed = completed
+	return a.item, a.err
 }
 
 func TestDirectionEndpointUsesAuthenticatedUser(t *testing.T) {
@@ -117,5 +133,50 @@ func TestGetSessionEndpointReturnsNotFoundForMissingSession(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestListActionItemsEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{items: []ActionItem{
+		{ID: 7, UserID: 42, SessionID: 99, DayIndex: 1, Title: "整理资源清单"},
+	}}
+	router := testRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/analysis/sessions/99/action-items", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.input.UserID != 42 || app.session.ID != 99 {
+		t.Fatalf("input user/session = %d/%d", app.input.UserID, app.session.ID)
+	}
+	if !strings.Contains(recorder.Body.String(), `"title":"整理资源清单"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestUpdateActionItemEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{item: ActionItem{ID: 7, UserID: 42, SessionID: 99, DayIndex: 1, Title: "整理资源清单"}}
+	router := testRouter(app)
+	request := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/analysis/sessions/99/action-items/7",
+		strings.NewReader(`{"completed":true}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.input.UserID != 42 || app.session.ID != 99 || app.item.ID != 7 || !app.item.Completed {
+		t.Fatalf("input user/session/item = %d/%d/%+v", app.input.UserID, app.session.ID, app.item)
+	}
+	if !strings.Contains(recorder.Body.String(), `"completed":true`) {
+		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }

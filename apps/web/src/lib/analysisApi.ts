@@ -27,6 +27,30 @@ export type DirectionResult = {
   cards?: DirectionCard[];
 };
 
+export type AnalysisSession = {
+  id: number;
+  user_id: number;
+  mode: "direction" | string;
+  intent: string;
+  status: "needs_input" | "completed";
+  questions?: Question[];
+  result?: DirectionResult;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AnalysisActionItem = {
+  id: number;
+  user_id: number;
+  session_id: number;
+  day_index: number;
+  title: string;
+  detail: string;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 async function request<T>(path: string, init: RequestInit): Promise<T> {
   const token = authSession.get().accessToken;
   const response = await fetch(path, {
@@ -50,6 +74,31 @@ export const analysisApi = {
     return request<DirectionResult>("/api/v1/analysis/direction", {
       method: "POST",
       body: JSON.stringify(input)
+    });
+  },
+
+  listSessions(limit = 20) {
+    return request<{ sessions: AnalysisSession[] }>(`/api/v1/analysis/sessions?limit=${limit}`, {
+      method: "GET"
+    });
+  },
+
+  getSession(id: number) {
+    return request<AnalysisSession>(`/api/v1/analysis/sessions/${id}`, {
+      method: "GET"
+    });
+  },
+
+  listActionItems(sessionId: number) {
+    return request<{ items: AnalysisActionItem[] }>(`/api/v1/analysis/sessions/${sessionId}/action-items`, {
+      method: "GET"
+    });
+  },
+
+  updateActionItem(sessionId: number, itemId: number, completed: boolean) {
+    return request<AnalysisActionItem>(`/api/v1/analysis/sessions/${sessionId}/action-items/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ completed })
     });
   }
 };

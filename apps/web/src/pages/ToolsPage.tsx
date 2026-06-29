@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import V4PageShell from "../components/V4PageShell";
 import { contentApi, type ContentTool } from "../lib/contentApi";
+import { CdkTopNav } from "./AnalysisPage";
 
 type ToolsPageProps = {
   variant?: "library" | "all" | "recommend" | "plan" | "detail";
@@ -183,7 +183,8 @@ function ToolsPage({ variant = "library" }: ToolsPageProps) {
   const withCopilot = variant !== "all";
 
   return (
-    <V4PageShell>
+    <main className="cdk-analysis-page cdk-tools-page">
+      <CdkTopNav active="工具箱" />
       <section className={`toolhub-page ${withCopilot ? "with-copilot" : "wide"}`} aria-label="工具箱">
         <main className="toolhub-main">
           {variant === "recommend" && <ToolRecommendation />}
@@ -193,7 +194,7 @@ function ToolsPage({ variant = "library" }: ToolsPageProps) {
         </main>
         {withCopilot && <ToolsCopilot variant={variant} />}
       </section>
-    </V4PageShell>
+    </main>
   );
 }
 
@@ -224,7 +225,7 @@ function ToolLibrary({ full }: { full: boolean }) {
     <>
       <header className="toolhub-title">
         <h1>工具箱</h1>
-        <p>浏览全市场 AI 工具，快速找到适合你业务场景的效率工具</p>
+        <p>精选全球优质AI工具，助力创业获客与高效增长</p>
       </header>
 
       <section className="toolhub-search-block" aria-label="工具筛选">
@@ -265,9 +266,22 @@ function ToolLibrary({ full }: { full: boolean }) {
         </div>
       </section>
 
-      <section className={`toolhub-grid ${full ? "full" : ""}`} aria-label="工具列表">
-        {error && <p className="form-error" role="alert">{error}</p>}
-        {visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
+      <section className="cdk-toolhub-library">
+        <aside className="cdk-toolhub-sidebar" aria-label="工具分类">
+          {["全部工具", "创业获客", "内容生产", "图片设计", "视频剪辑", "客户管理", "数据分析", "跨境外贸"].map((item, index) => (
+            <button className={index === 0 ? "active" : ""} key={item} type="button">{item}</button>
+          ))}
+          <div>
+            <strong>提交优质工具</strong>
+            <p>推荐好工具，帮助更多创业者</p>
+            <Link to="/tools/recommend">立即推荐 ›</Link>
+          </div>
+        </aside>
+
+        <div className={`toolhub-grid ${full ? "full" : ""}`} aria-label="工具列表">
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
+        </div>
       </section>
 
       <ToolPagination />
@@ -497,13 +511,17 @@ function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["varian
 
   return (
     <aside className="learning-copilot toolhub-copilot" aria-label="智活 Copilot 工具助手">
-      <header>
+      <header className="toolhub-ai-head">
         <div>
-          <strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong>
-          <p>你的全球 AI 助手，随时为你提供帮助</p>
+          <strong><span aria-hidden="true">✦</span> AI 工具助手</strong>
+          <p>告诉我你想做什么，我会帮你匹配合适工具</p>
         </div>
-        <div className="learning-copilot-tools" aria-hidden="true"><span>⚙</span><span>⌄</span></div>
+        <button aria-label="关闭工具助手" type="button">×</button>
       </header>
+      <label className="toolhub-ai-input">
+        <input aria-label="工具需求输入" placeholder="例如：我想做小红书海报，还想配套文案和数据复盘" />
+        <button type="button">开始分析</button>
+      </label>
       <div className="learning-chat toolhub-chat">
         {isPlan ? (
           <>
@@ -541,6 +559,19 @@ function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["varian
         <input aria-label="向工具箱 Copilot 提问" placeholder="询问任何问题..." />
         <button aria-label="发送" type="button">⌁</button>
       </form>
+      <section className="toolhub-ai-results" aria-label="AI 推荐结果">
+        <header><h2>AI 推荐结果</h2><button type="button">×</button></header>
+        <p><strong>需求：</strong>做小红书获客海报，并配套文案和数据复盘</p>
+        <div>{["图片设计", "文案生成", "数据分析"].map((tag) => <span key={tag}>{tag}</span>)}</div>
+        {["Canva AI", "Apollo", "飞书多维表格", "Google Analytics"].map((name) => (
+          <article key={name}>
+            <b>{name.slice(0, 1)}</b>
+            <span>{name}</span>
+            <Link to="/tools/detail">一键跳转 ↗</Link>
+          </article>
+        ))}
+        <button type="button">☆ 收藏本次推荐</button>
+      </section>
     </aside>
   );
 }

@@ -70,4 +70,17 @@ describe("CrmPage", () => {
     expect(await screen.findByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
     expect(screen.getAllByText(/需求确认/).length).toBeGreaterThan(0);
   });
+
+  it("renders the follow-up list route", () => {
+    signIn();
+    render(
+      <MemoryRouter initialEntries={["/crm/follow-ups"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "全部跟进" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "全部跟进列表" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "跟进提醒" })).toBeInTheDocument();
+  });
 });

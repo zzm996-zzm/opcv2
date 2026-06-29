@@ -39,7 +39,8 @@ describe("AnalysisPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "生成分析" }));
 
-    expect(await screen.findByText("你大概有多少启动资金？")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("你大概有多少启动资金？").length).toBeGreaterThan(0));
+    expect(screen.getByRole("heading", { name: "AI 正在为你分析 ✦" })).toBeInTheDocument();
   });
 
   it("renders three direction cards", async () => {
@@ -77,6 +78,50 @@ describe("AnalysisPage", () => {
 
     await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(3));
     expect(screen.getByText("本地教培小班陪跑")).toBeInTheDocument();
+  });
+
+  it("renders the complete free analysis workbench structure", async () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-11T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
+    });
+
+    render(
+      <MemoryRouter>
+        <AnalysisPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "免费分析" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "我有什么，适合做什么" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "拆解一个对标公司" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看历史报告" })).toHaveAttribute("href", "/analysis/history");
+    expect(screen.getByRole("heading", { name: "历史分析结果" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "拆解一个对标公司" }));
+
+    expect(screen.getByRole("tab", { name: "拆解一个对标公司" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("输入对标公司或主页链接")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "竞品拆解输出" })).toBeInTheDocument();
+    expect(screen.getByText("获客渠道拆解")).toBeInTheDocument();
+  });
+
+  it("matches the CDK free analysis reference shell", () => {
+    render(
+      <MemoryRouter>
+        <AnalysisPage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("link", { name: "智活AI · OPC" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "VIP获客" })).toHaveAttribute("href", "/leads");
+    expect(screen.getByRole("link", { name: "查看案例" })).toHaveAttribute("href", "/projects/cases");
+    expect(screen.getByRole("button", { name: "开始体验" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "历史分析结果" })).toBeInTheDocument();
+    expect(screen.getByText("数据安全 · 隐私保护")).toBeInTheDocument();
+    expect(screen.getByText("已有 12,804+ 创业者")).toBeInTheDocument();
   });
 });
 

@@ -3,7 +3,9 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { authApi } from "./lib/authApi";
 import { authSession, useAuthSession } from "./lib/authSession";
+import AnalysisHistoryPage from "./pages/AnalysisHistoryPage";
 import AnalysisPage from "./pages/AnalysisPage";
+import AnalysisReportPage from "./pages/AnalysisReportPage";
 import CommunityEnterprisePage from "./pages/CommunityEnterprisePage";
 import CommunityMembersPage from "./pages/CommunityMembersPage";
 import CommunityPage from "./pages/CommunityPage";
@@ -46,6 +48,22 @@ function App() {
   useEffect(() => {
     const session = authSession.get();
     if (session.accessToken || session.ready) return;
+
+    const allowDevAuth = import.meta.env.DEV && (
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "::1"
+    );
+
+    if (allowDevAuth && new URLSearchParams(window.location.search).get("devAuth") === "1") {
+      authSession.set({
+        access_token: "dev-access-token",
+        access_token_expires_at: "2026-12-31T23:59:59Z",
+        is_new_user: false,
+        user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
+      });
+      return;
+    }
 
     let active = true;
     authApi
@@ -135,6 +153,22 @@ function App() {
           </RequireAuth>
         }
         path="/analysis"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <AnalysisHistoryPage />
+          </RequireAuth>
+        }
+        path="/analysis/history"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <AnalysisReportPage />
+          </RequireAuth>
+        }
+        path="/analysis/sessions/:sessionId"
       />
       <Route
         element={
@@ -615,6 +649,14 @@ function App() {
           </RequireAuth>
         }
         path="/crm"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <CrmPage variant="followUps" />
+          </RequireAuth>
+        }
+        path="/crm/follow-ups"
       />
       <Route
         element={

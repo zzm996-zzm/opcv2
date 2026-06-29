@@ -85,6 +85,70 @@ func (r *PostgresRepository) GetSession(ctx context.Context, userID, id int64) (
 	return session, err
 }
 
+func (r *PostgresRepository) ListActionItems(ctx context.Context, userID, sessionID int64) ([]ActionItem, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, session_id, day_index, title, detail, completed, created_at, updated_at
+		FROM analysis_action_items
+		WHERE user_id = $1 AND session_id = $2
+		ORDER BY day_index ASC, id ASC
+	`, userID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []ActionItem
+	for rows.Next() {
+		item, err := scanActionItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *PostgresRepository) CreateActionItems(ctx context.Context, items []ActionItem) ([]ActionItem, error) {
+	created := make([]ActionItem, 0, len(items))
+	for _, item := range items {
+		next, err := scanActionItem(r.db.QueryRow(ctx, `
+		INSERT INTO analysis_action_items (user_id, session_id, day_index, title, detail, completed, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, user_id, session_id, day_index, title, detail, completed, created_at, updated_at
+	`,
+			item.UserID,
+			item.SessionID,
+			item.DayIndex,
+			item.Title,
+			item.Detail,
+			item.Completed,
+			item.CreatedAt,
+			item.UpdatedAt,
+		))
+		if err != nil {
+			return nil, err
+		}
+		created = append(created, next)
+	}
+	return created, nil
+}
+
+func (r *PostgresRepository) UpdateActionItem(ctx context.Context, userID, sessionID, itemID int64, completed bool) (ActionItem, error) {
+	item, err := scanActionItem(r.db.QueryRow(ctx, `
+		UPDATE analysis_action_items
+		SET completed = $4, updated_at = NOW()
+		WHERE user_id = $1 AND session_id = $2 AND id = $3
+		RETURNING id, user_id, session_id, day_index, title, detail, completed, created_at, updated_at
+	`, userID, sessionID, itemID, completed))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ActionItem{}, ErrActionItemNotFound
+	}
+	return item, err
+}
+
 type sessionScanner interface {
 	Scan(dest ...any) error
 }
@@ -113,4 +177,22 @@ func scanSession(scanner sessionScanner) (Session, error) {
 		return Session{}, err
 	}
 	return session, nil
+}
+
+func scanActionItem(scanner sessionScanner) (ActionItem, error) {
+	var item ActionItem
+	if err := scanner.Scan(
+		&item.ID,
+		&item.UserID,
+		&item.SessionID,
+		&item.DayIndex,
+		&item.Title,
+		&item.Detail,
+		&item.Completed,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		return ActionItem{}, err
+	}
+	return item, nil
 }

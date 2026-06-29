@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import V4PageShell from "../components/V4PageShell";
 import { leadsApi, type LeadTask } from "../lib/leadsApi";
+import { CdkTopNav } from "./AnalysisPage";
 
 type LeadCompany = {
   name: string;
@@ -19,6 +19,12 @@ const leadStats = [
   ["今日待跟进", "12"],
   ["预计机会额", "¥86万"]
 ] as const;
+
+const crmStats: ReadonlyArray<readonly [string, string]> = [
+  ...leadStats,
+  ["跟进中", "1,426"],
+  ["已成交", "532"]
+];
 
 const leadCompanies = [
   {
@@ -137,147 +143,175 @@ function LeadDevelopmentPage() {
   const companies = tasks.length > 0 ? tasks.map(toLeadCompany) : leadCompanies;
 
   return (
-    <V4PageShell className="lead-development-shell">
-      <section className="module-page lead-development-page" aria-label="AI线索开发">
-        <div className="page-title-row">
+    <main className="cdk-analysis-page cdk-leads-page">
+      <CdkTopNav active="VIP获客" />
+
+      <section className="cdk-leads-hero" aria-label="AI线索开发">
+        <div className="cdk-crown-art" aria-hidden="true" />
+        <div>
+          <h1>VIP获客</h1>
+          <h2>AI线索开发</h2>
+          <p>基于行业、地域、关键词与客户角色，AI 为你寻找高意向、可触达的精准客户</p>
+        </div>
+        <aside className="cdk-leads-formula" aria-label="线索公式">
+          <strong><span aria-hidden="true">◎</span>线索公式</strong>
           <div>
-            <h1>AI线索开发</h1>
-            <p>输入目标客户画像，系统自动找到公开企业线索、识别购买信号、生成评分和跟进动作</p>
+            <b>军人群<small>行业+地域+角色</small></b>
+            <i>×</i>
+            <b>购买信号<small>需求表达+行为信号</small></b>
+            <i>×</i>
+            <b>可核实联系方式<small>多源验证，真实有效</small></b>
           </div>
+        </aside>
+      </section>
+
+      <form className="cdk-leads-search-card" onSubmit={submit}>
+        <div className="cdk-leads-query-icon" aria-hidden="true">✦</div>
+        <label htmlFor="lead-target">帮我找成都市高新区少儿英语暑期班的高意向客户，优先家长求推荐信号和可核实联系方式。</label>
+        <textarea
+          id="lead-target"
+          aria-label="描述目标客户画像"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="例如：华东地区、连锁教育培训机构、正在扩张校区、需要提升客服响应和私域转化..."
+          value={query}
+        />
+        <div className="cdk-leads-tags" aria-label="线索条件">
+          {["行业", "关键词", "地域", "客户角色"].map((tag) => <button key={tag} type="button">{tag}</button>)}
+        </div>
+        <div className="cdk-leads-actions">
+          <span>示例</span>
+          <span>附件</span>
+          <button aria-label={status === "submitting" ? "生成中..." : "生成线索池"} disabled={!query.trim() || status === "submitting"} type="submit">
+            {status === "submitting" ? "生成中..." : "开始查找线索"}
+          </button>
+        </div>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <p className="cdk-leads-safe">AI 可能会继续询问：客户的区间、业务形态（线上/线下/混合）、决策人等信息，以便更精准地匹配线索。</p>
+      </form>
+
+      <section className="cdk-leads-crm-card" aria-label="CRM客户管理">
+        <div className="cdk-leads-crm-copy">
+          <h2>CRM客户管理</h2>
+          <p>统一管理线索、跟进商机，提升转化效率</p>
+          <Link className="cdk-leads-primary" to="/crm">进入CRM →</Link>
           <button className="module-primary-action" type="button">新建线索任务</button>
+          <Link className="cdk-leads-secondary" to="/leads">查看获客任务</Link>
+        </div>
+        <div className="cdk-leads-stat-grid">
+          {crmStats.map(([label, value], index) => (
+            <article key={label}>
+              <i className={`stat-${index + 1}`} aria-hidden="true" />
+              <small>{label}</small>
+              <strong>{value}</strong>
+            </article>
+          ))}
+        </div>
+        <aside className="cdk-leads-follow-table">
+          <header>
+            <h2>近期待跟进</h2>
+            <Link to="/crm">查看全部 ›</Link>
+          </header>
+          <div className="cdk-leads-table-head">
+            <span>客户/公司</span><span>阶段</span><span>负责人</span><span>下次跟进时间</span>
+          </div>
+          {followups.map(([time, company, action], index) => (
+            <article key={`${time}-${company}`}>
+              <strong>{company}</strong>
+              <span>{index === 1 ? "已沟通" : "跟进中"}</span>
+              <small>{index === 0 ? "李明" : index === 1 ? "陈晨" : "赵磊"}</small>
+              <time>{time}</time>
+              <em>{action}</em>
+            </article>
+          ))}
+        </aside>
+      </section>
+
+      <section className="cdk-leads-result-card" aria-label="高意向线索">
+        <div className="cdk-section-head">
+          <div>
+            <h2>高意向线索</h2>
+            <p>按 AI 评分排序，优先处理购买时机明确、触达入口清晰的企业</p>
+          </div>
+          <div className="module-chip-row compact">
+            {["全部", "高意向", "可开发", "待验证"].map((view, index) => (
+              <button className={index === 0 ? "active" : ""} key={view} type="button">{view}</button>
+            ))}
+          </div>
         </div>
 
-        <section className="module-overview-card leads-hero">
-          <div className="module-overview-copy">
-            <span className="module-kicker">教育培训机构 · 智能客服机会</span>
-            <h2>把散落的公开企业信息变成可跟进线索</h2>
-            <p>AI 会结合行业、招聘、内容动态、官网变化和联系方式，判断哪些企业更可能需要你的产品，并同步到 CRM 跟进。</p>
-            <div className="module-stat-strip">
-              {leadStats.map(([label, value]) => (
-                <article key={label}>
-                  <small>{label}</small>
-                  <strong>{value}</strong>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <form className="module-ai-box compact leads-query-card" onSubmit={submit}>
-            <label htmlFor="lead-target">描述目标客户画像</label>
-            <textarea
-              id="lead-target"
-              aria-label="描述目标客户画像"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="例如：华东地区、连锁教育培训机构、正在扩张校区、需要提升客服响应和私域转化..."
-              value={query}
-            />
-            <button disabled={!query.trim() || status === "submitting"} type="submit">
-              {status === "submitting" ? "生成中..." : "生成线索池"}
-            </button>
-            {error && <p className="form-error" role="alert">{error}</p>}
-          </form>
-        </section>
-
-        <section className="leads-workbench">
-          <div className="leads-main-card">
-            <div className="module-section-head">
-              <div>
-                <h2>高意向线索</h2>
-                <p>按 AI 评分排序，优先处理购买时机明确、触达入口清晰的企业</p>
+        <div className="leads-company-list">
+          {companies.map((company) => (
+            <article key={company.name}>
+              <header>
+                <div>
+                  <h3>{company.name}</h3>
+                  <small>{company.industry}</small>
+                </div>
+                <strong>{company.score}</strong>
+              </header>
+              <p>{company.next}</p>
+              <div className="tool-tags">
+                {company.signals.map((signal) => <span key={signal}>{signal}</span>)}
               </div>
-              <div className="module-chip-row compact">
-                {["全部", "高意向", "可开发", "待验证"].map((view, index) => (
-                  <button className={index === 0 ? "active" : ""} key={view} type="button">{view}</button>
-                ))}
-              </div>
-            </div>
+              <footer>
+                <span className={company.stage === "高意向" ? "hot" : ""}>{company.stage}</span>
+                <Link to="/crm">加入CRM</Link>
+              </footer>
+            </article>
+          ))}
+        </div>
+      </section>
 
-            <div className="leads-company-list">
-              {companies.map((company) => (
-                <article key={company.name}>
-                  <header>
-                    <div>
-                      <h3>{company.name}</h3>
-                      <small>{company.industry}</small>
-                    </div>
-                    <strong>{company.score}</strong>
-                  </header>
-                  <p>{company.next}</p>
-                  <div className="tool-tags">
-                    {company.signals.map((signal) => <span key={signal}>{signal}</span>)}
-                  </div>
-                  <footer>
-                    <span className={company.stage === "高意向" ? "hot" : ""}>{company.stage}</span>
-                    <Link to="/crm">加入CRM</Link>
-                  </footer>
-                </article>
-              ))}
-            </div>
-          </div>
+      <section className="cdk-leads-source-section">
+        <h2>线索来源与合规保障</h2>
+        <div>
+          {sourceChannels.slice(0, 3).map(([source, detail, status]) => (
+            <article key={source}>
+              <i aria-hidden="true" />
+              <strong>{source}</strong>
+              <p>{detail}</p>
+              <div><span>{status}</span><span>更多</span></div>
+            </article>
+          ))}
+        </div>
+      </section>
 
-          <aside className="leads-source-card" aria-label="数据源状态">
-            <h2>数据源状态</h2>
-            {sourceChannels.map(([source, detail, status]) => (
-              <article key={source}>
-                <span>
-                  <strong>{source}</strong>
-                  <small>{detail}</small>
-                </span>
-                <em>{status}</em>
-              </article>
-            ))}
-          </aside>
-        </section>
+      <section className="cdk-leads-rule-section">
+        <strong>合规与安全</strong>
+        <p>系统仅使用公开的企业信息、用户主动公开的内容及授权的线索采集渠道，不抓取私人隐私信息，严格遵守相关法律法规。</p>
+        <Link to="/terms">了解更多合规说明 ›</Link>
+      </section>
 
-        <section className="leads-lower-grid">
-          <div className="leads-path-card">
-            <div className="module-section-head">
-              <div>
-                <h2>开发路径</h2>
-                <p>从目标客群到 CRM 跟进，拆成可追踪的四步流程</p>
-              </div>
-            </div>
-            <div className="leads-path-grid">
-              {developmentPath.map(([step, title, detail]) => (
-                <article key={step}>
-                  <b>{step}</b>
-                  <strong>{title}</strong>
-                  <small>{detail}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-
-          <aside className="leads-follow-card" aria-label="跟进提醒">
-            <h2>跟进提醒</h2>
-            {followups.map(([time, company, action]) => (
-              <article key={`${time}-${company}`}>
-                <time>{time}</time>
-                <strong>{company}</strong>
-                <small>{action}</small>
-              </article>
-            ))}
-          </aside>
-        </section>
-
-        <section className="leads-rule-section">
+      <section className="leads-lower-grid cdk-leads-extra">
+        <div className="leads-path-card">
           <div className="module-section-head">
             <div>
-              <h2>评分规则</h2>
-              <p>第一版先展示评分逻辑，后续可接入真实数据源和异步任务</p>
+              <h2>开发路径</h2>
+              <p>从目标客群到 CRM 跟进，拆成可追踪的四步流程</p>
             </div>
           </div>
-          <div className="leads-rule-grid">
-            {scoringRules.map(([title, detail]) => (
-              <article key={title}>
+          <div className="leads-path-grid">
+            {developmentPath.map(([step, title, detail]) => (
+              <article key={step}>
+                <b>{step}</b>
                 <strong>{title}</strong>
-                <p>{detail}</p>
+                <small>{detail}</small>
               </article>
             ))}
           </div>
-        </section>
+        </div>
+
+        <aside className="leads-follow-card" aria-label="跟进提醒">
+          <h2>评分规则</h2>
+          {scoringRules.map(([title, detail]) => (
+            <article key={title}>
+              <strong>{title}</strong>
+              <small>{detail}</small>
+            </article>
+          ))}
+        </aside>
       </section>
-    </V4PageShell>
+    </main>
   );
 }
 
