@@ -326,3 +326,32 @@ func TestDevelopmentProviderReturnsFeatureSpecificAnalysisJSON(t *testing.T) {
 		t.Fatalf("payload = %+v", payload)
 	}
 }
+
+func TestDevelopmentProviderReturnsFeatureSpecificSandboxJSON(t *testing.T) {
+	provider := NewDevelopmentProvider()
+
+	response, err := provider.Generate(context.Background(), ProviderRequest{Feature: "sandbox.run"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	var payload struct {
+		Score   int    `json:"score"`
+		Summary string `json:"summary"`
+		Metrics []struct {
+			Label string `json:"label"`
+			Value string `json:"value"`
+		} `json:"metrics"`
+		RoleSummaries []struct {
+			Role string `json:"role"`
+			View string `json:"view"`
+		} `json:"role_summaries"`
+		Risks       []string `json:"risks"`
+		NextActions []string `json:"next_actions"`
+	}
+	if err := json.Unmarshal(response.Content, &payload); err != nil {
+		t.Fatalf("sandbox response is not JSON: %v", err)
+	}
+	if payload.Score == 0 || payload.Summary == "" || len(payload.Metrics) == 0 || len(payload.RoleSummaries) == 0 || len(payload.Risks) == 0 || len(payload.NextActions) == 0 {
+		t.Fatalf("payload = %+v", payload)
+	}
+}

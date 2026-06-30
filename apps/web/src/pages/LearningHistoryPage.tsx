@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningProgress } from "../lib/learningApi";
 
 const historyStats = [
   ["已学习课程", "18 门", "较上周 +3", "book"],
@@ -28,7 +30,49 @@ const calendarDays = [
 
 const trendPoints = [24, 14, 18, 13, 14, 24, 28, 33, 34, 27, 34, 43, 41, 46, 40, 48, 38, 35, 34, 31, 18, 28, 36, 30, 39, 34, 42] as const;
 
+function formatUpdatedAt(value: string) {
+  return new Date(value).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+}
+
+function toRecord(progress: LearningProgress, index: number) {
+  const tones = ["violet", "cyan", "purple", "blue"] as const;
+  return [
+    progress.course_title,
+    progress.course_slug,
+    progress.last_lesson,
+    progress.recommended_action || "继续完成下一节课程",
+    `${progress.percent}%`,
+    formatUpdatedAt(progress.updated_at),
+    tones[index % tones.length]
+  ] as const;
+}
+
 function LearningHistoryPage() {
+  const [apiProgress, setApiProgress] = useState<LearningProgress[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    learningApi
+      .listProgress()
+      .then((payload) => {
+        if (active) setApiProgress(payload.progress);
+      })
+      .catch(() => {
+        if (active) setApiProgress([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleRecords = apiProgress.length > 0 ? apiProgress.map(toRecord) : records;
+
   return (
     <V4PageShell>
       <section className="learning-page history-page" aria-label="学习历史进度">
@@ -80,7 +124,7 @@ function LearningHistoryPage() {
                 <span>最近学习时间</span>
                 <span>操作</span>
               </header>
-              {records.map(([title, meta, chapter, lesson, progress, time, tone]) => (
+              {visibleRecords.map(([title, meta, chapter, lesson, progress, time, tone]) => (
                 <article key={title}>
                   <div className="history-course-cell">
                     <i className={tone} aria-hidden="true" />

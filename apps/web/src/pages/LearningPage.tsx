@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningCourse } from "../lib/learningApi";
 
 const courseTabs = ["全部", "入门", "实战", "行业", "工具"];
 
@@ -69,7 +71,45 @@ const learningActions = [
   }
 ];
 
+function formatLearners(value: number) {
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}w人学习`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k人学习`;
+  return `${value}人学习`;
+}
+
+function toCourseCard(course: LearningCourse, index: number) {
+  const tones = ["blue", "cyan", "violet", "deep"] as const;
+  return {
+    badge: `${course.category}推荐`,
+    title: course.title,
+    desc: course.description,
+    meta: `${course.category} · ${course.hours}课时`,
+    learners: formatLearners(course.learners),
+    price: course.price_label,
+    tone: tones[index % tones.length]
+  };
+}
+
 function LearningPage() {
+  const [apiCourses, setApiCourses] = useState<LearningCourse[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    learningApi
+      .listCourses({ limit: 4 })
+      .then((payload) => {
+        if (active) setApiCourses(payload.courses);
+      })
+      .catch(() => {
+        if (active) setApiCourses([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleCourses = apiCourses.length > 0 ? apiCourses.map(toCourseCard) : courses;
+
   return (
     <V4PageShell>
       <section className="learning-page" aria-label="AI教学首页">
@@ -102,7 +142,7 @@ function LearningPage() {
             </div>
 
             <div className="course-row">
-              {courses.map((course) => (
+              {visibleCourses.map((course) => (
                 <article className="course-card" key={course.title}>
                   <div className={`course-cover ${course.tone}`}>
                     <span>{course.badge}</span>

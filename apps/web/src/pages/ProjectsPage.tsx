@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { apiErrorMessage } from "../lib/apiErrors";
 import { projectsApi, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession } from "../lib/projectsApi";
 
 type ProjectMarketVariant =
@@ -311,8 +312,8 @@ function MatchRequest() {
     try {
       const next = await projectsApi.createMatch({ intent });
       setResult(next);
-    } catch {
-      setError("暂时无法生成项目匹配，请稍后重试");
+    } catch (error) {
+      setError(apiErrorMessage(error, "暂时无法生成项目匹配，请稍后重试"));
     } finally {
       setStatus("idle");
     }
@@ -573,8 +574,8 @@ function MatchHistory() {
       .then((payload) => {
         if (active) setSessions(payload.matches);
       })
-      .catch(() => {
-        if (active) setError("暂时无法读取匹配历史");
+      .catch((error) => {
+        if (active) setError(apiErrorMessage(error, "暂时无法读取匹配历史"));
       });
     return () => {
       active = false;

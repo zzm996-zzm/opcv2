@@ -1,4 +1,4 @@
-import { authSession } from "./authSession";
+import { apiRequest } from "./apiRequest";
 
 export type CrmStage = "new" | "contacted" | "qualified" | "proposal" | "won" | "lost";
 
@@ -32,27 +32,9 @@ export type CrmFollowUpCopy = {
   channel: string;
 };
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = authSession.get().accessToken;
-  const response = await fetch(path, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers
-    }
-  });
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(payload.error ?? "request_failed");
-  }
-  return (await response.json()) as T;
-}
-
 export const crmApi = {
   importLead(input: { leadResultId: number; name: string; phone?: string; email?: string; website?: string }) {
-    return request<CrmCustomer>("/api/v1/crm/customers/import-lead", {
+    return apiRequest<CrmCustomer>("/api/v1/crm/customers/import-lead", {
       method: "POST",
       body: JSON.stringify({
         lead_result_id: input.leadResultId,
@@ -65,20 +47,20 @@ export const crmApi = {
   },
 
   listDueCustomers(limit = 20) {
-    return request<{ customers: CrmCustomer[] }>(`/api/v1/crm/customers/due?limit=${limit}`, {
+    return apiRequest<{ customers: CrmCustomer[] }>(`/api/v1/crm/customers/due?limit=${limit}`, {
       method: "GET"
     });
   },
 
   updateStage(customerId: number, input: { stage: CrmStage; note?: string }) {
-    return request<CrmCustomer>(`/api/v1/crm/customers/${customerId}/stage`, {
+    return apiRequest<CrmCustomer>(`/api/v1/crm/customers/${customerId}/stage`, {
       method: "POST",
       body: JSON.stringify(input)
     });
   },
 
   recordFollowUp(customerId: number, input: { note: string; nextFollowUpAt: string }) {
-    return request<CrmFollowUp>(`/api/v1/crm/customers/${customerId}/follow-ups`, {
+    return apiRequest<CrmFollowUp>(`/api/v1/crm/customers/${customerId}/follow-ups`, {
       method: "POST",
       body: JSON.stringify({
         note: input.note,
@@ -88,7 +70,7 @@ export const crmApi = {
   },
 
   generateFollowUpCopy(customerId: number, input: { goal: string }) {
-    return request<CrmFollowUpCopy>(`/api/v1/crm/customers/${customerId}/follow-up-copy`, {
+    return apiRequest<CrmFollowUpCopy>(`/api/v1/crm/customers/${customerId}/follow-up-copy`, {
       method: "POST",
       body: JSON.stringify(input)
     });

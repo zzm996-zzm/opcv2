@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningDiagnosis, type LearningDimension } from "../lib/learningApi";
 
 const reportSteps = [
   ["1", "收集信息", "获取项目与数据", "complete"],
@@ -30,7 +32,70 @@ const evidenceItems = [
   ["工具箱", "分析了 8 个常用工具", "case"]
 ] as const;
 
+function formatGoal(goal: string) {
+  return `${goal.replace(/^提升/, "")}提升`;
+}
+
+function scoreLevel(score: number) {
+  if (score >= 80) return "优势";
+  if (score >= 60) return "中等";
+  return "较弱";
+}
+
+function scoreState(score: number) {
+  if (score >= 80) return "good";
+  if (score >= 60) return "medium";
+  return "weak";
+}
+
+function toAbilityScore(dimension: LearningDimension, index: number) {
+  const icons = ["cube", "chat", "bars", "headset", "target"] as const;
+  return [
+    dimension.name,
+    `${dimension.score}分`,
+    scoreLevel(dimension.score),
+    `掌握度 ${dimension.score}%`,
+    icons[index % icons.length],
+    scoreState(dimension.score)
+  ] as const;
+}
+
+function toPriorityGap(dimension: LearningDimension, index: number) {
+  const badges = ["差距最大", "重点提升", "持续补强"] as const;
+  return [
+    `优先补齐：${dimension.name}`,
+    badges[index] ?? "持续补强",
+    dimension.summary || `当前差距 ${dimension.gap} 分，建议优先补齐。`,
+    `${dimension.score}分`
+  ] as const;
+}
+
 function LearningReportPage() {
+  const [diagnosis, setDiagnosis] = useState<LearningDiagnosis | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    learningApi
+      .getLatestDiagnosis()
+      .then((payload) => {
+        if (active) setDiagnosis(payload);
+      })
+      .catch(() => {
+        if (active) setDiagnosis(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleGoal = diagnosis ? formatGoal(diagnosis.goal) : "智能客服与市场分析能力提升";
+  const visibleScore = diagnosis?.overall_score ?? 62;
+  const visibleAbilityScores = diagnosis?.dimensions.length ? diagnosis.dimensions.map(toAbilityScore) : abilityScores;
+  const visiblePriorityGaps = diagnosis?.dimensions.length
+    ? [...diagnosis.dimensions].sort((a, b) => b.gap - a.gap).slice(0, 3).map(toPriorityGap)
+    : priorityGaps;
+  const topGap = (visiblePriorityGaps[0]?.[0] ?? "智能客服案例拆解").replace(/^优先补齐：/, "");
+
   return (
     <V4PageShell>
       <section className="learning-page diagnosis-page learning-report-page" aria-label="能力诊断报告">
@@ -73,11 +138,11 @@ function LearningReportPage() {
             <div className="report-overview-body">
               <article className="report-target-card">
                 <h3>你的目标方向</h3>
-                <strong>智能客服与市场分析能力提升</strong>
+                <strong>{visibleGoal}</strong>
                 <button type="button">修改目标</button>
                 <div>
                   <span>整体匹配度</span>
-                  <b>62分 <small>/ 100</small></b>
+                  <b>{visibleScore}分 <small>/ 100</small></b>
                   <i aria-hidden="true" />
                   <p>当前能力较目标方向仍有提升空间</p>
                 </div>
@@ -85,7 +150,7 @@ function LearningReportPage() {
               <section className="report-score-panel" aria-label="能力差距分布">
                 <h3>能力差距分布</h3>
                 <div className="report-score-grid">
-                  {abilityScores.map(([title, score, level, mastery, icon, state]) => (
+                  {visibleAbilityScores.map(([title, score, level, mastery, icon, state]) => (
                     <article className={state} key={title}>
                       <i className={`report-score-icon ${icon}`} aria-hidden="true" />
                       <h4>{title}</h4>
@@ -105,7 +170,7 @@ function LearningReportPage() {
               <h2>优先补齐能力 <span>推荐学习顺序</span></h2>
               <div className="report-priority-body">
                 <div className="report-priority-list">
-                  {priorityGaps.map(([title, badge, desc, score], index) => (
+                  {visiblePriorityGaps.map(([title, badge, desc, score], index) => (
                     <article key={title}>
                       <b>{index + 1}</b>
                       <div>
@@ -170,11 +235,11 @@ function LearningReportPage() {
             </article>
             <article>
               <span className="ai-avatar">A</span>
-              <p><b>整体诊断结果：</b><br />整体匹配度 62 分，主要差距集中在“智能客服案例拆解”和“提示词工程实战”两个方面。</p>
+              <p><b>整体诊断结果：</b><br />整体匹配度 {visibleScore} 分，主要差距集中在“{topGap}”等方面。</p>
             </article>
             <article>
               <span className="ai-avatar">A</span>
-              <p>建议你优先从“智能客服案例拆解”开始补齐，掌握不同场景下的服务方案拆解方法，快速提升业务落地能力。</p>
+              <p>建议你优先从“{topGap}”开始补齐，掌握不同场景下的服务方案拆解方法，快速提升业务落地能力。</p>
             </article>
             <article className="report-pdf-card">
               <span className="ai-avatar">A</span>

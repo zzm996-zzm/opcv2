@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningCourse } from "../lib/learningApi";
 
 const categoryTabs = ["全部", "入门", "实战", "行业", "工具"] as const;
 
@@ -34,7 +36,44 @@ const recommendedCourses = [
   ["AI自动化办公实战", "19课时", "6.1k人在学", "工具"]
 ] as const;
 
+function formatLearners(value: number) {
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}w人学习`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k人学习`;
+  return `${value}人学习`;
+}
+
+function toCatalogCourse(course: LearningCourse) {
+  return [
+    course.category,
+    course.title,
+    course.description,
+    `${course.hours}课时`,
+    formatLearners(course.learners),
+    course.price_label,
+    "ai"
+  ] as const;
+}
+
 function LearningCoursesPage() {
+  const [apiCourses, setApiCourses] = useState<LearningCourse[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    learningApi
+      .listCourses({ limit: 20 })
+      .then((payload) => {
+        if (active) setApiCourses(payload.courses);
+      })
+      .catch(() => {
+        if (active) setApiCourses([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleCourses = apiCourses.length > 0 ? apiCourses.map(toCatalogCourse) : courses;
+
   return (
     <V4PageShell>
       <section className="learning-page courses-page" aria-label="全部课程">
@@ -89,7 +128,7 @@ function LearningCoursesPage() {
           </section>
 
           <section className="course-catalog-grid" aria-label="课程列表">
-            {courses.map(([category, title, desc, hours, learners, price, icon], index) => (
+            {visibleCourses.map(([category, title, desc, hours, learners, price, icon], index) => (
               <Link className="course-catalog-card" key={title} to={index === 0 ? "/learning/courses/intro" : "/learning/courses/detail"}>
                 <div className={`course-cover ${icon}`}>
                   <span>{category}</span>

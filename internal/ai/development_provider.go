@@ -60,6 +60,23 @@ func (p *DevelopmentProvider) responseFor(feature string) []byte {
 				}
 			]
 		}`)
+	case "sandbox.run":
+		return []byte(`{
+			"score":83,
+			"summary":"建议先做小范围客户验证。当前方案具备明确场景和可解释价值，但需要优先验证付费意愿、数据安全顾虑和交付成本。",
+			"metrics":[
+				{"label":"市场吸引力","value":"8.4"},
+				{"label":"落地难度","value":"中等"},
+				{"label":"回本周期","value":"6-10周"}
+			],
+			"role_summaries":[
+				{"role":"用户","view":"更关注响应效率、隐私安全和是否能接入现有企微流程。"},
+				{"role":"投资人","view":"会重点观察客户获取成本、续费率和交付是否足够标准化。"},
+				{"role":"增长顾问","view":"建议用教培机构的高频咨询场景切入，先做一个可复制样板。"}
+			],
+			"risks":["客户教育成本偏高","敏感数据合规要求高","早期交付容易被定制需求拖慢"],
+			"next_actions":["访谈10个目标客户，确认高频咨询问题","做出一个教培场景演示样板","定义首月试点价格和成功指标"]
+		}`)
 	default:
 		return []byte(`{"ok":true}`)
 	}

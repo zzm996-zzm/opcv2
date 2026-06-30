@@ -1,6 +1,21 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { apiErrorMessage } from "../lib/apiErrors";
+import { tasksApi, type Task, type TaskPriority, type TaskStatus } from "../lib/tasksApi";
+
+type TaskRow = {
+  id?: number;
+  title: string;
+  project: string;
+  status: string;
+  statusCode?: TaskStatus;
+  priority: string;
+  due: string;
+  tools: string[];
+  learning: string;
+};
 
 const taskStats = [
   ["今日待办", "5"],
@@ -9,7 +24,7 @@ const taskStats = [
   ["提醒中", "4"]
 ] as const;
 
-const taskRows = [
+const taskRows: TaskRow[] = [
   {
     title: "完成智能客服系统项目商业画布",
     project: "智能客服系统",
@@ -54,7 +69,100 @@ const boardColumns = [
   ["已完成", ["竞品动态复盘", "工具清单整理"]]
 ] as const;
 
+const statusLabels: Record<TaskStatus, string> = {
+  todo: "待开始",
+  in_progress: "进行中",
+  completed: "已完成",
+  reminder: "提醒中"
+};
+
+const priorityLabels: Record<TaskPriority, string> = {
+  low: "低",
+  medium: "中",
+  high: "高"
+};
+
+function formatDueAt(dueAt?: string) {
+  if (!dueAt) return "待安排";
+  return new Date(dueAt).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+}
+
+function toTaskRow(task: Task): TaskRow {
+  return {
+    id: task.id,
+    title: task.title,
+    project: task.project,
+    status: statusLabels[task.status],
+    statusCode: task.status,
+    priority: priorityLabels[task.priority],
+    due: formatDueAt(task.due_at),
+    tools: task.tools,
+    learning: task.learning
+  };
+}
+
+function buildTaskStats(tasks: Task[]) {
+  if (tasks.length === 0) return taskStats;
+  const countByStatus = tasks.reduce<Record<TaskStatus, number>>(
+    (acc, task) => {
+      acc[task.status] += 1;
+      return acc;
+    },
+    { todo: 0, in_progress: 0, completed: 0, reminder: 0 }
+  );
+  return [
+    ["今日待办", String(countByStatus.todo + countByStatus.in_progress + countByStatus.reminder)],
+    ["进行中", String(countByStatus.in_progress)],
+    ["已完成", String(countByStatus.completed)],
+    ["提醒中", String(countByStatus.reminder)]
+  ] as const;
+}
+
 function TasksPage() {
+  const [apiTasks, setApiTasks] = useState<Task[]>([]);
+  const [listError, setListError] = useState("");
+  const [savingTaskID, setSavingTaskID] = useState<number | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    tasksApi
+      .listTasks(20)
+      .then((payload) => {
+        if (!active) return;
+        setApiTasks(payload.tasks);
+        setListError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setApiTasks([]);
+        setListError(apiErrorMessage(error, "暂时无法读取任务列表"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleTasks = apiTasks.length > 0 ? apiTasks.map(toTaskRow) : taskRows;
+  const visibleStats = buildTaskStats(apiTasks);
+
+  async function completeTask(taskID: number) {
+    setSavingTaskID(taskID);
+    try {
+      const updated = await tasksApi.updateTask(taskID, { status: "completed" });
+      setApiTasks((current) => current.map((task) => task.id === taskID ? updated : task));
+    } catch {
+      // Keep the current row unchanged; a global toast system can surface this later.
+    } finally {
+      setSavingTaskID(null);
+    }
+  }
+
   return (
     <V4PageShell>
       <section className="module-page tasks-page" aria-label="任务中心">
@@ -65,6 +173,7 @@ function TasksPage() {
           </div>
           <button className="module-primary-action" type="button">新建任务</button>
         </div>
+        {listError ? <p className="form-error" role="alert">{listError}</p> : null}
 
         <section className="module-overview-card tasks-hero">
           <div className="module-overview-copy">
@@ -72,7 +181,7 @@ function TasksPage() {
             <h2>把计划变成今天能推进的任务</h2>
             <p>任务中心承接项目、工具和竞品动态提醒，形成持续推进的执行闭环。</p>
             <div className="module-stat-strip">
-              {taskStats.map(([label, value]) => (
+              {visibleStats.map(([label, value]) => (
                 <article key={label}>
                   <small>{label}</small>
                   <strong>{value}</strong>
@@ -101,7 +210,7 @@ function TasksPage() {
               </div>
             </div>
             <div className="task-table">
-              {taskRows.map((task) => (
+              {visibleTasks.map((task) => (
                 <article key={task.title}>
                   <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
                   <div>
@@ -112,6 +221,15 @@ function TasksPage() {
                   <span className="task-state">{task.status}</span>
                   <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
                   <Link to="/learning">补课：{task.learning}</Link>
+                  {task.id ? (
+                    <button
+                      disabled={task.statusCode === "completed" || savingTaskID === task.id}
+                      onClick={() => void completeTask(task.id as number)}
+                      type="button"
+                    >
+                      {task.statusCode === "completed" ? "已完成" : savingTaskID === task.id ? "更新中..." : "标记完成"}
+                    </button>
+                  ) : null}
                 </article>
               ))}
             </div>

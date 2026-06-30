@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { apiErrorMessage } from "../lib/apiErrors";
 import { crmApi, type CrmCustomer, type CrmStage } from "../lib/crmApi";
 import { CdkTopNav } from "./AnalysisPage";
 
@@ -204,8 +205,8 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
       .then((payload) => {
         if (active) setDueCustomers(payload.customers);
       })
-      .catch(() => {
-        if (active) setError("暂时无法读取 CRM 客户");
+      .catch((error) => {
+        if (active) setError(apiErrorMessage(error, "暂时无法读取 CRM 客户"));
       });
     return () => {
       active = false;

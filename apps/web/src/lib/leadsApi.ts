@@ -1,4 +1,4 @@
-import { authSession } from "./authSession";
+import { apiRequest } from "./apiRequest";
 
 export type LeadTask = {
   id: number;
@@ -12,27 +12,9 @@ export type LeadTask = {
   updated_at: string;
 };
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = authSession.get().accessToken;
-  const response = await fetch(path, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers
-    }
-  });
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(payload.error ?? "request_failed");
-  }
-  return (await response.json()) as T;
-}
-
 export const leadsApi = {
   createTask(input: { query: string; idempotencyKey: string }) {
-    return request<LeadTask>("/api/v1/leads/tasks", {
+    return apiRequest<LeadTask>("/api/v1/leads/tasks", {
       method: "POST",
       body: JSON.stringify({
         query: input.query,
@@ -42,7 +24,7 @@ export const leadsApi = {
   },
 
   listTasks(limit = 20) {
-    return request<{ tasks: LeadTask[] }>(`/api/v1/leads/tasks?limit=${limit}`, {
+    return apiRequest<{ tasks: LeadTask[] }>(`/api/v1/leads/tasks?limit=${limit}`, {
       method: "GET"
     });
   }

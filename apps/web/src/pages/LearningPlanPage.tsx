@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningDiagnosis } from "../lib/learningApi";
 
 const learningStages = [
   {
@@ -55,7 +57,34 @@ const planMetrics = [
   ["学习目标产出", "掌握AI工具与提示词实战能力", "独立完成行业与竞品分析报告｜落地智能客服优化方案", "target"]
 ] as const;
 
+function formatPathTitle(goal: string) {
+  return `${goal.replace(/^提升/, "")}路径`;
+}
+
 function LearningPlanPage() {
+  const [diagnosis, setDiagnosis] = useState<LearningDiagnosis | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    learningApi
+      .getLatestDiagnosis()
+      .then((payload) => {
+        if (active) setDiagnosis(payload);
+      })
+      .catch(() => {
+        if (active) setDiagnosis(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const pathTitle = diagnosis ? formatPathTitle(diagnosis.goal) : "系统学习路径";
+  const pathDescription = diagnosis
+    ? `基于你的项目方向与能力诊断结果，为你量身定制学习路径，助你高效掌握“${diagnosis.project}”相关能力。`
+    : "基于你的项目方向与能力诊断结果，为你量身定制学习路径，助你高效掌握“智能客服与市场分析”相关能力。";
+  const visibleRecommendations = diagnosis?.recommendations.length ? diagnosis.recommendations : [];
+
   return (
     <V4PageShell>
       <section className="learning-page diagnosis-page learning-plan-page" aria-label="系统学习路径">
@@ -67,9 +96,9 @@ function LearningPlanPage() {
               <strong>系统学习路径</strong>
             </div>
             <div className="diagnosis-hero-copy">
-              <h1>系统学习路径</h1>
+              <h1>{pathTitle}</h1>
               <span>张婧的专属学习路径</span>
-              <p>基于你的项目方向与能力诊断结果，为你量身定制学习路径，助你高效掌握“智能客服与市场分析”相关能力。</p>
+              <p>{pathDescription}</p>
             </div>
             <div className="learning-plan-hero-art" aria-hidden="true">
               <span />
@@ -79,6 +108,16 @@ function LearningPlanPage() {
           </section>
 
           <section className="diagnosis-card learning-path-card" aria-label="四阶段学习路径">
+            {visibleRecommendations.length > 0 ? (
+              <header>
+                <h2>诊断推荐行动</h2>
+                <ul>
+                  {visibleRecommendations.map((recommendation) => (
+                    <li key={recommendation}>{recommendation}</li>
+                  ))}
+                </ul>
+              </header>
+            ) : null}
             <div className="learning-path-line" aria-hidden="true" />
             <div className="learning-path-grid">
               {learningStages.map((stage) => (
@@ -133,7 +172,7 @@ function LearningPlanPage() {
 
           <footer className="learning-plan-footer">
             <p>路径将根据你的学习进度与测评结果动态调整，保持学习效果最优。</p>
-            <span>上次更新：2024-05-20 10:30</span>
+            <span>上次更新：{diagnosis ? new Date(diagnosis.updated_at).toLocaleString("zh-CN", { hour12: false }) : "2024-05-20 10:30"}</span>
             <button type="button">刷新路径</button>
           </footer>
         </div>
@@ -153,7 +192,7 @@ function LearningPlanPage() {
           <div className="learning-chat learning-plan-chat">
             <article>
               <span className="ai-avatar">A</span>
-              <p>嗨，张婧！<br />我已根据你的项目“智能客服与市场分析”和能力诊断结果，为你生成了专属学习路径。</p>
+              <p>嗨，张婧！<br />我已根据你的项目“{diagnosis?.project ?? "智能客服与市场分析"}”和能力诊断结果，为你生成了专属学习路径。</p>
             </article>
             <article>
               <span className="ai-avatar">A</span>

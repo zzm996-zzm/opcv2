@@ -1,4 +1,4 @@
-import { authSession } from "./authSession";
+import { apiRequest } from "./apiRequest";
 
 export type Question = {
   key: string;
@@ -51,52 +51,34 @@ export type AnalysisActionItem = {
   updated_at: string;
 };
 
-async function request<T>(path: string, init: RequestInit): Promise<T> {
-  const token = authSession.get().accessToken;
-  const response = await fetch(path, {
-    ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers
-    }
-  });
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(payload.error ?? "request_failed");
-  }
-  return (await response.json()) as T;
-}
-
 export const analysisApi = {
   startDirection(input: { intent: string }) {
-    return request<DirectionResult>("/api/v1/analysis/direction", {
+    return apiRequest<DirectionResult>("/api/v1/analysis/direction", {
       method: "POST",
       body: JSON.stringify(input)
     });
   },
 
   listSessions(limit = 20) {
-    return request<{ sessions: AnalysisSession[] }>(`/api/v1/analysis/sessions?limit=${limit}`, {
+    return apiRequest<{ sessions: AnalysisSession[] }>(`/api/v1/analysis/sessions?limit=${limit}`, {
       method: "GET"
     });
   },
 
   getSession(id: number) {
-    return request<AnalysisSession>(`/api/v1/analysis/sessions/${id}`, {
+    return apiRequest<AnalysisSession>(`/api/v1/analysis/sessions/${id}`, {
       method: "GET"
     });
   },
 
   listActionItems(sessionId: number) {
-    return request<{ items: AnalysisActionItem[] }>(`/api/v1/analysis/sessions/${sessionId}/action-items`, {
+    return apiRequest<{ items: AnalysisActionItem[] }>(`/api/v1/analysis/sessions/${sessionId}/action-items`, {
       method: "GET"
     });
   },
 
   updateActionItem(sessionId: number, itemId: number, completed: boolean) {
-    return request<AnalysisActionItem>(`/api/v1/analysis/sessions/${sessionId}/action-items/${itemId}`, {
+    return apiRequest<AnalysisActionItem>(`/api/v1/analysis/sessions/${sessionId}/action-items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify({ completed })
     });

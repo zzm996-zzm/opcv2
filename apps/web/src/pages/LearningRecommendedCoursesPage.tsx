@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningCourse } from "../lib/learningApi";
 
 const recommendTabs = ["全部", "入门", "实战", "行业", "工具"] as const;
 const sortTabs = ["匹配度", "热度", "最新"] as const;
@@ -16,7 +18,45 @@ const recommendedCourses = [
   ["行业专项", "电商行业智能客服最佳实践", "结合电商行业案例，学习智能客服的场景设计与运营优化方法。", "3.4小时", "9.6k人学习", "会员免费", "columns"]
 ] as const;
 
+function formatLearners(value: number) {
+  if (value >= 10000) return `${(value / 10000).toFixed(1)}w人学习`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k人学习`;
+  return `${value}人学习`;
+}
+
+function toRecommendedCourse(course: LearningCourse, index: number) {
+  const icons = ["headset", "chat", "bars", "target", "search", "cube", "laptop", "columns"] as const;
+  return [
+    `${course.category}推荐`,
+    course.title,
+    course.description,
+    `${course.hours}课时`,
+    formatLearners(course.learners),
+    course.price_label,
+    icons[index % icons.length]
+  ] as const;
+}
+
 function LearningRecommendedCoursesPage() {
+  const [apiCourses, setApiCourses] = useState<LearningCourse[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    learningApi
+      .listCourses({ limit: 8 })
+      .then((payload) => {
+        if (active) setApiCourses(payload.courses);
+      })
+      .catch(() => {
+        if (active) setApiCourses([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleCourses = apiCourses.length > 0 ? apiCourses.map(toRecommendedCourse) : recommendedCourses;
+
   return (
     <V4PageShell>
       <section className="learning-page recommended-page" aria-label="推荐课程">
@@ -55,7 +95,7 @@ function LearningRecommendedCoursesPage() {
           </div>
 
           <section className="recommended-grid" aria-label="推荐课程列表">
-            {recommendedCourses.map(([badge, title, desc, hours, learners, price, icon], index) => (
+            {visibleCourses.map(([badge, title, desc, hours, learners, price, icon], index) => (
               <Link className="recommended-course-card" key={title} to={index === 0 ? "/learning/courses/intro" : "/learning/courses/detail"}>
                 <div className={`recommended-cover ${icon}`}>
                   <span>{badge}</span>

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { apiErrorMessage } from "../lib/apiErrors";
 import { leadsApi, type LeadTask } from "../lib/leadsApi";
 import { CdkTopNav } from "./AnalysisPage";
 
@@ -113,8 +114,8 @@ function LeadDevelopmentPage() {
       .then((payload) => {
         if (active) setTasks(payload.tasks);
       })
-      .catch(() => {
-        if (active) setError("暂时无法读取线索任务");
+      .catch((error) => {
+        if (active) setError(apiErrorMessage(error, "暂时无法读取线索任务"));
       });
     return () => {
       active = false;
@@ -133,8 +134,8 @@ function LeadDevelopmentPage() {
       });
       setTasks((current) => [task, ...current.filter((item) => item.id !== task.id)]);
       setQuery("");
-    } catch {
-      setError("暂时无法创建线索任务，请稍后重试");
+    } catch (error) {
+      setError(apiErrorMessage(error, "暂时无法创建线索任务，请稍后重试"));
     } finally {
       setStatus("idle");
     }

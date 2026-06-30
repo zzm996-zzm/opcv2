@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { apiErrorMessage } from "../lib/apiErrors";
+import { sandboxApi, type SandboxSession } from "../lib/sandboxApi";
 
 type SandboxVariant =
   | "home"
@@ -104,17 +106,63 @@ const historyRows = [
 const selectedRoleIndexes = new Set([0, 1, 3, 4]);
 
 function SandboxPage({ variant = "home" }: SandboxPageProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [sessions, setSessions] = useState<SandboxSession[]>([]);
+  const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    sandboxApi
+      .listSessions(10)
+      .then((payload) => {
+        if (active) setSessions(payload.sessions);
+      })
+      .catch(() => {
+        if (active) setSessions([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const routedSession = (location.state as { sandboxSession?: SandboxSession } | null)?.sandboxSession ?? null;
+  const reportSession = routedSession ?? sessions.find((session) => session.status === "completed" && session.report) ?? sessions.find((session) => session.report) ?? null;
+
+  async function startSandbox(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    if (isStarting) return;
+    setIsStarting(true);
+    setStartError("");
+    try {
+      const draft = await sandboxApi.createSession({
+        goal: "验证 AI 低卡代餐奶昔",
+        targetUsers: "上班族",
+        product: "AI 低卡代餐奶昔",
+        roles: [roles[0][0], roles[1][0], roles[3][0], roles[4][0]]
+      });
+      const completed = await sandboxApi.runSession(draft.id);
+      setSessions((current) => [completed, ...current.filter((session) => session.id !== completed.id)]);
+      navigate("/sandbox/report", { state: { sandboxSession: completed } });
+    } catch (error) {
+      setStartError(apiErrorMessage(error, "推演启动失败，请稍后重试。"));
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
   return (
     <V4PageShell className="sandbox-shell" showCopilotMini={false}>
       <section className={`sandbox-v2 sandbox-${variant}`} aria-label="商业沙盘">
         {variant === "home" && <SandboxHome />}
         {variant === "setup" && <SetupPage />}
         {variant === "roles" && <RolesPage />}
-        {variant === "start" && <StartPage />}
+        {variant === "start" && <StartPage isStarting={isStarting} onStart={startSandbox} startError={startError} />}
         {variant === "questions" && <QuestionsPage />}
         {variant === "run" && <RunPage />}
-        {variant === "report" && <ReportPage />}
-        {variant === "history" && <HistoryPage />}
+        {variant === "report" && <ReportPage session={reportSession} />}
+        {variant === "history" && <HistoryPage sessions={sessions} />}
         {variant === "quota" && (
           <>
             <SandboxHome />
@@ -224,7 +272,15 @@ function RolesPage() {
   );
 }
 
-function StartPage() {
+function StartPage({
+  isStarting,
+  onStart,
+  startError
+}: {
+  isStarting: boolean;
+  onStart: (event: MouseEvent<HTMLAnchorElement>) => void;
+  startError: string;
+}) {
   return (
     <SandboxWorkLayout mode="start">
       <SandboxStepper active={3} />
@@ -270,8 +326,9 @@ function StartPage() {
             <input defaultChecked type="checkbox" />
             生成推演大纲
           </label>
-          <Link to="/sandbox/run">开始推演 🚀</Link>
+          <Link aria-disabled={isStarting} onClick={onStart} to="/sandbox/run">{isStarting ? "推演启动中..." : "开始推演 🚀"}</Link>
         </footer>
+        {startError ? <p role="alert">{startError}</p> : null}
       </section>
     </SandboxWorkLayout>
   );
@@ -366,34 +423,66 @@ function RunPage() {
   );
 }
 
-function ReportPage() {
+function formatSessionTime(value: string) {
+  return new Date(value).toLocaleString("zh-CN", { hour12: false });
+}
+
+function reportMetricProgress(value: string, index: number) {
+  const numeric = Number.parseFloat(value);
+  if (Number.isFinite(numeric)) return Math.max(0, Math.min(100, numeric));
+  return index === 2 ? 55 : 92;
+}
+
+function ReportPage({ session }: { session: SandboxSession | null }) {
+  const report = session?.report;
+  const visibleTitle = session?.product || "AI 驱动中小企业知识管理平台";
+  const visibleTime = session ? formatSessionTime(session.updated_at) : "2025-05-20 14:32";
+  const visibleRolesCount = session?.roles.length ?? 6;
+  const visibleMetrics = report?.metrics.length
+    ? report.metrics.map((metric, index) => [
+      metric.label,
+      metric.value,
+      index === 0 ? "/100" : "",
+      "来自本次沙盘推演报告"
+    ] as const)
+    : reportMetrics;
+  const visibleConclusions = report ? [report.summary, ...report.risks.map((risk) => `风险提示：${risk}`)] : [
+    "市场需求明确且增长潜力大，中小企业知识管理数字化痛点显著。",
+    "AI 驱动方案可有效提升效率并降低成本。",
+    "风险主要集中在数据安全合规、客户教育成本与付费转化路径。"
+  ];
+  const visibleRoleSummaries = report?.role_summaries.length
+    ? report.role_summaries.map((item) => [item.role, item.view] as const)
+    : roleSummaries;
+  const visibleNextActions = report?.next_actions.length
+    ? report.next_actions.map((item, index) => [`行动 ${index + 1}`, item] as const)
+    : nextActions;
+
   return (
     <SandboxWorkLayout mode="report">
       <section className="report-work">
         <header>
           <div>
             <p>商业沙盘 / 历史推演</p>
-            <h1>AI 驱动中小企业知识管理平台</h1>
-            <small>推演时间：2025-05-20 14:32　参与角色数：6　报告版本：V1.0</small>
+            <h1>{visibleTitle}</h1>
+            <small>推演时间：{visibleTime}　参与角色数：{visibleRolesCount}　报告版本：V1.0</small>
           </div>
           <button type="button">导出报告</button>
         </header>
         <div className="report-metrics">
-          {reportMetrics.map(([label, value, suffix, detail], index) => (
+          {visibleMetrics.map(([label, value, suffix, detail], index) => (
             <article key={label}>
               <small>{label}</small>
               <strong>{value}<span>{suffix}</span></strong>
               <p>{detail}</p>
-              <i style={{ width: `${index === 0 ? 83 : index === 1 ? 68 : index === 2 ? 55 : 92}%` }} />
+              <i style={{ width: `${reportMetricProgress(value, index)}%` }} />
             </article>
           ))}
         </div>
         <section className="report-summary">
           <h2>核心结论</h2>
           <ul>
-            <li>市场需求明确且增长潜力大，中小企业知识管理数字化痛点显著。</li>
-            <li>AI 驱动方案可有效提升效率并降低成本。</li>
-            <li>风险主要集中在数据安全合规、客户教育成本与付费转化路径。</li>
+            {visibleConclusions.map((item) => <li key={item}>{item}</li>)}
           </ul>
         </section>
         <div className="report-two-col">
@@ -407,7 +496,7 @@ function ReportPage() {
           </article>
         </div>
         <section className="role-summary-grid">
-          {roleSummaries.map(([title, detail]) => (
+          {visibleRoleSummaries.map(([title, detail]) => (
             <article key={title}>
               <strong>{title}</strong>
               <small>{detail}</small>
@@ -415,7 +504,7 @@ function ReportPage() {
           ))}
         </section>
         <section className="next-action-row">
-          {nextActions.map(([title, detail], index) => (
+          {visibleNextActions.map(([title, detail], index) => (
             <article key={title}>
               <b>{index + 1}</b>
               <strong>{title}</strong>
@@ -428,7 +517,28 @@ function ReportPage() {
   );
 }
 
-function HistoryPage() {
+function sessionRisk(session: SandboxSession) {
+  if (!session.report) return "中等";
+  if (session.report.score >= 85) return "较低";
+  if (session.report.score >= 70) return "中等";
+  return "较高";
+}
+
+function toHistoryRow(session: SandboxSession) {
+  return [
+    session.product || session.goal,
+    session.goal,
+    session.roles.join(" ") || "未选择角色",
+    formatSessionTime(session.updated_at),
+    session.status === "completed" ? "已完成" : "草稿",
+    session.report ? (session.report.score / 10).toFixed(1) : "-",
+    sessionRisk(session)
+  ] as const;
+}
+
+function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
+  const visibleRows = sessions.length ? sessions.map(toHistoryRow) : historyRows;
+
   return (
     <SandboxWorkLayout mode="history">
       <section className="history-work">
@@ -461,7 +571,7 @@ function HistoryPage() {
             <span>风险等级</span>
             <span>操作</span>
           </div>
-          {historyRows.map(([title, detail, role, time, status, score, risk]) => (
+          {visibleRows.map(([title, detail, role, time, status, score, risk]) => (
             <article key={title}>
               <strong>{title}<small>{detail}</small></strong>
               <span>{role}</span>

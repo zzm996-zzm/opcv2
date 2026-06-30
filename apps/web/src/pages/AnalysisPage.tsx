@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { apiErrorMessage } from "../lib/apiErrors";
 import { analysisApi, type DirectionCard, type DirectionResult } from "../lib/analysisApi";
 
 type AnalysisMode = "direction" | "competitor";
@@ -52,8 +53,8 @@ function AnalysisPage() {
     try {
       const next = await analysisApi.startDirection({ intent });
       setResult(next);
-    } catch {
-      setError("暂时无法生成分析，请稍后重试");
+    } catch (error) {
+      setError(apiErrorMessage(error, "暂时无法生成分析，请稍后重试"));
     } finally {
       setStatus("idle");
     }

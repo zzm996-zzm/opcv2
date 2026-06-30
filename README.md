@@ -17,6 +17,14 @@ docker compose up --build
 - PostgreSQL: `127.0.0.1:5432`
 - Redis: `127.0.0.1:6390`
 
+前端默认通过同源 `/api` 访问后端。需要让前端直接访问另一个 API 域名时，在构建前设置：
+
+```bash
+VITE_API_BASE_URL=https://api.example.com
+```
+
+本地 Vite dev server 仍可继续用 `VITE_API_PROXY_TARGET` 配置 `/api` 代理目标。
+
 常用检查：
 
 ```bash

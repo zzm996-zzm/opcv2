@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { apiErrorMessage } from "../lib/apiErrors";
+import { competitorApi, type CompetitorScan } from "../lib/competitorApi";
 
 const dataStats = [
   ["采集完成", "86%"],
@@ -58,6 +61,50 @@ const taskFlow = [
 ] as const;
 
 function CompetitorDataPage() {
+  const [latestScan, setLatestScan] = useState<CompetitorScan | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    competitorApi
+      .listScans(20)
+      .then((payload) => {
+        if (!active) return;
+        setLatestScan(payload.scans[0] ?? null);
+        setLoadError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setLatestScan(null);
+        setLoadError(apiErrorMessage(error, "暂时无法读取竞品采集数据"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleCompetitors = latestScan?.competitors.length ? latestScan.competitors : competitors;
+  const visibleConclusions = latestScan?.conclusions.length
+    ? latestScan.conclusions.map((item) => [item.title, item.detail] as const)
+    : conclusions;
+
+  async function startScan() {
+    if (isScanning) return;
+    setIsScanning(true);
+    try {
+      const scan = await competitorApi.createScan({
+        targets: ["小鹅通", "有赞教育", "企微管家"],
+        focus: "价格、案例、招聘和 AI 功能"
+      });
+      setLatestScan(scan);
+    } catch {
+      // Preserve current competitor snapshot; centralized error UI can be added later.
+    } finally {
+      setIsScanning(false);
+    }
+  }
+
   return (
     <V4PageShell className="competitor-data-shell">
       <section className="module-page competitor-data-page" aria-label="竞品全盘数据破解">
@@ -66,8 +113,11 @@ function CompetitorDataPage() {
             <h1>竞品全盘数据破解</h1>
             <p>发起脚本代查，自动采集竞品公开数据，再交给 AI 提炼威胁、机会和反击动作</p>
           </div>
-          <button className="module-primary-action" type="button">启动采集任务</button>
+          <button className="module-primary-action" disabled={isScanning} onClick={() => void startScan()} type="button">
+            {isScanning ? "采集中..." : "启动采集任务"}
+          </button>
         </div>
+        {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
 
         <section className="module-overview-card competitor-data-hero">
           <div className="module-overview-copy">
@@ -140,14 +190,14 @@ function CompetitorDataPage() {
             </div>
           </div>
           <div className="competitor-card-grid">
-            {competitors.map((item) => (
+            {visibleCompetitors.map((item) => (
               <article key={item.name}>
                 <header>
                   <div>
                     <h2>{item.name}</h2>
                     <p>{item.category}</p>
                   </div>
-                  <strong>{item.score}</strong>
+                  <strong>{String(item.score)}</strong>
                 </header>
                 <p>{item.signal}</p>
                 <div className="tool-tags">
@@ -171,7 +221,7 @@ function CompetitorDataPage() {
               </div>
             </div>
             <div className="competitor-conclusion-list">
-              {conclusions.map(([title, detail]) => (
+              {visibleConclusions.map(([title, detail]) => (
                 <article key={title}>
                   <strong>{title}</strong>
                   <p>{detail}</p>

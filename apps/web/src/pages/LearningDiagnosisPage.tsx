@@ -1,6 +1,8 @@
-import { Link } from "react-router-dom";
+import { useState, type MouseEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi } from "../lib/learningApi";
 
 const diagnosisSteps = [
   ["1", "收集信息", "获取相关数据与目标"],
@@ -30,6 +32,28 @@ const analysisItems = [
 ] as const;
 
 function LearningDiagnosisPage() {
+  const navigate = useNavigate();
+  const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+
+  async function startDiagnosis(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    if (isStarting) return;
+    setIsStarting(true);
+    setStartError("");
+    try {
+      const diagnosis = await learningApi.createDiagnosis({
+        goal: "提升专业能力",
+        project: "智能客服与市场分析"
+      });
+      navigate("/learning/assessment", { state: { diagnosis } });
+    } catch {
+      setStartError("诊断启动失败，请稍后重试。");
+    } finally {
+      setIsStarting(false);
+    }
+  }
+
   return (
     <V4PageShell>
       <section className="learning-page diagnosis-page" aria-label="能力诊断">
@@ -133,8 +157,16 @@ function LearningDiagnosisPage() {
           </div>
 
           <div className="diagnosis-footer-actions">
-            <Link className="diagnosis-primary" to="/learning/assessment">开始能力诊断 <span aria-hidden="true">→</span></Link>
+            <Link
+              aria-disabled={isStarting}
+              className="diagnosis-primary"
+              onClick={startDiagnosis}
+              to="/learning/assessment"
+            >
+              {isStarting ? "诊断启动中..." : "开始能力诊断"} <span aria-hidden="true">→</span>
+            </Link>
             <Link className="diagnosis-secondary" to="/learning">稍后继续补充</Link>
+            {startError ? <p role="alert">{startError}</p> : null}
             <p><span aria-hidden="true">♢</span> 诊断过程约需 8-12 分钟<br />我们会严格保护你的数据安全</p>
           </div>
         </div>

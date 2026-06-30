@@ -1,0 +1,102 @@
+package growth
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/platform/httpapi"
+)
+
+type Application interface {
+	CreateModel(ctx context.Context, input CreateInput) (Model, error)
+	ListModels(ctx context.Context, userID int64, limit int) ([]Model, error)
+	GetModel(ctx context.Context, userID, id int64) (Model, error)
+}
+
+type HTTPHandler struct {
+	app Application
+}
+
+func NewHTTPHandler(app Application) *HTTPHandler {
+	return &HTTPHandler{app: app}
+}
+
+func (h *HTTPHandler) Register(router *gin.RouterGroup) {
+	router.POST("/growth/models", h.createModel)
+	router.GET("/growth/models", h.listModels)
+	router.GET("/growth/models/:id", h.getModel)
+}
+
+func (h *HTTPHandler) createModel(c *gin.Context) {
+	var request CreateInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	if !validCreateInput(request) {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	model, err := h.app.CreateModel(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, model)
+}
+
+func validCreateInput(input CreateInput) bool {
+	return strings.TrimSpace(input.Name) != "" &&
+		input.MonthlyVisits > 0 &&
+		input.LeadRate >= 0 &&
+		input.LeadRate <= 1 &&
+		input.DealRate >= 0 &&
+		input.DealRate <= 1 &&
+		input.AverageOrder > 0 &&
+		input.AcquisitionCost >= 0 &&
+		input.DeliveryCost >= 0
+}
+
+func (h *HTTPHandler) listModels(c *gin.Context) {
+	limit, ok := httpapi.QueryLimit(c, 20, 100)
+	if !ok {
+		return
+	}
+	models, err := h.app.ListModels(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"models": httpapi.EnsureSlice(models)})
+}
+
+func (h *HTTPHandler) getModel(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		httpapi.BadRequest(c, "invalid_model_id")
+		return
+	}
+	model, err := h.app.GetModel(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, model)
+}
+
+func writeError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrModelNotFound):
+		httpapi.Error(c, http.StatusNotFound, "model_not_found")
+	case errors.Is(err, ErrServiceNotReady):
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+	default:
+		httpapi.Error(c, http.StatusInternalServerError, "internal_error")
+	}
+}

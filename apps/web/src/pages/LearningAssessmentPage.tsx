@@ -1,6 +1,8 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningDiagnosis, type LearningDimension } from "../lib/learningApi";
 
 const assessmentSteps = [
   ["✓", "收集信息", "已完成", "complete"],
@@ -31,7 +33,45 @@ const abilityMetrics = [
 
 const radarAxis = ["专业知识", "实战经验", "方法工具", "思维认知", "执行落地", "学习能力"];
 
+function toAbilityMetric(dimension: LearningDimension, index: number) {
+  return [
+    String(index + 1),
+    dimension.name,
+    dimension.score,
+    dimension.summary
+  ] as const;
+}
+
 function LearningAssessmentPage() {
+  const location = useLocation();
+  const routedDiagnosis = (location.state as { diagnosis?: LearningDiagnosis } | null)?.diagnosis ?? null;
+  const [diagnosis, setDiagnosis] = useState<LearningDiagnosis | null>(routedDiagnosis);
+
+  useEffect(() => {
+    let active = true;
+    if (routedDiagnosis) {
+      setDiagnosis(routedDiagnosis);
+      return () => {
+        active = false;
+      };
+    }
+    learningApi
+      .getLatestDiagnosis()
+      .then((payload) => {
+        if (active) setDiagnosis(payload);
+      })
+      .catch(() => {
+        if (active) setDiagnosis(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [routedDiagnosis]);
+
+  const visiblePercent = diagnosis?.overall_score ?? 65;
+  const visibleMetrics = diagnosis?.dimensions.length ? diagnosis.dimensions.map(toAbilityMetric) : abilityMetrics;
+  const currentStage = diagnosis ? "当前分析阶段：诊断报告已生成" : "当前分析阶段：能力评估";
+
   return (
     <V4PageShell>
       <section className="learning-page diagnosis-page assessment-page" aria-label="能力评估">
@@ -69,7 +109,7 @@ function LearningAssessmentPage() {
               </div>
               <div className="assessment-percent">
                 <span>进行中</span>
-                <strong>65%</strong>
+                <strong>{visiblePercent}%</strong>
                 <i aria-hidden="true"><b /></i>
               </div>
             </header>
@@ -88,11 +128,11 @@ function LearningAssessmentPage() {
           <div className="assessment-workbench">
             <section className="diagnosis-card ability-stage-card" aria-label="当前分析阶段">
               <header>
-                <h2>当前分析阶段：能力评估</h2>
+                <h2>{currentStage}</h2>
                 <p>AI 正在逐项评估你的各项能力</p>
               </header>
               <div className="ability-metric-list">
-                {abilityMetrics.map(([number, label, value, status]) => (
+                {visibleMetrics.map(([number, label, value, status]) => (
                   <article className={value === 0 ? "pending" : value === 100 ? "done" : ""} key={label}>
                     <span>{number}</span>
                     <strong>{label}</strong>

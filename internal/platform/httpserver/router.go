@@ -11,11 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/analysis"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/content"
 	"github.com/zzm/opcv2/internal/crm"
+	"github.com/zzm/opcv2/internal/dashboard"
+	"github.com/zzm/opcv2/internal/growth"
 	"github.com/zzm/opcv2/internal/leads"
+	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/projects"
+	"github.com/zzm/opcv2/internal/sandbox"
+	"github.com/zzm/opcv2/internal/tasks"
 )
 
 type HealthChecks struct {
@@ -25,16 +31,23 @@ type HealthChecks struct {
 	ExpensiveEndpointLimit int
 }
 
-func NewRouter(
-	checks HealthChecks,
-	authHandler *auth.HTTPHandler,
-	membershipHandler *membership.HTTPHandler,
-	analysisHandler *analysis.HTTPHandler,
-	projectsHandler *projects.HTTPHandler,
-	leadsHandler *leads.HTTPHandler,
-	crmHandler *crm.HTTPHandler,
-	contentHandler *content.HTTPHandler,
-) http.Handler {
+type Handlers struct {
+	Auth       *auth.HTTPHandler
+	Membership *membership.HTTPHandler
+	Analysis   *analysis.HTTPHandler
+	Projects   *projects.HTTPHandler
+	Leads      *leads.HTTPHandler
+	CRM        *crm.HTTPHandler
+	Content    *content.HTTPHandler
+	Sandbox    *sandbox.HTTPHandler
+	Tasks      *tasks.HTTPHandler
+	Dashboard  *dashboard.HTTPHandler
+	Growth     *growth.HTTPHandler
+	Competitor *competitor.HTTPHandler
+	Learning   *learning.HTTPHandler
+}
+
+func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware(checks.AllowedOrigins))
@@ -56,41 +69,74 @@ func NewRouter(
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	api := router.Group("/api/v1")
-	if authHandler != nil {
-		authHandler.Register(api)
+	if handlers.Auth != nil {
+		handlers.Auth.Register(api)
 	}
-	if contentHandler != nil {
-		contentHandler.RegisterPublic(api)
+	if handlers.Content != nil {
+		handlers.Content.RegisterPublic(api)
 	}
-	if authHandler != nil && membershipHandler != nil {
+	if handlers.Learning != nil {
+		handlers.Learning.RegisterPublic(api)
+	}
+	if handlers.Auth != nil && handlers.Membership != nil {
 		protected := api.Group("")
-		protected.Use(authHandler.RequireAccessToken())
-		membershipHandler.Register(protected)
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Membership.Register(protected)
 	}
-	if authHandler != nil && analysisHandler != nil {
+	if handlers.Auth != nil && handlers.Analysis != nil {
 		protected := api.Group("")
-		protected.Use(authHandler.RequireAccessToken())
-		analysisHandler.Register(protected)
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Analysis.Register(protected)
 	}
-	if authHandler != nil && projectsHandler != nil {
+	if handlers.Auth != nil && handlers.Projects != nil {
 		protected := api.Group("")
-		protected.Use(authHandler.RequireAccessToken())
-		projectsHandler.Register(protected)
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Projects.Register(protected)
 	}
-	if authHandler != nil && leadsHandler != nil {
+	if handlers.Auth != nil && handlers.Leads != nil {
 		protected := api.Group("")
-		protected.Use(authHandler.RequireAccessToken())
-		leadsHandler.Register(protected)
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Leads.Register(protected)
 	}
-	if authHandler != nil && crmHandler != nil {
+	if handlers.Auth != nil && handlers.CRM != nil {
 		protected := api.Group("")
-		protected.Use(authHandler.RequireAccessToken())
-		crmHandler.Register(protected)
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.CRM.Register(protected)
 	}
-	if authHandler != nil && contentHandler != nil {
+	if handlers.Auth != nil && handlers.Content != nil {
 		protected := api.Group("")
-		protected.Use(authHandler.RequireAccessToken())
-		contentHandler.RegisterAdmin(protected)
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Content.RegisterAdmin(protected)
+	}
+	if handlers.Auth != nil && handlers.Sandbox != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Sandbox.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Tasks != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Tasks.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Dashboard != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Dashboard.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Growth != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Growth.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Competitor != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Competitor.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Learning != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Learning.RegisterProtected(protected)
 	}
 
 	return router
@@ -112,7 +158,7 @@ func corsMiddleware(allowedOrigins []string) gin.HandlerFunc {
 			header.Set("Vary", "Origin")
 			header.Set("Access-Control-Allow-Credentials", "true")
 			header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+			header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS")
 		}
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
@@ -200,7 +246,8 @@ func isExpensiveEndpoint(method, fullPath, requestPath string) bool {
 	case "/api/v1/analysis/direction",
 		"/api/v1/projects/matches",
 		"/api/v1/leads/tasks",
-		"/api/v1/crm/customers/:id/follow-up-copy":
+		"/api/v1/crm/customers/:id/follow-up-copy",
+		"/api/v1/sandbox/sessions/:id/run":
 		return true
 	default:
 		return false

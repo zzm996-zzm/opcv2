@@ -13,9 +13,13 @@ import (
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/analysis"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/content"
 	"github.com/zzm/opcv2/internal/crm"
+	"github.com/zzm/opcv2/internal/dashboard"
+	"github.com/zzm/opcv2/internal/growth"
 	"github.com/zzm/opcv2/internal/leads"
+	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/health"
@@ -25,6 +29,8 @@ import (
 	"github.com/zzm/opcv2/internal/platform/rediscache"
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
 	"github.com/zzm/opcv2/internal/projects"
+	"github.com/zzm/opcv2/internal/sandbox"
+	"github.com/zzm/opcv2/internal/tasks"
 )
 
 func main() {
@@ -118,6 +124,24 @@ func main() {
 	contentRepository := content.NewPostgresRepository(db)
 	contentService := content.NewService(contentRepository)
 	contentHTTP := content.NewHTTPHandler(contentService)
+	sandboxRepository := sandbox.NewPostgresRepository(db)
+	sandboxService := sandbox.NewService(sandboxRepository, aiService)
+	sandboxHTTP := sandbox.NewHTTPHandler(sandboxService)
+	tasksRepository := tasks.NewPostgresRepository(db)
+	tasksService := tasks.NewService(tasksRepository)
+	tasksHTTP := tasks.NewHTTPHandler(tasksService)
+	dashboardRepository := dashboard.NewPostgresRepository(db)
+	dashboardService := dashboard.NewService(dashboardRepository)
+	dashboardHTTP := dashboard.NewHTTPHandler(dashboardService)
+	growthRepository := growth.NewPostgresRepository(db)
+	growthService := growth.NewService(growthRepository)
+	growthHTTP := growth.NewHTTPHandler(growthService)
+	competitorRepository := competitor.NewPostgresRepository(db)
+	competitorService := competitor.NewService(competitorRepository)
+	competitorHTTP := competitor.NewHTTPHandler(competitorService)
+	learningRepository := learning.NewPostgresRepository(db)
+	learningService := learning.NewService(learningRepository)
+	learningHTTP := learning.NewHTTPHandler(learningService)
 
 	checker := health.NewChecker(db, redisClient)
 	server := &http.Server{
@@ -127,7 +151,21 @@ func main() {
 			Logger:                 logger,
 			AllowedOrigins:         cfg.CORSAllowedOrigins,
 			ExpensiveEndpointLimit: cfg.ExpensiveEndpointLimit,
-		}, authHTTP, membershipHTTP, analysisHTTP, projectsHTTP, leadsHTTP, crmHTTP, contentHTTP),
+		}, httpserver.Handlers{
+			Auth:       authHTTP,
+			Membership: membershipHTTP,
+			Analysis:   analysisHTTP,
+			Projects:   projectsHTTP,
+			Leads:      leadsHTTP,
+			CRM:        crmHTTP,
+			Content:    contentHTTP,
+			Sandbox:    sandboxHTTP,
+			Tasks:      tasksHTTP,
+			Dashboard:  dashboardHTTP,
+			Growth:     growthHTTP,
+			Competitor: competitorHTTP,
+			Learning:   learningHTTP,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

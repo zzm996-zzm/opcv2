@@ -1,0 +1,111 @@
+package sandbox
+
+import (
+	"context"
+	"regexp"
+	"testing"
+	"time"
+
+	pgxmock "github.com/pashagolub/pgxmock/v4"
+)
+
+func TestPostgresRepositoryCreatesSession(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO sandbox_sessions (user_id, goal, target_users, product, roles, status, report, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+		RETURNING id
+	`)).
+		WithArgs(
+			int64(42),
+			"验证 AI 客服项目",
+			"本地教培机构",
+			"AI 客服工具",
+			[]byte(`["用户","投资人"]`),
+			StatusDraft,
+			[]byte(`{}`),
+			now,
+		).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(int64(99)))
+
+	repository := NewPostgresRepository(db)
+	session, err := repository.CreateSession(context.Background(), Session{
+		UserID:      42,
+		Goal:        "验证 AI 客服项目",
+		TargetUsers: "本地教培机构",
+		Product:     "AI 客服工具",
+		Roles:       []string{"用户", "投资人"},
+		Status:      StatusDraft,
+		CreatedAt:   now,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+	if session.ID != 99 {
+		t.Fatalf("session.ID = %d, want 99", session.ID)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryUpdatesOwnedSessionResult(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE sandbox_sessions
+		SET status = $1, report = $2, updated_at = NOW()
+		WHERE user_id = $3 AND id = $4
+		RETURNING id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
+	`)).
+		WithArgs(
+			StatusCompleted,
+			pgxmock.AnyArg(),
+			int64(42),
+			int64(99),
+		).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "goal", "target_users", "product", "roles", "status", "report", "created_at", "updated_at",
+		}).AddRow(
+			int64(99),
+			int64(42),
+			"验证 AI 客服项目",
+			"本地教培机构",
+			"AI 客服工具",
+			[]byte(`["用户","投资人"]`),
+			StatusCompleted,
+			[]byte(`{"score":83,"summary":"可以验证","metrics":[{"label":"市场吸引力","value":"8.4"}],"role_summaries":[{"role":"用户","view":"关注效率"}],"risks":["客户教育成本高"],"next_actions":["访谈客户"]}`),
+			now,
+			now,
+		))
+
+	repository := NewPostgresRepository(db)
+	session, err := repository.UpdateSessionResult(context.Background(), 42, 99, Report{
+		Score:         83,
+		Summary:       "可以验证",
+		Metrics:       []Metric{{Label: "市场吸引力", Value: "8.4"}},
+		RoleSummaries: []RoleSummary{{Role: "用户", View: "关注效率"}},
+		Risks:         []string{"客户教育成本高"},
+		NextActions:   []string{"访谈客户"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateSessionResult() error = %v", err)
+	}
+	if session.Status != StatusCompleted || session.Report.Score != 83 {
+		t.Fatalf("session = %+v", session)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

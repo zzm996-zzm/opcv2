@@ -1,3 +1,5 @@
+import { apiRequest } from "./apiRequest";
+
 export type ContentArticle = {
   id: number;
   slug: string;
@@ -49,38 +51,24 @@ export type BrandCase = {
   updated_at: string;
 };
 
-async function request<T>(path: string): Promise<T> {
-  const response = await fetch(path, {
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json"
-    }
-  });
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(payload.error ?? "request_failed");
-  }
-  return (await response.json()) as T;
-}
-
 export const contentApi = {
   listArticles() {
-    return request<{ articles: ContentArticle[] }>("/api/v1/content/articles");
+    return apiRequest<{ articles: ContentArticle[] }>("/api/v1/content/articles");
   },
 
   getArticle(slug: string) {
-    return request<ContentArticle>(`/api/v1/content/articles/${slug}`);
+    return apiRequest<ContentArticle>(`/api/v1/content/articles/${slug}`);
   },
 
   listTools() {
-    return request<{ tools: ContentTool[] }>("/api/v1/content/tools");
+    return apiRequest<{ tools: ContentTool[] }>("/api/v1/content/tools");
   },
 
   getCommunityConfig() {
-    return request<CommunityConfig>("/api/v1/content/community");
+    return apiRequest<CommunityConfig>("/api/v1/content/community");
   },
 
   getBrand() {
-    return request<{ metrics: BrandMetric[]; cases: BrandCase[] }>("/api/v1/content/brand");
+    return apiRequest<{ metrics: BrandMetric[]; cases: BrandCase[] }>("/api/v1/content/brand");
   }
 };

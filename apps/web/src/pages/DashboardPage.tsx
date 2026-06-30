@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { apiErrorMessage } from "../lib/apiErrors";
+import { dashboardApi, type DashboardSummary } from "../lib/dashboardApi";
 
 const metrics = [
   ["本月收入", "¥18.6万", "+22%"],
@@ -45,6 +48,35 @@ const tasks = [
 ] as const;
 
 function DashboardPage() {
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    dashboardApi
+      .getSummary()
+      .then((payload) => {
+        if (!active) return;
+        setSummary(payload);
+        setLoadError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setSummary(null);
+        setLoadError(apiErrorMessage(error, "暂时无法读取仪表盘数据"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleMetrics = summary?.metrics.length ? summary.metrics.map((item) => [item.label, item.value, item.change] as const) : metrics;
+  const visibleProjects = summary?.projects.length ? summary.projects.map((item) => [item.name, item.value, item.leads, item.stage] as const) : projects;
+  const visibleTrend = summary?.trend.length ? summary.trend.map((item) => [item.label, item.value] as const) : trend;
+  const visiblePipeline = summary?.pipeline.length ? summary.pipeline.map((item) => [item.stage, item.count, item.percent] as const) : pipeline;
+  const visibleAlerts = summary?.alerts.length ? summary.alerts.map((item) => [item.title, item.detail] as const) : alerts;
+  const visibleTasks = summary?.actions.length ? summary.actions.map((item) => [item.time, item.title] as const) : tasks;
+
   return (
     <V4PageShell className="dashboard-shell">
       <section className="module-page dashboard-page" aria-label="仪表盘">
@@ -55,6 +87,7 @@ function DashboardPage() {
           </div>
           <button className="module-primary-action" type="button">生成经营周报</button>
         </div>
+        {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
 
         <section className="dashboard-metric-section">
           <div className="module-section-head">
@@ -64,7 +97,7 @@ function DashboardPage() {
             </div>
           </div>
           <div className="dashboard-metric-grid">
-            {metrics.map(([label, value, change]) => (
+            {visibleMetrics.map(([label, value, change]) => (
               <article key={label}>
                 <small>{label}</small>
                 <strong>{value}</strong>
@@ -88,7 +121,7 @@ function DashboardPage() {
               </div>
             </div>
             <div className="dashboard-trend-chart" aria-label="增长趋势图">
-              {trend.map(([day, height]) => (
+              {visibleTrend.map(([day, height]) => (
                 <article key={day}>
                   <span style={{ height: `${height}%` }} aria-hidden="true" />
                   <small>{day}</small>
@@ -99,7 +132,7 @@ function DashboardPage() {
 
           <aside className="dashboard-alert-card" aria-label="经营预警">
             <h2>经营预警</h2>
-            {alerts.map(([title, detail]) => (
+            {visibleAlerts.map(([title, detail]) => (
               <article key={title}>
                 <strong>{title}</strong>
                 <small>{detail}</small>
@@ -117,7 +150,7 @@ function DashboardPage() {
               </div>
             </div>
             <div className="dashboard-project-list">
-              {projects.map(([name, value, leads, stage]) => (
+              {visibleProjects.map(([name, value, leads, stage]) => (
                 <article key={name}>
                   <strong>{name}</strong>
                   <span>{value}</span>
@@ -130,7 +163,7 @@ function DashboardPage() {
 
           <aside className="dashboard-pipeline-card" aria-label="销售漏斗">
             <h2>销售漏斗</h2>
-            {pipeline.map(([stage, count, percent]) => (
+            {visiblePipeline.map(([stage, count, percent]) => (
               <article key={stage}>
                 <span>
                   <strong>{stage}</strong>
@@ -152,7 +185,7 @@ function DashboardPage() {
             <Link to="/tasks">查看全部任务</Link>
           </div>
           <div className="dashboard-task-list">
-            {tasks.map(([time, action]) => (
+            {visibleTasks.map(([time, action]) => (
               <article key={`${time}-${action}`}>
                 <time>{time}</time>
                 <strong>{action}</strong>

@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { apiErrorMessage } from "../lib/apiErrors";
+import { competitorApi, type CompetitorEvent, type CompetitorWatchItem } from "../lib/competitorApi";
 
 const monitoringStats = [
   ["监测中竞品", "12"],
@@ -66,7 +69,69 @@ const nextActions = [
   "为企微管家定位变化创建跟进任务"
 ] as const;
 
+function formatEventTime(value: string) {
+  return new Date(value).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+}
+
+function formatLastSeen(value: string) {
+  return new Date(value).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+}
+
+function toTrackedCompetitor(item: CompetitorWatchItem) {
+  return {
+    name: item.name,
+    category: item.category,
+    status: item.status,
+    threat: item.threat,
+    lastSeen: formatLastSeen(item.last_seen_at),
+    channels: item.channels,
+    signal: item.signal
+  };
+}
+
+function toTimelineRow(item: CompetitorEvent) {
+  return [formatEventTime(item.occurred_at), item.company, item.title, item.detail, item.level] as const;
+}
+
 function CompetitorMonitoringPage() {
+  const [watchlist, setWatchlist] = useState<CompetitorWatchItem[]>([]);
+  const [events, setEvents] = useState<CompetitorEvent[]>([]);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    competitorApi
+      .getMonitoring(20)
+      .then((payload) => {
+        if (!active) return;
+        setWatchlist(payload.watchlist);
+        setEvents(payload.events);
+        setLoadError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setWatchlist([]);
+        setEvents([]);
+        setLoadError(apiErrorMessage(error, "暂时无法读取竞品监测数据"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleCompetitors = watchlist.length > 0 ? watchlist.map(toTrackedCompetitor) : trackedCompetitors;
+  const visibleTimeline = events.length > 0 ? events.map(toTimelineRow) : timeline;
+
   return (
     <V4PageShell className="competitor-monitoring-shell">
       <section className="module-page competitor-monitoring-page" aria-label="竞品动态监测">
@@ -77,6 +142,7 @@ function CompetitorMonitoringPage() {
           </div>
           <button className="module-primary-action" type="button">新增监测对象</button>
         </div>
+        {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
 
         <section className="module-overview-card competitor-monitoring-hero">
           <div className="module-overview-copy">
@@ -121,7 +187,7 @@ function CompetitorMonitoringPage() {
             </div>
 
             <div className="monitoring-competitor-list">
-              {trackedCompetitors.map((item) => (
+              {visibleCompetitors.map((item) => (
                 <article key={item.name}>
                   <span className={`monitoring-pulse ${item.threat === "强" ? "hot" : ""}`} aria-hidden="true" />
                   <div>
@@ -162,7 +228,7 @@ function CompetitorMonitoringPage() {
               </div>
             </div>
             <div className="monitoring-timeline">
-              {timeline.map(([time, company, title, detail, level]) => (
+              {visibleTimeline.map(([time, company, title, detail, level]) => (
                 <article key={`${time}-${title}`}>
                   <time>{time}</time>
                   <div>

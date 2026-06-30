@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { apiErrorMessage } from "../lib/apiErrors";
 import { contentApi, type ContentTool } from "../lib/contentApi";
 import { CdkTopNav } from "./AnalysisPage";
 
@@ -221,8 +222,8 @@ function ToolLibrary({ full }: { full: boolean }) {
       .then((payload) => {
         if (active) setApiTools(payload.tools.map(toDisplayTool));
       })
-      .catch(() => {
-        if (active) setError("暂时无法读取工具库");
+      .catch((error) => {
+        if (active) setError(apiErrorMessage(error, "暂时无法读取工具库"));
       });
     return () => {
       active = false;

@@ -1,6 +1,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
+import { ApiRequestError } from "../lib/apiRequest";
 import { authApi } from "../lib/authApi";
 import { authSession } from "../lib/authSession";
 
@@ -317,6 +318,7 @@ function LoginPage() {
 
 function resolveError(error: unknown, mode: AuthMode) {
   const fallback = mode === "login" ? "暂时无法完成登录" : "暂时无法完成注册";
+  if (error instanceof ApiRequestError) return errorMessages[error.code] ?? error.message;
   if (!(error instanceof Error)) return fallback;
   return errorMessages[error.message] ?? fallback;
 }
