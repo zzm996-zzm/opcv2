@@ -54,6 +54,24 @@ describe("CopilotPage", () => {
     expect(screen.getByRole("button", { name: "分析一个新项目机会" })).toBeInTheDocument();
   });
 
+  it("fills the composer when a quick action is selected", () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "分析项目机会" }));
+
+    expect(screen.getByLabelText("输入你的问题")).toHaveValue("请帮我分析当前项目的市场机会、目标客户、竞争格局和落地风险。");
+  });
+
+  it("exposes real navigation for composer toolbar actions", () => {
+    renderPage();
+
+    expect(screen.getByRole("link", { name: "上传文件" })).toHaveAttribute("href", "/copilot/files");
+    expect(screen.getByRole("link", { name: "引用" })).toHaveAttribute("href", "/copilot/files");
+    expect(screen.getByRole("link", { name: "记忆" })).toHaveAttribute("href", "/copilot/memories");
+    expect(screen.getByRole("link", { name: /DeepSeek/ })).toHaveAttribute("href", "/copilot/models");
+    expect(screen.getByRole("link", { name: /AI 对比分析/ })).toHaveAttribute("href", "/copilot/compare");
+  });
+
   it("renders the model picker", () => {
     renderPage("models");
 

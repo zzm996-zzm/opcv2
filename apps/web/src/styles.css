@@ -6191,6 +6191,12 @@ a {
   font-weight: 760;
 }
 
+.copilot-shell .v4-page-main {
+  height: calc(100vh - 80px);
+  min-height: 0;
+  overflow: hidden;
+}
+
 .message-page,
 .profile-page {
   display: grid;
@@ -23936,8 +23942,10 @@ a {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 316px;
+  height: calc(100vh - 80px);
   min-height: calc(100vh - 80px);
   margin: -28px -34px -88px;
+  overflow: hidden;
   color: #07184a;
   background: rgba(252, 253, 255, 0.82);
   border-top: 1px solid rgba(37, 80, 178, 0.08);
@@ -23946,6 +23954,7 @@ a {
 .copilot-main-panel {
   display: grid;
   min-width: 0;
+  height: calc(100vh - 80px);
   min-height: calc(100vh - 80px);
   grid-template-rows: auto minmax(0, 1fr) auto;
   border-right: 1px solid rgba(31, 68, 140, 0.1);
@@ -24114,20 +24123,26 @@ a {
   padding-right: 54px;
 }
 
-.copilot-message.user p {
+.user-message-bubble {
+  display: grid;
+  justify-items: end;
   max-width: 620px;
-  margin: 0;
-  padding: 12px 18px 5px;
+  min-width: 86px;
+  padding: 10px 14px 7px 16px;
   background: #eef4ff;
   border-radius: 10px 10px 3px 10px;
+}
+
+.user-message-bubble p {
+  max-width: 620px;
+  margin: 0;
   font-size: 14px;
+  line-height: 1.5;
   font-weight: 760;
 }
 
-.copilot-message.user time {
-  position: absolute;
-  right: 65px;
-  bottom: 3px;
+.user-message-bubble time {
+  margin-top: 3px;
 }
 
 .copilot-message time {
@@ -24326,6 +24341,7 @@ a {
 .composer-toolbar a {
   display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 7px;
   min-height: 36px;
   padding: 0 10px;
@@ -24341,13 +24357,15 @@ a {
 
 .composer-toolbar button.active,
 .composer-toolbar a.active,
-.composer-toolbar button:nth-child(n + 3):not(.icon-only):not(.send-button) {
+.composer-toolbar > :nth-child(n + 3):not(.icon-only):not(.send-button) {
   background: #f8faff;
   border-color: rgba(32, 74, 169, 0.1);
 }
 
-.composer-toolbar button:disabled {
+.composer-toolbar button:disabled,
+.composer-toolbar a[aria-disabled="true"] {
   opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .composer-toolbar b {
@@ -24365,11 +24383,12 @@ a {
 }
 
 .composer-spacer {
-  flex: 1;
+  flex: 1 0 12px;
 }
 
 .composer-toolbar .icon-only {
   width: 36px;
+  min-width: 36px;
   padding: 0;
   justify-content: center;
 }
@@ -24395,6 +24414,7 @@ a {
 
 .composer-toolbar .send-button {
   width: 40px;
+  min-width: 40px;
   height: 40px;
   min-height: 40px;
   padding: 0;
@@ -24878,8 +24898,12 @@ a {
 
 .copilot-history {
   position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
   padding: 26px 20px;
+  overflow: hidden;
   background: rgba(255, 255, 255, 0.58);
 }
 
@@ -24928,6 +24952,7 @@ a {
 
 .history-list {
   margin-top: 16px;
+  overflow: auto;
 }
 
 .history-list h2 {
@@ -27190,8 +27215,16 @@ a {
 }
 
 @media (max-width: 900px) {
+  .copilot-shell .v4-page-main {
+    height: auto;
+    min-height: calc(100vh - 80px);
+    overflow: visible;
+  }
+
   .copilot-workbench {
+    height: auto;
     grid-template-columns: minmax(0, 1fr);
+    overflow: visible;
   }
 
   .copilot-history {
@@ -27437,12 +27470,14 @@ a {
   }
 
   .copilot-workbench {
-    min-height: calc(100vh - 76px);
+    height: auto;
+    min-height: calc(100vh - 154px);
     margin: -18px -14px -96px;
   }
 
   .copilot-main-panel {
-    min-height: calc(100vh - 76px);
+    height: auto;
+    min-height: calc(100vh - 154px);
   }
 
   .copilot-workbench-head,
@@ -27493,14 +27528,19 @@ a {
     padding-right: 42px;
   }
 
-  .copilot-message.user p {
-    padding: 10px 12px 6px;
+  .user-message-bubble {
+    max-width: 100%;
+    min-width: 74px;
+    padding: 9px 11px 6px 12px;
+  }
+
+  .user-message-bubble p {
     font-size: 12px;
     line-height: 1.55;
   }
 
-  .copilot-message.user time {
-    right: 50px;
+  .user-message-bubble time {
+    margin-top: 2px;
   }
 
   .copilot-avatar {
@@ -27558,7 +27598,8 @@ a {
     padding-bottom: 3px;
   }
 
-  .composer-toolbar button {
+  .composer-toolbar button,
+  .composer-toolbar a {
     min-height: 33px;
     padding: 0 8px;
     font-size: 11px;

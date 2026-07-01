@@ -7,10 +7,10 @@ import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotMemory, 
 export type CopilotVariant = "home" | "new" | "models" | "files" | "memories" | "compare" | "rename" | "delete";
 
 const quickActions = [
-  ["trend", "分析项目机会"],
-  ["briefcase", "推荐工具"],
-  ["doc", "制定落地计划"],
-  ["page", "总结当前页面"]
+  ["trend", "分析项目机会", "请帮我分析当前项目的市场机会、目标客户、竞争格局和落地风险。"],
+  ["briefcase", "推荐工具", "请根据当前目标，推荐适合的 AI 工具、使用场景、成本和落地优先级。"],
+  ["doc", "制定落地计划", "请帮我制定一份可执行的落地计划，包含阶段目标、关键任务、负责人和验收标准。"],
+  ["page", "总结当前页面", "请总结当前页面的核心信息，并提炼下一步最应该推进的行动。"]
 ] as const;
 
 type ConversationItem = {
@@ -426,7 +426,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
               selectedModels={compareModelValues}
               onToggleModel={handleToggleCompareModel}
             />
-          ) : <CopilotHeader />}
+          ) : <CopilotHeader onPrompt={setDraft} />}
 
           <div className="copilot-chat-area" ref={chatAreaRef}>
             {showModelPicker && (
@@ -490,7 +490,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   );
 }
 
-function CopilotHeader() {
+function CopilotHeader({ onPrompt }: { onPrompt: (prompt: string) => void }) {
   return (
     <header className="copilot-workbench-head">
       <div className="copilot-brand-mark" aria-hidden="true">
@@ -501,8 +501,8 @@ function CopilotHeader() {
         <p>你的全球 AI 助手，随时为你提供专业的分析与建议</p>
       </div>
       <nav className="copilot-quick-actions" aria-label="Copilot 快捷指令">
-        {quickActions.map(([icon, label]) => (
-          <button key={label} type="button">
+        {quickActions.map(([icon, label, prompt]) => (
+          <button key={label} onClick={() => onPrompt(prompt)} type="button">
             <span className={"copilot-ui-icon " + icon} aria-hidden="true" />
             {label}
           </button>
@@ -574,10 +574,14 @@ function ChatThread({
         {messages.map((message) => (
           <article key={message.id} className={"copilot-message " + (message.role === "user" ? "user" : "assistant")}>
             {message.role !== "user" && <span className="v4-logo" aria-hidden="true" />}
-            <div className={message.role === "user" ? "" : "copilot-bubble compact"}>
-              <p>{message.content}</p>
-              <time>{formatTime(message.created_at)}</time>
-            </div>
+            {message.role === "user" ? (
+              <UserMessageBubble content={message.content} time={formatTime(message.created_at)} />
+            ) : (
+              <div className="copilot-bubble compact">
+                <p>{message.content}</p>
+                <time>{formatTime(message.created_at)}</time>
+              </div>
+            )}
             {message.role === "user" && <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>}
           </article>
         ))}
@@ -589,8 +593,7 @@ function ChatThread({
   return (
     <div className="copilot-chat-thread" aria-label="会话内容">
       <article className="copilot-message user">
-        <p>请帮我分析智能客服系统的市场机会和竞争格局。</p>
-        <time>10:32 ✓✓</time>
+        <UserMessageBubble content="请帮我分析智能客服系统的市场机会和竞争格局。" time="10:32 ✓✓" />
         <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>
       </article>
 
@@ -628,12 +631,20 @@ function ChatThread({
       </article>
 
       <article className="copilot-message user lower">
-        <p>请基于上面的分析，推荐适合我们的工具和落地路径。</p>
-        <time>10:34 ✓✓</time>
+        <UserMessageBubble content="请基于上面的分析，推荐适合我们的工具和落地路径。" time="10:34 ✓✓" />
         <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>
       </article>
 
       {isSending && <ThinkingMessage />}
+    </div>
+  );
+}
+
+function UserMessageBubble({ content, time }: { content: string; time: string }) {
+  return (
+    <div className="user-message-bubble">
+      <p>{content}</p>
+      <time>{time}</time>
     </div>
   );
 }
@@ -698,8 +709,10 @@ function CompareConversation({
   return (
     <div className="copilot-comparison">
       <article className="copilot-message user compare-question">
-        <p>{question?.content ?? "请分析 2024 年中国智能客服市场的规模、增长趋势、竞争格局、客户需求与机会点。"}</p>
-        <time>{question ? formatTime(question.created_at) : "10:35 ✓"}</time>
+        <UserMessageBubble
+          content={question?.content ?? "请分析 2024 年中国智能客服市场的规模、增长趋势、竞争格局、客户需求与机会点。"}
+          time={question ? formatTime(question.created_at) : "10:35 ✓"}
+        />
         <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>
       </article>
       {isSending && <ThinkingMessage />}
@@ -790,6 +803,11 @@ function Composer({
   compare?: boolean;
 }) {
   const selectedModelLabel = models.find((item) => item.value === model)?.name ?? model;
+  const [deepThinking, setDeepThinking] = useState(false);
+
+  function handleVoiceDraft() {
+    onDraftChange(draft.trim() ? `${draft} ` : "请帮我整理这段语音输入的核心需求：");
+  }
 
   return (
     <div className="copilot-composer-wrap">
@@ -812,35 +830,42 @@ function Composer({
           value={draft}
         />
         <div className="composer-toolbar">
-          <button type="button">
+          <Link to="/copilot/files">
             <span className="copilot-ui-icon clip" aria-hidden="true" />
             上传文件
-          </button>
-          <button className={showReferencePicker ? "active" : ""} type="button">
+          </Link>
+          <Link className={showReferencePicker ? "active" : ""} to="/copilot/files">
             <span className="copilot-ui-icon link" aria-hidden="true" />
             引用
-          </button>
+          </Link>
           <Link className={showMemoryPanel ? "active" : ""} to="/copilot/memories">
             <span className="copilot-ui-icon memory" aria-hidden="true" />
             记忆
           </Link>
-          <button className={showModelPicker ? "active" : ""} type="button" disabled={compare}>
+          <Link
+            aria-disabled={compare ? "true" : undefined}
+            className={showModelPicker ? "active" : ""}
+            onClick={(event) => {
+              if (compare) event.preventDefault();
+            }}
+            to="/copilot/models"
+          >
             <span className="model-glyph swirl" aria-hidden="true" />
             {selectedModelLabel}
             <span aria-hidden="true">{showModelPicker ? "⌃" : "⌄"}</span>
-          </button>
-          <button className="compare-chip active" type="button">
+          </Link>
+          <Link className={"compare-chip " + (compare ? "active" : "")} to="/copilot/compare">
             <span className="copilot-ui-icon doc" aria-hidden="true" />
             AI 对比分析
             <b>New</b>
-          </button>
-          <button type="button">
+          </Link>
+          <button aria-pressed={deepThinking} className={deepThinking ? "active" : ""} onClick={() => setDeepThinking((current) => !current)} type="button">
             <span className="copilot-ui-icon think" aria-hidden="true" />
             深度思考
             <b className="vip">VIP</b>
           </button>
           <span className="composer-spacer" />
-          <button aria-label="语音输入" className="icon-only" type="button">
+          <button aria-label="语音输入" className="icon-only" onClick={handleVoiceDraft} type="button">
             <span className="mic-icon" aria-hidden="true" />
           </button>
           <button aria-label="发送" className="send-button" disabled={isSending || !draft.trim()} type="submit">
