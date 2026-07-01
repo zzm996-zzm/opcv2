@@ -146,6 +146,26 @@ describe("CopilotPage", () => {
     });
   });
 
+  it("closes composer popovers when clicking outside them", () => {
+    renderPage("memories");
+
+    expect(screen.getByRole("dialog", { name: "记忆" })).toBeInTheDocument();
+
+    fireEvent.pointerDown(screen.getByLabelText("会话内容"));
+
+    expect(screen.queryByRole("dialog", { name: "记忆" })).not.toBeInTheDocument();
+  });
+
+  it("closes composer popovers with Escape", () => {
+    renderPage("memories");
+
+    expect(screen.getByRole("dialog", { name: "记忆" })).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog", { name: "记忆" })).not.toBeInTheDocument();
+  });
+
   it("renders the three-model comparison", () => {
     renderPage("compare");
 

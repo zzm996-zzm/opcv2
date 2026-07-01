@@ -1,10 +1,11 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotMemory, type CopilotMessage, type CopilotModelOption, type CopilotThread, type ModelSmokeResult } from "../lib/copilotApi";
 
 export type CopilotVariant = "home" | "new" | "models" | "files" | "memories" | "compare" | "rename" | "delete";
+type ComposerPopover = "models" | "files" | "memories" | null;
 
 const quickActions = [
   ["trend", "分析项目机会", "请帮我分析当前项目的市场机会、目标客户、竞争格局和落地风险。"],
@@ -115,6 +116,12 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const showMemoryPanel = variant === "memories";
   const showRename = variant === "rename";
   const showDelete = variant === "delete";
+  const routePopover = useMemo<ComposerPopover>(() => {
+    if (showModelPicker) return "models";
+    if (showReferencePicker) return "files";
+    if (showMemoryPanel) return "memories";
+    return null;
+  }, [showMemoryPanel, showModelPicker, showReferencePicker]);
   const [threads, setThreads] = useState<CopilotThread[]>([]);
   const [availableModels, setAvailableModels] = useState<CopilotModel[]>(fallbackModels);
   const [activeThreadID, setActiveThreadID] = useState<number | null>(null);
@@ -127,6 +134,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [aiRuns, setAIRuns] = useState<CopilotAIRun[]>([]);
   const [smokeResult, setSmokeResult] = useState<ModelSmokeResult | null>(null);
   const [draft, setDraft] = useState("");
+  const [activePopover, setActivePopover] = useState<ComposerPopover>(routePopover);
   const [typewriterContent, setTypewriterContent] = useState<Record<number, string>>({});
   const [selectedModel, setSelectedModel] = useState(fallbackModels[0].value);
   const [isLoading, setIsLoading] = useState(false);
@@ -138,6 +146,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [error, setError] = useState("");
   const chatAreaRef = useRef<HTMLDivElement | null>(null);
   const typewriterTimersRef = useRef<Map<number, number>>(new Map());
+  const composerWrapRef = useRef<HTMLDivElement | null>(null);
 
   const activeThread = useMemo(
     () => threads.find((thread) => thread.id === activeThreadID) ?? null,
@@ -172,6 +181,10 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setActivePopover(routePopover);
+  }, [routePopover]);
 
   useEffect(() => {
     if (!activeThreadID) {
@@ -243,6 +256,24 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       timers.clear();
     };
   }, []);
+
+  useEffect(() => {
+    if (!activePopover) return;
+    function handlePointerDown(event: PointerEvent) {
+      const composerWrap = composerWrapRef.current;
+      if (composerWrap?.contains(event.target as Node)) return;
+      setActivePopover(null);
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setActivePopover(null);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activePopover]);
 
   function startTypewriter(message: CopilotMessage) {
     const characters = Array.from(message.content);
@@ -506,9 +537,9 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
             onDraftChange={setDraft}
             onModelChange={setSelectedModel}
             onSubmit={handleSend}
-            showModelPicker={showModelPicker}
-            showReferencePicker={showReferencePicker}
-            showMemoryPanel={showMemoryPanel}
+            activePopover={activePopover}
+            onPopoverChange={setActivePopover}
+            ref={composerWrapRef}
             memories={memories}
             isSavingMemory={isSavingMemory}
             onSaveMemory={handleSaveMemory}
@@ -811,24 +842,7 @@ function CompareConversation({
   );
 }
 
-function Composer({
-  draft,
-  model,
-  models,
-  memories,
-  isSending,
-  isSavingMemory,
-  error,
-  onDraftChange,
-  onModelChange,
-  onSaveMemory,
-  onDeleteMemory,
-  onSubmit,
-  showModelPicker,
-  showReferencePicker,
-  showMemoryPanel,
-  compare
-}: {
+const Composer = forwardRef<HTMLDivElement, {
   draft: string;
   model: string;
   models: CopilotModel[];
@@ -841,20 +855,38 @@ function Composer({
   onSaveMemory: (input: { key: string; value: string }) => void;
   onDeleteMemory: (id: number) => void;
   onSubmit: (event: FormEvent) => void;
-  showModelPicker?: boolean;
-  showReferencePicker?: boolean;
-  showMemoryPanel?: boolean;
+  activePopover?: ComposerPopover;
+  onPopoverChange: (popover: ComposerPopover) => void;
   compare?: boolean;
-}) {
+}>(function Composer({
+  draft,
+  model,
+  models,
+  memories,
+  isSending,
+  isSavingMemory,
+  error,
+  onDraftChange,
+  onModelChange,
+  onSaveMemory,
+  onDeleteMemory,
+  onSubmit,
+  activePopover,
+  onPopoverChange,
+  compare
+}, ref) {
   const selectedModelLabel = models.find((item) => item.value === model)?.name ?? model;
   const [deepThinking, setDeepThinking] = useState(false);
+  const showModelPicker = activePopover === "models";
+  const showReferencePicker = activePopover === "files";
+  const showMemoryPanel = activePopover === "memories";
 
   function handleVoiceDraft() {
     onDraftChange(draft.trim() ? `${draft} ` : "请帮我整理这段语音输入的核心需求：");
   }
 
   return (
-    <div className="copilot-composer-wrap">
+    <div className="copilot-composer-wrap" ref={ref}>
       {showModelPicker && <ModelPicker models={models} selectedModel={model} onSelect={onModelChange} />}
       {showReferencePicker && <ReferencePicker />}
       {showMemoryPanel && (
@@ -874,15 +906,15 @@ function Composer({
           value={draft}
         />
         <div className="composer-toolbar">
-          <Link to="/copilot/files">
+          <Link onClick={() => onPopoverChange("files")} to="/copilot/files">
             <span className="copilot-ui-icon clip" aria-hidden="true" />
             上传文件
           </Link>
-          <Link className={showReferencePicker ? "active" : ""} to="/copilot/files">
+          <Link className={showReferencePicker ? "active" : ""} onClick={() => onPopoverChange("files")} to="/copilot/files">
             <span className="copilot-ui-icon link" aria-hidden="true" />
             引用
           </Link>
-          <Link className={showMemoryPanel ? "active" : ""} to="/copilot/memories">
+          <Link className={showMemoryPanel ? "active" : ""} onClick={() => onPopoverChange("memories")} to="/copilot/memories">
             <span className="copilot-ui-icon memory" aria-hidden="true" />
             记忆
           </Link>
@@ -891,6 +923,7 @@ function Composer({
             className={showModelPicker ? "active" : ""}
             onClick={(event) => {
               if (compare) event.preventDefault();
+              else onPopoverChange("models");
             }}
             to="/copilot/models"
           >
@@ -921,7 +954,7 @@ function Composer({
       <p className="ai-disclaimer">ⓘ 内容由 AI 生成，请注意甄别准确性</p>
     </div>
   );
-}
+});
 
 function MemoryPanel({
   memories,
