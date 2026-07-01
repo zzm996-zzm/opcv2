@@ -13,6 +13,7 @@ import (
 	"github.com/zzm/opcv2/internal/auth"
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/content"
+	"github.com/zzm/opcv2/internal/copilot"
 	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/dashboard"
 	"github.com/zzm/opcv2/internal/growth"
@@ -45,6 +46,7 @@ type Handlers struct {
 	Growth     *growth.HTTPHandler
 	Competitor *competitor.HTTPHandler
 	Learning   *learning.HTTPHandler
+	Copilot    *copilot.HTTPHandler
 }
 
 func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
@@ -138,6 +140,11 @@ func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
 		protected.Use(handlers.Auth.RequireAccessToken())
 		handlers.Learning.RegisterProtected(protected)
 	}
+	if handlers.Auth != nil && handlers.Copilot != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Copilot.Register(protected)
+	}
 
 	return router
 }
@@ -158,7 +165,7 @@ func corsMiddleware(allowedOrigins []string) gin.HandlerFunc {
 			header.Set("Vary", "Origin")
 			header.Set("Access-Control-Allow-Credentials", "true")
 			header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-			header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, OPTIONS")
+			header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		}
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
@@ -247,7 +254,8 @@ func isExpensiveEndpoint(method, fullPath, requestPath string) bool {
 		"/api/v1/projects/matches",
 		"/api/v1/leads/tasks",
 		"/api/v1/crm/customers/:id/follow-up-copy",
-		"/api/v1/sandbox/sessions/:id/run":
+		"/api/v1/sandbox/sessions/:id/run",
+		"/api/v1/copilot/threads/:id/messages":
 		return true
 	default:
 		return false

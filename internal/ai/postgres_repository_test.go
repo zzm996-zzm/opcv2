@@ -148,3 +148,86 @@ func TestPostgresRepositoryFailsRun(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryListsRunsByUserAndFeaturePrefix(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	createdAt := time.Date(2026, 7, 1, 10, 20, 0, 0, time.UTC)
+	updatedAt := createdAt.Add(2 * time.Second)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT
+			id,
+			user_id,
+			feature,
+			prompt_version,
+			provider,
+			model,
+			status,
+			error_code,
+			error_message,
+			input_tokens,
+			output_tokens,
+			latency_ms,
+			created_at,
+			updated_at
+		FROM ai_runs
+		WHERE user_id = $1
+		  AND feature LIKE $2
+		ORDER BY created_at DESC
+		LIMIT $3
+	`)).
+		WithArgs(int64(42), "copilot.%", 20).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id",
+			"user_id",
+			"feature",
+			"prompt_version",
+			"provider",
+			"model",
+			"status",
+			"error_code",
+			"error_message",
+			"input_tokens",
+			"output_tokens",
+			"latency_ms",
+			"created_at",
+			"updated_at",
+		}).AddRow(
+			int64(11),
+			int64(42),
+			"copilot.model_smoke",
+			"copilot_model_smoke_v1",
+			"openai-compatible",
+			"deepseek",
+			StatusFailed,
+			"provider_unavailable",
+			"AI provider is unavailable",
+			12,
+			0,
+			2080,
+			createdAt,
+			updatedAt,
+		))
+
+	repository := NewPostgresRepository(db)
+	runs, err := repository.ListRuns(context.Background(), 42, "copilot.", 20)
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if len(runs) != 1 || runs[0].ID != 11 || runs[0].Feature != "copilot.model_smoke" {
+		t.Fatalf("runs = %+v", runs)
+	}
+	if runs[0].ErrorMessage != "AI provider is unavailable" || runs[0].LatencyMS != 2080 {
+		t.Fatalf("run = %+v", runs[0])
+	}
+	if len(runs[0].Request) != 0 || len(runs[0].Response) != 0 {
+		t.Fatalf("request/response should not be loaded, run = %+v", runs[0])
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

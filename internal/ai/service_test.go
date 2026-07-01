@@ -221,6 +221,48 @@ func TestServiceClassifiesProviderTimeout(t *testing.T) {
 	}
 }
 
+func TestServiceClassifiesProviderConfigurationFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		code string
+		msg  string
+	}{
+		{name: "authentication", err: ErrProviderAuthentication, code: ErrorProviderAuthentication, msg: "AI provider authentication failed"},
+		{name: "permission", err: ErrProviderPermission, code: ErrorProviderPermission, msg: "AI provider permission or quota was denied"},
+		{name: "model not found", err: ErrProviderModelNotFound, code: ErrorProviderModelNotFound, msg: "AI provider model was not found"},
+		{name: "bad request", err: ErrProviderBadRequest, code: ErrorProviderBadRequest, msg: "AI provider rejected the request"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repository := &fakeRepository{}
+			provider := &fakeProvider{errs: []error{tt.err}}
+			service := NewService(repository, provider, Config{Provider: "openai-compatible", Model: "deepseek"})
+			service.now = func() time.Time { return time.Unix(410, 0) }
+
+			_, err := service.GenerateJSON(context.Background(), GenerateJSONRequest{
+				UserID:        42,
+				Feature:       "copilot.model_smoke",
+				PromptVersion: "copilot_model_smoke_v1",
+				SystemPrompt:  "Return JSON only.",
+				UserPrompt:    "ping",
+				SchemaName:    "copilot_model_smoke",
+				Validate:      validateTypedPayload,
+			})
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("GenerateJSON() error = %v, want %v", err, tt.err)
+			}
+			if len(repository.failed) != 1 {
+				t.Fatalf("failed runs = %+v", repository.failed)
+			}
+			if repository.failed[0].failure.Code != tt.code || repository.failed[0].failure.Message != tt.msg {
+				t.Fatalf("failure = %+v, want code=%s message=%q", repository.failed[0].failure, tt.code, tt.msg)
+			}
+		})
+	}
+}
+
 func TestServiceMarksRunFailedWhenContextIsCanceled(t *testing.T) {
 	repository := &fakeRepository{}
 	provider := &fakeProvider{

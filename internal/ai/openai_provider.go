@@ -93,8 +93,12 @@ func (p *OpenAIProvider) buildRequest(request ProviderRequest) openAIRequest {
 	if strings.TrimSpace(request.RepairInstruction) != "" {
 		input = append(input, openAIMessage{Role: "user", Content: request.RepairInstruction})
 	}
+	model := strings.TrimSpace(request.Model)
+	if model == "" {
+		model = p.model
+	}
 	return openAIRequest{
-		Model: p.model,
+		Model: model,
 		Input: input,
 		Text: openAITextConfig{
 			Format: openAITextFormat{Type: "json_object"},
@@ -148,6 +152,14 @@ func (r openAIResponse) firstNestedText() string {
 
 func classifyOpenAIStatus(statusCode int) error {
 	switch statusCode {
+	case http.StatusBadRequest:
+		return ErrProviderBadRequest
+	case http.StatusUnauthorized:
+		return ErrProviderAuthentication
+	case http.StatusForbidden:
+		return ErrProviderPermission
+	case http.StatusNotFound:
+		return ErrProviderModelNotFound
 	case http.StatusTooManyRequests:
 		return ErrProviderRateLimited
 	}

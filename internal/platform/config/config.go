@@ -1,10 +1,20 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
 )
+
+type AIModelRoute struct {
+	Alias     string `json:"alias"`
+	Provider  string `json:"provider"`
+	Model     string `json:"model"`
+	BaseURL   string `json:"base_url"`
+	APIKeyEnv string `json:"api_key_env"`
+	APIKey    string `json:"-"`
+}
 
 type Config struct {
 	Environment              string
@@ -19,6 +29,7 @@ type Config struct {
 	AIAPIKey                 string
 	AIBaseURL                string
 	AITimeoutSeconds         int
+	AIModelRoutes            []AIModelRoute
 	LeadProvider             string
 	TianyanchaAPIKey         string
 	TianyanchaBaseURL        string
@@ -51,6 +62,7 @@ func Load() (Config, error) {
 		AIAPIKey:                 os.Getenv("OPCV2_AI_API_KEY"),
 		AIBaseURL:                os.Getenv("OPCV2_AI_BASE_URL"),
 		AITimeoutSeconds:         envIntOrDefault("OPCV2_AI_TIMEOUT_SECONDS", 30),
+		AIModelRoutes:            envAIModelRoutes("OPCV2_AI_MODEL_ROUTES"),
 		LeadProvider:             envOrDefault("OPCV2_LEAD_PROVIDER", "development"),
 		TianyanchaAPIKey:         os.Getenv("OPCV2_TYC_API_KEY"),
 		TianyanchaBaseURL:        os.Getenv("OPCV2_TYC_BASE_URL"),
@@ -70,16 +82,16 @@ func Load() (Config, error) {
 		if cfg.SMSProvider == "development" {
 			return Config{}, errors.New("OPCV2_SMS_PROVIDER=development is not allowed in production")
 		}
-		if os.Getenv("OPCV2_AI_PROVIDER") == "" {
+		if os.Getenv("OPCV2_AI_PROVIDER") == "" && len(cfg.AIModelRoutes) == 0 {
 			return Config{}, errors.New("OPCV2_AI_PROVIDER is required in production")
 		}
-		if cfg.AIProvider == "development" {
+		if cfg.AIProvider == "development" && len(cfg.AIModelRoutes) == 0 {
 			return Config{}, errors.New("OPCV2_AI_PROVIDER=development is not allowed in production")
 		}
 		if os.Getenv("OPCV2_AI_MODEL") == "" {
 			return Config{}, errors.New("OPCV2_AI_MODEL is required in production")
 		}
-		if cfg.AIAPIKey == "" {
+		if cfg.AIAPIKey == "" && len(cfg.AIModelRoutes) == 0 {
 			return Config{}, errors.New("OPCV2_AI_API_KEY is required in production")
 		}
 		if os.Getenv("OPCV2_LEAD_PROVIDER") == "" {
@@ -151,6 +163,32 @@ func envCSVOrDefault(name string, fallback []string) []string {
 		return fallback
 	}
 	return result
+}
+
+func envAIModelRoutes(name string) []AIModelRoute {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil
+	}
+	var routes []AIModelRoute
+	if err := json.Unmarshal([]byte(value), &routes); err != nil {
+		return nil
+	}
+	normalized := make([]AIModelRoute, 0, len(routes))
+	for _, route := range routes {
+		route.Alias = strings.TrimSpace(route.Alias)
+		route.Provider = strings.TrimSpace(route.Provider)
+		route.Model = strings.TrimSpace(route.Model)
+		route.BaseURL = strings.TrimRight(strings.TrimSpace(route.BaseURL), "/")
+		route.APIKeyEnv = strings.TrimSpace(route.APIKeyEnv)
+		if route.APIKeyEnv != "" {
+			route.APIKey = os.Getenv(route.APIKeyEnv)
+		}
+		if route.Alias != "" && route.Provider != "" && route.Model != "" {
+			normalized = append(normalized, route)
+		}
+	}
+	return normalized
 }
 
 func hasWildcardOrigin(origins []string) bool {

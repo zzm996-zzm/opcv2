@@ -77,6 +77,13 @@ func (p *DevelopmentProvider) responseFor(feature string) []byte {
 			"risks":["客户教育成本偏高","敏感数据合规要求高","早期交付容易被定制需求拖慢"],
 			"next_actions":["访谈10个目标客户，确认高频咨询问题","做出一个教培场景演示样板","定义首月试点价格和成功指标"]
 		}`)
+	case "copilot.chat":
+		return []byte(`{
+			"reply":"我会先基于你当前目标拆成三步：明确目标客户、验证最高频痛点、做一个低成本样板。第一步建议先访谈 10 个目标客户，记录他们现在怎么处理咨询、跟进和转化。",
+			"memory_candidates":[
+				{"key":"preferred_style","value":"直接给执行清单","confidence":0.82,"source":"copilot"}
+			]
+		}`)
 	default:
 		return []byte(`{"ok":true}`)
 	}

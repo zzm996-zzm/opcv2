@@ -403,3 +403,394 @@ Errors:
 
 - `404 diagnosis_not_found`
 
+## Copilot
+
+All Copilot endpoints are protected. This first version is non-streaming and does not include RAG or file upload.
+
+### Create Thread
+
+`POST /api/v1/copilot/threads`
+
+Request:
+
+```json
+{
+  "title": "智能客服机会分析",
+  "mode": "chat",
+  "model": "gpt-4o"
+}
+```
+
+Validation:
+
+- `title` may be blank; the backend defaults it to `新会话`.
+- `mode` defaults to `chat`.
+- Client-supplied `user_id` is ignored.
+
+Response `200`: `CopilotThread`
+
+### List Threads
+
+`GET /api/v1/copilot/threads?limit=20`
+
+Response:
+
+```json
+{
+  "threads": []
+}
+```
+
+### List Models
+
+`GET /api/v1/copilot/models`
+
+Response:
+
+```json
+{
+  "models": [
+    {
+      "name": "DeepSeek",
+      "value": "deepseek",
+      "provider": "openai-compatible",
+      "is_default": true
+    }
+  ]
+}
+```
+
+Notes:
+
+- `value` is the model alias clients send in message and compare requests.
+- Models are derived from backend AI configuration, not hard-coded in the client.
+- When backend models are configured, unknown aliases return `400 invalid_request`.
+
+### Smoke Test Model
+
+`POST /api/v1/copilot/models/smoke`
+
+Request:
+
+```json
+{
+  "model": "deepseek",
+  "prompt": "ping"
+}
+```
+
+Validation:
+
+- `model` is a configured model alias from `GET /api/v1/copilot/models`.
+- Empty `model` uses the configured default model.
+- Empty `prompt` defaults to `ping`.
+
+Response `200`:
+
+```json
+{
+  "ok": true,
+  "model": "deepseek",
+  "reply": "pong",
+  "input_tokens": 1,
+  "output_tokens": 1
+}
+```
+
+Notes:
+
+- This endpoint runs through the same `GenerateJSON` route as chat and compare, so it verifies alias routing, provider configuration, JSON validation, and AI run logging.
+- The response never includes provider secrets, API keys, base URLs, or raw provider metadata.
+
+Errors:
+
+- `400 invalid_request`
+- `500 service_not_ready`
+- `500 invalid_ai_result`
+
+### List AI Runs
+
+`GET /api/v1/copilot/ai-runs?limit=20`
+
+Response `200`:
+
+```json
+{
+  "runs": [
+    {
+      "id": 11,
+      "user_id": 42,
+      "feature": "copilot.model_smoke",
+      "prompt_version": "copilot_model_smoke_v1",
+      "provider": "openai-compatible",
+      "model": "deepseek",
+      "status": "failed",
+      "error_code": "provider_unavailable",
+      "error_message": "AI provider is unavailable",
+      "input_tokens": 12,
+      "output_tokens": 0,
+      "latency_ms": 2080,
+      "created_at": "2026-07-01T10:25:00Z",
+      "updated_at": "2026-07-01T10:25:02Z"
+    }
+  ]
+}
+```
+
+Notes:
+
+- Only returns runs for the authenticated user and Copilot features (`copilot.%`).
+- `limit` defaults to `20` and is capped at `100`.
+- The response intentionally excludes stored prompt `request`, model `response`, API keys, base URLs, and raw provider metadata.
+- Use this after smoke tests or chat/compare failures to distinguish route, provider, JSON validation, timeout, and rate-limit issues.
+
+Stable AI run `error_code` values:
+
+| Code | Typical cause |
+| --- | --- |
+| `provider_authentication_failed` | API key is missing, invalid, or rejected by the provider. |
+| `provider_permission_denied` | The key lacks permission, quota, account access, or billing access for the route. |
+| `provider_model_not_found` | The configured provider model name is wrong or unavailable to the account. |
+| `provider_bad_request` | Provider rejected request shape, JSON mode, model capability, or other request parameters. |
+| `provider_rate_limited` | Provider returned a rate-limit response. |
+| `provider_timeout` | Provider request timed out or the client context was canceled. |
+| `provider_unavailable` | Provider returned a server/upstream/network availability failure. |
+| `invalid_model_json` | Provider responded, but the body failed backend JSON/schema validation. |
+| `internal_error` | Unclassified generation error. |
+
+Errors:
+
+- `400 invalid_limit`
+- `500 service_not_ready`
+
+### Get Thread
+
+`GET /api/v1/copilot/threads/{id}`
+
+Errors:
+
+- `400 invalid_thread_id`
+- `404 thread_not_found`
+
+### Rename Thread
+
+`PATCH /api/v1/copilot/threads/{id}`
+
+Request:
+
+```json
+{
+  "title": "新的会话标题"
+}
+```
+
+Validation:
+
+- `title` must be non-empty after trimming.
+
+Response `200`: `CopilotThread`
+
+### Archive Thread
+
+`DELETE /api/v1/copilot/threads/{id}`
+
+Response `204`.
+
+### List Messages
+
+`GET /api/v1/copilot/threads/{id}/messages?limit=50`
+
+Response:
+
+```json
+{
+  "messages": [
+    {
+      "metadata": {
+        "kind": "compare_answer"
+      }
+    }
+  ]
+}
+```
+
+Message metadata:
+
+- `metadata.kind = compare_question` marks the user question that started a comparison.
+- `metadata.kind = compare_answer` marks an individual model answer in a comparison.
+- `metadata.kind = compare_summary` marks the synthesized comparison summary.
+- Older messages may have empty metadata; clients should tolerate missing `metadata.kind`.
+
+### Send Message
+
+`POST /api/v1/copilot/threads/{id}/messages`
+
+Request:
+
+```json
+{
+  "content": "帮我分析智能客服市场机会",
+  "model": "gpt-4o"
+}
+```
+
+Validation:
+
+- `content` must be non-empty after trimming.
+
+Response `200`:
+
+```json
+{
+  "user_message": {},
+  "assistant_message": {}
+}
+```
+
+Errors:
+
+- `400 invalid_thread_id`
+- `400 invalid_request`
+- `404 thread_not_found`
+- `500 invalid_ai_result`
+
+### Compare Message
+
+`POST /api/v1/copilot/threads/{id}/compare`
+
+Request:
+
+```json
+{
+  "content": "对比分析这个项目机会",
+  "models": ["deepseek", "gpt-main"]
+}
+```
+
+Validation:
+
+- `content` must be non-empty after trimming.
+- `models` is a list of model aliases from `GET /api/v1/copilot/models`.
+- Empty `models` defaults to the configured default model.
+- Duplicate models are ignored.
+- More than 4 models returns `400 invalid_request`.
+
+Response `200`:
+
+```json
+{
+  "user_message": {
+    "metadata": {
+      "kind": "compare_question"
+    }
+  },
+  "answers": [
+    {
+      "model": "deepseek",
+      "assistant_message": {
+        "metadata": {
+          "kind": "compare_answer"
+        }
+      }
+    }
+  ]
+}
+```
+
+Errors:
+
+- `400 invalid_thread_id`
+- `400 invalid_request`
+- `404 thread_not_found`
+- `500 invalid_ai_result`
+
+### Summarize Comparison
+
+`POST /api/v1/copilot/threads/{id}/compare/summary`
+
+Request:
+
+```json
+{
+  "content": "对比分析这个项目机会",
+  "model": "deepseek",
+  "answers": [
+    {
+      "model": "deepseek",
+      "assistant_message": {
+        "content": "先做低成本验证。"
+      }
+    }
+  ]
+}
+```
+
+Validation:
+
+- `content` must be non-empty after trimming.
+- `model` is the model alias used to generate the summary. Empty `model` defaults to the thread/default model.
+- At least one answer must include non-empty `assistant_message.content`.
+
+Response `200`:
+
+```json
+{
+  "summary_message": {
+    "metadata": {
+      "kind": "compare_summary"
+    }
+  }
+}
+```
+
+Errors:
+
+- `400 invalid_thread_id`
+- `400 invalid_request`
+- `404 thread_not_found`
+- `500 invalid_ai_result`
+
+### List Memories
+
+`GET /api/v1/copilot/memories?limit=50`
+
+Response:
+
+```json
+{
+  "memories": []
+}
+```
+
+### Save Memory
+
+`POST /api/v1/copilot/memories`
+
+Request:
+
+```json
+{
+  "key": "industry",
+  "value": "教培",
+  "confidence": 0.9,
+  "source": "manual"
+}
+```
+
+Validation:
+
+- `key` and `value` must be non-empty after trimming.
+- `confidence` defaults to `1` and is capped to `1`.
+
+Response `200`: `CopilotMemory`
+
+### Delete Memory
+
+`DELETE /api/v1/copilot/memories/{id}`
+
+Response `204`.
+
+Errors:
+
+- `400 invalid_memory_id`
+- `404 memory_not_found`

@@ -820,4 +820,4 @@ Result:
 - Frontend lint passed.
 
 Known remaining integration note:
-- `OPCV2_AI_PROVIDER=development` is the only currently wired AI provider. Non-development values fail fast until a real AI provider adapter is added.
+- AI Core now supports both legacy single-provider config and multi-model route config through `OPCV2_AI_MODEL_ROUTES`. OpenAI Responses and OpenAI-compatible Chat Completions adapters are wired; DeepSeek should be configured as an `openai-compatible` route, not as business-layer special casing.

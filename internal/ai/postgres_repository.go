@@ -9,6 +9,7 @@ import (
 
 type postgresDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 }
 
@@ -88,4 +89,61 @@ func (r *PostgresRepository) FailRun(ctx context.Context, id int64, failure RunF
 		failure.LatencyMS,
 	)
 	return err
+}
+
+func (r *PostgresRepository) ListRuns(ctx context.Context, userID int64, featurePrefix string, limit int) ([]Run, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT
+			id,
+			user_id,
+			feature,
+			prompt_version,
+			provider,
+			model,
+			status,
+			error_code,
+			error_message,
+			input_tokens,
+			output_tokens,
+			latency_ms,
+			created_at,
+			updated_at
+		FROM ai_runs
+		WHERE user_id = $1
+		  AND feature LIKE $2
+		ORDER BY created_at DESC
+		LIMIT $3
+	`, userID, featurePrefix+"%", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	runs := []Run{}
+	for rows.Next() {
+		var run Run
+		if err := rows.Scan(
+			&run.ID,
+			&run.UserID,
+			&run.Feature,
+			&run.PromptVersion,
+			&run.Provider,
+			&run.Model,
+			&run.Status,
+			&run.ErrorCode,
+			&run.ErrorMessage,
+			&run.InputTokens,
+			&run.OutputTokens,
+			&run.LatencyMS,
+			&run.CreatedAt,
+			&run.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		runs = append(runs, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return runs, nil
 }

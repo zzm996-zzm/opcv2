@@ -15,6 +15,7 @@ import (
 	"github.com/zzm/opcv2/internal/auth"
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/content"
+	"github.com/zzm/opcv2/internal/copilot"
 	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/dashboard"
 	"github.com/zzm/opcv2/internal/growth"
@@ -142,6 +143,9 @@ func main() {
 	learningRepository := learning.NewPostgresRepository(db)
 	learningService := learning.NewService(learningRepository)
 	learningHTTP := learning.NewHTTPHandler(learningService)
+	copilotRepository := copilot.NewPostgresRepository(db)
+	copilotService := copilot.NewServiceWithModels(copilotRepository, aiService, copilotModelOptions(cfg))
+	copilotHTTP := copilot.NewHTTPHandler(copilotService)
 
 	checker := health.NewChecker(db, redisClient)
 	server := &http.Server{
@@ -165,6 +169,7 @@ func main() {
 			Growth:     growthHTTP,
 			Competitor: competitorHTTP,
 			Learning:   learningHTTP,
+			Copilot:    copilotHTTP,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -204,6 +209,22 @@ func newLeadProvider(cfg config.Config) (leads.LeadProvider, error) {
 }
 
 func newAIProvider(cfg config.Config) (ai.Provider, error) {
+	if len(cfg.AIModelRoutes) > 0 {
+		routes := make([]ai.ModelRoute, 0, len(cfg.AIModelRoutes))
+		for _, route := range cfg.AIModelRoutes {
+			provider, err := newAIProviderForRoute(route, cfg)
+			if err != nil {
+				return nil, err
+			}
+			routes = append(routes, ai.ModelRoute{
+				Alias:        route.Alias,
+				ProviderName: route.Provider,
+				Model:        route.Model,
+				Provider:     provider,
+			})
+		}
+		return ai.NewModelRouter(cfg.AIModel, routes), nil
+	}
 	switch cfg.AIProvider {
 	case "development":
 		return ai.NewDevelopmentProvider(), nil
@@ -216,5 +237,62 @@ func newAIProvider(cfg config.Config) (ai.Provider, error) {
 		}), nil
 	default:
 		return nil, errors.New("unsupported AI provider")
+	}
+}
+
+func newAIProviderForRoute(route config.AIModelRoute, cfg config.Config) (ai.Provider, error) {
+	switch route.Provider {
+	case "openai-responses":
+		return ai.NewOpenAIProvider(ai.OpenAIConfig{
+			BaseURL: route.BaseURL,
+			APIKey:  route.APIKey,
+			Model:   route.Model,
+			Timeout: time.Duration(cfg.AITimeoutSeconds) * time.Second,
+		}), nil
+	case "openai-compatible":
+		return ai.NewOpenAICompatibleProvider(ai.OpenAICompatibleConfig{
+			BaseURL: route.BaseURL,
+			APIKey:  route.APIKey,
+			Model:   route.Model,
+			Timeout: time.Duration(cfg.AITimeoutSeconds) * time.Second,
+		}), nil
+	case "development":
+		return ai.NewDevelopmentProvider(), nil
+	default:
+		return nil, errors.New("unsupported AI model route provider")
+	}
+}
+
+func copilotModelOptions(cfg config.Config) []copilot.ModelOption {
+	if len(cfg.AIModelRoutes) == 0 {
+		return []copilot.ModelOption{{
+			Name:      displayModelName(cfg.AIModel),
+			Value:     cfg.AIModel,
+			Provider:  cfg.AIProvider,
+			IsDefault: true,
+		}}
+	}
+	options := make([]copilot.ModelOption, 0, len(cfg.AIModelRoutes))
+	for index, route := range cfg.AIModelRoutes {
+		options = append(options, copilot.ModelOption{
+			Name:      displayModelName(route.Alias),
+			Value:     route.Alias,
+			Provider:  route.Provider,
+			IsDefault: route.Alias == cfg.AIModel || (cfg.AIModel == "" && index == 0),
+		})
+	}
+	return options
+}
+
+func displayModelName(alias string) string {
+	switch alias {
+	case "deepseek":
+		return "DeepSeek"
+	case "gpt-main":
+		return "GPT-4o"
+	case "development-model":
+		return "Development"
+	default:
+		return alias
 	}
 }

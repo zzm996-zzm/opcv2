@@ -102,6 +102,10 @@ func TestOpenAIProviderClassifiesHTTPStatus(t *testing.T) {
 		statusCode int
 		want       error
 	}{
+		{name: "bad request", statusCode: http.StatusBadRequest, want: ErrProviderBadRequest},
+		{name: "unauthorized", statusCode: http.StatusUnauthorized, want: ErrProviderAuthentication},
+		{name: "forbidden", statusCode: http.StatusForbidden, want: ErrProviderPermission},
+		{name: "model not found", statusCode: http.StatusNotFound, want: ErrProviderModelNotFound},
 		{name: "rate limited", statusCode: http.StatusTooManyRequests, want: ErrProviderRateLimited},
 		{name: "provider unavailable", statusCode: http.StatusBadGateway, want: ErrProviderUnavailable},
 		{name: "server error", statusCode: http.StatusInternalServerError, want: ErrProviderUnavailable},

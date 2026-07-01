@@ -49,7 +49,11 @@ const errorMessages: Record<string, string> = {
   invalid_match_id: "项目匹配 ID 不正确",
   customer_not_found: "客户不存在或已无权限访问",
   invalid_customer_id: "客户 ID 不正确",
-  invalid_crm_input: "客户跟进参数有误，请检查后重试"
+  invalid_crm_input: "客户跟进参数有误，请检查后重试",
+  thread_not_found: "对话不存在或已无权限访问",
+  memory_not_found: "记忆不存在或已无权限访问",
+  invalid_thread_id: "对话 ID 不正确",
+  invalid_memory_id: "记忆 ID 不正确"
 };
 
 export class ApiRequestError extends Error {

@@ -31,6 +31,7 @@ type GenerateJSONRequest struct {
 	UserID         int64
 	Feature        string
 	PromptVersion  string
+	Model          string
 	SystemPrompt   string
 	UserPrompt     string
 	SchemaName     string
@@ -111,6 +112,7 @@ func (s *Service) generateValidJSON(ctx context.Context, request GenerateJSONReq
 		providerRequest := ProviderRequest{
 			Feature:       request.Feature,
 			PromptVersion: request.PromptVersion,
+			Model:         request.Model,
 			SystemPrompt:  request.SystemPrompt,
 			UserPrompt:    request.UserPrompt,
 			SchemaName:    request.SchemaName,
@@ -170,6 +172,14 @@ func failureCode(err error) string {
 		return ErrorProviderTimeout
 	case errors.Is(err, ErrProviderRateLimited):
 		return ErrorProviderRateLimited
+	case errors.Is(err, ErrProviderAuthentication):
+		return ErrorProviderAuthentication
+	case errors.Is(err, ErrProviderPermission):
+		return ErrorProviderPermission
+	case errors.Is(err, ErrProviderModelNotFound):
+		return ErrorProviderModelNotFound
+	case errors.Is(err, ErrProviderBadRequest):
+		return ErrorProviderBadRequest
 	case errors.Is(err, ErrProviderUnavailable):
 		return ErrorProviderUnavailable
 	case errors.Is(err, ErrInvalidModelJSON):
@@ -185,6 +195,14 @@ func safeFailureMessage(err error) string {
 		return "AI provider timed out"
 	case errors.Is(err, ErrProviderRateLimited):
 		return "AI provider rate limit was reached"
+	case errors.Is(err, ErrProviderAuthentication):
+		return "AI provider authentication failed"
+	case errors.Is(err, ErrProviderPermission):
+		return "AI provider permission or quota was denied"
+	case errors.Is(err, ErrProviderModelNotFound):
+		return "AI provider model was not found"
+	case errors.Is(err, ErrProviderBadRequest):
+		return "AI provider rejected the request"
 	case errors.Is(err, ErrProviderUnavailable):
 		return "AI provider is unavailable"
 	case errors.Is(err, ErrInvalidModelJSON):

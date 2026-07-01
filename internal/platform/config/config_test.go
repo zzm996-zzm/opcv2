@@ -117,6 +117,29 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	}
 }
 
+func TestLoadParsesAIModelRoutes(t *testing.T) {
+	t.Setenv("OPCV2_AI_MODEL_ROUTES", `[
+		{"alias":"deepseek","provider":"openai-compatible","model":"deepseek-v4-flash","base_url":"https://api.deepseek.com","api_key_env":"OPCV2_DEEPSEEK_API_KEY"},
+		{"alias":"gpt-main","provider":"openai-responses","model":"gpt-4o","base_url":"https://api.openai.com/v1","api_key_env":"OPCV2_OPENAI_API_KEY"}
+	]`)
+	t.Setenv("OPCV2_DEEPSEEK_API_KEY", "deepseek-key")
+	t.Setenv("OPCV2_OPENAI_API_KEY", "openai-key")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(cfg.AIModelRoutes) != 2 {
+		t.Fatalf("AIModelRoutes = %+v, want 2 routes", cfg.AIModelRoutes)
+	}
+	if cfg.AIModelRoutes[0].Alias != "deepseek" ||
+		cfg.AIModelRoutes[0].Provider != "openai-compatible" ||
+		cfg.AIModelRoutes[0].APIKey != "deepseek-key" {
+		t.Fatalf("first route = %+v", cfg.AIModelRoutes[0])
+	}
+}
+
 func TestLoadRejectsProductionWithoutSecrets(t *testing.T) {
 	t.Setenv("OPCV2_ENV", "production")
 	t.Setenv("OPCV2_JWT_SECRET", "")

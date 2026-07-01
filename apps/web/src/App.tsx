@@ -261,6 +261,14 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <CopilotPage variant="memories" />
+          </RequireAuth>
+        }
+        path="/copilot/memories"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <CopilotPage variant="compare" />
           </RequireAuth>
         }
