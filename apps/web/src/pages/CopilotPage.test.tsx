@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,7 @@ describe("CopilotPage", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     authSession.clear();
     vi.restoreAllMocks();
   });
@@ -193,6 +194,30 @@ describe("CopilotPage", () => {
       );
     });
     expect(await screen.findByText("后端返回的聊天回复。")).toBeInTheDocument();
+  });
+
+  it("renders new assistant chat replies with a typewriter effect", async () => {
+    mockCopilotBackend();
+    renderPage();
+
+    await screen.findByText("智能客服系统项目机会分析");
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByLabelText("输入你的问题"), { target: { value: "打字机测试" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("后")).toBeInTheDocument();
+    expect(screen.queryByText("后端返回的聊天回复。")).not.toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(600);
+    });
+
+    expect(screen.getByText("后端返回的聊天回复。")).toBeInTheDocument();
   });
 
   it("uses selected compare models when submitting comparison", async () => {

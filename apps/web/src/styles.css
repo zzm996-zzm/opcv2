@@ -24202,6 +24202,22 @@ a {
   font-weight: 720;
 }
 
+.copilot-bubble.typing p::after {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  content: "";
+  background: #245dff;
+  border-radius: 999px;
+  animation: copilot-cursor-blink 900ms steps(2, jump-none) infinite;
+}
+
+@keyframes copilot-cursor-blink {
+  50% { opacity: 0; }
+}
+
 .copilot-bubble > time {
   position: absolute;
   right: 16px;

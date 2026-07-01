@@ -127,6 +127,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [aiRuns, setAIRuns] = useState<CopilotAIRun[]>([]);
   const [smokeResult, setSmokeResult] = useState<ModelSmokeResult | null>(null);
   const [draft, setDraft] = useState("");
+  const [typewriterContent, setTypewriterContent] = useState<Record<number, string>>({});
   const [selectedModel, setSelectedModel] = useState(fallbackModels[0].value);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -136,6 +137,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [useHistoryFallback, setUseHistoryFallback] = useState(false);
   const [error, setError] = useState("");
   const chatAreaRef = useRef<HTMLDivElement | null>(null);
+  const typewriterTimersRef = useRef<Map<number, number>>(new Map());
 
   const activeThread = useMemo(
     () => threads.find((thread) => thread.id === activeThreadID) ?? null,
@@ -234,6 +236,40 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     }
   }, [messages, compareQuestion, compareAnswers, compareSummary, isSending, isSummarizing]);
 
+  useEffect(() => {
+    const timers = typewriterTimersRef.current;
+    return () => {
+      timers.forEach((timer) => window.clearInterval(timer));
+      timers.clear();
+    };
+  }, []);
+
+  function startTypewriter(message: CopilotMessage) {
+    const characters = Array.from(message.content);
+    if (characters.length === 0) return;
+    const messageID = message.id;
+    const existingTimer = typewriterTimersRef.current.get(messageID);
+    if (existingTimer) window.clearInterval(existingTimer);
+
+    let index = 1;
+    setTypewriterContent((current) => ({ ...current, [messageID]: characters.slice(0, index).join("") }));
+    const timer = window.setInterval(() => {
+      index += 1;
+      if (index >= characters.length) {
+        window.clearInterval(timer);
+        typewriterTimersRef.current.delete(messageID);
+        setTypewriterContent((current) => {
+          const next = { ...current };
+          delete next[messageID];
+          return next;
+        });
+        return;
+      }
+      setTypewriterContent((current) => ({ ...current, [messageID]: characters.slice(0, index).join("") }));
+    }, 24);
+    typewriterTimersRef.current.set(messageID, timer);
+  }
+
   async function startThread(initialContent?: string) {
     const title = (initialContent || "新会话").slice(0, 28);
     const thread = await copilotApi.createThread({ title, mode: isCompare ? "compare" : "chat", model: selectedModel });
@@ -287,6 +323,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         result.user_message,
         result.assistant_message
       ]);
+      startTypewriter(result.assistant_message);
       setThreads((current) => current.map((item) => item.id === thread.id ? { ...item, updated_at: result.assistant_message.created_at } : item));
     } catch (requestError) {
       setDraft(content);
@@ -451,7 +488,12 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
             ) : isNew ? (
               <EmptyConversation onPrompt={(prompt) => setDraft(prompt)} />
             ) : (
-              <ChatThread messages={messages} isSending={isSending} useFallback={messages.length === 0 && !isLoading} />
+              <ChatThread
+                messages={messages}
+                isSending={isSending}
+                typewriterContent={typewriterContent}
+                useFallback={messages.length === 0 && !isLoading}
+              />
             )}
           </div>
 
@@ -562,10 +604,12 @@ function CompareHeader({
 function ChatThread({
   messages,
   isSending,
+  typewriterContent,
   useFallback
 }: {
   messages: CopilotMessage[];
   isSending: boolean;
+  typewriterContent?: Record<number, string>;
   useFallback?: boolean;
 }) {
   if (!useFallback && messages.length > 0) {
@@ -577,8 +621,8 @@ function ChatThread({
             {message.role === "user" ? (
               <UserMessageBubble content={message.content} time={formatTime(message.created_at)} />
             ) : (
-              <div className="copilot-bubble compact">
-                <p>{message.content}</p>
+              <div className={"copilot-bubble compact " + (typewriterContent && message.id in typewriterContent ? "typing" : "")}>
+                <p>{typewriterContent?.[message.id] ?? message.content}</p>
                 <time>{formatTime(message.created_at)}</time>
               </div>
             )}
