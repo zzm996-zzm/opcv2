@@ -20,6 +20,7 @@ type fakeApplication struct {
 	summaryInput      CompareSummaryInput
 	smokeInput        ModelSmokeInput
 	memoryInput       MemoryInput
+	fileInput         FileInput
 	userID            int64
 	threadID          int64
 	memoryID          int64
@@ -28,6 +29,7 @@ type fakeApplication struct {
 	threads           []Thread
 	messages          []Message
 	memories          []Memory
+	files             []File
 	models            []ModelOption
 	aiRuns            []AIRun
 	sendResult        SendMessageResult
@@ -111,6 +113,17 @@ func (a *fakeApplication) DeleteMemory(_ context.Context, userID, id int64) erro
 	return a.err
 }
 
+func (a *fakeApplication) ListFiles(_ context.Context, userID int64, limit int) ([]File, error) {
+	a.userID = userID
+	a.limit = limit
+	return a.files, a.err
+}
+
+func (a *fakeApplication) SaveFile(_ context.Context, input FileInput) (File, error) {
+	a.fileInput = input
+	return File{ID: 17, UserID: input.UserID, Name: input.Name, MimeType: input.MimeType, Content: input.Content}, a.err
+}
+
 func (a *fakeApplication) ListModels(_ context.Context) ([]ModelOption, error) {
 	return a.models, a.err
 }
@@ -192,6 +205,30 @@ func TestSendMessageEndpointUsesAuthenticatedUserAndThread(t *testing.T) {
 	}
 }
 
+func TestSendMessageEndpointBindsReferenceIDs(t *testing.T) {
+	app := &fakeApplication{sendResult: SendMessageResult{
+		UserMessage:      Message{ID: 1, UserID: 42, ThreadID: 99, Role: RoleUser, Content: "你好"},
+		AssistantMessage: Message{ID: 2, UserID: 42, ThreadID: 99, Role: RoleAssistant, Content: "你好，我可以帮你分析项目。"},
+	}}
+	router := copilotTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/threads/99/messages", strings.NewReader(`{
+		"content":"结合文件分析",
+		"model":"gpt-test",
+		"reference_ids":[17,18]
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if len(app.sendMessageInput.ReferenceIDs) != 2 || app.sendMessageInput.ReferenceIDs[0] != 17 || app.sendMessageInput.ReferenceIDs[1] != 18 {
+		t.Fatalf("reference IDs = %+v", app.sendMessageInput.ReferenceIDs)
+	}
+}
+
 func TestSendMessageEndpointRejectsBlankContent(t *testing.T) {
 	app := &fakeApplication{}
 	router := copilotTestRouter(app)
@@ -206,6 +243,50 @@ func TestSendMessageEndpointRejectsBlankContent(t *testing.T) {
 	}
 	if app.sendMessageInput.UserID != 0 {
 		t.Fatalf("SendMessage should not be called, input = %+v", app.sendMessageInput)
+	}
+}
+
+func TestCopilotFilesEndpointsUseAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{files: []File{{
+		ID:        17,
+		UserID:    42,
+		Name:      "竞品对比.txt",
+		MimeType:  "text/plain",
+		SizeBytes: 48,
+		Content:   "小鹅通：私域工具强。",
+		CreatedAt: time.Date(2026, 7, 2, 9, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 7, 2, 9, 0, 0, 0, time.UTC),
+	}}}
+	router := copilotTestRouter(app)
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/api/v1/copilot/files?limit=500", nil)
+	listRecorder := httptest.NewRecorder()
+	router.ServeHTTP(listRecorder, listRequest)
+
+	if listRecorder.Code != http.StatusOK {
+		t.Fatalf("list status = %d body=%s", listRecorder.Code, listRecorder.Body.String())
+	}
+	if app.userID != 42 || app.limit != 100 {
+		t.Fatalf("user/limit = %d/%d", app.userID, app.limit)
+	}
+	if !strings.Contains(listRecorder.Body.String(), `"files"`) {
+		t.Fatalf("body = %s", listRecorder.Body.String())
+	}
+
+	saveRequest := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/files", strings.NewReader(`{
+		"name":"竞品对比.txt",
+		"mime_type":"text/plain",
+		"content":"小鹅通：私域工具强。"
+	}`))
+	saveRequest.Header.Set("Content-Type", "application/json")
+	saveRecorder := httptest.NewRecorder()
+	router.ServeHTTP(saveRecorder, saveRequest)
+
+	if saveRecorder.Code != http.StatusOK {
+		t.Fatalf("save status = %d body=%s", saveRecorder.Code, saveRecorder.Body.String())
+	}
+	if app.fileInput.UserID != 42 || app.fileInput.Name != "竞品对比.txt" || app.fileInput.Content == "" {
+		t.Fatalf("file input = %+v", app.fileInput)
 	}
 }
 

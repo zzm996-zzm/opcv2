@@ -24,6 +24,7 @@ var (
 	ErrInvalidAIResult = errors.New("invalid copilot ai result")
 	ErrThreadNotFound  = errors.New("copilot thread not found")
 	ErrMemoryNotFound  = errors.New("copilot memory not found")
+	ErrFileNotFound    = errors.New("copilot file not found")
 )
 
 type CreateThreadInput struct {
@@ -34,10 +35,11 @@ type CreateThreadInput struct {
 }
 
 type SendMessageInput struct {
-	UserID   int64  `json:"-"`
-	ThreadID int64  `json:"-"`
-	Content  string `json:"content"`
-	Model    string `json:"model,omitempty"`
+	UserID       int64   `json:"-"`
+	ThreadID     int64   `json:"-"`
+	Content      string  `json:"content"`
+	Model        string  `json:"model,omitempty"`
+	ReferenceIDs []int64 `json:"reference_ids,omitempty"`
 }
 
 type CompareMessagesInput struct {
@@ -67,6 +69,13 @@ type MemoryInput struct {
 	Value      string  `json:"value"`
 	Confidence float64 `json:"confidence,omitempty"`
 	Source     string  `json:"source,omitempty"`
+}
+
+type FileInput struct {
+	UserID   int64  `json:"-"`
+	Name     string `json:"name"`
+	MimeType string `json:"mime_type,omitempty"`
+	Content  string `json:"content"`
 }
 
 type Thread struct {
@@ -104,6 +113,17 @@ type Memory struct {
 	Source     string    `json:"source,omitempty"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+type File struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	Name      string    `json:"name"`
+	MimeType  string    `json:"mime_type"`
+	SizeBytes int       `json:"size_bytes"`
+	Content   string    `json:"content,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type MemoryCandidate struct {

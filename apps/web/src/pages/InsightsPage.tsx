@@ -6,8 +6,6 @@ type InsightsPageProps = {
   variant?: "list" | "detail" | "fileAnalysis";
 };
 
-const categories = ["全部", "商业", "AI", "行业", "政策", "案例"] as const;
-
 const focusItems = [
   ["AI 客服行业市场规模持续增长", "2024 年中国智能客服市场规模预计突破 120 亿元，年复合增长率达 28%。", "chart"],
   ["出海企业布局东南亚加速", "东南亚数字经济规模突破 3000 亿美元，SaaS 与 AI 应用需求旺盛。", "globe"],

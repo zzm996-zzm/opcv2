@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,9 +15,11 @@ type fakeRepository struct {
 	threads         []Thread
 	messages        []Message
 	memories        []Memory
+	files           []File
 	aiRuns          []ai.Run
 	createdThread   Thread
 	createdMessages []Message
+	createdFile     File
 	upsertedMemory  Memory
 	deletedMemoryID int64
 	listRunsUserID  int64
@@ -128,6 +131,47 @@ func (r *fakeRepository) DeleteMemory(_ context.Context, userID, id int64) error
 		}
 	}
 	return ErrMemoryNotFound
+}
+
+func (r *fakeRepository) CreateFile(_ context.Context, file File) (File, error) {
+	r.createdFile = file
+	file.ID = 17
+	file.UpdatedAt = file.CreatedAt
+	r.files = append(r.files, file)
+	return file, r.err
+}
+
+func (r *fakeRepository) ListFiles(_ context.Context, userID int64, limit int) ([]File, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	var files []File
+	for _, file := range r.files {
+		if file.UserID == userID {
+			files = append(files, file)
+		}
+	}
+	return files[:min(len(files), limit)], nil
+}
+
+func (r *fakeRepository) GetFilesByIDs(_ context.Context, userID int64, ids []int64) ([]File, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	wanted := map[int64]struct{}{}
+	for _, id := range ids {
+		wanted[id] = struct{}{}
+	}
+	var files []File
+	for _, file := range r.files {
+		if file.UserID != userID {
+			continue
+		}
+		if _, ok := wanted[file.ID]; ok {
+			files = append(files, file)
+		}
+	}
+	return files, nil
 }
 
 func (r *fakeRepository) ListRuns(_ context.Context, userID int64, featurePrefix string, limit int) ([]ai.Run, error) {
@@ -252,6 +296,75 @@ func TestServiceSendMessageGeneratesAssistantReplyAndMemory(t *testing.T) {
 	}
 	if generator.request.Feature != "copilot.chat" || generator.request.SchemaName != "copilot_chat_response" {
 		t.Fatalf("ai request = %+v", generator.request)
+	}
+}
+
+func TestServiceSavesAndListsReferenceFiles(t *testing.T) {
+	now := time.Date(2026, 7, 2, 9, 0, 0, 0, time.UTC)
+	repository := &fakeRepository{}
+	service := NewService(repository, nil)
+	service.now = func() time.Time { return now }
+
+	file, err := service.SaveFile(context.Background(), FileInput{
+		UserID:   42,
+		Name:     " 智能客服竞品功能对比表.txt ",
+		MimeType: " text/plain ",
+		Content:  "小鹅通：私域工具强；有赞教育：交易能力强。",
+	})
+
+	if err != nil {
+		t.Fatalf("SaveFile() error = %v", err)
+	}
+	if file.ID != 17 || file.Name != "智能客服竞品功能对比表.txt" || file.SizeBytes == 0 {
+		t.Fatalf("file = %+v", file)
+	}
+	if repository.createdFile.UserID != 42 || repository.createdFile.CreatedAt != now {
+		t.Fatalf("createdFile = %+v", repository.createdFile)
+	}
+
+	files, err := service.ListFiles(context.Background(), 42, 10)
+	if err != nil {
+		t.Fatalf("ListFiles() error = %v", err)
+	}
+	if len(files) != 1 || files[0].Name != "智能客服竞品功能对比表.txt" {
+		t.Fatalf("files = %+v", files)
+	}
+}
+
+func TestServiceSendMessageIncludesSelectedReferenceFilesInPrompt(t *testing.T) {
+	payload, _ := json.Marshal(chatAIResult{Reply: "建议优先补齐私域转化链路。"})
+	repository := &fakeRepository{
+		threads: []Thread{{ID: 99, UserID: 42, Title: "机会分析", Mode: ModeChat}},
+		files: []File{{
+			ID:        17,
+			UserID:    42,
+			Name:      "竞品对比.txt",
+			MimeType:  "text/plain",
+			SizeBytes: 64,
+			Content:   "小鹅通：私域工具强；有赞教育：交易能力强。",
+		}},
+	}
+	generator := &fakeGenerator{content: payload}
+	service := NewService(repository, generator)
+
+	_, err := service.SendMessage(context.Background(), SendMessageInput{
+		UserID:       42,
+		ThreadID:     99,
+		Content:      "结合引用文件分析机会",
+		Model:        "gpt-test",
+		ReferenceIDs: []int64{17},
+	})
+
+	if err != nil {
+		t.Fatalf("SendMessage() error = %v", err)
+	}
+	if !strings.Contains(generator.request.UserPrompt, "引用文件") ||
+		!strings.Contains(generator.request.UserPrompt, "竞品对比.txt") ||
+		!strings.Contains(generator.request.UserPrompt, "小鹅通") {
+		t.Fatalf("prompt did not include references:\n%s", generator.request.UserPrompt)
+	}
+	if len(repository.createdMessages) == 0 || !strings.Contains(string(repository.createdMessages[0].Metadata), "reference_ids") {
+		t.Fatalf("user message metadata = %s", repository.createdMessages[0].Metadata)
 	}
 }
 

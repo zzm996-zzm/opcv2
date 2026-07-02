@@ -108,11 +108,59 @@ describe("CopilotPage", () => {
     });
   });
 
-  it("renders the reference picker", () => {
+  it("renders the reference picker", async () => {
+    mockCopilotBackend();
     renderPage("files");
 
     expect(screen.getByRole("dialog", { name: "引用" })).toBeInTheDocument();
+    expect(await screen.findByText("智能客服竞品功能对比表.txt")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "插入引用" })).toBeInTheDocument();
+  });
+
+  it("sends selected reference files with chat messages", async () => {
+    const fetchMock = mockCopilotBackend();
+    renderPage("files");
+
+    await screen.findByText("智能客服系统项目机会分析");
+    fireEvent.click(await screen.findByRole("checkbox", { name: "引用 智能客服竞品功能对比表.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "插入引用" }));
+    fireEvent.change(screen.getByLabelText("输入你的问题"), { target: { value: "结合文件分析机会" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/copilot/threads/99/messages",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ content: "结合文件分析机会", model: "deepseek", reference_ids: [17] })
+        })
+      );
+    });
+  });
+
+  it("uploads pasted text as a copilot reference file", async () => {
+    const fetchMock = mockCopilotBackend();
+    renderPage("files");
+
+    await screen.findByText("智能客服竞品功能对比表.txt");
+    fireEvent.change(screen.getByLabelText("文件名称"), { target: { value: "新增访谈纪要.txt" } });
+    fireEvent.change(screen.getByLabelText("文件内容"), { target: { value: "客户最关注响应速度和私域转化。" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存文件" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/copilot/files",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            name: "新增访谈纪要.txt",
+            mime_type: "text/plain",
+            content: "客户最关注响应速度和私域转化。"
+          })
+        })
+      );
+    });
+    expect(await screen.findByText("新增访谈纪要.txt")).toBeInTheDocument();
   });
 
   it("renders and manages copilot memories", async () => {
@@ -400,6 +448,32 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
           created_at: "2026-07-01T10:25:00Z",
           updated_at: "2026-07-01T10:25:01Z"
         }]
+      }), { status: 200 }));
+    }
+    if (url === "/api/v1/copilot/files?limit=50") {
+      return Promise.resolve(new Response(JSON.stringify({
+        files: [{
+          id: 17,
+          user_id: 7,
+          name: "智能客服竞品功能对比表.txt",
+          mime_type: "text/plain",
+          size_bytes: 64,
+          content: "小鹅通：私域工具强；有赞教育：交易能力强。",
+          created_at: "2026-07-02T09:00:00Z",
+          updated_at: "2026-07-02T09:00:00Z"
+        }]
+      }), { status: 200 }));
+    }
+    if (url === "/api/v1/copilot/files" && init?.method === "POST") {
+      return Promise.resolve(new Response(JSON.stringify({
+        id: 18,
+        user_id: 7,
+        name: "新增访谈纪要.txt",
+        mime_type: "text/plain",
+        size_bytes: 45,
+        content: "客户最关注响应速度和私域转化。",
+        created_at: "2026-07-02T09:15:00Z",
+        updated_at: "2026-07-02T09:15:00Z"
       }), { status: 200 }));
     }
     if (url === "/api/v1/copilot/models/smoke" && init?.method === "POST") {

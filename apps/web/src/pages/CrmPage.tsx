@@ -314,7 +314,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
             </div>
           </section>
           <dl className="cdk-crm-detail-list">
-            <div><dt>联系方式</dt><dd>{selectedCustomer.contact}　{selectedCustomer.email}</dd></div>
+            <div><dt>联系方式</dt><dd>{selectedCustomer.contact} {selectedCustomer.email}</dd></div>
             <div><dt>来源</dt><dd>线索查找（关键词：少儿英语培训）</dd></div>
             <div><dt>需求摘要</dt><dd>希望为3-12岁孩子提供系统化英语课程，提升口语表达与应试能力。<button type="button">展开⌄</button></dd></div>
           </dl>
@@ -326,7 +326,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
               ["05-23 16:45", "首次电话沟通，了解机构基本情况与需求。"]
             ].map(([time, detail]) => (
               <article key={time}>
-                <time>{time}　李明</time>
+                <time>{time} 李明</time>
                 <p>{detail}</p>
               </article>
             ))}

@@ -39,6 +39,17 @@ export type CopilotMemory = {
   updated_at: string;
 };
 
+export type CopilotFile = {
+  id: number;
+  user_id: number;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  content?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CopilotModelOption = {
   name: string;
   value: string;
@@ -149,7 +160,7 @@ export const copilotApi = {
     });
   },
 
-  sendMessage(threadId: number, input: { content: string; model?: string }) {
+  sendMessage(threadId: number, input: { content: string; model?: string; reference_ids?: number[] }) {
     return apiRequest<SendMessageResult>(`/api/v1/copilot/threads/${threadId}/messages`, {
       method: "POST",
       body: JSON.stringify(input)
@@ -186,6 +197,19 @@ export const copilotApi = {
   deleteMemory(id: number) {
     return apiRequest<void>(`/api/v1/copilot/memories/${id}`, {
       method: "DELETE"
+    });
+  },
+
+  listFiles(limit = 50) {
+    return apiRequest<{ files: CopilotFile[] }>(`/api/v1/copilot/files?limit=${limit}`, {
+      method: "GET"
+    });
+  },
+
+  saveFile(input: { name: string; mime_type?: string; content: string }) {
+    return apiRequest<CopilotFile>("/api/v1/copilot/files", {
+      method: "POST",
+      body: JSON.stringify(input)
     });
   }
 };

@@ -122,7 +122,7 @@ function ProfileOverview({ nickname }: { nickname: string }) {
           <div>
             <h2>额度与使用概览</h2>
           </div>
-          <p>所有额度均按自然月重置　　本月重置日：2025-06-01</p>
+          <p>所有额度均按自然月重置 本月重置日：2025-06-01</p>
         </div>
         <div className="quota-grid">
           {quotas.map(([label, used, total, percent]) => (

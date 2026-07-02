@@ -26,6 +26,8 @@ type Application interface {
 	ListMemories(ctx context.Context, userID int64, limit int) ([]Memory, error)
 	SaveMemory(ctx context.Context, input MemoryInput) (Memory, error)
 	DeleteMemory(ctx context.Context, userID, id int64) error
+	ListFiles(ctx context.Context, userID int64, limit int) ([]File, error)
+	SaveFile(ctx context.Context, input FileInput) (File, error)
 	ListModels(ctx context.Context) ([]ModelOption, error)
 	ListAIRuns(ctx context.Context, userID int64, limit int) ([]AIRun, error)
 }
@@ -51,6 +53,8 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/copilot/memories", h.listMemories)
 	router.POST("/copilot/memories", h.saveMemory)
 	router.DELETE("/copilot/memories/:id", h.deleteMemory)
+	router.GET("/copilot/files", h.listFiles)
+	router.POST("/copilot/files", h.saveFile)
 	router.GET("/copilot/models", h.listModels)
 	router.POST("/copilot/models/smoke", h.smokeModel)
 	router.GET("/copilot/ai-runs", h.listAIRuns)
@@ -246,6 +250,34 @@ func (h *HTTPHandler) deleteMemory(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *HTTPHandler) listFiles(c *gin.Context) {
+	limit, ok := httpapi.QueryLimit(c, 50, 100)
+	if !ok {
+		return
+	}
+	files, err := h.app.ListFiles(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"files": httpapi.EnsureSlice(files)})
+}
+
+func (h *HTTPHandler) saveFile(c *gin.Context) {
+	var request FileInput
+	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.Name) == "" || strings.TrimSpace(request.Content) == "" {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	file, err := h.app.SaveFile(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, file)
+}
+
 func (h *HTTPHandler) listModels(c *gin.Context) {
 	models, err := h.app.ListModels(c.Request.Context())
 	if err != nil {
@@ -298,6 +330,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusNotFound, "thread_not_found")
 	case errors.Is(err, ErrMemoryNotFound):
 		httpapi.Error(c, http.StatusNotFound, "memory_not_found")
+	case errors.Is(err, ErrFileNotFound):
+		httpapi.Error(c, http.StatusNotFound, "file_not_found")
 	case errors.Is(err, ErrInvalidInput):
 		httpapi.BadRequest(c, "invalid_request")
 	case errors.Is(err, ErrServiceNotReady):

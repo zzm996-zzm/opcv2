@@ -200,6 +200,63 @@ func (r *PostgresRepository) DeleteMemory(ctx context.Context, userID, id int64)
 	return nil
 }
 
+func (r *PostgresRepository) CreateFile(ctx context.Context, file File) (File, error) {
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO copilot_files (user_id, name, mime_type, size_bytes, content, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $6)
+		RETURNING id, created_at, updated_at
+	`, file.UserID, file.Name, file.MimeType, file.SizeBytes, file.Content, file.CreatedAt).
+		Scan(&file.ID, &file.CreatedAt, &file.UpdatedAt)
+	return file, err
+}
+
+func (r *PostgresRepository) ListFiles(ctx context.Context, userID int64, limit int) ([]File, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, name, mime_type, size_bytes, content, created_at, updated_at
+		FROM copilot_files
+		WHERE user_id = $1
+		ORDER BY updated_at DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []File
+	for rows.Next() {
+		file, err := scanFile(rows)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	return files, rows.Err()
+}
+
+func (r *PostgresRepository) GetFilesByIDs(ctx context.Context, userID int64, ids []int64) ([]File, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, name, mime_type, size_bytes, content, created_at, updated_at
+		FROM copilot_files
+		WHERE user_id = $1 AND id = ANY($2)
+		ORDER BY updated_at DESC
+	`, userID, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []File
+	for rows.Next() {
+		file, err := scanFile(rows)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
+	}
+	return files, rows.Err()
+}
+
 func (r *PostgresRepository) ListRuns(ctx context.Context, userID int64, featurePrefix string, limit int) ([]ai.Run, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT
@@ -314,4 +371,21 @@ func scanMemory(scanner scanner) (Memory, error) {
 		return Memory{}, err
 	}
 	return memory, nil
+}
+
+func scanFile(scanner scanner) (File, error) {
+	var file File
+	if err := scanner.Scan(
+		&file.ID,
+		&file.UserID,
+		&file.Name,
+		&file.MimeType,
+		&file.SizeBytes,
+		&file.Content,
+		&file.CreatedAt,
+		&file.UpdatedAt,
+	); err != nil {
+		return File{}, err
+	}
+	return file, nil
 }

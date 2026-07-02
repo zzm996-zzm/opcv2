@@ -465,7 +465,7 @@ function ReportPage({ session }: { session: SandboxSession | null }) {
           <div>
             <p>商业沙盘 / 历史推演</p>
             <h1>{visibleTitle}</h1>
-            <small>推演时间：{visibleTime}　参与角色数：{visibleRolesCount}　报告版本：V1.0</small>
+            <small>推演时间：{visibleTime} 参与角色数：{visibleRolesCount} 报告版本：V1.0</small>
           </div>
           <button type="button">导出报告</button>
         </header>

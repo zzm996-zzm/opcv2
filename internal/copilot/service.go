@@ -22,6 +22,9 @@ type Repository interface {
 	ListMemories(ctx context.Context, userID int64, limit int) ([]Memory, error)
 	UpsertMemory(ctx context.Context, memory Memory) (Memory, error)
 	DeleteMemory(ctx context.Context, userID, id int64) error
+	CreateFile(ctx context.Context, file File) (File, error)
+	ListFiles(ctx context.Context, userID int64, limit int) ([]File, error)
+	GetFilesByIDs(ctx context.Context, userID int64, ids []int64) ([]File, error)
 	ListRuns(ctx context.Context, userID int64, featurePrefix string, limit int) ([]ai.Run, error)
 }
 
@@ -45,10 +48,18 @@ type modelSmokeAIResult struct {
 	Reply string `json:"reply"`
 }
 
+type messageMetadata struct {
+	Kind         string  `json:"kind,omitempty"`
+	ReferenceIDs []int64 `json:"reference_ids,omitempty"`
+}
+
 const (
 	messageKindCompareQuestion = "compare_question"
 	messageKindCompareAnswer   = "compare_answer"
 	messageKindCompareSummary  = "compare_summary"
+	maxFileContentBytes        = 120000
+	maxReferenceFiles          = 5
+	maxReferencePromptBytes    = 6000
 )
 
 func NewService(repository Repository, generator JSONGenerator) *Service {
@@ -187,6 +198,10 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 		return SendMessageResult{}, err
 	}
 	now := s.now()
+	references, err := s.referenceFiles(ctx, input.UserID, input.ReferenceIDs)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
 	userMessage, err := s.repository.CreateMessage(ctx, Message{
 		UserID:    input.UserID,
 		ThreadID:  input.ThreadID,
@@ -194,12 +209,13 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 		Content:   content,
 		Status:    MessageStatusCompleted,
 		Model:     model,
+		Metadata:  referenceMetadata(input.ReferenceIDs),
 		CreatedAt: now,
 	})
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model)
+	aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, references)
 	if err != nil {
 		_, _ = s.repository.CreateMessage(ctx, Message{
 			UserID:    input.UserID,
@@ -209,6 +225,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 			Status:    MessageStatusFailed,
 			Model:     model,
 			ErrorCode: "invalid_ai_result",
+			Metadata:  referenceMetadata(input.ReferenceIDs),
 			CreatedAt: s.now(),
 		})
 		return SendMessageResult{}, err
@@ -264,7 +281,7 @@ func (s *Service) CompareMessages(ctx context.Context, input CompareMessagesInpu
 
 	answers := make([]CompareAnswer, 0, len(models))
 	for _, model := range models {
-		aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model)
+		aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, nil)
 		if err != nil {
 			message, _ := s.repository.CreateMessage(ctx, Message{
 				UserID:    input.UserID,
@@ -418,7 +435,40 @@ func (s *Service) DeleteMemory(ctx context.Context, userID, id int64) error {
 	return s.repository.DeleteMemory(ctx, userID, id)
 }
 
-func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread, content, model string) (ai.GenerateJSONResult, chatAIResult, error) {
+func (s *Service) SaveFile(ctx context.Context, input FileInput) (File, error) {
+	if s.repository == nil {
+		return File{}, ErrServiceNotReady
+	}
+	file, err := fileFromInput(input, s.now())
+	if err != nil {
+		return File{}, err
+	}
+	return s.repository.CreateFile(ctx, file)
+}
+
+func (s *Service) ListFiles(ctx context.Context, userID int64, limit int) ([]File, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	return s.repository.ListFiles(ctx, userID, normalizeLimit(limit, 50))
+}
+
+func (s *Service) referenceFiles(ctx context.Context, userID int64, ids []int64) ([]File, error) {
+	ids = normalizeReferenceIDs(ids)
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	files, err := s.repository.GetFilesByIDs(ctx, userID, ids)
+	if err != nil {
+		return nil, err
+	}
+	if len(files) != len(ids) {
+		return nil, ErrFileNotFound
+	}
+	return files, nil
+}
+
+func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread, content, model string, references []File) (ai.GenerateJSONResult, chatAIResult, error) {
 	memories, _ := s.repository.ListMemories(ctx, userID, 20)
 	messages, _ := s.repository.ListMessages(ctx, userID, thread.ID, 12)
 	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
@@ -427,7 +477,7 @@ func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread
 		PromptVersion:  "copilot_chat_v1",
 		Model:          model,
 		SystemPrompt:   "你是智活 Copilot，回答要直接、可执行。必须只返回 JSON，字段严格匹配 copilot_chat_response。",
-		UserPrompt:     buildUserPrompt(thread, memories, messages, content),
+		UserPrompt:     buildUserPrompt(thread, memories, messages, references, content),
 		SchemaName:     "copilot_chat_response",
 		Validate:       validateChatJSON,
 		RepairAttempts: 1,
@@ -471,7 +521,7 @@ func (s *Service) generateSummary(ctx context.Context, userID int64, prompt, mod
 	return aiResult, result, nil
 }
 
-func buildUserPrompt(thread Thread, memories []Memory, messages []Message, content string) string {
+func buildUserPrompt(thread Thread, memories []Memory, messages []Message, references []File, content string) string {
 	var builder strings.Builder
 	builder.WriteString("会话标题：")
 	builder.WriteString(thread.Title)
@@ -489,6 +539,18 @@ func buildUserPrompt(thread Thread, memories []Memory, messages []Message, conte
 		builder.WriteString(": ")
 		builder.WriteString(message.Content)
 		builder.WriteString("\n")
+	}
+	if len(references) > 0 {
+		builder.WriteString("\n引用文件：\n")
+		for _, file := range references {
+			builder.WriteString("- ")
+			builder.WriteString(file.Name)
+			builder.WriteString(" (")
+			builder.WriteString(file.MimeType)
+			builder.WriteString("):\n")
+			builder.WriteString(truncateForPrompt(file.Content, maxReferencePromptBytes))
+			builder.WriteString("\n")
+		}
 	}
 	builder.WriteString("\n用户当前问题：")
 	builder.WriteString(content)
@@ -600,6 +662,72 @@ func memoryFromInput(input MemoryInput, now time.Time) (Memory, error) {
 	}, nil
 }
 
+func fileFromInput(input FileInput, now time.Time) (File, error) {
+	name := strings.TrimSpace(input.Name)
+	content := strings.TrimSpace(input.Content)
+	if name == "" || content == "" {
+		return File{}, ErrInvalidInput
+	}
+	if len([]byte(content)) > maxFileContentBytes {
+		return File{}, ErrInvalidInput
+	}
+	mimeType := strings.TrimSpace(input.MimeType)
+	if mimeType == "" {
+		mimeType = "text/plain"
+	}
+	return File{
+		UserID:    input.UserID,
+		Name:      name,
+		MimeType:  mimeType,
+		SizeBytes: len([]byte(content)),
+		Content:   content,
+		CreatedAt: now,
+	}, nil
+}
+
+func normalizeReferenceIDs(ids []int64) []int64 {
+	seen := map[int64]struct{}{}
+	normalized := make([]int64, 0, min(len(ids), maxReferenceFiles))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		normalized = append(normalized, id)
+		if len(normalized) == maxReferenceFiles {
+			break
+		}
+	}
+	return normalized
+}
+
+func referenceMetadata(ids []int64) []byte {
+	ids = normalizeReferenceIDs(ids)
+	if len(ids) == 0 {
+		return nil
+	}
+	data, _ := json.Marshal(messageMetadata{ReferenceIDs: ids})
+	return data
+}
+
+func truncateForPrompt(content string, maxBytes int) string {
+	if len([]byte(content)) <= maxBytes {
+		return content
+	}
+	var builder strings.Builder
+	for _, next := range content {
+		if builder.Len()+len(string(next)) > maxBytes {
+			break
+		}
+		builder.WriteRune(next)
+	}
+	builder.WriteString("\n[内容已截断]")
+	return builder.String()
+}
+
 func normalizeLimit(limit, fallback int) int {
 	if limit <= 0 {
 		return fallback
@@ -611,7 +739,8 @@ func normalizeLimit(limit, fallback int) int {
 }
 
 func messageKindMetadata(kind string) []byte {
-	return []byte(fmt.Sprintf(`{"kind":%q}`, kind))
+	data, _ := json.Marshal(messageMetadata{Kind: kind})
+	return data
 }
 
 func normalizeModelOptions(models []ModelOption) []ModelOption {

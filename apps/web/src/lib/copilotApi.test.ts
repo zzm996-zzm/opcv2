@@ -37,13 +37,13 @@ describe("copilotApi", () => {
       new Response(JSON.stringify({ user_message: {}, assistant_message: {} }), { status: 200 })
     );
 
-    await copilotApi.sendMessage(99, { content: "帮我分析机会", model: "gpt-test" });
+    await copilotApi.sendMessage(99, { content: "帮我分析机会", model: "gpt-test", reference_ids: [17] });
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/copilot/threads/99/messages",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ content: "帮我分析机会", model: "gpt-test" })
+        body: JSON.stringify({ content: "帮我分析机会", model: "gpt-test", reference_ids: [17] })
       })
     );
   });
@@ -181,6 +181,29 @@ describe("copilotApi", () => {
       3,
       "/api/v1/copilot/memories/7",
       expect.objectContaining({ method: "DELETE" })
+    );
+  });
+
+  it("lists and uploads copilot reference files", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ files: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 17, name: "竞品对比.txt" }), { status: 200 }));
+
+    await copilotApi.listFiles();
+    await copilotApi.saveFile({ name: "竞品对比.txt", mime_type: "text/plain", content: "小鹅通：私域工具强。" });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/v1/copilot/files?limit=50",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/copilot/files",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "竞品对比.txt", mime_type: "text/plain", content: "小鹅通：私域工具强。" })
+      })
     );
   });
 });

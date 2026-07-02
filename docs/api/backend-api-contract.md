@@ -405,7 +405,7 @@ Errors:
 
 ## Copilot
 
-All Copilot endpoints are protected. This first version is non-streaming and does not include RAG or file upload.
+All Copilot endpoints are protected. This version is non-streaming. File support stores text content and can inject selected references into Copilot prompts; binary parsing, object storage, embeddings, and full RAG retrieval are not included yet.
 
 ### Create Thread
 
@@ -630,13 +630,16 @@ Request:
 ```json
 {
   "content": "帮我分析智能客服市场机会",
-  "model": "gpt-4o"
+  "model": "gpt-4o",
+  "reference_ids": [17]
 }
 ```
 
 Validation:
 
 - `content` must be non-empty after trimming.
+- `reference_ids` is optional; up to five positive, unique IDs are used.
+- Referenced files must belong to the authenticated user.
 
 Response `200`:
 
@@ -794,3 +797,48 @@ Errors:
 
 - `400 invalid_memory_id`
 - `404 memory_not_found`
+
+### List Files
+
+`GET /api/v1/copilot/files?limit=50`
+
+Response:
+
+```json
+{
+  "files": [
+    {
+      "id": 17,
+      "user_id": 42,
+      "name": "智能客服竞品功能对比表.txt",
+      "mime_type": "text/plain",
+      "size_bytes": 64,
+      "content": "小鹅通：私域工具强；有赞教育：交易能力强。",
+      "created_at": "2026-07-02T09:00:00Z",
+      "updated_at": "2026-07-02T09:00:00Z"
+    }
+  ]
+}
+```
+
+### Save File
+
+`POST /api/v1/copilot/files`
+
+Request:
+
+```json
+{
+  "name": "客户访谈纪要.txt",
+  "mime_type": "text/plain",
+  "content": "客户最关注响应速度和私域转化。"
+}
+```
+
+Validation:
+
+- `name` and `content` must be non-empty after trimming.
+- `mime_type` defaults to `text/plain`.
+- `content` is capped at 120,000 bytes.
+
+Response `200`: `CopilotFile`

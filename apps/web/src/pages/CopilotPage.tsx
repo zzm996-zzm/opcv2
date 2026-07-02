@@ -2,7 +2,7 @@ import { FormEvent, forwardRef, useEffect, useMemo, useRef, useState } from "rea
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
-import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotMemory, type CopilotMessage, type CopilotModelOption, type CopilotThread, type ModelSmokeResult } from "../lib/copilotApi";
+import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotFile, type CopilotMemory, type CopilotMessage, type CopilotModelOption, type CopilotThread, type ModelSmokeResult } from "../lib/copilotApi";
 
 export type CopilotVariant = "home" | "new" | "models" | "files" | "memories" | "compare" | "rename" | "delete";
 type ComposerPopover = "models" | "files" | "memories" | null;
@@ -131,6 +131,8 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [compareSummary, setCompareSummary] = useState<CopilotMessage | null>(null);
   const [compareModelValues, setCompareModelValues] = useState<string[]>([fallbackModels[0].value]);
   const [memories, setMemories] = useState<CopilotMemory[]>([]);
+  const [files, setFiles] = useState<CopilotFile[]>([]);
+  const [selectedReferenceIDs, setSelectedReferenceIDs] = useState<number[]>([]);
   const [aiRuns, setAIRuns] = useState<CopilotAIRun[]>([]);
   const [smokeResult, setSmokeResult] = useState<ModelSmokeResult | null>(null);
   const [draft, setDraft] = useState("");
@@ -141,6 +143,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [isSending, setIsSending] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
+  const [isSavingFile, setIsSavingFile] = useState(false);
   const [isTestingModel, setIsTestingModel] = useState(false);
   const [useHistoryFallback, setUseHistoryFallback] = useState(false);
   const [error, setError] = useState("");
@@ -196,7 +199,10 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       .listMessages(activeThreadID)
       .then((payload) => {
         if (!active) return;
-        setMessages(payload.messages);
+        setMessages((current) => {
+          const optimisticMessages = current.filter((message) => message.id < 0 && message.thread_id === activeThreadID);
+          return optimisticMessages.length > 0 ? [...payload.messages, ...optimisticMessages] : payload.messages;
+        });
         if (isCompare) {
           const rebuilt = rebuildCompareState(payload.messages);
           setCompareQuestion(rebuilt.question);
@@ -227,6 +233,22 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       active = false;
     };
   }, [showMemoryPanel]);
+
+  useEffect(() => {
+    if (activePopover !== "files") return;
+    let active = true;
+    copilotApi
+      .listFiles()
+      .then((payload) => {
+        if (active) setFiles(payload.files);
+      })
+      .catch(() => {
+        if (active) setError("暂时无法加载引用文件");
+      });
+    return () => {
+      active = false;
+    };
+  }, [activePopover]);
 
   useEffect(() => {
     if (!showModelPicker) return;
@@ -348,7 +370,11 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         userID: thread.user_id
       });
       setMessages((current) => [...current, optimisticUserMessage]);
-      const result = await copilotApi.sendMessage(thread.id, { content, model: selectedModel });
+      const result = await copilotApi.sendMessage(thread.id, {
+        content,
+        model: selectedModel,
+        reference_ids: selectedReferenceIDs
+      });
       setMessages((current) => [
         ...current.filter((message) => message.id !== optimisticUserMessage.id),
         result.user_message,
@@ -452,6 +478,26 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     }
   }
 
+  async function handleSaveFile(input: { name: string; content: string }) {
+    setIsSavingFile(true);
+    setError("");
+    try {
+      const file = await copilotApi.saveFile({ name: input.name, mime_type: "text/plain", content: input.content });
+      setFiles((current) => [file, ...current.filter((item) => item.id !== file.id)]);
+      setSelectedReferenceIDs((current) => current.includes(file.id) ? current : [...current, file.id]);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "保存文件失败");
+    } finally {
+      setIsSavingFile(false);
+    }
+  }
+
+  function handleToggleReference(id: number) {
+    setSelectedReferenceIDs((current) => (
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    ));
+  }
+
   function handleToggleCompareModel(value: string) {
     setCompareModelValues((current) => {
       if (current.includes(value)) {
@@ -541,9 +587,15 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
             onPopoverChange={setActivePopover}
             ref={composerWrapRef}
             memories={memories}
+            files={files}
+            selectedReferenceIDs={selectedReferenceIDs}
             isSavingMemory={isSavingMemory}
+            isSavingFile={isSavingFile}
             onSaveMemory={handleSaveMemory}
             onDeleteMemory={handleDeleteMemory}
+            onSaveFile={handleSaveFile}
+            onToggleReference={handleToggleReference}
+            onInsertReferences={() => setActivePopover(null)}
             compare={isCompare}
           />
         </div>
@@ -847,13 +899,19 @@ const Composer = forwardRef<HTMLDivElement, {
   model: string;
   models: CopilotModel[];
   memories: CopilotMemory[];
+  files: CopilotFile[];
+  selectedReferenceIDs: number[];
   isSending: boolean;
   isSavingMemory: boolean;
+  isSavingFile: boolean;
   error: string;
   onDraftChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onSaveMemory: (input: { key: string; value: string }) => void;
   onDeleteMemory: (id: number) => void;
+  onSaveFile: (input: { name: string; content: string }) => void;
+  onToggleReference: (id: number) => void;
+  onInsertReferences: () => void;
   onSubmit: (event: FormEvent) => void;
   activePopover?: ComposerPopover;
   onPopoverChange: (popover: ComposerPopover) => void;
@@ -863,13 +921,19 @@ const Composer = forwardRef<HTMLDivElement, {
   model,
   models,
   memories,
+  files,
+  selectedReferenceIDs,
   isSending,
   isSavingMemory,
+  isSavingFile,
   error,
   onDraftChange,
   onModelChange,
   onSaveMemory,
   onDeleteMemory,
+  onSaveFile,
+  onToggleReference,
+  onInsertReferences,
   onSubmit,
   activePopover,
   onPopoverChange,
@@ -888,7 +952,16 @@ const Composer = forwardRef<HTMLDivElement, {
   return (
     <div className="copilot-composer-wrap" ref={ref}>
       {showModelPicker && <ModelPicker models={models} selectedModel={model} onSelect={onModelChange} />}
-      {showReferencePicker && <ReferencePicker />}
+      {showReferencePicker && (
+        <ReferencePicker
+          files={files}
+          isSavingFile={isSavingFile}
+          selectedIDs={selectedReferenceIDs}
+          onInsert={onInsertReferences}
+          onSaveFile={onSaveFile}
+          onToggle={onToggleReference}
+        />
+      )}
       {showMemoryPanel && (
         <MemoryPanel
           isSaving={isSavingMemory}
@@ -1083,18 +1156,91 @@ function ModelDiagnosticsPanel({
   );
 }
 
-function ReferencePicker() {
+function ReferencePicker({
+  files,
+  isSavingFile,
+  selectedIDs,
+  onSaveFile,
+  onToggle,
+  onInsert
+}: {
+  files: CopilotFile[];
+  isSavingFile: boolean;
+  selectedIDs: number[];
+  onSaveFile: (input: { name: string; content: string }) => void;
+  onToggle: (id: number) => void;
+  onInsert: () => void;
+}) {
+  const [fileName, setFileName] = useState("");
+  const [fileContent, setFileContent] = useState("");
   let previousSection = "";
+  const hasBackendFiles = files.length > 0;
+
+  function handleSave(event: FormEvent) {
+    event.preventDefault();
+    const name = fileName.trim();
+    const content = fileContent.trim();
+    if (!name || !content || isSavingFile) return;
+    onSaveFile({ name, content });
+    setFileName("");
+    setFileContent("");
+  }
 
   return (
     <div className="copilot-popover reference-picker" role="dialog" aria-label="引用">
       <h2>引用</h2>
+      <form className="reference-upload-form" onSubmit={handleSave}>
+        <label>
+          <span>文件名称</span>
+          <input
+            aria-label="文件名称"
+            onChange={(event) => setFileName(event.target.value)}
+            placeholder="例如：客户访谈纪要.txt"
+            value={fileName}
+          />
+        </label>
+        <label>
+          <span>文件内容</span>
+          <textarea
+            aria-label="文件内容"
+            onChange={(event) => setFileContent(event.target.value)}
+            placeholder="粘贴需要 Copilot 引用的文本内容"
+            value={fileContent}
+          />
+        </label>
+        <button disabled={isSavingFile || !fileName.trim() || !fileContent.trim()} type="submit">
+          {isSavingFile ? "保存中" : "保存文件"}
+        </button>
+      </form>
       <label className="reference-search">
         <span aria-hidden="true">⌕</span>
         <input placeholder="搜索文件、对话或我的内容" />
       </label>
       <div className="reference-list">
-        {referenceItems.map((item) => {
+        {hasBackendFiles ? (
+          <div>
+            <h3>最近上传文件</h3>
+            {files.map((file) => {
+              const selected = selectedIDs.includes(file.id);
+              return (
+                <label key={file.id} className={selected ? "checked" : ""}>
+                  <input
+                    aria-label={`引用 ${file.name}`}
+                    checked={selected}
+                    onChange={() => onToggle(file.id)}
+                    type="checkbox"
+                  />
+                  <span className="reference-file sheet" aria-hidden="true" />
+                  <span>
+                    <strong>{file.name}</strong>
+                    <small>{file.mime_type} · {formatFileSize(file.size_bytes)}</small>
+                  </span>
+                  <em>{formatTime(file.updated_at)}</em>
+                </label>
+              );
+            })}
+          </div>
+        ) : referenceItems.map((item) => {
           const showSection = item.section !== previousSection;
           previousSection = item.section;
 
@@ -1116,8 +1262,8 @@ function ReferencePicker() {
         })}
       </div>
       <footer>
-        <span>已选择 1 项</span>
-        <button type="button">插入引用</button>
+        <span>已选择 {selectedIDs.length} 项</span>
+        <button onClick={onInsert} type="button">插入引用</button>
       </footer>
     </div>
   );
@@ -1204,6 +1350,13 @@ function formatTime(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function formatFileSize(bytes?: number) {
+  if (!bytes || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function toDisplayModels(models: CopilotModelOption[]): CopilotModel[] {
