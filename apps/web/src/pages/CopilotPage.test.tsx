@@ -138,6 +138,22 @@ describe("CopilotPage", () => {
     });
   });
 
+  it("shows selected reference files after inserting them", async () => {
+    mockCopilotBackend();
+    renderPage("files");
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "引用 智能客服竞品功能对比表.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "插入引用" }));
+
+    expect(screen.queryByRole("dialog", { name: "引用" })).not.toBeInTheDocument();
+    const selectedReferences = screen.getByRole("status", { name: "已插入引用" });
+    expect(selectedReferences).toHaveTextContent("智能客服竞品功能对比表.txt");
+
+    fireEvent.click(screen.getByRole("button", { name: "移除引用 智能客服竞品功能对比表.txt" }));
+
+    expect(screen.queryByRole("status", { name: "已插入引用" })).not.toBeInTheDocument();
+  });
+
   it("uploads pasted text as a copilot reference file", async () => {
     const fetchMock = mockCopilotBackend();
     renderPage("files");
@@ -160,7 +176,9 @@ describe("CopilotPage", () => {
         })
       );
     });
-    expect(await screen.findByText("新增访谈纪要.txt")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("新增访谈纪要.txt").length).toBeGreaterThan(0);
+    });
   });
 
   it("renders and manages copilot memories", async () => {

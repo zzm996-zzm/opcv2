@@ -944,6 +944,10 @@ const Composer = forwardRef<HTMLDivElement, {
   const showModelPicker = activePopover === "models";
   const showReferencePicker = activePopover === "files";
   const showMemoryPanel = activePopover === "memories";
+  const selectedReferenceFiles = useMemo(
+    () => files.filter((file) => selectedReferenceIDs.includes(file.id)),
+    [files, selectedReferenceIDs]
+  );
 
   function handleVoiceDraft() {
     onDraftChange(draft.trim() ? `${draft} ` : "请帮我整理这段语音输入的核心需求：");
@@ -969,6 +973,23 @@ const Composer = forwardRef<HTMLDivElement, {
           onDelete={onDeleteMemory}
           onSave={onSaveMemory}
         />
+      )}
+      {selectedReferenceFiles.length > 0 && (
+        <div className="selected-reference-bar" role="status" aria-label="已插入引用">
+          <span>已引用</span>
+          {selectedReferenceFiles.map((file) => (
+            <button
+              aria-label={`移除引用 ${file.name}`}
+              key={file.id}
+              onClick={() => onToggleReference(file.id)}
+              type="button"
+            >
+              <span className="reference-file sheet" aria-hidden="true" />
+              <strong>{file.name}</strong>
+              <em aria-hidden="true">×</em>
+            </button>
+          ))}
+        </div>
       )}
       <form className="copilot-composer" aria-label="Copilot 输入框" onSubmit={onSubmit}>
         <label className="sr-only" htmlFor="copilot-question">输入你的问题</label>

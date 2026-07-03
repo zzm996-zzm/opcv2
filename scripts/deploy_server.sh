@@ -25,6 +25,41 @@ compose() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+git_repo() {
+  git -c safe.directory="$ROOT_DIR" -C "$ROOT_DIR" "$@"
+}
+
+backup_dirty_worktree() {
+  local status
+  status="$(git_repo status --porcelain)"
+  if [[ -z "$status" ]]; then
+    return
+  fi
+
+  local backup_dir timestamp untracked_list
+  timestamp="$(date +%Y%m%d-%H%M%S)"
+  backup_dir="${ROOT_DIR}/.deploy-backups/dirty-${timestamp}"
+  mkdir -p "$backup_dir"
+  printf '%s\n' "$status" > "${backup_dir}/status.txt"
+  git_repo diff > "${backup_dir}/tracked.diff"
+
+  untracked_list="${backup_dir}/untracked.list"
+  git_repo ls-files --others --exclude-standard \
+    -- ':!/.env' ':!/.env.server' ':!/.deploy-backups' > "$untracked_list"
+  if [[ -s "$untracked_list" ]]; then
+    tar -C "$ROOT_DIR" -czf "${backup_dir}/untracked.tgz" -T "$untracked_list"
+  fi
+
+  echo "backed up dirty worktree to: $backup_dir"
+}
+
+sync_clean_worktree() {
+  backup_dirty_worktree
+  git_repo fetch --prune origin
+  git_repo reset --hard '@{upstream}'
+  git_repo clean -fd -e .env -e .env.server -e .deploy-backups/
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -80,7 +115,7 @@ case "$cmd" in
     compose "${up_args[@]}"
     ;;
   update)
-    git -C "$ROOT_DIR" pull --ff-only
+    sync_clean_worktree
     compose "${up_args[@]}"
     ;;
   down)

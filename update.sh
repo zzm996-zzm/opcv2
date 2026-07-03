@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REMOTE_HOST="${DEPLOY_HOST:-prod}"
-REMOTE_DIR="${DEPLOY_PATH:-~/data/www/opcv2}"
+REMOTE_DIR="${DEPLOY_PATH:-/data/www/opcv2}"
 REMOTE_COMMAND="${1:-update}"
 shift || true
 

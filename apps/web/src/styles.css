@@ -24684,6 +24684,8 @@ a {
 
 .reference-picker {
   left: 210px;
+  display: flex;
+  flex-direction: column;
   width: 310px;
   overflow: hidden;
 }
@@ -24768,9 +24770,11 @@ a {
 }
 
 .reference-list {
-  max-height: 350px;
+  flex: 1 1 180px;
+  min-height: 112px;
   padding: 0 14px 10px;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .reference-list h3 {
@@ -24845,6 +24849,7 @@ a {
 .reference-picker footer {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   justify-content: space-between;
   padding: 11px 14px;
   border-top: 1px solid rgba(31, 68, 140, 0.1);
@@ -24860,6 +24865,55 @@ a {
   border: 0;
   border-radius: 7px;
   font-weight: 800;
+}
+
+.selected-reference-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin: 0 0 8px;
+  padding: 0 2px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.selected-reference-bar > span {
+  flex: 0 0 auto;
+  color: #37528c;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.selected-reference-bar button {
+  display: inline-flex;
+  align-items: center;
+  max-width: 220px;
+  min-height: 32px;
+  flex: 0 0 auto;
+  gap: 7px;
+  padding: 4px 8px;
+  color: #123275;
+  background: #eef4ff;
+  border: 1px solid rgba(34, 76, 169, 0.16);
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.selected-reference-bar strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-reference-bar em {
+  color: #5572d9;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 900;
 }
 
 .memory-panel {
@@ -27689,7 +27743,8 @@ a {
   }
 
   .reference-list {
-    max-height: 290px;
+    flex-basis: 160px;
+    max-height: none;
   }
 
   .copilot-empty-state {
