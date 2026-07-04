@@ -19,8 +19,26 @@ export type ContentTool = {
   description?: string;
   url?: string;
   status: "draft" | "published";
+  category?: string;
   created_at: string;
   updated_at: string;
+};
+
+export type ToolFilters = {
+  category?: string;
+  q?: string;
+  sort?: string;
+  limit?: number;
+};
+
+export type FavoriteToolResult = {
+  slug: string;
+  favorited: boolean;
+};
+
+export type BookmarkArticleResult = {
+  slug: string;
+  bookmarked: boolean;
 };
 
 export type CommunityConfig = {
@@ -30,6 +48,44 @@ export type CommunityConfig = {
   join_url?: string;
   created_at: string;
   updated_at: string;
+};
+
+export type CommunityJoinInput = {
+  community: string;
+  contact: string;
+  note?: string;
+};
+
+export type CommunityJoinRequest = {
+  id: number;
+  user_id?: number;
+  community: string;
+  contact?: string;
+  note?: string;
+  status: string;
+  created_at: string;
+};
+
+export type HelpTopic = {
+  key: string;
+  name: string;
+};
+
+export type HelpArticleFilters = {
+  topic?: string;
+  q?: string;
+  limit?: number;
+};
+
+export type HelpArticle = {
+  id?: number;
+  slug: string;
+  topic: string;
+  title: string;
+  summary?: string;
+  body?: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type BrandMetric = {
@@ -51,6 +107,17 @@ export type BrandCase = {
   updated_at: string;
 };
 
+function queryString(params: Record<string, string | number | undefined>) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") {
+      search.set(key, String(value));
+    }
+  });
+  const encoded = search.toString();
+  return encoded ? `?${encoded}` : "";
+}
+
 export const contentApi = {
   listArticles() {
     return apiRequest<{ articles: ContentArticle[] }>("/api/v1/content/articles");
@@ -60,12 +127,59 @@ export const contentApi = {
     return apiRequest<ContentArticle>(`/api/v1/content/articles/${slug}`);
   },
 
-  listTools() {
-    return apiRequest<{ tools: ContentTool[] }>("/api/v1/content/tools");
+  bookmarkArticle(slug: string) {
+    return apiRequest<BookmarkArticleResult>(`/api/v1/content/articles/${slug}/bookmark`, {
+      method: "POST"
+    });
+  },
+
+  unbookmarkArticle(slug: string) {
+    return apiRequest<BookmarkArticleResult>(`/api/v1/content/articles/${slug}/bookmark`, {
+      method: "DELETE"
+    });
+  },
+
+  listTools(filters: ToolFilters = {}) {
+    return apiRequest<{ tools: ContentTool[] }>(`/api/v1/content/tools${queryString(filters)}`);
+  },
+
+  getTool(slug: string) {
+    return apiRequest<ContentTool>(`/api/v1/content/tools/${slug}`);
+  },
+
+  favoriteTool(slug: string) {
+    return apiRequest<FavoriteToolResult>(`/api/v1/content/tools/${slug}/favorite`, {
+      method: "POST"
+    });
+  },
+
+  unfavoriteTool(slug: string) {
+    return apiRequest<FavoriteToolResult>(`/api/v1/content/tools/${slug}/favorite`, {
+      method: "DELETE"
+    });
   },
 
   getCommunityConfig() {
     return apiRequest<CommunityConfig>("/api/v1/content/community");
+  },
+
+  joinCommunity(input: CommunityJoinInput) {
+    return apiRequest<CommunityJoinRequest>("/api/v1/community/join-requests", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+
+  listHelpTopics() {
+    return apiRequest<{ topics: HelpTopic[] }>("/api/v1/help/topics");
+  },
+
+  listHelpArticles(filters: HelpArticleFilters = {}) {
+    return apiRequest<{ articles: HelpArticle[] }>(`/api/v1/help/articles${queryString(filters)}`);
+  },
+
+  getHelpArticle(slug: string) {
+    return apiRequest<HelpArticle>(`/api/v1/help/articles/${slug}`);
   },
 
   getBrand() {

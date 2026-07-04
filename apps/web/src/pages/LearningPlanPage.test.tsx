@@ -46,19 +46,25 @@ describe("LearningPlanPage", () => {
   it("loads diagnosis recommendations into the learning path", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
-        id: 99,
-        user_id: 7,
-        goal: "提升企业AI落地能力",
-        project: "企业AI运营项目",
-        status: "completed",
-        overall_score: 82,
-        dimensions: [],
+        diagnosis_id: 99,
+        title: "企业AI落地能力路径",
+        description: "基于企业AI运营项目生成学习路径",
         recommendations: [
           "先学习企业AI落地打法专题，建立业务场景拆解框架。",
           "补充AI自动化运营实战，把任务流串成闭环。"
         ],
-        created_at: "2026-06-30T08:00:00Z",
-        updated_at: "2026-06-30T08:00:00Z"
+        stages: [{
+          number: 1,
+          title: "业务场景拆解",
+          status: "进行中",
+          courses: ["企业AI落地打法专题"],
+          duration: "6.0 小时",
+          goal: "建立业务场景拆解框架",
+          milestone: "完成项目拆解"
+        }],
+        estimated_hours: 24,
+        weekly_suggestion: "每周 8 小时",
+        generated_at: "2026-06-30T08:00:00Z"
       }), { status: 200 })
     );
 

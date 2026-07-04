@@ -1,6 +1,10 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { apiErrorMessage } from "../lib/apiErrors";
+import { authSession } from "../lib/authSession";
+import { contentApi, type CommunityConfig } from "../lib/contentApi";
 
 const memberFeatures = [
   ["经验分享", "实战经验与避坑指南"],
@@ -15,46 +19,62 @@ const enterpriseFeatures = [
 ] as const;
 
 const valueItems = [
-  ["高质量人脉圈", "连接 1,500+ 优质创业者与企业决策者"],
+  ["高质量人脉圈", "连接优质创业者与企业决策者"],
   ["实战经验共享", "真实案例、避坑指南、增长方法"],
   ["优质资源对接", "资金、渠道、技术、人才资源"],
   ["行业机会发现", "洞察趋势、发现合作与增长机会"]
 ] as const;
 
-const memberPosts = [
-  ["产品", "实战经验：如何用AI提升私域运营效率", "王磊 · 3小时前", "23", "18"],
-  ["小林创业中", "从0到1搭建私域的3个关键动作", "2小时前", "18", "19"],
-  ["在线上", "AI+内容如何打造低成本获客闭环？", "5小时前", "31", "15"]
-] as const;
-
-const weekEvents = [
-  ["直播分享", "企业私域增长的底层逻辑与实操打法", "智活AI增长顾问 · 老K", "预约"],
-  ["案例拆解", "从冷启动到月入百万：真实案例拆解", "私域操盘手 · Abby", "预约"],
-  ["线下沙龙", "深圳创业者线下闭门交流会（限定20人）", "智活AI · 社群运营", "报名"]
-] as const;
-
-const memberStats = [
-  ["活跃成员", "1,204+", "本周新增 86"],
-  ["本周互动", "358", "话题回复数"],
-  ["干货分享", "62", "本周新增"],
-  ["资源对接", "95", "本周新增"]
-] as const;
-
 function CommunityMembersPage() {
+  const [config, setConfig] = useState<CommunityConfig | null>(null);
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    contentApi
+      .getCommunityConfig()
+      .then((payload) => {
+        if (active) setConfig(payload);
+      })
+      .catch((error) => {
+        if (active) setError(apiErrorMessage(error, "暂时无法读取社群配置"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function submitJoinRequest() {
+    setError("");
+    try {
+      const user = authSession.get().user;
+      await contentApi.joinCommunity({
+        community: "members",
+        contact: user?.phone || user?.account || user?.nickname || "unknown",
+        note: "希望加入创业成长互助社区"
+      });
+      setStatus("申请已提交");
+    } catch (error) {
+      setError(apiErrorMessage(error, "申请提交失败，请稍后再试"));
+    }
+  }
+
   return (
     <V4PageShell>
       <section className="community-page community-members-page" aria-label="会员社群">
         <main className="community-main community-members-main">
           <header className="community-members-head">
             <h1>AI社群</h1>
-            <p>连接高质量创业者与企业用户，分享经验、对接资源、共同成长</p>
+            <p>{config?.description ?? "连接高质量创业者与企业用户，分享经验、对接资源、共同成长"}</p>
+            {error && <small className="form-error" role="alert">{error}</small>}
           </header>
 
           <section className="community-entry-grid community-members-entry" aria-label="社群入口">
             <article className="community-entry-card community-member-card free">
               <span>会员社群</span>
               <h2>创业成长互助社区</h2>
-              <p>与1,200+ 创业者一起学习、交流、成长</p>
+              <p>与创业者一起学习、交流、成长</p>
               <div className="community-feature-row community-member-feature-grid">
                 {memberFeatures.map(([title, desc]) => (
                   <section key={title}>
@@ -65,7 +85,7 @@ function CommunityMembersPage() {
                 ))}
               </div>
               <Link to="/community/members">加入会员社群</Link>
-              <footer>已加入 1,204 人 · 本周新增 86 人</footer>
+              <footer>成员数据待接入</footer>
             </article>
 
             <article className="community-entry-card community-member-card vip">
@@ -82,7 +102,7 @@ function CommunityMembersPage() {
                 ))}
               </div>
               <Link to="/community/enterprise">加入企业社群</Link>
-              <footer>已加入 326 家企业 · 活跃率 78%</footer>
+              <footer>企业数据待接入</footer>
             </article>
           </section>
 
@@ -104,16 +124,7 @@ function CommunityMembersPage() {
               <header>
                 <h2>社群动态</h2>
               </header>
-              {memberPosts.map(([author, title, meta, likes, comments]) => (
-                <section key={title}>
-                  <i aria-hidden="true" />
-                  <div>
-                    <strong>{title}</strong>
-                    <small>{author} · {meta}</small>
-                  </div>
-                  <footer aria-label="互动数据">♡ {likes} / ◎ {comments}</footer>
-                </section>
-              ))}
+              <p>暂无社群动态</p>
               <Link className="community-panel-link" to="/community/members">查看全部动态 ›</Link>
             </article>
 
@@ -122,42 +133,25 @@ function CommunityMembersPage() {
                 <h2>本周活动预告</h2>
                 <Link to="/community/members">查看全部 ›</Link>
               </header>
-              {weekEvents.map(([type, title, host, action]) => (
-                <section key={title}>
-                  <i aria-hidden="true" />
-                  <div>
-                    <span>{type}</span>
-                    <strong>{title}</strong>
-                    <small>{host}</small>
-                  </div>
-                  <button type="button">{action}</button>
-                </section>
-              ))}
+              <p>暂无活动数据</p>
             </article>
 
             <article className="community-panel community-value community-member-stats">
               <h2>社群价值数据</h2>
-              <div className="community-value-grid">
-                {memberStats.map(([label, value, note]) => (
-                  <section key={label}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                    <small>{note}</small>
-                  </section>
-                ))}
-              </div>
+              <p>暂无社群价值数据</p>
             </article>
           </section>
 
           <section className="community-join-modal" role="dialog" aria-label="加入会员社群" aria-modal="true">
             <button aria-label="关闭加入会员社群弹窗" type="button">×</button>
             <h2>加入会员社群</h2>
-            <p>与 1,200+ 创业者一起交流成长</p>
+            <p>{config?.headline ?? "提交申请后由社群助手联系入群"}</p>
             <div className="community-qr" aria-label="会员社群二维码">
               <i aria-hidden="true" />
             </div>
             <small>使用微信扫一扫，添加社群小助手，拉你入群</small>
-            <button type="button">我知道了</button>
+            {status && <strong>{status}</strong>}
+            <button onClick={submitJoinRequest} type="button">提交会员社群申请</button>
           </section>
         </main>
 
@@ -174,21 +168,11 @@ function CommunityMembersPage() {
           </header>
 
           <div className="learning-chat community-chat community-member-chat">
-            <article>
-              <span className="ai-avatar">A</span>
-              <p>您好，张婧 👋<br />我是您的智能助手，可以帮您：<br />· 找工具、做分析、出方案、提建议</p>
-            </article>
-            <article>
-              <span className="ai-avatar">A</span>
-              <p>帮我分析一下智能硬件赛道的市场机会</p>
-            </article>
+            <p>暂无社群助手对话</p>
           </div>
 
           <section className="community-report-card">
-            <Link to="/analysis" aria-label="智能硬件市场分析报告.pdf">
-              <i aria-hidden="true">PDF</i>
-              <span><b>智能硬件市场分析报告.pdf</b><small>PDF · 2.4MB</small></span>
-            </Link>
+            <p>暂无社群报告</p>
           </section>
 
           <nav className="learning-copilot-actions" aria-label="社群助手快捷入口">

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/analysis"
 	"github.com/zzm/opcv2/internal/auth"
 	"github.com/zzm/opcv2/internal/competitor"
@@ -16,12 +17,17 @@ import (
 	"github.com/zzm/opcv2/internal/copilot"
 	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/dashboard"
+	"github.com/zzm/opcv2/internal/enterprise"
+	"github.com/zzm/opcv2/internal/geo"
 	"github.com/zzm/opcv2/internal/growth"
+	"github.com/zzm/opcv2/internal/home"
 	"github.com/zzm/opcv2/internal/leads"
 	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
+	"github.com/zzm/opcv2/internal/notifications"
 	"github.com/zzm/opcv2/internal/projects"
 	"github.com/zzm/opcv2/internal/sandbox"
+	"github.com/zzm/opcv2/internal/support"
 	"github.com/zzm/opcv2/internal/tasks"
 )
 
@@ -33,20 +39,26 @@ type HealthChecks struct {
 }
 
 type Handlers struct {
-	Auth       *auth.HTTPHandler
-	Membership *membership.HTTPHandler
-	Analysis   *analysis.HTTPHandler
-	Projects   *projects.HTTPHandler
-	Leads      *leads.HTTPHandler
-	CRM        *crm.HTTPHandler
-	Content    *content.HTTPHandler
-	Sandbox    *sandbox.HTTPHandler
-	Tasks      *tasks.HTTPHandler
-	Dashboard  *dashboard.HTTPHandler
-	Growth     *growth.HTTPHandler
-	Competitor *competitor.HTTPHandler
-	Learning   *learning.HTTPHandler
-	Copilot    *copilot.HTTPHandler
+	Auth          *auth.HTTPHandler
+	Account       *account.HTTPHandler
+	Notifications *notifications.HTTPHandler
+	Home          *home.HTTPHandler
+	Membership    *membership.HTTPHandler
+	Analysis      *analysis.HTTPHandler
+	Projects      *projects.HTTPHandler
+	Leads         *leads.HTTPHandler
+	CRM           *crm.HTTPHandler
+	Content       *content.HTTPHandler
+	Support       *support.HTTPHandler
+	Sandbox       *sandbox.HTTPHandler
+	Tasks         *tasks.HTTPHandler
+	Dashboard     *dashboard.HTTPHandler
+	Geo           *geo.HTTPHandler
+	Enterprise    *enterprise.HTTPHandler
+	Growth        *growth.HTTPHandler
+	Competitor    *competitor.HTTPHandler
+	Learning      *learning.HTTPHandler
+	Copilot       *copilot.HTTPHandler
 }
 
 func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
@@ -80,6 +92,21 @@ func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
 	if handlers.Learning != nil {
 		handlers.Learning.RegisterPublic(api)
 	}
+	if handlers.Auth != nil && handlers.Account != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Account.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Notifications != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Notifications.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Home != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Home.Register(protected)
+	}
 	if handlers.Auth != nil && handlers.Membership != nil {
 		protected := api.Group("")
 		protected.Use(handlers.Auth.RequireAccessToken())
@@ -108,7 +135,13 @@ func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
 	if handlers.Auth != nil && handlers.Content != nil {
 		protected := api.Group("")
 		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Content.RegisterProtected(protected)
 		handlers.Content.RegisterAdmin(protected)
+	}
+	if handlers.Auth != nil && handlers.Support != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Support.Register(protected)
 	}
 	if handlers.Auth != nil && handlers.Sandbox != nil {
 		protected := api.Group("")
@@ -124,6 +157,16 @@ func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
 		protected := api.Group("")
 		protected.Use(handlers.Auth.RequireAccessToken())
 		handlers.Dashboard.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Geo != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Geo.Register(protected)
+	}
+	if handlers.Auth != nil && handlers.Enterprise != nil {
+		protected := api.Group("")
+		protected.Use(handlers.Auth.RequireAccessToken())
+		handlers.Enterprise.Register(protected)
 	}
 	if handlers.Auth != nil && handlers.Growth != nil {
 		protected := api.Group("")

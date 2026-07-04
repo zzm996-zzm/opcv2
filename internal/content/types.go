@@ -11,11 +11,12 @@ const (
 )
 
 var (
-	ErrServiceNotReady = errors.New("content service is not configured")
-	ErrInvalidInput    = errors.New("invalid content input")
-	ErrAdminRequired   = errors.New("admin role required")
-	ErrArticleNotFound = errors.New("content article not found")
-	ErrToolNotFound    = errors.New("content tool not found")
+	ErrServiceNotReady     = errors.New("content service is not configured")
+	ErrInvalidInput        = errors.New("invalid content input")
+	ErrAdminRequired       = errors.New("admin role required")
+	ErrArticleNotFound     = errors.New("content article not found")
+	ErrToolNotFound        = errors.New("content tool not found")
+	ErrHelpArticleNotFound = errors.New("help article not found")
 )
 
 type ArticleInput struct {
@@ -44,6 +45,7 @@ type ToolInput struct {
 	Description string `json:"description,omitempty"`
 	URL         string `json:"url,omitempty"`
 	Status      string `json:"status,omitempty"`
+	Category    string `json:"category,omitempty"`
 }
 
 type Tool struct {
@@ -53,8 +55,26 @@ type Tool struct {
 	Description string    `json:"description,omitempty"`
 	URL         string    `json:"url,omitempty"`
 	Status      string    `json:"status"`
+	Category    string    `json:"category,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ToolFilters struct {
+	Category string
+	Query    string
+	Sort     string
+	Limit    int
+}
+
+type FavoriteResult struct {
+	Slug      string `json:"slug"`
+	Favorited bool   `json:"favorited"`
+}
+
+type BookmarkResult struct {
+	Slug       string `json:"slug"`
+	Bookmarked bool   `json:"bookmarked"`
 }
 
 type CommunityConfigInput struct {
@@ -70,6 +90,44 @@ type CommunityConfig struct {
 	JoinURL     string    `json:"join_url,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type CommunityJoinInput struct {
+	Community string `json:"community"`
+	Contact   string `json:"contact"`
+	Note      string `json:"note,omitempty"`
+}
+
+type CommunityJoinRequest struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id,omitempty"`
+	Community string    `json:"community"`
+	Contact   string    `json:"contact,omitempty"`
+	Note      string    `json:"note,omitempty"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type HelpTopic struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+type HelpArticleFilters struct {
+	Topic string
+	Query string
+	Limit int
+}
+
+type HelpArticle struct {
+	ID        int64     `json:"id,omitempty"`
+	Slug      string    `json:"slug"`
+	Topic     string    `json:"topic"`
+	Title     string    `json:"title"`
+	Summary   string    `json:"summary,omitempty"`
+	Body      string    `json:"body,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
 
 type BrandMetricInput struct {

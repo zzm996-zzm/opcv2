@@ -3,72 +3,26 @@ import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { growthApi, type GrowthModel } from "../lib/growthApi";
+import {
+  growthApi,
+  type GrowthForecast,
+  type GrowthModel,
+  type GrowthRecommendations,
+  type GrowthScenarios
+} from "../lib/growthApi";
 
-const growthStats = [
-  ["预计月收入", "¥18.6万"],
-  ["获客成本", "¥42"],
-  ["回本周期", "17天"],
-  ["净利润率", "38%"]
+const emptyGrowthStats = [
+  ["预计月收入", "¥0"],
+  ["获客成本", "¥0"],
+  ["回本周期", "0天"],
+  ["净利润率", "0.0%"]
 ] as const;
 
-const assumptions = [
-  ["月访问量", "24,000", "来自内容、社群和投放入口"],
-  ["线索转化率", "6.8%", "访问到留资或预约咨询"],
-  ["成交转化率", "14%", "线索到首单客户"],
-  ["平均客单价", "¥820", "课程、服务包或 SaaS 首购"]
-] as const;
-
-const funnelSteps = [
-  { label: "曝光", value: "180,000", percent: 100, note: "内容矩阵 + 搜索收录" },
-  { label: "访问", value: "24,000", percent: 62, note: "落地页与工具入口" },
-  { label: "线索", value: "1,632", percent: 34, note: "表单 / 私域 / 预约" },
-  { label: "成交", value: "228", percent: 18, note: "顾问跟进与限时权益" }
-] as const;
-
-const scenarios = [
-  {
-    name: "保守方案",
-    revenue: "¥9.8万",
-    cost: "¥2.7万",
-    margin: "27%",
-    highlight: "适合冷启动：少投放，多依赖内容和社群转化。"
-  },
-  {
-    name: "标准方案",
-    revenue: "¥18.6万",
-    cost: "¥5.1万",
-    margin: "38%",
-    highlight: "当前推荐：投放验证关键词，私域承接高意向线索。"
-  },
-  {
-    name: "进攻方案",
-    revenue: "¥31.4万",
-    cost: "¥10.8万",
-    margin: "34%",
-    highlight: "适合预算充足：快速放量，但需要客服和交付能力同步扩容。"
-  }
-] as const;
-
-const monthlyForecast = [
-  ["第1月", "¥8.4万", "验证渠道", 28],
-  ["第2月", "¥13.9万", "优化转化", 44],
-  ["第3月", "¥18.6万", "稳定投放", 60],
-  ["第4月", "¥24.8万", "扩大渠道", 78],
-  ["第5月", "¥29.2万", "复购加成", 90]
-] as const;
-
-const costItems = [
-  ["内容生产", "¥12,000", "短视频、文章、案例页"],
-  ["投放预算", "¥26,000", "搜索词和信息流测试"],
-  ["工具订阅", "¥3,200", "线索、CRM、自动化工具"],
-  ["交付人力", "¥9,800", "顾问跟进与客户成功"]
-] as const;
-
-const actionItems = [
-  "把客单价从 ¥820 提升到 ¥980，利润率可增加 6 个点",
-  "优先优化线索到成交转化率，比单纯买流量更划算",
-  "把高意向线索同步到 CRM，并设置 24 小时跟进提醒"
+const emptyAssumptions = [
+  ["月访问量", "0", "暂无后端测算模型"],
+  ["线索转化率", "0.0%", "暂无后端测算模型"],
+  ["成交转化率", "0.0%", "暂无后端测算模型"],
+  ["平均客单价", "¥0", "暂无后端测算模型"]
 ] as const;
 
 function formatCurrency(value: number) {
@@ -101,33 +55,101 @@ function assumptionsForModel(model: GrowthModel) {
   ] as const;
 }
 
+function funnelForModel(model: GrowthModel | null) {
+  if (!model) return [];
+  const visits = model.assumptions.monthly_visits;
+  const leads = model.result.leads;
+  const deals = model.result.deals;
+  return [
+    { label: "访问", value: formatNumber(visits), percent: 100, note: "后端模型月访问量" },
+    { label: "线索", value: formatNumber(leads), percent: Math.max(Math.round(model.assumptions.lead_rate * 100), 1), note: "访问到留资或预约咨询" },
+    { label: "成交", value: formatNumber(deals), percent: Math.max(Math.round(model.assumptions.lead_rate * model.assumptions.deal_rate * 100), 1), note: "线索到首单客户" }
+  ];
+}
+
+function scenariosForView(view: GrowthScenarios | null) {
+  if (!view) return [];
+  return view.scenarios.map((scenario) => ({
+    name: scenario.name,
+    revenue: formatCurrency(scenario.revenue),
+    cost: formatCurrency(scenario.cost),
+    margin: formatPercent(scenario.margin),
+    highlight: scenario.highlight
+  }));
+}
+
+function forecastForView(view: GrowthForecast | null) {
+  if (!view) return [];
+  return view.months.map((month) => [
+    month.month,
+    formatCurrency(month.revenue),
+    month.phase,
+    month.progress_percent
+  ] as const);
+}
+
+function costItemsForView(view: GrowthRecommendations | null) {
+  if (!view) return [];
+  return view.cost_items.map((item) => [item.name, formatCurrency(item.amount), item.detail] as const);
+}
+
 function GrowthCalculatorPage() {
   const [latestModel, setLatestModel] = useState<GrowthModel | null>(null);
+  const [scenarioView, setScenarioView] = useState<GrowthScenarios | null>(null);
+  const [forecastView, setForecastView] = useState<GrowthForecast | null>(null);
+  const [recommendationView, setRecommendationView] = useState<GrowthRecommendations | null>(null);
   const [loadError, setLoadError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     let active = true;
-    growthApi
-      .listModels()
-      .then((payload) => {
+    async function loadModels() {
+      try {
+        const payload = await growthApi.listModels();
         if (!active) return;
-        setLatestModel(payload.models[0] ?? null);
+        const model = payload.models[0] ?? null;
+        setLatestModel(model);
         setLoadError("");
-      })
-      .catch((error) => {
+        if (!model) {
+          setScenarioView(null);
+          setForecastView(null);
+          setRecommendationView(null);
+          return;
+        }
+        const [scenariosPayload, forecastPayload, recommendationsPayload] = await Promise.all([
+          growthApi.modelScenarios(model.id).catch(() => null),
+          growthApi.modelForecast(model.id).catch(() => null),
+          growthApi.modelRecommendations(model.id).catch(() => null)
+        ]);
+        if (!active) return;
+        setScenarioView(scenariosPayload);
+        setForecastView(forecastPayload);
+        setRecommendationView(recommendationsPayload);
+      } catch (error) {
         if (!active) return;
         setLatestModel(null);
+        setScenarioView(null);
+        setForecastView(null);
+        setRecommendationView(null);
         setLoadError(apiErrorMessage(error, "暂时无法读取测算模型"));
-      });
+      }
+    }
+    void loadModels();
     return () => {
       active = false;
     };
   }, []);
 
-  const visibleStats = latestModel ? statsForModel(latestModel) : growthStats;
-  const visibleAssumptions = latestModel ? assumptionsForModel(latestModel) : assumptions;
-  const modelName = latestModel?.name ?? "智能客服系统 · 标准方案";
+  const visibleStats = latestModel ? statsForModel(latestModel) : emptyGrowthStats;
+  const visibleAssumptions = latestModel ? assumptionsForModel(latestModel) : emptyAssumptions;
+  const visibleFunnel = funnelForModel(latestModel);
+  const visibleScenarios = scenariosForView(scenarioView);
+  const visibleForecast = forecastForView(forecastView);
+  const visibleCostItems = costItemsForView(recommendationView);
+  const visibleActionItems = recommendationView?.action_items ?? [];
+  const recommendationHeadline = recommendationView?.headline ?? "暂无测算建议";
+  const recommendationSummary = recommendationView?.summary ?? "保存或选择一个测算模型后，这里会展示后端生成的增长建议。";
+  const modelName = latestModel?.name ?? "暂无测算模型";
 
   async function saveModel() {
     if (isSaving) return;
@@ -143,6 +165,14 @@ function GrowthCalculatorPage() {
         deliveryCost: 260
       });
       setLatestModel(model);
+      const [scenariosPayload, forecastPayload, recommendationsPayload] = await Promise.all([
+        growthApi.modelScenarios(model.id).catch(() => null),
+        growthApi.modelForecast(model.id).catch(() => null),
+        growthApi.modelRecommendations(model.id).catch(() => null)
+      ]);
+      setScenarioView(scenariosPayload);
+      setForecastView(forecastPayload);
+      setRecommendationView(recommendationsPayload);
     } catch {
       // Keep the current static/model values visible; error presentation can be centralized later.
     } finally {
@@ -200,7 +230,9 @@ function GrowthCalculatorPage() {
               </div>
             </div>
             <div className="growth-funnel">
-              {funnelSteps.map((step) => (
+              {visibleFunnel.length === 0 ? (
+                <div className="module-empty-state" role="status">暂无漏斗数据</div>
+              ) : visibleFunnel.map((step) => (
                 <article key={step.label}>
                   <div>
                     <strong>{step.label}</strong>
@@ -215,7 +247,9 @@ function GrowthCalculatorPage() {
 
           <aside className="growth-cost-card" aria-label="成本结构">
             <h2>成本结构</h2>
-            {costItems.map(([label, value, detail]) => (
+            {visibleCostItems.length === 0 ? (
+              <p className="module-empty-state">暂无成本结构</p>
+            ) : visibleCostItems.map(([label, value, detail]) => (
               <article key={label}>
                 <span>
                   <strong>{label}</strong>
@@ -240,7 +274,9 @@ function GrowthCalculatorPage() {
             </div>
           </div>
           <div className="growth-scenario-grid">
-            {scenarios.map((scenario) => (
+            {visibleScenarios.length === 0 ? (
+              <div className="module-empty-state" role="status">暂无情景对比</div>
+            ) : visibleScenarios.map((scenario) => (
               <article key={scenario.name}>
                 <h3>{scenario.name}</h3>
                 <strong>{scenario.revenue}</strong>
@@ -263,7 +299,9 @@ function GrowthCalculatorPage() {
               </div>
             </div>
             <div className="growth-chart" aria-label="5个月收入预测">
-              {monthlyForecast.map(([month, revenue, phase, height]) => (
+              {visibleForecast.length === 0 ? (
+                <div className="module-empty-state" role="status">暂无收入预测</div>
+              ) : visibleForecast.map(([month, revenue, phase, height]) => (
                 <article key={month}>
                   <div>
                     <span style={{ height: `${height}%` }} aria-hidden="true" />
@@ -277,10 +315,10 @@ function GrowthCalculatorPage() {
 
           <aside className="growth-action-card" aria-label="测算建议">
             <h2>AI 测算建议</h2>
-            <strong>先提成交率，再扩大预算</strong>
-            <p>当前模型里，成交转化率每提升 2 个点，比访问量增加 20% 更能改善利润。</p>
+            <strong>{recommendationHeadline}</strong>
+            <p>{recommendationSummary}</p>
             <div>
-              {actionItems.map((item) => <span key={item}>{item}</span>)}
+              {visibleActionItems.length === 0 ? <span>暂无行动建议</span> : visibleActionItems.map((item) => <span key={item}>{item}</span>)}
             </div>
             <Link to="/tasks">生成增长任务</Link>
           </aside>

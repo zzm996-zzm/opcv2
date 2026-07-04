@@ -509,6 +509,14 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <ProjectsPage variant="detail" />
+          </RequireAuth>
+        }
+        path="/projects/matches/:matchId"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <ProjectsPage variant="compare" />
           </RequireAuth>
         }
@@ -577,6 +585,14 @@ function App() {
           </RequireAuth>
         }
         path="/sandbox/report"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <SandboxPage variant="report" />
+          </RequireAuth>
+        }
+        path="/sandbox/sessions/:sessionId/report"
       />
       <Route
         element={

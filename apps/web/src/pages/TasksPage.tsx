@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { tasksApi, type Task, type TaskPriority, type TaskStatus } from "../lib/tasksApi";
+import { tasksApi, type Task, type TaskPriority, type TaskStats, type TaskStatus } from "../lib/tasksApi";
 
 type TaskRow = {
   id?: number;
@@ -17,57 +17,18 @@ type TaskRow = {
   learning: string;
 };
 
-const taskStats = [
-  ["今日待办", "5"],
-  ["进行中", "8"],
-  ["已完成", "27"],
-  ["提醒中", "4"]
+const emptyTaskStats = [
+  ["今日待办", "0"],
+  ["进行中", "0"],
+  ["已完成", "0"],
+  ["提醒中", "0"]
 ] as const;
 
-const taskRows: TaskRow[] = [
-  {
-    title: "完成智能客服系统项目商业画布",
-    project: "智能客服系统",
-    status: "进行中",
-    priority: "高",
-    due: "今天 18:00",
-    tools: ["Notion AI", "ChatGPT"],
-    learning: "B 端需求访谈"
-  },
-  {
-    title: "整理首批 20 个潜在客户名单",
-    project: "AI线索开发",
-    status: "待开始",
-    priority: "中",
-    due: "明天 10:00",
-    tools: ["表格助手", "CRM"],
-    learning: "线索评分"
-  },
-  {
-    title: "为短视频代运营项目生成报价模板",
-    project: "AI 短视频代运营",
-    status: "进行中",
-    priority: "中",
-    due: "06-16 15:00",
-    tools: ["Canva", "剪映专业版"],
-    learning: "服务产品化"
-  },
-  {
-    title: "复盘竞品招聘动态并输出应对建议",
-    project: "竞品动态监测",
-    status: "已完成",
-    priority: "低",
-    due: "06-12 17:30",
-    tools: ["竞品监测"],
-    learning: "竞争分析"
-  }
+const boardColumnLabels: Array<{ label: string; status: TaskStatus }> = [
+  { label: "待开始", status: "todo" },
+  { label: "进行中", status: "in_progress" },
+  { label: "已完成", status: "completed" }
 ];
-
-const boardColumns = [
-  ["待开始", ["整理客户名单", "预约顾问沟通"]],
-  ["进行中", ["项目商业画布", "报价模板"]],
-  ["已完成", ["竞品动态复盘", "工具清单整理"]]
-] as const;
 
 const statusLabels: Record<TaskStatus, string> = {
   todo: "待开始",
@@ -81,6 +42,14 @@ const priorityLabels: Record<TaskPriority, string> = {
   medium: "中",
   high: "高"
 };
+
+const statusFilters: Array<{ label: string; value?: TaskStatus }> = [
+  { label: "全部" },
+  { label: "待开始", value: "todo" },
+  { label: "进行中", value: "in_progress" },
+  { label: "已完成", value: "completed" },
+  { label: "提醒中", value: "reminder" }
+];
 
 function formatDueAt(dueAt?: string) {
   if (!dueAt) return "待安排";
@@ -108,7 +77,7 @@ function toTaskRow(task: Task): TaskRow {
 }
 
 function buildTaskStats(tasks: Task[]) {
-  if (tasks.length === 0) return taskStats;
+  if (tasks.length === 0) return emptyTaskStats;
   const countByStatus = tasks.reduce<Record<TaskStatus, number>>(
     (acc, task) => {
       acc[task.status] += 1;
@@ -124,15 +93,26 @@ function buildTaskStats(tasks: Task[]) {
   ] as const;
 }
 
+function statsFromApi(stats: TaskStats) {
+  return [
+    ["今日待办", String(stats.todo + stats.in_progress + stats.reminder)],
+    ["进行中", String(stats.in_progress)],
+    ["已完成", String(stats.completed)],
+    ["提醒中", String(stats.reminder)]
+  ] as const;
+}
+
 function TasksPage() {
   const [apiTasks, setApiTasks] = useState<Task[]>([]);
+  const [apiStats, setApiStats] = useState<TaskStats | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>();
   const [listError, setListError] = useState("");
   const [savingTaskID, setSavingTaskID] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
     tasksApi
-      .listTasks(20)
+      .listTasks({ status: selectedStatus, limit: 20 })
       .then((payload) => {
         if (!active) return;
         setApiTasks(payload.tasks);
@@ -146,10 +126,29 @@ function TasksPage() {
     return () => {
       active = false;
     };
+  }, [selectedStatus]);
+
+  useEffect(() => {
+    let active = true;
+    tasksApi
+      .stats()
+      .then((stats) => {
+        if (active) setApiStats(stats);
+      })
+      .catch(() => {
+        if (active) setApiStats(null);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const visibleTasks = apiTasks.length > 0 ? apiTasks.map(toTaskRow) : taskRows;
-  const visibleStats = buildTaskStats(apiTasks);
+  const visibleTasks = apiTasks.map(toTaskRow);
+  const visibleStats = apiStats ? statsFromApi(apiStats) : buildTaskStats(apiTasks);
+  const boardColumns = boardColumnLabels.map((column) => [
+    column.label,
+    apiTasks.filter((task) => task.status === column.status).map((task) => task.title)
+  ] as const);
 
   async function completeTask(taskID: number) {
     setSavingTaskID(taskID);
@@ -209,8 +208,23 @@ function TasksPage() {
                 ))}
               </div>
             </div>
+            <div className="module-chip-row compact" aria-label="任务状态筛选">
+              {statusFilters.map((filter) => (
+                <button
+                  aria-label={`筛选${filter.label}`}
+                  className={selectedStatus === filter.value ? "active" : ""}
+                  key={filter.label}
+                  onClick={() => setSelectedStatus(filter.value)}
+                  type="button"
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
             <div className="task-table">
-              {visibleTasks.map((task) => (
+              {visibleTasks.length === 0 ? (
+                <div className="module-empty-state" role="status">暂无任务数据</div>
+              ) : visibleTasks.map((task) => (
                 <article key={task.title}>
                   <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
                   <div>
@@ -242,7 +256,7 @@ function TasksPage() {
               {boardColumns.map(([title, items]) => (
                 <section key={title}>
                   <strong>{title}</strong>
-                  {items.map((item) => <span key={item}>{item}</span>)}
+                  {items.length === 0 ? <span>暂无任务</span> : items.map((item) => <span key={item}>{item}</span>)}
                 </section>
               ))}
             </div>

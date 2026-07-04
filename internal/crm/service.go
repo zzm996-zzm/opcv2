@@ -13,10 +13,15 @@ import (
 
 type Repository interface {
 	ImportCustomer(ctx context.Context, customer Customer) (Customer, bool, error)
+	ListCustomers(ctx context.Context, input ListCustomersInput) ([]Customer, error)
 	GetCustomer(ctx context.Context, userID, customerID int64) (Customer, error)
+	UpdateCustomer(ctx context.Context, input UpdateCustomerInput, activity Activity) (Customer, error)
 	UpdateStage(ctx context.Context, userID, customerID int64, stage string, activity Activity) (Customer, error)
 	RecordFollowUp(ctx context.Context, followUp FollowUp, activity Activity) (FollowUp, error)
+	ListActivities(ctx context.Context, userID, customerID int64, limit int) ([]Activity, error)
+	ListFollowUps(ctx context.Context, input ListFollowUpsInput) ([]FollowUp, error)
 	ListDueCustomers(ctx context.Context, userID int64, dueBefore time.Time, limit int) ([]Customer, error)
+	PipelineStats(ctx context.Context, userID int64, dueBefore time.Time) (PipelineStats, error)
 }
 
 type JSONGenerator interface {
@@ -77,6 +82,78 @@ func (s *Service) UpdateStage(ctx context.Context, input UpdateStageInput) (Cust
 	})
 }
 
+func (s *Service) ListCustomers(ctx context.Context, input ListCustomersInput) ([]Customer, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	if input.UserID <= 0 {
+		return nil, ErrInvalidInput
+	}
+	input.Stage = strings.TrimSpace(input.Stage)
+	if input.Stage != "" && !validStage(input.Stage) {
+		return nil, ErrInvalidInput
+	}
+	input.Q = strings.TrimSpace(input.Q)
+	if input.Limit <= 0 || input.Limit > 100 {
+		input.Limit = defaultListLimit
+	}
+	return s.repository.ListCustomers(ctx, input)
+}
+
+func (s *Service) GetCustomer(ctx context.Context, userID, customerID int64) (Customer, error) {
+	if s.repository == nil {
+		return Customer{}, ErrServiceNotReady
+	}
+	if userID <= 0 || customerID <= 0 {
+		return Customer{}, ErrInvalidInput
+	}
+	return s.repository.GetCustomer(ctx, userID, customerID)
+}
+
+func (s *Service) UpdateCustomer(ctx context.Context, input UpdateCustomerInput) (Customer, error) {
+	if s.repository == nil {
+		return Customer{}, ErrServiceNotReady
+	}
+	if input.UserID <= 0 || input.CustomerID <= 0 {
+		return Customer{}, ErrInvalidInput
+	}
+	changed := false
+	if input.Name != nil {
+		value := strings.TrimSpace(*input.Name)
+		if value == "" {
+			return Customer{}, ErrInvalidInput
+		}
+		input.Name = &value
+		changed = true
+	}
+	if input.Phone != nil {
+		value := strings.TrimSpace(*input.Phone)
+		input.Phone = &value
+		changed = true
+	}
+	if input.Email != nil {
+		value := strings.TrimSpace(*input.Email)
+		input.Email = &value
+		changed = true
+	}
+	if input.Website != nil {
+		value := strings.TrimSpace(*input.Website)
+		input.Website = &value
+		changed = true
+	}
+	if !changed {
+		return Customer{}, ErrInvalidInput
+	}
+	now := s.now()
+	return s.repository.UpdateCustomer(ctx, input, Activity{
+		UserID:     input.UserID,
+		CustomerID: input.CustomerID,
+		Type:       ActivityCustomerUpdated,
+		Note:       "客户资料已更新",
+		CreatedAt:  now,
+	})
+}
+
 func (s *Service) RecordFollowUp(ctx context.Context, input RecordFollowUpInput) (FollowUp, error) {
 	if s.repository == nil {
 		return FollowUp{}, ErrServiceNotReady
@@ -103,6 +180,32 @@ func (s *Service) RecordFollowUp(ctx context.Context, input RecordFollowUpInput)
 	return s.repository.RecordFollowUp(ctx, followUp, activity)
 }
 
+func (s *Service) ListFollowUps(ctx context.Context, input ListFollowUpsInput) ([]FollowUp, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	if input.UserID <= 0 || input.CustomerID < 0 {
+		return nil, ErrInvalidInput
+	}
+	if input.Limit <= 0 || input.Limit > 100 {
+		input.Limit = defaultListLimit
+	}
+	return s.repository.ListFollowUps(ctx, input)
+}
+
+func (s *Service) ListActivities(ctx context.Context, userID, customerID int64, limit int) ([]Activity, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	if userID <= 0 || customerID <= 0 {
+		return nil, ErrInvalidInput
+	}
+	if limit <= 0 || limit > 100 {
+		limit = defaultListLimit
+	}
+	return s.repository.ListActivities(ctx, userID, customerID, limit)
+}
+
 func (s *Service) ListDueCustomers(ctx context.Context, input ListDueInput) ([]Customer, error) {
 	if s.repository == nil {
 		return nil, ErrServiceNotReady
@@ -115,6 +218,16 @@ func (s *Service) ListDueCustomers(ctx context.Context, input ListDueInput) ([]C
 		limit = defaultListLimit
 	}
 	return s.repository.ListDueCustomers(ctx, input.UserID, s.now(), limit)
+}
+
+func (s *Service) PipelineStats(ctx context.Context, userID int64) (PipelineStats, error) {
+	if s.repository == nil {
+		return PipelineStats{}, ErrServiceNotReady
+	}
+	if userID <= 0 {
+		return PipelineStats{}, ErrInvalidInput
+	}
+	return s.repository.PipelineStats(ctx, userID, s.now())
 }
 
 func (s *Service) GenerateFollowUpCopy(ctx context.Context, input FollowUpCopyInput) (FollowUpCopy, error) {

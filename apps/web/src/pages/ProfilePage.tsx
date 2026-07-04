@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { accountApi, type AccountBinding, type AccountContentItem, type AccountPreferences, type AccountProfile, type AccountQuota, type OnboardingState } from "../lib/accountApi";
+import { apiErrorMessage } from "../lib/apiErrors";
 import { useAuthSession } from "../lib/authSession";
 
 const profileNav = [
@@ -11,14 +14,6 @@ const profileNav = [
   ["偏好设置", "/profile/preferences"]
 ] as const;
 
-const quotas = [
-  ["AI智算额度", "8,320", "20,000", 42],
-  ["数据获取额度", "120", "500", 24],
-  ["工具使用额度", "35", "100", 35],
-  ["商业沙盘推演", "3", "10", 30],
-  ["竞品全盘数据破解", "1", "5", 20]
-] as const;
-
 const quickLinks = [
   ["账号与资料设置", "管理账号安全、修改资料与登录方式", "/profile/settings"],
   ["会员与账单", "查看套餐权益、账单明细与开票记录", "/membership"],
@@ -26,35 +21,71 @@ const quickLinks = [
   ["偏好设置", "自定义界面、通知与行为偏好设置", "/profile/preferences"]
 ] as const;
 
-const profileForms = [
-  ["基本身份", "姓名", "张婧", "所在组织", "智活AI", "身份角色", "企业管理员", "user"],
-  ["我的业务 / 公司", "公司名称", "智活AI科技有限公司", "所在行业", "人工智能", "公司规模", "51-200 人", "company"],
-  ["我的产品", "主营产品 / 服务", "智活AI企业增长平台", "产品阶段", "成长期", "核心客户群", "中大型企业", "product"],
-  ["能力与资源", "核心能力", "AI线索洞察、增长策略", "可用资源", "数据资产、算法模型", "合作伙伴", "8 家", "resource"],
-  ["目标与诉求", "核心目标", "提升客户获取效率", "关键诉求", "线索增长、转化提升", "期望合作", "精准匹配、方案共创", "goal"],
-  ["偏好", "关注领域", "AI应用、市场增长", "内容偏好", "案例分析、实操工具", "联系偏好", "邮件、站内信", "preference"]
-] as const;
-
-const accountBindings = {
-  bound: [
-    ["联系手机", "138****5678", "已填写", "更换手机"],
-    ["微信", "zhihuo_ai", "已绑定", "解绑"]
-  ],
-  unbound: [
-    ["联系手机", "未填写", "可选联系方式", "去填写"],
-    ["微信", "未绑定", "暂未同步微信消息", "去绑定"]
-  ]
-} as const;
-
 type ProfilePageProps = {
   mode?: "overview" | "settings" | "content" | "preferences";
   binding?: "bound" | "unbound";
   overlay?: "password" | "logout" | "delete" | "complete";
 };
 
-function ProfilePage({ binding = "bound", mode = "overview", overlay }: ProfilePageProps) {
+function ProfilePage({ mode = "overview", overlay }: ProfilePageProps) {
   const session = useAuthSession();
-  const nickname = session.user?.nickname || "张婧";
+  const [profile, setProfile] = useState<AccountProfile | null>(null);
+  const [bindings, setBindings] = useState<AccountBinding[]>([]);
+  const [onboarding, setOnboarding] = useState<OnboardingState | null>(null);
+  const [apiQuotas, setApiQuotas] = useState<AccountQuota[]>([]);
+  const [contentItems, setContentItems] = useState<AccountContentItem[]>([]);
+  const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const nickname = profile?.nickname || session.user?.nickname || "未命名用户";
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      accountApi.getProfile(),
+      accountApi.getOnboarding(),
+      accountApi.getQuotas(),
+      accountApi.listContent(20),
+      accountApi.getPreferences()
+    ])
+      .then(([profilePayload, onboardingPayload, quotasPayload, contentPayload, preferencesPayload]) => {
+        if (!active) return;
+        setProfile(profilePayload.profile);
+        setBindings(profilePayload.bindings);
+        setOnboarding(onboardingPayload);
+        setApiQuotas(quotasPayload.quotas);
+        setContentItems(contentPayload.items);
+        setPreferences(preferencesPayload);
+        setLoadError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setLoadError(apiErrorMessage(error, "暂时无法读取账号资料"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function savePreferences() {
+    if (!preferences) return;
+    try {
+      const updated = await accountApi.updatePreferences(preferences);
+      setPreferences(updated);
+      setActionMessage("偏好设置已保存");
+    } catch (error) {
+      setActionMessage(apiErrorMessage(error, "偏好设置保存失败"));
+    }
+  }
+
+  async function deleteAccount() {
+    try {
+      await accountApi.deleteAccount();
+      setActionMessage("账号注销已提交");
+    } catch (error) {
+      setActionMessage(apiErrorMessage(error, "账号注销提交失败"));
+    }
+  }
 
   return (
     <V4PageShell>
@@ -77,41 +108,51 @@ function ProfilePage({ binding = "bound", mode = "overview", overlay }: ProfileP
           </aside>
 
           <div className="profile-content">
-            {mode === "settings" && <AccountSettings binding={binding} />}
-            {mode === "content" && <MyContent />}
-            {mode === "preferences" && <Preferences />}
-            {mode === "overview" && <ProfileOverview nickname={nickname} />}
+            {loadError && <p className="form-error" role="alert">{loadError}</p>}
+            {actionMessage && <p className="form-success" role="status">{actionMessage}</p>}
+            {mode === "settings" && <AccountSettings bindings={bindings} onboarding={onboarding} profile={profile} />}
+            {mode === "content" && <MyContent items={contentItems} />}
+            {mode === "preferences" && <Preferences onSave={() => void savePreferences()} preferences={preferences} />}
+            {mode === "overview" && <ProfileOverview nickname={nickname} profile={profile} quotas={apiQuotas} />}
           </div>
         </div>
-        {overlay && <AccountOverlay kind={overlay} />}
+        {overlay && <AccountOverlay kind={overlay} onDelete={() => void deleteAccount()} />}
       </section>
     </V4PageShell>
   );
 }
 
-function ProfileOverview({ nickname }: { nickname: string }) {
+function ProfileOverview({ nickname, profile, quotas: apiQuotas }: { nickname: string; profile: AccountProfile | null; quotas: AccountQuota[] }) {
+  const visibleQuotas = apiQuotas.map((quota) => [
+    quota.label,
+    String(quota.used),
+    String(quota.limit),
+    quota.limit > 0 ? Math.min(100, Math.round((quota.used / quota.limit) * 100)) : 0
+  ] as const);
+  const avatarLabel = nickname.trim().charAt(0) || "用";
+
   return (
     <>
       <section className="profile-hero-card">
-        <div className="profile-avatar-photo" aria-hidden="true">张</div>
+        <div className="profile-avatar-photo" aria-hidden="true">{avatarLabel}</div>
         <div className="profile-identity">
           <div>
             <h2>{nickname}</h2>
-            <span>企业管理员</span>
+            <span>{profile?.role || "未填写身份角色"}</span>
           </div>
         </div>
         <div className="profile-facts">
           <article>
             <small>所在组织</small>
-            <strong>智活AI</strong>
+            <strong>{profile?.company || "未填写"}</strong>
           </article>
           <article>
-            <small>会员身份</small>
-            <strong><span aria-hidden="true">♕</span> 企业版</strong>
+            <small>身份角色</small>
+            <strong>{profile?.role || "未填写"}</strong>
           </article>
           <article>
-            <small>套餐有效期</small>
-            <strong>2025-12-31</strong>
+            <small>所在行业</small>
+            <strong>{profile?.industry || "未填写"}</strong>
           </article>
         </div>
         <Link className="profile-upgrade" to="/membership">升级套餐</Link>
@@ -122,10 +163,11 @@ function ProfileOverview({ nickname }: { nickname: string }) {
           <div>
             <h2>额度与使用概览</h2>
           </div>
-          <p>所有额度均按自然月重置 本月重置日：2025-06-01</p>
+          <p>额度重置与使用明细以后台返回为准</p>
         </div>
         <div className="quota-grid">
-          {quotas.map(([label, used, total, percent]) => (
+          {visibleQuotas.length === 0 && <p>暂无额度记录</p>}
+          {visibleQuotas.map(([label, used, total, percent]) => (
             <article key={label} className="quota-card">
               <span>{label}</span>
               <strong>{used}<small> / {total}</small></strong>
@@ -152,24 +194,33 @@ function ProfileOverview({ nickname }: { nickname: string }) {
         </div>
         <div className="activity-panel">
           <h2>最近操作</h2>
-          {[
-            ["生成智能客服系统机会分析", "今天 10:18"],
-            ["查看竞品动态监测报告", "昨天 18:10"],
-            ["更新 AI 智能硬件项目任务", "06-23 14:00"]
-          ].map(([title, time]) => (
-            <article key={title}>
-              <span aria-hidden="true" />
-              <strong>{title}</strong>
-              <time>{time}</time>
-            </article>
-          ))}
+          <p>暂无最近操作</p>
         </div>
       </section>
     </>
   );
 }
 
-function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["binding"]> }) {
+function AccountSettings({
+  bindings,
+  onboarding,
+  profile
+}: {
+  bindings: AccountBinding[];
+  onboarding: OnboardingState | null;
+  profile: AccountProfile | null;
+}) {
+  const completion = onboarding ? calculateCompletion(onboarding) : { percent: 0, completed: 0, total: 0 };
+  const profileTiles = onboarding?.sections.length ? onboarding.sections.map((section) => {
+    const entries = Object.entries(section.fields);
+    return {
+      key: section.key,
+      title: section.title,
+      entries
+    };
+  }) : [];
+  const visibleBindings = bindings.map(toBindingRow);
+
   return (
     <>
       <section className="profile-completion-card">
@@ -178,9 +229,9 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
           <small>完善资料，有助于获得更精准的服务与推荐</small>
         </div>
         <div className="completion-ring" aria-hidden="true">
-          <i>78%</i>
+          <i>{completion.percent}%</i>
         </div>
-        <p><b>已完善 11 项</b><span>共 14 项</span></p>
+        <p><b>已完善 {completion.completed} 项</b><span>共 {completion.total} 项</span></p>
         <Link to="/profile/settings/complete">完善资料</Link>
       </section>
 
@@ -191,21 +242,25 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
           </div>
         </div>
         <div className="settings-form-grid">
-          {profileForms.map(([label, keyA, valueA, keyB, valueB, keyC, valueC, icon]) => (
-            <article className="profile-info-tile" key={label}>
+          {profileTiles.length === 0 && <p>暂无画像资料</p>}
+          {profileTiles.map((tile, index) => (
+            <article className="profile-info-tile" key={tile.key}>
               <header>
-                <span className={`profile-info-icon ${icon}`} aria-hidden="true" />
-                <h3>{label}</h3>
-                <Link to="/profile/settings/complete" aria-label={`编辑${label}`}>✎</Link>
+                <span className={`profile-info-icon ${profileInfoIcon(index)}`} aria-hidden="true" />
+                <h3>{tile.title}</h3>
+                <Link to="/profile/settings/complete" aria-label={`编辑${tile.title}`}>✎</Link>
               </header>
               <dl>
-                <div><dt>{keyA}</dt><dd>{valueA}</dd></div>
-                <div><dt>{keyB}</dt><dd>{valueB}</dd></div>
-                <div><dt>{keyC}</dt><dd>{valueC}</dd></div>
+                {tile.entries.map(([key, value]) => (
+                  <div key={key}><dt>{key}</dt><dd>{value || "未填写"}</dd></div>
+                ))}
               </dl>
-              <span className="profile-info-testline">{keyA}：{valueA}</span>
+              {tile.entries[0] && <span className="profile-info-testline">{tile.entries[0][0]}：{tile.entries[0][1] || "未填写"}</span>}
             </article>
           ))}
+          {profile && !profileTiles.some((tile) => tile.entries.some(([key]) => key === "公司名称")) ? (
+            <span className="profile-info-testline">公司名称：{profile.company || "未填写"}</span>
+          ) : null}
         </div>
       </section>
 
@@ -217,7 +272,8 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
           </div>
         </div>
         <div className="binding-list">
-          {accountBindings[binding].map(([type, value, state, action]) => (
+          {visibleBindings.length === 0 && <p>暂无账号绑定信息</p>}
+          {visibleBindings.map(([type, value, state, action]) => (
             <article key={type}>
               <span className={`binding-icon ${type === "微信" ? "wechat" : ""}`} aria-hidden="true" />
               <div>
@@ -244,7 +300,7 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
           <span className="security-icon exit" aria-hidden="true" />
           <div>
             <h2>账号操作</h2>
-            <p>最近登录：今天 09:12 · 上海。退出或注销前请确认数据已备份</p>
+            <p>最近登录信息暂未接入。退出或注销前请确认数据已备份</p>
           </div>
           <div className="security-actions">
             <Link to="/profile/settings/logout">退出登录</Link>
@@ -256,10 +312,33 @@ function AccountSettings({ binding }: { binding: NonNullable<ProfilePageProps["b
   );
 }
 
-function AccountOverlay({ kind }: { kind: NonNullable<ProfilePageProps["overlay"]> }) {
+function profileInfoIcon(index: number) {
+  return ["user", "company", "product", "resource", "goal", "preference"][index] ?? "user";
+}
+
+function calculateCompletion(onboarding: OnboardingState) {
+  const fields = onboarding.sections.flatMap((section) => Object.values(section.fields));
+  const completed = fields.filter(Boolean).length;
+  const total = Math.max(fields.length, completed);
+  return {
+    completed,
+    total,
+    percent: total > 0 ? Math.round((completed / total) * 100) : 0
+  };
+}
+
+function toBindingRow(binding: AccountBinding): readonly [string, string, string, string] {
+  const type = binding.type === "wechat" ? "微信" : binding.type === "phone" ? "联系手机" : binding.type;
+  if (binding.bound) {
+    return [type, binding.masked_value, ["微信"].includes(type) ? "已绑定" : "已填写", type === "微信" ? "解绑" : "更换手机"];
+  }
+  return [type, binding.masked_value || (type === "微信" ? "未绑定" : "未填写"), type === "微信" ? "未绑定" : "可选联系方式", "去填写"];
+}
+
+function AccountOverlay({ kind, onDelete }: { kind: NonNullable<ProfilePageProps["overlay"]>; onDelete: () => void }) {
   if (kind === "password") return <PasswordModal />;
   if (kind === "logout") return <LogoutModal />;
-  if (kind === "delete") return <DeleteAccountModal />;
+  if (kind === "delete") return <DeleteAccountModal onDelete={onDelete} />;
   return <CompleteProfileModal />;
 }
 
@@ -314,7 +393,8 @@ function LogoutModal() {
   );
 }
 
-function DeleteAccountModal() {
+function DeleteAccountModal({ onDelete }: { onDelete: () => void }) {
+  const [accepted, setAccepted] = useState(false);
   const impacts = [
     ["账号信息将被永久删除", "您的个人资料、头像、绑定信息等将被永久清除，无法找回。"],
     ["所有数据将被清除", "您创建的内容、项目、收藏、历史记录等将永久删除。"],
@@ -342,12 +422,12 @@ function DeleteAccountModal() {
           ))}
         </div>
         <label className="modal-check">
-          <input type="checkbox" />
+          <input checked={accepted} onChange={(event) => setAccepted(event.target.checked)} type="checkbox" />
           我已阅读并同意注销须知
         </label>
         <footer>
           <Link to="/profile/settings">取消</Link>
-          <button className="danger" type="button">确认注销</button>
+          <button className="danger" disabled={!accepted} onClick={onDelete} type="button">确认注销</button>
         </footer>
       </section>
     </div>
@@ -356,14 +436,14 @@ function DeleteAccountModal() {
 
 function CompleteProfileModal() {
   const leftFields = [
-    ["联系手机", "138 **** 5678"],
-    ["微信 / 企业微信", "zhihuo_ai"],
-    ["公司名称", "智活AI科技有限公司"],
-    ["所在行业", "人工智能"],
-    ["公司规模", "51-200 人"],
-    ["主营产品 / 服务", "智活AI企业增长平台"],
-    ["产品阶段", "成长期"],
-    ["核心客户群", "中大型企业"]
+    "联系手机",
+    "微信 / 企业微信",
+    "公司名称",
+    "所在行业",
+    "公司规模",
+    "主营产品 / 服务",
+    "产品阶段",
+    "核心客户群"
   ] as const;
 
   return (
@@ -373,18 +453,18 @@ function CompleteProfileModal() {
         <header>
           <h2>完善资料</h2>
           <div>
-            <span className="mini-completion-ring">78%</span>
-            <strong>资料完成度 <b>78%</b></strong>
-            <small>已完成 <b>11 / 14</b> 项</small>
+            <span className="mini-completion-ring">0%</span>
+            <strong>资料完成度 <b>0%</b></strong>
+            <small>请从后台资料接口读取后编辑</small>
           </div>
           <p>请完善以下信息，帮助我们为您提供更精准的服务与推荐</p>
         </header>
         <div className="complete-profile-grid">
           <div className="complete-field-list">
-            {leftFields.map(([label, value]) => (
+            {leftFields.map((label) => (
               <label key={label}>
                 <span>{label} <b>*</b></span>
-                <input defaultValue={value} />
+                <input />
               </label>
             ))}
           </div>
@@ -419,15 +499,7 @@ function CompleteProfileModal() {
   );
 }
 
-const contentRows = [
-  ["智能客服系统项目匹配", "智能客服SaaS项目的智能匹配分析", "匹配条件：智能客服 | SaaS | 中小企业", "已完成", "今天 10:15"],
-  ["AI教育平台方向匹配", "AI教育平台项目方向匹配", "匹配条件：教育科技 | 在线教育 | AI工具", "已完成", "昨天 16:30"],
-  ["跨境电商工具匹配", "跨境电商运营工具项目匹配", "匹配条件：跨境电商 | 工具类 | 运营辅助", "进行中", "06-24 14:20"],
-  ["本地生活服务匹配", "本地生活服务平台匹配分析", "匹配条件：本地生活 | 服务平台 | O2O", "已完成", "06-23 11:05"],
-  ["项目方向初步筛选", "基于当前市场趋势的项目初筛", "匹配条件：综合 | 趋势分析 | 初步筛选", "进行中", "06-22 09:42"]
-] as const;
-
-function MyContent() {
+function MyContent({ items }: { items: AccountContentItem[] }) {
   return (
     <section className="content-record-card">
       <nav className="content-tabs" aria-label="内容分类">
@@ -448,18 +520,19 @@ function MyContent() {
         </label>
       </div>
       <div className="content-record-list">
-        {contentRows.map(([title, desc, meta, status, time]) => (
-          <article key={title}>
+        {items.length === 0 && <p>暂无内容记录</p>}
+        {items.map((item) => (
+          <article key={item.id}>
             <span className="content-icon" aria-hidden="true" />
             <div>
-              <h2>{title}</h2>
-              <p>{desc}</p>
-              <small>{meta}</small>
+              <h2>{item.title}</h2>
+              <p>{item.summary}</p>
+              <small>{item.type}</small>
             </div>
-            <b className={status === "进行中" ? "running" : ""}>{status}</b>
-            <time>{time}</time>
-            <button aria-label={`收藏${title}`} type="button">☆</button>
-            <a href="/projects">查看详情</a>
+            <b>{item.type}</b>
+            <time>{item.created_at}</time>
+            <button aria-label={`收藏${item.title}`} type="button">☆</button>
+            <a href={item.url}>查看详情</a>
             <span aria-hidden="true">›</span>
           </article>
         ))}
@@ -469,9 +542,10 @@ function MyContent() {
   );
 }
 
-function Preferences() {
+function Preferences({ onSave, preferences }: { onSave: () => void; preferences: AccountPreferences | null }) {
   return (
     <>
+      {!preferences && <p>暂无偏好设置</p>}
       <section className="preference-card">
         <h2>通知设置</h2>
         <p>选择接收通知的方式及内容</p>
@@ -505,6 +579,7 @@ function Preferences() {
         <p>选择默认模型与个性化设置</p>
         <div className="model-choice-row">
           <strong>默认模型 <small>设置你在智活AI中默认使用的模型</small></strong>
+          <span>当前默认模型：{preferences?.default_model ?? "未设置"}</span>
           {["Claude opus4.8", "Chatgpt 5.5", "Gork4.3"].map((model, index) => (
             <button className={index === 0 ? "active" : ""} key={model} type="button">
               <span className={`model-mark mark-${index}`} aria-hidden="true" />
@@ -519,7 +594,7 @@ function Preferences() {
         <label>
           <strong>语言设置</strong>
           <small>选择你的界面显示语言</small>
-          <button type="button">简体中文 <span aria-hidden="true">⌄</span></button>
+          <button type="button">{preferences?.language ?? "未设置"} <span aria-hidden="true">⌄</span></button>
         </label>
         <label>
           <strong>主题设置</strong>
@@ -529,7 +604,7 @@ function Preferences() {
       </section>
 
       <section className="preference-save-card">
-        <button type="button">保存设置</button>
+        <button onClick={onSave} type="button">保存设置</button>
         <span>更改将自动保存</span>
       </section>
     </>

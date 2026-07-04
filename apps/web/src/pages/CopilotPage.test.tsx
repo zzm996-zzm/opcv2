@@ -44,8 +44,25 @@ describe("CopilotPage", () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "智活 Copilot" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /市场规模与增长趋势/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "开始一段新的对话" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /市场规模与增长趋势/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("智能客服市场分析报告.pdf")).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "会话记录" })).toBeInTheDocument();
+  });
+
+  it("collapses and expands the conversation history rail", () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "收起会话记录" }));
+
+    expect(screen.getByRole("button", { name: "展开会话记录" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "＋ 新建会话" })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("搜索会话")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开会话记录" }));
+
+    expect(screen.getByRole("button", { name: "收起会话记录" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "＋ 新建会话" })).toBeInTheDocument();
   });
 
   it("renders a clean new conversation", () => {
@@ -53,6 +70,8 @@ describe("CopilotPage", () => {
 
     expect(screen.getByRole("heading", { name: "开始一段新的对话" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "分析一个新项目机会" })).toBeInTheDocument();
+    expect(screen.queryByText("请帮我分析智能客服系统的市场机会和竞争格局。")).not.toBeInTheDocument();
+    expect(screen.queryByText("智能客服市场分析报告.pdf")).not.toBeInTheDocument();
   });
 
   it("fills the composer when a quick action is selected", () => {
@@ -181,6 +200,40 @@ describe("CopilotPage", () => {
     });
   });
 
+  it("uploads selected local files as copilot references", async () => {
+    const fetchMock = mockCopilotBackend();
+    renderPage("files");
+
+    await screen.findByText("智能客服竞品功能对比表.txt");
+    const file = new File(["客户提到预算和交付周期。"], "客户访谈.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByLabelText("选择上传文件"), { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/copilot/files",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            name: "客户访谈.txt",
+            mime_type: "text/plain",
+            content: "客户提到预算和交付周期。"
+          })
+        })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("客户访谈.txt").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows voice input status when speech recognition is unavailable", () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "语音输入" }));
+
+    expect(screen.getByText("当前浏览器不支持语音输入")).toBeInTheDocument();
+  });
+
   it("renders and manages copilot memories", async () => {
     const fetchMock = mockCopilotBackend();
     renderPage("memories");
@@ -232,12 +285,13 @@ describe("CopilotPage", () => {
     expect(screen.queryByRole("dialog", { name: "记忆" })).not.toBeInTheDocument();
   });
 
-  it("renders the three-model comparison", () => {
+  it("renders a clean comparison empty state before backend answers", () => {
     renderPage("compare");
 
     expect(screen.getByRole("heading", { name: "AI 对比分析" })).toBeInTheDocument();
-    expect(screen.getAllByText("回答完成")).toHaveLength(3);
-    expect(screen.getByRole("button", { name: "总结本次对比分析" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "开始 AI 对比分析" })).toBeInTheDocument();
+    expect(screen.queryAllByText("回答完成")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "总结本次对比分析" })).not.toBeInTheDocument();
   });
 
   it("submits a comparison request and renders backend model answers", async () => {
@@ -280,6 +334,21 @@ describe("CopilotPage", () => {
       );
     });
     expect(await screen.findByText("后端返回的聊天回复。")).toBeInTheDocument();
+  });
+
+  it("pauses an in-flight chat request", async () => {
+    mockCopilotBackend({ delayMessage: true });
+    renderPage();
+
+    await screen.findByText("智能客服系统项目机会分析");
+    fireEvent.change(screen.getByLabelText("输入你的问题"), { target: { value: "需要暂停的问题" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    fireEvent.click(await screen.findByRole("button", { name: "暂停对话" }));
+
+    expect(await screen.findByText("已暂停本次对话")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("后端返回的聊天回复。")).not.toBeInTheDocument();
+    });
   });
 
   it("renders new assistant chat replies with a typewriter effect", async () => {
@@ -326,6 +395,16 @@ describe("CopilotPage", () => {
         })
       );
     });
+  });
+
+  it("limits comparison selection to three models", () => {
+    renderPage("compare");
+
+    fireEvent.click(screen.getByRole("button", { name: "选择模型 GPT-4o" }));
+    fireEvent.click(screen.getByRole("button", { name: "选择模型 Claude opus4.8" }));
+
+    expect(screen.getByRole("button", { name: "3 模型" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "选择模型 Grok4.3" })).not.toBeInTheDocument();
   });
 
   it("shows an optimistic comparison question while waiting for model answers", async () => {
@@ -483,13 +562,14 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
       }), { status: 200 }));
     }
     if (url === "/api/v1/copilot/files" && init?.method === "POST") {
+      const payload = JSON.parse(String(init.body)) as { name: string; mime_type?: string; content: string };
       return Promise.resolve(new Response(JSON.stringify({
         id: 18,
         user_id: 7,
-        name: "新增访谈纪要.txt",
-        mime_type: "text/plain",
-        size_bytes: 45,
-        content: "客户最关注响应速度和私域转化。",
+        name: payload.name,
+        mime_type: payload.mime_type || "text/plain",
+        size_bytes: payload.content.length,
+        content: payload.content,
         created_at: "2026-07-02T09:15:00Z",
         updated_at: "2026-07-02T09:15:00Z"
       }), { status: 200 }));
@@ -605,7 +685,7 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
           created_at: "2026-07-01T09:56:00Z"
         }
       }), { status: 200 });
-      return options.delayMessage ? new Promise((resolve) => setTimeout(() => resolve(response), 20)) : Promise.resolve(response);
+      return options.delayMessage ? delayedResponse(response, init?.signal) : Promise.resolve(response);
     }
     if (url === "/api/v1/copilot/threads/99/compare/summary" && init?.method === "POST") {
       return Promise.resolve(new Response(JSON.stringify({
@@ -665,5 +745,24 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
       return Promise.resolve(new Response(null, { status: 204 }));
     }
     return Promise.reject(new Error(`unexpected request: ${url}`));
+  });
+}
+
+function delayedResponse(response: Response, signal?: AbortSignal | null) {
+  return new Promise<Response>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("aborted"));
+      return;
+    }
+    const handleAbort = () => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", handleAbort);
+      reject(new Error("aborted"));
+    };
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", handleAbort);
+      resolve(response);
+    }, 50);
+    signal?.addEventListener("abort", handleAbort, { once: true });
   });
 }

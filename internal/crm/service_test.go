@@ -46,10 +46,52 @@ func (r *memoryRepository) ImportCustomer(_ context.Context, customer Customer) 
 	return customer, false, nil
 }
 
+func (r *memoryRepository) ListCustomers(_ context.Context, input ListCustomersInput) ([]Customer, error) {
+	var customers []Customer
+	for _, customer := range r.customers {
+		if customer.UserID != input.UserID {
+			continue
+		}
+		if input.Stage != "" && customer.Stage != input.Stage {
+			continue
+		}
+		if input.Q != "" && !strings.Contains(customer.Name, input.Q) && !strings.Contains(customer.Phone, input.Q) && !strings.Contains(customer.Email, input.Q) && !strings.Contains(customer.Website, input.Q) {
+			continue
+		}
+		customers = append(customers, customer)
+	}
+	if input.Limit > 0 && len(customers) > input.Limit {
+		return customers[:input.Limit], nil
+	}
+	return customers, nil
+}
+
 func (r *memoryRepository) GetCustomer(_ context.Context, userID, customerID int64) (Customer, error) {
 	for _, customer := range r.customers {
 		if customer.UserID == userID && customer.ID == customerID {
 			return customer, nil
+		}
+	}
+	return Customer{}, ErrCustomerNotFound
+}
+
+func (r *memoryRepository) UpdateCustomer(_ context.Context, input UpdateCustomerInput, activity Activity) (Customer, error) {
+	for index := range r.customers {
+		if r.customers[index].UserID == input.UserID && r.customers[index].ID == input.CustomerID {
+			if input.Name != nil {
+				r.customers[index].Name = *input.Name
+			}
+			if input.Phone != nil {
+				r.customers[index].Phone = *input.Phone
+			}
+			if input.Email != nil {
+				r.customers[index].Email = *input.Email
+			}
+			if input.Website != nil {
+				r.customers[index].Website = *input.Website
+			}
+			r.activities = append(r.activities, activity)
+			return r.customers[index], nil
 		}
 	}
 	return Customer{}, ErrCustomerNotFound
@@ -81,6 +123,36 @@ func (r *memoryRepository) RecordFollowUp(ctx context.Context, followUp FollowUp
 	return FollowUp{}, ErrCustomerNotFound
 }
 
+func (r *memoryRepository) ListActivities(_ context.Context, userID, customerID int64, limit int) ([]Activity, error) {
+	var activities []Activity
+	for _, activity := range r.activities {
+		if activity.UserID == userID && activity.CustomerID == customerID {
+			activities = append(activities, activity)
+		}
+	}
+	if limit > 0 && len(activities) > limit {
+		return activities[:limit], nil
+	}
+	return activities, nil
+}
+
+func (r *memoryRepository) ListFollowUps(_ context.Context, input ListFollowUpsInput) ([]FollowUp, error) {
+	var followups []FollowUp
+	for _, followUp := range r.followups {
+		if followUp.UserID != input.UserID {
+			continue
+		}
+		if input.CustomerID > 0 && followUp.CustomerID != input.CustomerID {
+			continue
+		}
+		followups = append(followups, followUp)
+	}
+	if input.Limit > 0 && len(followups) > input.Limit {
+		return followups[:input.Limit], nil
+	}
+	return followups, nil
+}
+
 func (r *memoryRepository) ListDueCustomers(_ context.Context, userID int64, dueBefore time.Time, limit int) ([]Customer, error) {
 	var customers []Customer
 	for _, customer := range r.customers {
@@ -92,6 +164,34 @@ func (r *memoryRepository) ListDueCustomers(_ context.Context, userID int64, due
 		return customers[:limit], nil
 	}
 	return customers, nil
+}
+
+func (r *memoryRepository) PipelineStats(_ context.Context, userID int64, dueBefore time.Time) (PipelineStats, error) {
+	var stats PipelineStats
+	for _, customer := range r.customers {
+		if customer.UserID != userID {
+			continue
+		}
+		stats.Total++
+		switch customer.Stage {
+		case StageNew:
+			stats.New++
+		case StageContacted:
+			stats.Contacted++
+		case StageQualified:
+			stats.Qualified++
+		case StageProposal:
+			stats.Proposal++
+		case StageWon:
+			stats.Won++
+		case StageLost:
+			stats.Lost++
+		}
+		if !customer.NextFollowUpAt.IsZero() && !customer.NextFollowUpAt.After(dueBefore) {
+			stats.DueToday++
+		}
+	}
+	return stats, nil
 }
 
 func TestServiceImportLeadIsIdempotent(t *testing.T) {
@@ -142,6 +242,51 @@ func TestServiceStageUpdateCreatesActivity(t *testing.T) {
 	}
 }
 
+func TestServiceListsCustomersWithFilters(t *testing.T) {
+	repository := &memoryRepository{}
+	service := NewService(repository)
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "a", Name: "成都启明星教育", Phone: "028-12345678", Stage: StageContacted})
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "b", Name: "星桥教育集团", Stage: StageQualified})
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 7, ImportKey: "c", Name: "其他用户客户", Stage: StageContacted})
+
+	customers, err := service.ListCustomers(context.Background(), ListCustomersInput{UserID: 42, Stage: StageContacted, Q: "启明星"})
+	if err != nil {
+		t.Fatalf("ListCustomers() error = %v", err)
+	}
+	if len(customers) != 1 || customers[0].Name != "成都启明星教育" {
+		t.Fatalf("customers = %+v", customers)
+	}
+}
+
+func TestServiceUpdatesCustomerAndCreatesActivity(t *testing.T) {
+	repository := &memoryRepository{}
+	service := NewService(repository)
+	service.now = func() time.Time { return time.Date(2026, 6, 24, 10, 30, 0, 0, time.UTC) }
+	customer, _, _ := repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "lead_result:99", Name: "旧客户", Stage: StageNew})
+	name := " 成都启明星教育 "
+	phone := " 028-12345678 "
+
+	updated, err := service.UpdateCustomer(context.Background(), UpdateCustomerInput{UserID: 42, CustomerID: customer.ID, Name: &name, Phone: &phone})
+	if err != nil {
+		t.Fatalf("UpdateCustomer() error = %v", err)
+	}
+	if updated.Name != "成都启明星教育" || updated.Phone != "028-12345678" {
+		t.Fatalf("updated = %+v", updated)
+	}
+	if len(repository.activities) != 1 || repository.activities[0].Type != ActivityCustomerUpdated {
+		t.Fatalf("activities = %+v", repository.activities)
+	}
+}
+
+func TestServiceRejectsEmptyCustomerUpdate(t *testing.T) {
+	service := NewService(&memoryRepository{})
+
+	_, err := service.UpdateCustomer(context.Background(), UpdateCustomerInput{UserID: 42, CustomerID: 100})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("UpdateCustomer() error = %v, want ErrInvalidInput", err)
+	}
+}
+
 func TestServiceFollowUpRecordUpdatesNextFollowUpDate(t *testing.T) {
 	repository := &memoryRepository{}
 	service := NewService(repository)
@@ -163,6 +308,43 @@ func TestServiceFollowUpRecordUpdatesNextFollowUpDate(t *testing.T) {
 	}
 }
 
+func TestServiceListsFollowUpsForUser(t *testing.T) {
+	repository := &memoryRepository{}
+	service := NewService(repository)
+	now := time.Date(2026, 6, 24, 11, 0, 0, 0, time.UTC)
+	repository.followups = []FollowUp{
+		{ID: 1, UserID: 42, CustomerID: 100, Note: "发送方案", NextFollowUpAt: now},
+		{ID: 2, UserID: 42, CustomerID: 101, Note: "预约演示", NextFollowUpAt: now},
+		{ID: 3, UserID: 7, CustomerID: 100, Note: "其他用户", NextFollowUpAt: now},
+	}
+
+	followups, err := service.ListFollowUps(context.Background(), ListFollowUpsInput{UserID: 42, CustomerID: 100})
+	if err != nil {
+		t.Fatalf("ListFollowUps() error = %v", err)
+	}
+	if len(followups) != 1 || followups[0].Note != "发送方案" {
+		t.Fatalf("followups = %+v", followups)
+	}
+}
+
+func TestServiceListsActivitiesForCustomer(t *testing.T) {
+	now := time.Date(2026, 6, 24, 11, 0, 0, 0, time.UTC)
+	repository := &memoryRepository{activities: []Activity{
+		{ID: 1, UserID: 42, CustomerID: 100, Type: ActivityStageChanged, Note: "电话已接通", CreatedAt: now},
+		{ID: 2, UserID: 42, CustomerID: 101, Type: ActivityStageChanged, Note: "其他客户", CreatedAt: now},
+		{ID: 3, UserID: 7, CustomerID: 100, Type: ActivityStageChanged, Note: "其他用户", CreatedAt: now},
+	}}
+	service := NewService(repository)
+
+	activities, err := service.ListActivities(context.Background(), 42, 100, 20)
+	if err != nil {
+		t.Fatalf("ListActivities() error = %v", err)
+	}
+	if len(activities) != 1 || activities[0].Note != "电话已接通" {
+		t.Fatalf("activities = %+v", activities)
+	}
+}
+
 func TestServiceListsDueAndOverdueCustomers(t *testing.T) {
 	repository := &memoryRepository{}
 	service := NewService(repository)
@@ -179,6 +361,24 @@ func TestServiceListsDueAndOverdueCustomers(t *testing.T) {
 	}
 	if len(customers) != 2 {
 		t.Fatalf("customers = %+v, want due and overdue only", customers)
+	}
+}
+
+func TestServiceReturnsPipelineStats(t *testing.T) {
+	repository := &memoryRepository{}
+	service := NewService(repository)
+	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "new", Name: "新客户", Stage: StageNew})
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "won", Name: "成交客户", Stage: StageWon, NextFollowUpAt: now})
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 7, ImportKey: "other", Name: "其他用户", Stage: StageWon})
+
+	stats, err := service.PipelineStats(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("PipelineStats() error = %v", err)
+	}
+	if stats.Total != 2 || stats.New != 1 || stats.Won != 1 || stats.DueToday != 1 {
+		t.Fatalf("stats = %+v", stats)
 	}
 }
 

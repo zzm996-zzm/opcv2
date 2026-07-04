@@ -10,13 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/auth"
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/content"
 	"github.com/zzm/opcv2/internal/dashboard"
 	"github.com/zzm/opcv2/internal/growth"
+	"github.com/zzm/opcv2/internal/home"
 	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
+	"github.com/zzm/opcv2/internal/notifications"
 	"github.com/zzm/opcv2/internal/sandbox"
 	"github.com/zzm/opcv2/internal/tasks"
 )
@@ -115,6 +118,142 @@ func (fakeMembershipApp) CurrentSnapshot(context.Context, int64) (membership.Sna
 func (fakeMembershipApp) Redeem(context.Context, membership.RedeemInput) (membership.RedeemResult, error) {
 	return membership.RedeemResult{}, nil
 }
+func (fakeMembershipApp) ListPlans(context.Context) ([]membership.PlanOption, error) {
+	return []membership.PlanOption{}, nil
+}
+func (fakeMembershipApp) CurrentUsage(context.Context, int64) ([]membership.UsageItem, error) {
+	return []membership.UsageItem{}, nil
+}
+func (fakeMembershipApp) ListOrders(context.Context, int64, int) ([]membership.Order, error) {
+	return []membership.Order{}, nil
+}
+func (fakeMembershipApp) CreateCheckout(context.Context, membership.CheckoutInput) (membership.CheckoutResult, error) {
+	return membership.CheckoutResult{}, nil
+}
+
+type fakeAccountApp struct{}
+
+func (fakeAccountApp) GetProfile(context.Context, int64) (account.ProfilePayload, error) {
+	return account.ProfilePayload{Profile: account.Profile{ID: 42, Nickname: "张晨"}}, nil
+}
+func (fakeAccountApp) UpdateProfile(context.Context, int64, account.ProfileUpdate) (account.ProfilePayload, error) {
+	return account.ProfilePayload{Profile: account.Profile{ID: 42, Nickname: "张晨"}}, nil
+}
+func (fakeAccountApp) GetOnboarding(context.Context, int64) (account.OnboardingState, error) {
+	return account.OnboardingState{}, nil
+}
+func (fakeAccountApp) SaveOnboarding(context.Context, int64, account.OnboardingState) (account.OnboardingState, error) {
+	return account.OnboardingState{}, nil
+}
+func (fakeAccountApp) CompleteOnboarding(context.Context, int64) (account.OnboardingState, error) {
+	return account.OnboardingState{Completed: true}, nil
+}
+func (fakeAccountApp) GetPreferences(context.Context, int64) (account.Preferences, error) {
+	return account.DefaultPreferences(), nil
+}
+func (fakeAccountApp) UpdatePreferences(context.Context, int64, account.PreferencesUpdate) (account.Preferences, error) {
+	return account.DefaultPreferences(), nil
+}
+func (fakeAccountApp) ListQuotas(context.Context, int64) ([]account.Quota, error) {
+	return []account.Quota{}, nil
+}
+func (fakeAccountApp) ListContent(context.Context, int64, int) ([]account.ContentItem, error) {
+	return []account.ContentItem{}, nil
+}
+func (fakeAccountApp) DeleteAccount(context.Context, int64) (account.DeletionStatus, error) {
+	return account.DeletionStatus{Status: "pending_deletion"}, nil
+}
+
+func TestAccountRoutesAreMountedBehindAuth(t *testing.T) {
+	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
+	accountHTTP := account.NewHTTPHandler(fakeAccountApp{})
+	router := NewRouter(HealthChecks{}, Handlers{Auth: authHTTP, Account: accountHTTP})
+
+	unauthorized := httptest.NewRecorder()
+	router.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/account/profile", nil))
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/account/profile", nil)
+	request.Header.Set("Authorization", "Bearer access-token")
+	authorized := httptest.NewRecorder()
+	router.ServeHTTP(authorized, request)
+	if authorized.Code != http.StatusOK {
+		t.Fatalf("authorized status = %d body=%s", authorized.Code, authorized.Body.String())
+	}
+	if !strings.Contains(authorized.Body.String(), `"nickname":"张晨"`) {
+		t.Fatalf("body = %s", authorized.Body.String())
+	}
+}
+
+type fakeNotificationsApp struct{}
+
+func (fakeNotificationsApp) ListNotifications(context.Context, int64, notifications.ListFilters) ([]notifications.Notification, error) {
+	return []notifications.Notification{{ID: 1, UserID: 42, Type: notifications.TypeTask, Title: "任务提醒"}}, nil
+}
+func (fakeNotificationsApp) GetNotification(context.Context, int64, int64) (notifications.Notification, error) {
+	return notifications.Notification{ID: 1, UserID: 42, Type: notifications.TypeTask, Title: "任务提醒"}, nil
+}
+func (fakeNotificationsApp) MarkRead(context.Context, int64, int64) (notifications.Notification, error) {
+	return notifications.Notification{ID: 1, UserID: 42, Type: notifications.TypeTask, Title: "任务提醒"}, nil
+}
+func (fakeNotificationsApp) MarkAllRead(context.Context, int64) (int, error) { return 1, nil }
+func (fakeNotificationsApp) Summary(context.Context, int64) (notifications.Summary, error) {
+	return notifications.Summary{Unread: 1}, nil
+}
+
+func TestNotificationRoutesAreMountedBehindAuth(t *testing.T) {
+	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
+	notificationsHTTP := notifications.NewHTTPHandler(fakeNotificationsApp{})
+	router := NewRouter(HealthChecks{}, Handlers{Auth: authHTTP, Notifications: notificationsHTTP})
+
+	unauthorized := httptest.NewRecorder()
+	router.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil))
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	request.Header.Set("Authorization", "Bearer access-token")
+	authorized := httptest.NewRecorder()
+	router.ServeHTTP(authorized, request)
+	if authorized.Code != http.StatusOK {
+		t.Fatalf("authorized status = %d body=%s", authorized.Code, authorized.Body.String())
+	}
+	if !strings.Contains(authorized.Body.String(), `"notifications"`) {
+		t.Fatalf("body = %s", authorized.Body.String())
+	}
+}
+
+type fakeHomeApp struct{}
+
+func (fakeHomeApp) Summary(context.Context, int64) (home.Summary, error) {
+	return home.Summary{AccountSummary: home.AccountSummary{PlanName: "会员版"}}, nil
+}
+
+func TestHomeRoutesAreMountedBehindAuth(t *testing.T) {
+	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
+	homeHTTP := home.NewHTTPHandler(fakeHomeApp{})
+	router := NewRouter(HealthChecks{}, Handlers{Auth: authHTTP, Home: homeHTTP})
+
+	unauthorized := httptest.NewRecorder()
+	router.ServeHTTP(unauthorized, httptest.NewRequest(http.MethodGet, "/api/v1/home/summary", nil))
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/home/summary", nil)
+	request.Header.Set("Authorization", "Bearer access-token")
+	authorized := httptest.NewRecorder()
+	router.ServeHTTP(authorized, request)
+	if authorized.Code != http.StatusOK {
+		t.Fatalf("authorized status = %d body=%s", authorized.Code, authorized.Body.String())
+	}
+	if !strings.Contains(authorized.Body.String(), `"plan_name":"会员版"`) {
+		t.Fatalf("body = %s", authorized.Body.String())
+	}
+}
 
 func TestMembershipRoutesAreMountedBehindAuth(t *testing.T) {
 	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
@@ -150,8 +289,23 @@ func (fakeContentApp) GetArticle(context.Context, string) (content.Article, erro
 func (fakeContentApp) CreateArticle(context.Context, int64, content.ArticleInput) (content.Article, error) {
 	return content.Article{}, content.ErrAdminRequired
 }
-func (fakeContentApp) ListTools(context.Context) ([]content.Tool, error) {
+func (fakeContentApp) BookmarkArticle(context.Context, int64, string) (content.BookmarkResult, error) {
+	return content.BookmarkResult{}, nil
+}
+func (fakeContentApp) UnbookmarkArticle(context.Context, int64, string) (content.BookmarkResult, error) {
+	return content.BookmarkResult{}, nil
+}
+func (fakeContentApp) ListTools(context.Context, content.ToolFilters) ([]content.Tool, error) {
 	return []content.Tool{}, nil
+}
+func (fakeContentApp) GetTool(context.Context, string) (content.Tool, error) {
+	return content.Tool{}, nil
+}
+func (fakeContentApp) FavoriteTool(context.Context, int64, string) (content.FavoriteResult, error) {
+	return content.FavoriteResult{}, nil
+}
+func (fakeContentApp) UnfavoriteTool(context.Context, int64, string) (content.FavoriteResult, error) {
+	return content.FavoriteResult{}, nil
 }
 func (fakeContentApp) UpsertTool(context.Context, int64, content.ToolInput) (content.Tool, error) {
 	return content.Tool{}, content.ErrAdminRequired
@@ -161,6 +315,18 @@ func (fakeContentApp) GetCommunityConfig(context.Context) (content.CommunityConf
 }
 func (fakeContentApp) UpdateCommunityConfig(context.Context, int64, content.CommunityConfigInput) (content.CommunityConfig, error) {
 	return content.CommunityConfig{}, content.ErrAdminRequired
+}
+func (fakeContentApp) CreateCommunityJoinRequest(context.Context, int64, content.CommunityJoinInput) (content.CommunityJoinRequest, error) {
+	return content.CommunityJoinRequest{}, nil
+}
+func (fakeContentApp) ListHelpTopics(context.Context) ([]content.HelpTopic, error) {
+	return []content.HelpTopic{}, nil
+}
+func (fakeContentApp) ListHelpArticles(context.Context, content.HelpArticleFilters) ([]content.HelpArticle, error) {
+	return []content.HelpArticle{}, nil
+}
+func (fakeContentApp) GetHelpArticle(context.Context, string) (content.HelpArticle, error) {
+	return content.HelpArticle{}, nil
 }
 func (fakeContentApp) GetBrand(context.Context) (content.BrandContent, error) {
 	return content.BrandContent{Metrics: []content.BrandMetric{}, Cases: []content.BrandCase{}}, nil
@@ -241,8 +407,11 @@ type fakeTasksApp struct{}
 func (fakeTasksApp) CreateTask(context.Context, tasks.CreateInput) (tasks.Task, error) {
 	return tasks.Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusTodo}, nil
 }
-func (fakeTasksApp) ListTasks(context.Context, int64, int) ([]tasks.Task, error) {
+func (fakeTasksApp) ListTasks(context.Context, int64, tasks.ListFilters) ([]tasks.Task, error) {
 	return []tasks.Task{{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusTodo}}, nil
+}
+func (fakeTasksApp) TaskStats(context.Context, int64) (tasks.Stats, error) {
+	return tasks.Stats{Total: 1, Todo: 1}, nil
 }
 func (fakeTasksApp) GetTask(context.Context, int64, int64) (tasks.Task, error) {
 	return tasks.Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusTodo}, nil
@@ -332,6 +501,15 @@ func (fakeGrowthApp) ListModels(context.Context, int64, int) ([]growth.Model, er
 func (fakeGrowthApp) GetModel(context.Context, int64, int64) (growth.Model, error) {
 	return growth.Model{ID: 99, UserID: 42, Name: "标准方案"}, nil
 }
+func (fakeGrowthApp) ModelScenarios(context.Context, int64, int64) (growth.GrowthScenarios, error) {
+	return growth.GrowthScenarios{ModelID: 99, Scenarios: []growth.GrowthScenario{{Name: "标准方案"}}}, nil
+}
+func (fakeGrowthApp) ModelForecast(context.Context, int64, int64) (growth.GrowthForecast, error) {
+	return growth.GrowthForecast{ModelID: 99, Months: []growth.ForecastMonth{{Month: "第3月", Revenue: 186000}}}, nil
+}
+func (fakeGrowthApp) ModelRecommendations(context.Context, int64, int64) (growth.GrowthRecommendations, error) {
+	return growth.GrowthRecommendations{ModelID: 99, ActionItems: []string{"优先优化成交率"}}, nil
+}
 
 func TestGrowthRoutesAreMountedBehindAuth(t *testing.T) {
 	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
@@ -353,6 +531,17 @@ func TestGrowthRoutesAreMountedBehindAuth(t *testing.T) {
 	}
 	if !strings.Contains(authorized.Body.String(), `"models"`) {
 		t.Fatalf("body = %s", authorized.Body.String())
+	}
+
+	derivedRequest := httptest.NewRequest(http.MethodGet, "/api/v1/growth/models/99/scenarios", nil)
+	derivedRequest.Header.Set("Authorization", "Bearer access-token")
+	derived := httptest.NewRecorder()
+	router.ServeHTTP(derived, derivedRequest)
+	if derived.Code != http.StatusOK {
+		t.Fatalf("derived status = %d body=%s", derived.Code, derived.Body.String())
+	}
+	if !strings.Contains(derived.Body.String(), `"scenarios"`) {
+		t.Fatalf("derived body = %s", derived.Body.String())
 	}
 }
 
@@ -410,6 +599,18 @@ func (fakeLearningApp) CreateDiagnosis(context.Context, learning.CreateDiagnosis
 }
 func (fakeLearningApp) LatestDiagnosis(context.Context, int64) (learning.Diagnosis, error) {
 	return learning.Diagnosis{ID: 99, UserID: 42, Status: learning.DiagnosisCompleted}, nil
+}
+func (fakeLearningApp) LatestGaps(context.Context, int64) (learning.DiagnosisGaps, error) {
+	return learning.DiagnosisGaps{DiagnosisID: 99, Gaps: []learning.GapItem{{Name: "数据分析能力", Gap: 22}}}, nil
+}
+func (fakeLearningApp) LatestRecommendations(context.Context, int64) (learning.DiagnosisRecommendations, error) {
+	return learning.DiagnosisRecommendations{DiagnosisID: 99, Focus: []learning.RecommendationFocus{{Name: "数据分析能力"}}}, nil
+}
+func (fakeLearningApp) LatestPlan(context.Context, int64) (learning.DiagnosisPlan, error) {
+	return learning.DiagnosisPlan{DiagnosisID: 99, Title: "AI能力路径"}, nil
+}
+func (fakeLearningApp) LatestReport(context.Context, int64) (learning.DiagnosisReport, error) {
+	return learning.DiagnosisReport{DiagnosisID: 99, OverallScore: 82}, nil
 }
 
 func TestLearningRoutesExposeCoursesAndProtectUserData(t *testing.T) {

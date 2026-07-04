@@ -17,10 +17,13 @@ func TestNewMuxRejectsUnregisteredTask(t *testing.T) {
 	}
 }
 
-func TestDefaultRegistryIncludesLeadSearch(t *testing.T) {
+func TestDefaultRegistryIncludesKnownJobTypes(t *testing.T) {
 	registry := DefaultRegistry()
 
 	if !registry[jobs.TypeLeadSearch] {
 		t.Fatalf("DefaultRegistry() = %+v, want lead search type", registry)
+	}
+	if !registry[jobs.TypeGeoAnalysis] {
+		t.Fatalf("DefaultRegistry() = %+v, want GEO analysis type", registry)
 	}
 }

@@ -95,6 +95,103 @@ func TestPostgresRepositoryUpdatesStageAndActivityInTransaction(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryListsCustomersWithFilters(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 24, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, import_key, name, phone, email, website, stage, source, next_follow_up_at, created_at, updated_at
+		FROM crm_customers
+		WHERE user_id = $1
+			AND ($2 = '' OR stage = $2)
+			AND (
+				$3 = ''
+				OR name ILIKE '%' || $3 || '%'
+				OR phone ILIKE '%' || $3 || '%'
+				OR email ILIKE '%' || $3 || '%'
+				OR website ILIKE '%' || $3 || '%'
+			)
+		ORDER BY updated_at DESC, id DESC
+		LIMIT $4
+	`)).
+		WithArgs(int64(42), StageContacted, "启明星", 20).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "import_key", "name", "phone", "email", "website", "stage", "source", "next_follow_up_at", "created_at", "updated_at"}).
+			AddRow(int64(100), int64(42), "lead_result:99", "成都启明星教育", "028-12345678", "", "", StageContacted, SourceLead, nil, now, now))
+
+	repository := NewPostgresRepository(db)
+	customers, err := repository.ListCustomers(context.Background(), ListCustomersInput{UserID: 42, Stage: StageContacted, Q: "启明星", Limit: 20})
+	if err != nil {
+		t.Fatalf("ListCustomers() error = %v", err)
+	}
+	if len(customers) != 1 || customers[0].ID != 100 {
+		t.Fatalf("customers = %+v", customers)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryUpdatesCustomerAndActivityInTransaction(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 24, 10, 30, 0, 0, time.UTC)
+	name := "成都启明星教育"
+	phone := "028-12345678"
+	db.ExpectBegin()
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE crm_customers
+		SET
+			name = COALESCE($3, name),
+			phone = COALESCE($4, phone),
+			email = COALESCE($5, email),
+			website = COALESCE($6, website),
+			updated_at = $7
+		WHERE user_id = $1 AND id = $2
+		RETURNING id, user_id, import_key, name, phone, email, website, stage, source, next_follow_up_at, created_at, updated_at
+	`)).
+		WithArgs(int64(42), int64(100), name, phone, nil, nil, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "import_key", "name", "phone", "email", "website", "stage", "source", "next_follow_up_at", "created_at", "updated_at"}).
+			AddRow(int64(100), int64(42), "lead_result:99", name, phone, "", "", StageContacted, SourceLead, nil, now, now))
+	db.ExpectExec(regexp.QuoteMeta(`
+		INSERT INTO crm_activities (user_id, customer_id, type, note, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`)).
+		WithArgs(int64(42), int64(100), ActivityCustomerUpdated, "客户资料已更新", now).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	db.ExpectCommit()
+
+	repository := NewPostgresRepository(db)
+	customer, err := repository.UpdateCustomer(context.Background(), UpdateCustomerInput{
+		UserID:     42,
+		CustomerID: 100,
+		Name:       &name,
+		Phone:      &phone,
+	}, Activity{
+		UserID:     42,
+		CustomerID: 100,
+		Type:       ActivityCustomerUpdated,
+		Note:       "客户资料已更新",
+		CreatedAt:  now,
+	})
+	if err != nil {
+		t.Fatalf("UpdateCustomer() error = %v", err)
+	}
+	if customer.Name != name || customer.Phone != phone {
+		t.Fatalf("customer = %+v", customer)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryListsDueCustomersForUser(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {
@@ -121,6 +218,108 @@ func TestPostgresRepositoryListsDueCustomersForUser(t *testing.T) {
 	}
 	if len(customers) != 1 || customers[0].ID != 100 {
 		t.Fatalf("customers = %+v", customers)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryListsFollowUpsForUser(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, customer_id, note, next_follow_up_at, created_at
+		FROM crm_followups
+		WHERE user_id = $1 AND ($2 = 0 OR customer_id = $2)
+		ORDER BY next_follow_up_at ASC, created_at DESC, id DESC
+		LIMIT $3
+	`)).
+		WithArgs(int64(42), int64(100), 20).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "customer_id", "note", "next_follow_up_at", "created_at"}).
+			AddRow(int64(1), int64(42), int64(100), "发送方案", now, now))
+
+	repository := NewPostgresRepository(db)
+	followUps, err := repository.ListFollowUps(context.Background(), ListFollowUpsInput{UserID: 42, CustomerID: 100, Limit: 20})
+	if err != nil {
+		t.Fatalf("ListFollowUps() error = %v", err)
+	}
+	if len(followUps) != 1 || followUps[0].Note != "发送方案" {
+		t.Fatalf("followUps = %+v", followUps)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryListsActivitiesForCustomer(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, customer_id, type, note, created_at
+		FROM crm_activities
+		WHERE user_id = $1 AND customer_id = $2
+		ORDER BY created_at DESC, id DESC
+		LIMIT $3
+	`)).
+		WithArgs(int64(42), int64(100), 20).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "customer_id", "type", "note", "created_at"}).
+			AddRow(int64(1), int64(42), int64(100), ActivityCustomerUpdated, "客户资料已更新", now))
+
+	repository := NewPostgresRepository(db)
+	activities, err := repository.ListActivities(context.Background(), 42, 100, 20)
+	if err != nil {
+		t.Fatalf("ListActivities() error = %v", err)
+	}
+	if len(activities) != 1 || activities[0].Type != ActivityCustomerUpdated {
+		t.Fatalf("activities = %+v", activities)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryReturnsPipelineStats(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT
+			COUNT(*)::int,
+			COUNT(*) FILTER (WHERE stage = 'new')::int,
+			COUNT(*) FILTER (WHERE stage = 'contacted')::int,
+			COUNT(*) FILTER (WHERE stage = 'qualified')::int,
+			COUNT(*) FILTER (WHERE stage = 'proposal')::int,
+			COUNT(*) FILTER (WHERE stage = 'won')::int,
+			COUNT(*) FILTER (WHERE stage = 'lost')::int,
+			COUNT(*) FILTER (WHERE next_follow_up_at IS NOT NULL AND next_follow_up_at <= $2)::int
+		FROM crm_customers
+		WHERE user_id = $1
+	`)).
+		WithArgs(int64(42), now).
+		WillReturnRows(pgxmock.NewRows([]string{"total", "new", "contacted", "qualified", "proposal", "won", "lost", "due_today"}).
+			AddRow(3, 1, 1, 0, 0, 1, 0, 2))
+
+	repository := NewPostgresRepository(db)
+	stats, err := repository.PipelineStats(context.Background(), 42, now)
+	if err != nil {
+		t.Fatalf("PipelineStats() error = %v", err)
+	}
+	if stats.Total != 3 || stats.New != 1 || stats.Won != 1 || stats.DueToday != 2 {
+		t.Fatalf("stats = %+v", stats)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

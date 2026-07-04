@@ -17,6 +17,10 @@ type Application interface {
 	ListProgress(ctx context.Context, userID int64) ([]Progress, error)
 	CreateDiagnosis(ctx context.Context, input CreateDiagnosisInput) (Diagnosis, error)
 	LatestDiagnosis(ctx context.Context, userID int64) (Diagnosis, error)
+	LatestGaps(ctx context.Context, userID int64) (DiagnosisGaps, error)
+	LatestRecommendations(ctx context.Context, userID int64) (DiagnosisRecommendations, error)
+	LatestPlan(ctx context.Context, userID int64) (DiagnosisPlan, error)
+	LatestReport(ctx context.Context, userID int64) (DiagnosisReport, error)
 }
 
 type HTTPHandler struct {
@@ -36,6 +40,10 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.GET("/learning/progress", h.listProgress)
 	router.POST("/learning/diagnoses", h.createDiagnosis)
 	router.GET("/learning/diagnoses/latest", h.latestDiagnosis)
+	router.GET("/learning/diagnoses/latest/gaps", h.latestGaps)
+	router.GET("/learning/diagnoses/latest/recommendations", h.latestRecommendations)
+	router.GET("/learning/diagnoses/latest/plan", h.latestPlan)
+	router.GET("/learning/diagnoses/latest/report", h.latestReport)
 }
 
 func (h *HTTPHandler) listCourses(c *gin.Context) {
@@ -98,6 +106,42 @@ func (h *HTTPHandler) latestDiagnosis(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, diagnosis)
+}
+
+func (h *HTTPHandler) latestGaps(c *gin.Context) {
+	gaps, err := h.app.LatestGaps(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gaps)
+}
+
+func (h *HTTPHandler) latestRecommendations(c *gin.Context) {
+	recommendations, err := h.app.LatestRecommendations(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, recommendations)
+}
+
+func (h *HTTPHandler) latestPlan(c *gin.Context) {
+	plan, err := h.app.LatestPlan(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, plan)
+}
+
+func (h *HTTPHandler) latestReport(c *gin.Context) {
+	report, err := h.app.LatestReport(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, report)
 }
 
 func writeError(c *gin.Context, err error) {

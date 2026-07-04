@@ -224,7 +224,8 @@ describe("App", () => {
     );
 
     expect(screen.getByRole("heading", { name: "AI 对比分析" })).toBeInTheDocument();
-    expect(screen.getAllByText("回答完成")).toHaveLength(3);
+    expect(screen.getByRole("heading", { name: "开始 AI 对比分析" })).toBeInTheDocument();
+    expect(screen.queryByText("回答完成")).not.toBeInTheDocument();
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
   });
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { apiErrorMessage } from "../lib/apiErrors";
-import { crmApi, type CrmCustomer, type CrmStage } from "../lib/crmApi";
+import { crmApi, type CrmActivity, type CrmCustomer, type CrmFollowUp, type CrmPipelineStats, type CrmStage } from "../lib/crmApi";
 import { CdkTopNav } from "./AnalysisPage";
 
 type CrmPageProps = {
@@ -22,150 +22,10 @@ type CustomerCard = {
   email: string;
 };
 
-const crmStats = [
-  ["总客户", "12,845", "user"],
-  ["高意向", "2,318", "star"],
-  ["今日待跟进", "68", "calendar"],
-  ["跟进中", "1,426", "person"],
-  ["已成交", "532", "check"]
-] as const;
+type StatCard = readonly [string, string, string];
 
-const customers = [
-  {
-    name: "张女士 · 成都蓝鲸教育",
-    owner: "李明",
-    value: "¥36万",
-    stage: "跟进中",
-    health: "高意向",
-    next: "明天 10:00",
-    location: "成都高新区 · 少儿英语",
-    contact: "138****6789",
-    email: "zhang***@qq.com",
-    tags: ["英语培训", "K12"]
-  },
-  {
-    name: "王先生 · 星辰国际学校",
-    owner: "陈晨",
-    value: "¥18万",
-    stage: "已沟通",
-    health: "可推进",
-    next: "后天 16:00",
-    location: "成都高新区 · 国际教育",
-    contact: "139****8821",
-    email: "wang***@qq.com",
-    tags: ["国际学校", "留学"]
-  },
-  {
-    name: "刘女士 · 乐学英语中心",
-    owner: "赵磊",
-    value: "¥24万",
-    stage: "跟进中",
-    health: "高意向",
-    next: "明天 14:00",
-    location: "成都锦江区 · 成人英语",
-    contact: "136****0192",
-    email: "liu***@qq.com",
-    tags: ["英语培训", "少儿英语"]
-  },
-  {
-    name: "李先生 · 启航教育科技",
-    owner: "孙悦",
-    value: "待评估",
-    stage: "新线索",
-    health: "待决策",
-    next: "3天后 10:00",
-    location: "成都武侯区 · K12辅导",
-    contact: "待补充",
-    email: "待补充",
-    tags: ["教育科技", "SaaS"]
-  },
-  {
-    name: "陈女士 · 阳光少儿英语",
-    owner: "李明",
-    value: "¥12万",
-    stage: "跟进中",
-    health: "高意向",
-    next: "明天 09:00",
-    location: "成都青羊区 · 出国留学",
-    contact: "137****7721",
-    email: "chen***@qq.com",
-    tags: ["少儿英语", "口语"]
-  },
-  {
-    name: "周先生 · 优学国际教育",
-    owner: "陈晨",
-    value: "¥28万",
-    stage: "高意向",
-    health: "高意向",
-    next: "今天 16:30",
-    location: "成都天府新区 · 职业培训",
-    contact: "135****9134",
-    email: "zhou***@qq.com",
-    tags: ["国际教育", "留学"]
-  },
-  {
-    name: "黄女士 · 巴蜀文化学校",
-    owner: "赵磊",
-    value: "¥9万",
-    stage: "已成交",
-    health: "已成交",
-    next: "-",
-    location: "成都金牛区 · 语言培训",
-    contact: "138****6520",
-    email: "huang***@qq.com",
-    tags: ["学校", "K12"]
-  },
-  {
-    name: "吴先生 · 博睿教育咨询",
-    owner: "孙悦",
-    value: "待评估",
-    stage: "新线索",
-    health: "可推进",
-    next: "2天后 15:00",
-    location: "成都高新区 · 素质教育",
-    contact: "待补充",
-    email: "wu***@qq.com",
-    tags: ["教育咨询", "升学规划"]
-  },
-  {
-    name: "星桥教育集团",
-    owner: "张婧",
-    value: "¥36万",
-    stage: "方案演示",
-    health: "高意向",
-    next: "今天 14:00",
-    location: "连锁教育 · 私域运营",
-    contact: "138****1024",
-    email: "contact***@example.com",
-    tags: ["连锁教育", "企微转化"]
-  }
-] as const;
-
-const followRows = [
-  ["张女士 · 成都蓝鲸教育", "成都高新区 · 少儿英语", "跟进中", "已介绍课程体系与师资，客户对外教课程有兴趣，需发送详细课程介绍。", "李明", "今天 15:00", "高", "待跟进"],
-  ["王先生 · 星辰国际学校", "成都高新区 · 国际教育", "已沟通", "客户对课程方案认可，正在内部评估预算，预计下周给答复。", "陈晨", "明天 10:30", "高", "待跟进"],
-  ["刘女士 · 乐学英语中心", "成都锦江区 · 成人英语", "跟进中", "发送了试听安排，客户反馈老师讲解清晰，满意度较高。", "赵磊", "后天 16:00", "中", "待跟进"],
-  ["赵磊 · 优学教育", "成都武侯区 · K12辅导", "意向确认", "正在确认合作模式与费用细节，客户关注开课时间与排课安排。", "周文", "2024-05-28 11:00", "中", "已逾期"],
-  ["陈女士 · 启航教育", "成都青羊区 · 出国留学", "已沟通", "已沟通留学规划方案，客户想了解申请流程与成功案例。", "李明", "2024-05-27 14:30", "高", "已逾期"],
-  ["周先生 · 未来学院", "成都天府新区 · 职业培训", "跟进中", "已提供课程大纲与就业数据，客户比较其他机构价格。", "王芳", "2024-05-30 10:00", "低", "待跟进"],
-  ["孙女士 · 博雅教育", "成都高新区 · 素质教育", "意向确认", "意向较强，计划周末到校参观，需安排接待与课程体验。", "陈晨", "2024-05-31 09:30", "中", "待跟进"],
-  ["黄先生 · 新航道学校", "成都金牛区 · 语言培训", "已成交", "已签订合作协议，正在推进开课准备与教材采购。", "赵磊", "2024-06-05 10:00", "低", "已完成"]
-] as const;
-
-const reminders = [
-  ["15:00", "张女士 · 成都蓝鲸教育", "成都高新区 · 少儿英语", "跟进中"],
-  ["16:30", "周先生 · 未来学院", "成都天府新区 · 职业培训", "跟进中"],
-  ["17:00", "杨先生 · 智学教育", "成都锦江区 · K12辅导", "意向确认"],
-  ["18:00", "吴女士 · 启明星教育", "成都青羊区 · 素质教育", "已沟通"],
-  ["19:00", "郑先生 · 环球留学", "成都高新区 · 出国留学", "意向确认"]
-] as const;
-
-const recentUpdates = [
-  ["李明 记录跟进：张女士 · 成都蓝鲸教育", "已介绍课程体系，客户感兴趣，待发资料", "1小时前"],
-  ["陈晨 记录跟进：王先生 · 星辰国际学校", "客户认可方案，内部评估预算中", "2小时前"],
-  ["赵磊 改期跟进：赵磊 · 优学教育", "客户临时有事，将跟进时间改至 5/28 11:00", "3小时前"],
-  ["王芳 完成跟进：吴先生 · 博文教育", "已签订合作协议，进入开课准备阶段", "5小时前"]
-] as const;
+type FollowRow = readonly [string, string, string, string, string, string, string, string];
+type TimelineRow = readonly [string, string];
 
 const stageLabels: Record<CrmStage, string> = {
   new: "新线索",
@@ -194,16 +54,80 @@ function toCustomerCard(customer: CrmCustomer): CustomerCard {
   };
 }
 
+function toStatCards(stats: CrmPipelineStats | null): readonly StatCard[] {
+  if (!stats) {
+    return [
+      ["总客户", "0", "user"],
+      ["高意向", "0", "star"],
+      ["今日待跟进", "0", "calendar"],
+      ["跟进中", "0", "person"],
+      ["已成交", "0", "check"]
+    ];
+  }
+  return [
+    ["总客户", String(stats.total), "user"],
+    ["高意向", String(stats.qualified + stats.proposal), "star"],
+    ["今日待跟进", String(stats.due_today), "calendar"],
+    ["跟进中", String(stats.contacted + stats.qualified + stats.proposal), "person"],
+    ["已成交", String(stats.won), "check"]
+  ];
+}
+
+function followUpStatus(followUp: CrmFollowUp) {
+  const dueAt = new Date(followUp.next_follow_up_at);
+  return dueAt.getTime() < Date.now() ? "已逾期" : "待跟进";
+}
+
+function toFollowRow(followUp: CrmFollowUp): FollowRow {
+  const next = new Date(followUp.next_follow_up_at).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  return [
+    `客户 #${followUp.customer_id}`,
+    "CRM客户",
+    "跟进中",
+    followUp.note,
+    "张婧",
+    next,
+    "中",
+    followUpStatus(followUp)
+  ];
+}
+
+function activityTitle(activity: CrmActivity) {
+  if (activity.type === "customer_updated") return "客户资料更新";
+  if (activity.type === "stage_changed") return "阶段变更";
+  if (activity.type === "follow_up_recorded") return "记录跟进";
+  return "客户动态";
+}
+
+function toTimelineRow(activity: CrmActivity): TimelineRow {
+  const time = new Date(activity.created_at).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  return [`${time} 张婧`, activity.note || activityTitle(activity)] as const;
+}
+
 function CrmPage({ variant = "customers" }: CrmPageProps) {
-  const [dueCustomers, setDueCustomers] = useState<CrmCustomer[]>([]);
+  const [apiCustomers, setApiCustomers] = useState<CrmCustomer[]>([]);
+  const [activities, setActivities] = useState<CrmActivity[]>([]);
+  const [stats, setStats] = useState<CrmPipelineStats | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
-    crmApi
-      .listDueCustomers(20)
-      .then((payload) => {
-        if (active) setDueCustomers(payload.customers);
+    Promise.all([crmApi.listCustomers({ limit: 20 }), crmApi.pipelineStats()])
+      .then(([customersPayload, statsPayload]) => {
+        if (active) {
+          setApiCustomers(customersPayload.customers);
+          setStats(statsPayload);
+        }
       })
       .catch((error) => {
         if (active) setError(apiErrorMessage(error, "暂时无法读取 CRM 客户"));
@@ -213,13 +137,35 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     };
   }, []);
 
-  const visibleCustomers = dueCustomers.length > 0 ? dueCustomers.map(toCustomerCard) : customers;
+  useEffect(() => {
+    const customer = apiCustomers[0];
+    if (!customer) {
+      setActivities([]);
+      return;
+    }
+    let active = true;
+    crmApi
+      .listActivities(customer.id, 20)
+      .then((payload) => {
+        if (active) setActivities(payload.activities);
+      })
+      .catch(() => {
+        if (active) setActivities([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [apiCustomers]);
+
+  const visibleCustomers = apiCustomers.map(toCustomerCard);
+  const visibleStats = toStatCards(stats);
 
   if (variant === "followUps") {
     return <FollowUpsPage />;
   }
 
   const selectedCustomer = visibleCustomers[0];
+  const visibleTimelineRows = activities.map(toTimelineRow);
 
   return (
     <main className="cdk-analysis-page cdk-crm-page">
@@ -237,7 +183,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
       </section>
 
       <section className="cdk-crm-stats" aria-label="CRM关键指标">
-        {crmStats.map(([label, value, icon]) => (
+        {visibleStats.map(([label, value, icon]) => (
           <article key={label}>
             <i className={`crm-stat-${icon}`} aria-hidden="true" />
             <span>{label}</span>
@@ -269,33 +215,34 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                 <span key={item} role="columnheader">{item}</span>
               ))}
             </div>
-            {visibleCustomers.map((customer) => (
-              <article key={customer.name} role="row">
-                <input aria-label={`选择${customer.name}`} type="checkbox" />
-                <div>
-                  <h3>{customer.name}</h3>
-                  <small>{customer.location}</small>
-                </div>
-                <span className={`stage ${stageTone(customer.stage)}`}>{customer.stage}</span>
-                <div className="cdk-crm-tags">
-                  {customer.tags.map((tag) => <b key={tag}>{tag}</b>)}
-                </div>
-                <span>{customer.stage === "新线索" ? "昨天 09:15" : "今天 15:00"}</span>
-                <span>{customer.owner}</span>
-                <span>{customer.next}</span>
-                <div className="cdk-crm-actions">
-                  <Link to="/crm/follow-ups">查看</Link>
-                  <button type="button" aria-label={`更多操作 ${customer.name}`}>•••</button>
-                </div>
-              </article>
-            ))}
+            {visibleCustomers.length === 0 ? (
+              <div className="module-empty-state" role="status">暂无CRM客户</div>
+            ) : visibleCustomers.map((customer) => (
+                <article key={customer.name} role="row">
+                  <input aria-label={`选择${customer.name}`} type="checkbox" />
+                  <div>
+                    <h3>{customer.name}</h3>
+                    <small>{customer.location}</small>
+                  </div>
+                  <span className={`stage ${stageTone(customer.stage)}`}>{customer.stage}</span>
+                  <div className="cdk-crm-tags">
+                    {customer.tags.map((tag) => <b key={tag}>{tag}</b>)}
+                  </div>
+                  <span>{customer.stage === "新线索" ? "暂无最近跟进" : "最近已更新"}</span>
+                  <span>{customer.owner}</span>
+                  <span>{customer.next}</span>
+                  <div className="cdk-crm-actions">
+                    <Link to="/crm/follow-ups">查看</Link>
+                    <button type="button" aria-label={`更多操作 ${customer.name}`}>•••</button>
+                  </div>
+                </article>
+              ))}
           </div>
 
           <footer className="cdk-crm-pagination">
-            <span>共 12,845 条数据</span>
+            <span>共 {visibleCustomers.length} 条数据</span>
             <button type="button">10 条/页⌄</button>
-            {[1, 2, 3, 4, 5].map((page) => <button className={page === 1 ? "active" : ""} key={page} type="button">{page}</button>)}
-            <button type="button">1285</button>
+            <button className="active" type="button">1</button>
           </footer>
         </div>
 
@@ -304,39 +251,43 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
             <h2>客户详情</h2>
             <span aria-hidden="true">⌖ ×</span>
           </header>
-          <section className="cdk-crm-profile">
-            <i aria-hidden="true" />
-            <div>
-              <strong>{selectedCustomer.name.split(" · ")[0]}</strong>
-              <span>{selectedCustomer.stage}</span>
-              <p>{selectedCustomer.name.split(" · ")[1] || selectedCustomer.location}</p>
-              <div>{selectedCustomer.tags.map((tag) => <b key={tag}>{tag}</b>)}</div>
-            </div>
-          </section>
-          <dl className="cdk-crm-detail-list">
-            <div><dt>联系方式</dt><dd>{selectedCustomer.contact} {selectedCustomer.email}</dd></div>
-            <div><dt>来源</dt><dd>线索查找（关键词：少儿英语培训）</dd></div>
-            <div><dt>需求摘要</dt><dd>希望为3-12岁孩子提供系统化英语课程，提升口语表达与应试能力。<button type="button">展开⌄</button></dd></div>
-          </dl>
-          <section className="cdk-crm-timeline">
-            <h2>跟进看板</h2>
-            {[
-              ["今天 15:00", "电话沟通，介绍课程体系与教学服务，客户对外教口语课感兴趣，约定明天发送课程方案。"],
-              ["昨天 10:30", "添加微信，初步了解需求，客户计划暑期班提升口语。"],
-              ["05-23 16:45", "首次电话沟通，了解机构基本情况与需求。"]
-            ].map(([time, detail]) => (
-              <article key={time}>
-                <time>{time} 李明</time>
-                <p>{detail}</p>
-              </article>
-            ))}
-            <Link to="/crm/follow-ups">查看全部跟进记录 ›</Link>
-          </section>
-          <footer>
-            <button type="button">拨打电话</button>
-            <button type="button">发消息</button>
-            <Link to="/crm/follow-ups">记录跟进</Link>
-          </footer>
+          {selectedCustomer ? (
+            <>
+              <section className="cdk-crm-profile">
+                <i aria-hidden="true" />
+                <div>
+                  <strong>{selectedCustomer.name.split(" · ")[0]}</strong>
+                  <span>{selectedCustomer.stage}</span>
+                  <p>{selectedCustomer.name.split(" · ")[1] || selectedCustomer.location}</p>
+                  <div>{selectedCustomer.tags.map((tag) => <b key={tag}>{tag}</b>)}</div>
+                </div>
+              </section>
+              <dl className="cdk-crm-detail-list">
+                <div><dt>联系方式</dt><dd>{selectedCustomer.contact} {selectedCustomer.email}</dd></div>
+                <div><dt>来源</dt><dd>{selectedCustomer.location}</dd></div>
+                <div><dt>需求摘要</dt><dd>{selectedCustomer.health}，下一步：{selectedCustomer.next}</dd></div>
+              </dl>
+              <section className="cdk-crm-timeline">
+                <h2>跟进看板</h2>
+                {visibleTimelineRows.length === 0 ? (
+                  <p className="module-empty-state">暂无跟进动态</p>
+                ) : visibleTimelineRows.map(([time, detail]) => (
+                    <article key={time}>
+                      <time>{time}</time>
+                      <p>{detail}</p>
+                    </article>
+                  ))}
+                <Link to="/crm/follow-ups">查看全部跟进记录 ›</Link>
+              </section>
+              <footer>
+                <button type="button">拨打电话</button>
+                <button type="button">发消息</button>
+                <Link to="/crm/follow-ups">记录跟进</Link>
+              </footer>
+            </>
+          ) : (
+            <p className="module-empty-state" role="status">暂无客户详情</p>
+          )}
         </aside>
       </section>
     </main>
@@ -344,6 +295,36 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
 }
 
 function FollowUpsPage() {
+  const [apiFollowUps, setApiFollowUps] = useState<CrmFollowUp[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    crmApi
+      .listFollowUps({ limit: 20 })
+      .then((payload) => {
+        if (active) setApiFollowUps(payload.follow_ups);
+      })
+      .catch((error) => {
+        if (active) setError(apiErrorMessage(error, "暂时无法读取跟进记录"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleFollowRows = apiFollowUps.map(toFollowRow);
+  const now = Date.now();
+  const today = new Date();
+  const dueTodayCount = apiFollowUps.filter((followUp) => {
+    const dueAt = new Date(followUp.next_follow_up_at);
+    return dueAt.getFullYear() === today.getFullYear() && dueAt.getMonth() === today.getMonth() && dueAt.getDate() === today.getDate();
+  }).length;
+  const dueThisWeekCount = apiFollowUps.filter((followUp) => {
+    const dueAt = new Date(followUp.next_follow_up_at).getTime();
+    return dueAt >= now && dueAt <= now + 7 * 24 * 60 * 60 * 1000;
+  }).length;
+
   return (
     <main className="cdk-analysis-page cdk-crm-page cdk-followups-page">
       <CdkTopNav active="VIP获客" />
@@ -361,10 +342,10 @@ function FollowUpsPage() {
 
       <section className="cdk-crm-stats cdk-followups-stats">
         {[
-          ["今日待跟进", "68", "calendar"],
-          ["本周待跟进", "356", "chart"],
-          ["已沟通", "1,426", "message"],
-          ["已成交跟进", "532", "check"]
+          ["今日待跟进", String(dueTodayCount), "calendar"],
+          ["本周待跟进", String(dueThisWeekCount), "chart"],
+          ["跟进记录", String(apiFollowUps.length), "message"],
+          ["已逾期", String(visibleFollowRows.filter((row) => row[7] === "已逾期").length), "check"]
         ].map(([label, value, icon]) => (
           <article key={label}>
             <i className={`crm-stat-${icon}`} aria-hidden="true" />
@@ -390,54 +371,60 @@ function FollowUpsPage() {
             <button type="button">时间范围⌄</button>
           </header>
           <div className="cdk-followups-table" role="table" aria-label="全部跟进列表">
+            {error && <p className="form-error" role="alert">{error}</p>}
             <div className="cdk-followups-row head" role="row">
               {["客户 / 公司", "当前阶段", "最近跟进内容", "负责人", "下次跟进时间", "优先级", "跟进状态", "操作"].map((item) => (
                 <span key={item} role="columnheader">{item}</span>
               ))}
             </div>
-            {followRows.map(([name, sub, stage, note, owner, next, priority, status]) => (
-              <article className="cdk-followups-row" key={name} role="row">
-                <div><strong>{name}</strong><small>{sub}</small></div>
-                <span className={`stage ${stageTone(stage)}`}>{stage}</span>
-                <p>{note}</p>
-                <span>{owner}</span>
-                <time>{next}<small>{next.includes("今天") ? "2小时后" : next.includes("明天") ? "21小时后" : ""}</small></time>
-                <b className={`priority ${priority}`}>{priority}</b>
-                <span className="follow-status">{status}</span>
-                <div><Link to="/crm">查看详情</Link><button type="button">记录跟进</button><button type="button">改期</button></div>
-              </article>
-            ))}
+            {visibleFollowRows.length === 0 ? (
+              <div className="module-empty-state" role="status">暂无跟进记录</div>
+            ) : visibleFollowRows.map(([name, sub, stage, note, owner, next, priority, status]) => (
+                <article className="cdk-followups-row" key={`${name}-${next}`} role="row">
+                  <div><strong>{name}</strong><small>{sub}</small></div>
+                  <span className={`stage ${stageTone(stage)}`}>{stage}</span>
+                  <p>{note}</p>
+                  <span>{owner}</span>
+                  <time>{next}</time>
+                  <b className={`priority ${priority}`}>{priority}</b>
+                  <span className="follow-status">{status}</span>
+                  <div><Link to="/crm">查看详情</Link><button type="button">记录跟进</button><button type="button">改期</button></div>
+                </article>
+              ))}
           </div>
           <footer className="cdk-crm-pagination">
-            <span>共 1,426 条记录</span>
+            <span>共 {visibleFollowRows.length} 条记录</span>
             <button type="button">10 条/页⌄</button>
-            {[1, 2, 3, 4, 5].map((page) => <button className={page === 1 ? "active" : ""} key={page} type="button">{page}</button>)}
-            <button type="button">143</button>
+            <button className="active" type="button">1</button>
           </footer>
         </div>
 
         <aside className="cdk-followups-sidebar">
           <section>
             <h2>跟进提醒</h2>
-            <header><strong>今日待跟进（5）</strong><Link to="/crm/follow-ups">查看全部</Link></header>
-            {reminders.map(([time, name, sub, status]) => (
-              <article key={`${time}-${name}`}>
-                <time>{time}</time>
-                <span><strong>{name}</strong><small>{sub}</small></span>
-                <b>{status}</b>
-              </article>
-            ))}
+            <header><strong>今日待跟进（{dueTodayCount}）</strong><Link to="/crm/follow-ups">查看全部</Link></header>
+            {visibleFollowRows.length === 0 ? (
+              <p className="module-empty-state">暂无跟进提醒</p>
+            ) : visibleFollowRows.slice(0, 5).map(([name, sub,, , , next,, status]) => (
+                <article key={`${next}-${name}`}>
+                  <time>{next}</time>
+                  <span><strong>{name}</strong><small>{sub}</small></span>
+                  <b>{status}</b>
+                </article>
+              ))}
             <Link to="/tasks">查看全部日程</Link>
           </section>
           <section>
             <h2>最近更新</h2>
-            {recentUpdates.map(([title, detail, time], index) => (
-              <article className="update" key={title}>
-                <i className={`dot-${index + 1}`} aria-hidden="true" />
-                <span><strong>{title}</strong><small>{detail}</small></span>
-                <time>{time}</time>
-              </article>
-            ))}
+            {apiFollowUps.length === 0 ? (
+              <p className="module-empty-state">暂无最近更新</p>
+            ) : apiFollowUps.slice(0, 4).map((followUp, index) => (
+                <article className="update" key={followUp.id}>
+                  <i className={`dot-${index + 1}`} aria-hidden="true" />
+                  <span><strong>记录跟进：客户 #{followUp.customer_id}</strong><small>{followUp.note}</small></span>
+                  <time>{new Date(followUp.created_at).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</time>
+                </article>
+              ))}
             <Link to="/crm/follow-ups">查看更多记录</Link>
           </section>
         </aside>

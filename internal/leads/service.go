@@ -14,6 +14,7 @@ type Repository interface {
 	GetTask(ctx context.Context, id int64) (Task, error)
 	UpdateTaskStatus(ctx context.Context, id int64, status string, errorCode string) error
 	StoreResults(ctx context.Context, taskID int64, leads []Lead) error
+	ListResults(ctx context.Context, taskID int64, limit int) ([]LeadResult, error)
 	ListTasks(ctx context.Context, userID int64, limit int) ([]Task, error)
 }
 
@@ -118,6 +119,47 @@ func (s *Service) ListTasks(ctx context.Context, userID int64, limit int) ([]Tas
 	return s.repository.ListTasks(ctx, userID, limit)
 }
 
+func (s *Service) GetTask(ctx context.Context, userID, id int64) (TaskDetail, error) {
+	if s.repository == nil {
+		return TaskDetail{}, ErrServiceNotReady
+	}
+	task, err := s.repository.GetTask(ctx, id)
+	if err != nil {
+		return TaskDetail{}, err
+	}
+	if task.UserID != userID {
+		return TaskDetail{}, ErrTaskNotFound
+	}
+	results, err := s.repository.ListResults(ctx, task.ID, 100)
+	if err != nil {
+		return TaskDetail{}, err
+	}
+	resultsCount := len(results)
+	return TaskDetail{
+		Task:            task,
+		ProgressPercent: taskProgress(task.Status),
+		Message:         taskMessage(task),
+		ResultsCount:    resultsCount,
+	}, nil
+}
+
+func (s *Service) ListResults(ctx context.Context, userID, taskID int64, limit int) ([]LeadResult, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	task, err := s.repository.GetTask(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if task.UserID != userID {
+		return nil, ErrTaskNotFound
+	}
+	return s.repository.ListResults(ctx, taskID, limit)
+}
+
 func (s *Service) failTask(ctx context.Context, task Task, cause error) error {
 	code := errorCode(cause)
 	if refundable(cause) {
@@ -148,4 +190,41 @@ func errorCode(err error) string {
 
 func refundable(err error) bool {
 	return errors.Is(err, ErrProviderUnavailable) || errors.Is(err, ErrProviderTimeout)
+}
+
+func taskProgress(status string) int {
+	switch status {
+	case StatusQueued:
+		return 20
+	case StatusRunning:
+		return 60
+	case StatusSucceeded:
+		return 100
+	case StatusFailed, StatusRefunded, StatusCancelled:
+		return 100
+	default:
+		return 0
+	}
+}
+
+func taskMessage(task Task) string {
+	switch task.Status {
+	case StatusQueued:
+		return "任务已进入队列，等待开始采集。"
+	case StatusRunning:
+		return "正在采集公开线索并进行可触达性判断。"
+	case StatusSucceeded:
+		return "线索采集已完成，可以查看结果并导入 CRM。"
+	case StatusRefunded:
+		return "供应商暂不可用，本次额度已退回。"
+	case StatusFailed:
+		if task.ErrorCode != "" {
+			return "任务失败：" + task.ErrorCode
+		}
+		return "任务失败，请稍后重试。"
+	case StatusCancelled:
+		return "任务已取消。"
+	default:
+		return "任务状态待确认。"
+	}
 }

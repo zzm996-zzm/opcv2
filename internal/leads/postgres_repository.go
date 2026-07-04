@@ -91,6 +91,33 @@ func (r *PostgresRepository) StoreResults(ctx context.Context, taskID int64, lea
 	return tx.Commit(ctx)
 }
 
+func (r *PostgresRepository) ListResults(ctx context.Context, taskID int64, limit int) ([]LeadResult, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, task_id, name, phone, email, website, evidence, created_at
+		FROM lead_results
+		WHERE task_id = $1
+		ORDER BY created_at DESC, id DESC
+		LIMIT $2
+	`, taskID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []LeadResult
+	for rows.Next() {
+		result, err := scanLeadResult(rows)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, result)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
 func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, limit int) ([]Task, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, query, status, idempotency_key, credit_cost, error_code, created_at, updated_at
@@ -146,4 +173,25 @@ func scanTask(scanner taskScanner) (Task, error) {
 		return Task{}, err
 	}
 	return task, nil
+}
+
+func scanLeadResult(scanner taskScanner) (LeadResult, error) {
+	var result LeadResult
+	var evidence []byte
+	if err := scanner.Scan(
+		&result.ID,
+		&result.TaskID,
+		&result.Name,
+		&result.Phone,
+		&result.Email,
+		&result.Website,
+		&evidence,
+		&result.CreatedAt,
+	); err != nil {
+		return LeadResult{}, err
+	}
+	if err := json.Unmarshal(evidence, &result.Evidence); err != nil {
+		return LeadResult{}, err
+	}
+	return result, nil
 }

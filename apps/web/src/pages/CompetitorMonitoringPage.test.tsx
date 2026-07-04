@@ -35,13 +35,18 @@ describe("CompetitorMonitoringPage", () => {
     );
   }
 
-  it("renders the competitor monitoring workbench instead of the placeholder", () => {
+  it("renders the competitor monitoring workbench with empty backend state", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ watchlist: [], events: [] }), { status: 200 })
+    );
+
     renderMonitoringRoute();
 
     expect(screen.getByRole("heading", { name: "竞品动态监测" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "新增监测对象" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "监测中竞品" })).toBeInTheDocument();
-    expect(screen.getAllByText("小鹅通").length).toBeGreaterThan(0);
+    expect(await screen.findByText("暂无监测对象")).toBeInTheDocument();
+    expect(screen.queryByText("小鹅通")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "动态时间线" })).toBeInTheDocument();
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
   });
@@ -79,7 +84,7 @@ describe("CompetitorMonitoringPage", () => {
     expect(screen.getByRole("heading", { name: "自动任务派发上线" })).toBeInTheDocument();
   });
 
-  it("shows backend load errors while keeping fallback monitoring data visible", async () => {
+  it("shows backend load errors without rendering fallback monitoring data", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "invalid_request" }), { status: 400 })
     );
@@ -87,6 +92,7 @@ describe("CompetitorMonitoringPage", () => {
     renderMonitoringRoute();
 
     expect(await screen.findByText("请求参数有误，请检查后重试")).toBeInTheDocument();
-    expect(screen.getAllByText("小鹅通").length).toBeGreaterThan(0);
+    expect(screen.getByText("暂无监测对象")).toBeInTheDocument();
+    expect(screen.queryByText("小鹅通")).not.toBeInTheDocument();
   });
 });

@@ -45,14 +45,17 @@ func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, e
 	return task, err
 }
 
-func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, limit int) ([]Task, error) {
+func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, title, project, status, priority, due_at, tools, learning, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
+		  AND ($2 = '' OR status = $2)
+		  AND ($3 = '' OR project = $3)
+		  AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR project ILIKE '%' || $4 || '%' OR learning ILIKE '%' || $4 || '%')
 		ORDER BY created_at DESC
-		LIMIT $2
-	`, userID, limit)
+		LIMIT $5
+	`, userID, filters.Status, filters.Project, filters.Query, filters.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +73,29 @@ func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, limit 
 		return nil, err
 	}
 	return tasks, nil
+}
+
+func (r *PostgresRepository) TaskStats(ctx context.Context, userID int64, now time.Time) (Stats, error) {
+	var stats Stats
+	err := r.db.QueryRow(ctx, `
+		SELECT
+			COUNT(*)::INT,
+			COUNT(*) FILTER (WHERE status = 'todo')::INT,
+			COUNT(*) FILTER (WHERE status = 'in_progress')::INT,
+			COUNT(*) FILTER (WHERE status = 'completed')::INT,
+			COUNT(*) FILTER (WHERE status = 'reminder')::INT,
+			COUNT(*) FILTER (WHERE due_at IS NOT NULL AND due_at < $2 AND status <> 'completed')::INT
+		FROM tasks
+		WHERE user_id = $1
+	`, userID, now).Scan(
+		&stats.Total,
+		&stats.Todo,
+		&stats.InProgress,
+		&stats.Completed,
+		&stats.Reminder,
+		&stats.Overdue,
+	)
+	return stats, err
 }
 
 func (r *PostgresRepository) GetTask(ctx context.Context, userID, id int64) (Task, error) {

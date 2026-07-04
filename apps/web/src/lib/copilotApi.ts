@@ -160,16 +160,18 @@ export const copilotApi = {
     });
   },
 
-  sendMessage(threadId: number, input: { content: string; model?: string; reference_ids?: number[] }) {
+  sendMessage(threadId: number, input: { content: string; model?: string; reference_ids?: number[] }, signal?: AbortSignal) {
     return apiRequest<SendMessageResult>(`/api/v1/copilot/threads/${threadId}/messages`, {
       method: "POST",
+      signal,
       body: JSON.stringify(input)
     });
   },
 
-  compareMessages(threadId: number, input: { content: string; models?: string[] }) {
+  compareMessages(threadId: number, input: { content: string; models?: string[] }, signal?: AbortSignal) {
     return apiRequest<CompareMessagesResult>(`/api/v1/copilot/threads/${threadId}/compare`, {
       method: "POST",
+      signal,
       body: JSON.stringify(input)
     });
   },

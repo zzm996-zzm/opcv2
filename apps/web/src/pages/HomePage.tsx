@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { authApi } from "../lib/authApi";
 import { authSession, useAuthSession } from "../lib/authSession";
+import { homeApi, type HomeSummary } from "../lib/homeApi";
 
 const topNav = [
   { label: "工作台", href: "/" },
@@ -63,41 +64,6 @@ const heroCards = [
   }
 ];
 
-const recommendationCards = [
-  {
-    title: "项目推荐",
-    desc: "发现优质项目，把握市场机会",
-    meta: "智能匹配  |  精准推荐",
-    href: "/projects",
-    accent: "violet",
-    art: "board"
-  },
-  {
-    title: "工具推荐",
-    desc: "精选高效工具，提升落地效率",
-    meta: "热门工具  |  场景适配",
-    href: "/tools",
-    accent: "blue",
-    art: "blocks"
-  },
-  {
-    title: "资讯推荐",
-    desc: "洞察行业动态，掌握最新趋势",
-    meta: "精选资讯  |  每日更新",
-    href: "/insights",
-    accent: "cyan",
-    art: "news"
-  }
-];
-
-const tasks = [
-  ["完成【AI 智能硬件】项目商业画布", "项目拆解", "今天 10:00"],
-  ["与咨询顾问沟通落地方案细节", "咨询通", "今天 14:30"],
-  ["处理新客户需求：智能客服系统", "CRM 客户管理", "明天 09:30"],
-  ["查看 AI 学习计划：数据分析工程师", "AI 教学", "06-25 11:00"],
-  ["分析投放数据并优化获客策略", "AI 线索开发", "06-25 15:00"]
-];
-
 const assistantReplies = [
   {
     from: "assistant",
@@ -112,15 +78,6 @@ const assistantReplies = [
     text: "好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点，点击下方查看详情。",
     file: "智能客服系统机会分析报告 PDF · 1.2 MB"
   }
-];
-
-const notifications: Array<[string, string, string, string, boolean]> = [
-  ["任务提醒", "与咨询顾问沟通落地方案细节", "今天 09:30", "check", true],
-  ["项目分析完成", "【AI 智能硬件】项目市场分析报告已生成", "今天 08:45", "target", true],
-  ["数据查询完成", "竞品价格监测数据已更新完成", "昨天 18:10", "calc", true],
-  ["系统通知", "您的数据获取额度已自动恢复 120 点", "昨天 09:00", "system", false],
-  ["限时优惠", "企业版年中钜惠：升级享 8.5 折优惠", "06-23 16:20", "gift", true],
-  ["营销通知", "6 月行业洞察报告已上线，点击查看", "06-22 10:00", "lock", false]
 ];
 
 const accountLinks: Array<[string, string, string]> = [
@@ -144,6 +101,7 @@ type HomePageProps = {
 
 function HomePage({ assistantState, menuState }: HomePageProps) {
   const session = useAuthSession();
+  const [summary, setSummary] = useState<HomeSummary | null>(null);
   const [accountOpen, setAccountOpen] = useState(menuState === "account");
   const [noticeOpen, setNoticeOpen] = useState(menuState === "notice");
   const [assistantOpen, setAssistantOpen] = useState(assistantState !== "collapsed" && Boolean(session.user));
@@ -152,6 +110,53 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   const [filesOpen, setFilesOpen] = useState(assistantState === "files");
   const signedIn = Boolean(session.user);
   const nickname = session.user?.nickname || "张婧";
+  const visibleHeroCards = summary ? summary.hero_cards.map((card, index) => ({
+    title: card.title,
+    desc: card.summary ?? "",
+    href: card.url || heroCards[index % heroCards.length].href,
+    art: heroCards[index % heroCards.length].art
+  })) : signedIn ? [] : heroCards;
+  const visibleRecommendations = summary ? summary.recommendations.map((card, index) => ({
+    title: card.title,
+    desc: card.summary ?? "",
+    meta: "为你推荐",
+    href: card.url || "/projects",
+    accent: ["violet", "blue", "cyan"][index % 3],
+    art: ["board", "blocks", "news"][index % 3]
+  })) : [];
+  const visibleTasks = summary ? summary.recent_tasks.map((task) => [
+    task.title,
+    task.project,
+    task.due_at ? formatHomeTime(task.due_at) : task.status
+  ] as const) : [];
+  const visibleNotifications = summary ? summary.notification_summary.latest.map((item) => [
+    item.title,
+    item.summary ?? "",
+    formatHomeTime(item.created_at),
+    item.type === "task" ? "check" : item.type === "membership" ? "gift" : "system",
+    true,
+    item.action_url || "/messages"
+  ] as const) : [];
+  const accountSummary = summary?.account_summary;
+
+  useEffect(() => {
+    if (!session.user) {
+      setSummary(null);
+      return;
+    }
+    let active = true;
+    homeApi
+      .summary()
+      .then((payload) => {
+        if (active) setSummary(payload);
+      })
+      .catch(() => {
+        if (active) setSummary(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [session.user]);
 
   useEffect(() => {
     if (!assistantState) return;
@@ -271,16 +276,18 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       <button role="tab" aria-selected="false" type="button">营销</button>
                     </div>
                     <div className="notice-list">
-                      {notifications.map(([title, desc, time, icon, unread]) => (
-                        <Link key={`${title}-${time}`} className={`notice-item ${unread ? "unread" : "muted"}`} to="/messages">
-                          <span className={`notice-icon ${icon}`} aria-hidden="true" />
-                          <span>
-                            <strong>{title}</strong>
-                            <small>{desc}</small>
-                          </span>
-                          <time>{time}</time>
-                        </Link>
-                      ))}
+                      {visibleNotifications.length === 0 ? (
+                        <p className="module-empty-state">暂无通知</p>
+                      ) : visibleNotifications.map(([title, desc, time, icon, unread, href]) => (
+                          <Link key={`${title}-${time}`} className={`notice-item ${unread ? "unread" : "muted"}`} to={href}>
+                            <span className={`notice-icon ${icon}`} aria-hidden="true" />
+                            <span>
+                              <strong>{title}</strong>
+                              <small>{desc}</small>
+                            </span>
+                            <time>{time}</time>
+                          </Link>
+                        ))}
                     </div>
                     <Link className="notice-more" to="/messages">查看更多</Link>
                   </div>
@@ -319,9 +326,12 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       </div>
                     </div>
                     <div className="account-plan">
-                      <span>企业版</span>
-                      <strong>有效期至 2025-12-31</strong>
+                      <span>{accountSummary?.plan_name ?? "暂无会员信息"}</span>
+                      <strong>{accountSummary ? `${accountSummary.credit_balance} 积分` : "0 积分"}</strong>
                     </div>
+                    {accountSummary?.quota_warnings.map((warning) => (
+                      <p className="form-error" key={warning.key}>{warning.message}</p>
+                    ))}
                     <div className="account-menu-list">
                       {accountLinks.map(([label, href, icon]) => (
                         <Link key={label} to={href}>
@@ -356,25 +366,36 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                 {!signedIn && (
                   <small>从项目确定到规模增长，智活AI 助你高效决策、快速落地、持续增长。</small>
                 )}
+                {signedIn && accountSummary && (
+                  <div className="module-chip-row compact">
+                    <span>{accountSummary.plan_name}</span>
+                    <span>{accountSummary.credit_balance} 积分</span>
+                    {accountSummary.quota_warnings.map((warning) => (
+                      <span key={warning.key}>{warning.message}</span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="stat-strip" aria-label="工作台统计">
-                <MetricCard label="进行中项目" value={signedIn ? "5" : "-"} icon="folder" />
-                <MetricCard label="待办事项" value={signedIn ? "12" : "-"} icon="inbox" />
-                <MetricCard label="本周新增线索" value={signedIn ? "28" : "-"} icon="trend" />
+                <MetricCard label="进行中项目" value={signedIn ? String(visibleTasks.length) : "-"} icon="folder" />
+                <MetricCard label="待办事项" value={signedIn ? String(visibleTasks.length) : "-"} icon="inbox" />
+                <MetricCard label="本周新增线索" value={signedIn ? String(accountSummary?.credit_balance ?? 0) : "-"} icon="trend" />
               </div>
             </div>
 
             <div className="feature-grid">
-              {heroCards.map((card) => (
-                <Link key={card.title} className="feature-card" to={card.href}>
-                  <div>
-                    <h2>{card.title}</h2>
-                    <p>{card.desc}</p>
-                  </div>
-                  <span className="round-arrow" aria-hidden="true">→</span>
-                  <span className={`glass-art ${card.art}`} aria-hidden="true" />
-                </Link>
-              ))}
+              {visibleHeroCards.length === 0 ? (
+                <div className="module-empty-state" role="status">暂无工作台入口</div>
+              ) : visibleHeroCards.map((card) => (
+                  <Link key={card.title} className="feature-card" to={card.href}>
+                    <div>
+                      <h2>{card.title}</h2>
+                      <p>{card.desc}</p>
+                    </div>
+                    <span className="round-arrow" aria-hidden="true">→</span>
+                    <span className={`glass-art ${card.art}`} aria-hidden="true" />
+                  </Link>
+                ))}
             </div>
 
             <section className="recommend-panel" aria-label="为你推荐">
@@ -383,18 +404,20 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                 <Link to="/projects">查看全部 <span aria-hidden="true">›</span></Link>
               </div>
               <div className="recommend-grid">
-                {recommendationCards.map((card) => (
-                  <Link key={card.title} className="recommend-card" to={card.href}>
-                    <span className={`recommend-icon ${card.accent}`} aria-hidden="true" />
-                    <div>
-                      <h3>{card.title}</h3>
-                      <p>{card.desc}</p>
-                      <small>{card.meta}</small>
-                    </div>
-                    <span className={`mini-art ${card.art}`} aria-hidden="true" />
-                    <span className="tiny-arrow" aria-hidden="true">→</span>
-                  </Link>
-                ))}
+                {visibleRecommendations.length === 0 ? (
+                  <div className="module-empty-state" role="status">暂无推荐内容</div>
+                ) : visibleRecommendations.map((card) => (
+                    <Link key={card.title} className="recommend-card" to={card.href}>
+                      <span className={`recommend-icon ${card.accent}`} aria-hidden="true" />
+                      <div>
+                        <h3>{card.title}</h3>
+                        <p>{card.desc}</p>
+                        <small>{card.meta}</small>
+                      </div>
+                      <span className={`mini-art ${card.art}`} aria-hidden="true" />
+                      <span className="tiny-arrow" aria-hidden="true">→</span>
+                    </Link>
+                  ))}
               </div>
             </section>
 
@@ -402,20 +425,22 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               <div className="panel-heading">
                 <div className="task-tabs">
                   <h2>我的待办 / 进行中</h2>
-                  <button className="active" type="button">待办 5</button>
-                  <button type="button">进行中 3</button>
+                  <button className="active" type="button">待办 {visibleTasks.length}</button>
+                  <button type="button">进行中 {visibleTasks.length}</button>
                 </div>
                 <Link to="/tasks">查看全部 <span aria-hidden="true">›</span></Link>
               </div>
               <div className="task-list">
-                {tasks.map(([title, tag, time]) => (
-                  <Link key={title} className="task-row" to="/tasks">
-                    <span className="task-check" aria-hidden="true" />
-                    <span className="task-title">{title}</span>
-                    <span className={`task-tag ${tagClass(tag)}`}>{tag}</span>
-                    <time>{time}</time>
-                  </Link>
-                ))}
+                {visibleTasks.length === 0 ? (
+                  <div className="module-empty-state" role="status">暂无待办任务</div>
+                ) : visibleTasks.map(([title, tag, time]) => (
+                    <Link key={title} className="task-row" to="/tasks">
+                      <span className="task-check" aria-hidden="true" />
+                      <span className="task-title">{title}</span>
+                      <span className={`task-tag ${tagClass(tag)}`}>{tag}</span>
+                      <time>{time}</time>
+                    </Link>
+                  ))}
               </div>
             </section>
           </section>
@@ -569,6 +594,16 @@ function tagClass(tag: string) {
   if (tag.includes("CRM")) return "green";
   if (tag.includes("教学")) return "cyan";
   return "orange";
+}
+
+function formatHomeTime(value: string) {
+  return new Date(value).toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
 }
 
 export default HomePage;

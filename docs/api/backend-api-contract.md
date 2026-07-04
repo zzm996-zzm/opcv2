@@ -1,6 +1,10 @@
 # Backend API Contract
 
-This document tracks the backend endpoints currently wired for the new web modules.
+This document tracks backend endpoints for the new web modules.
+
+Sections without an explicit status are implemented and wired. Sections marked
+`Planned` are accepted contract drafts for upcoming implementation and must not
+be treated as available until the matching backend handlers and tests land.
 
 ## Common Rules
 
@@ -117,6 +121,73 @@ Errors:
 - `400 invalid_session_id`
 - `404 session_not_found`
 
+## Projects
+
+All project endpoints are protected.
+
+Project match status values:
+
+- `needs_input`
+- `completed`
+
+### Create Project Match
+
+`POST /api/v1/projects/matches`
+
+Request:
+
+```json
+{
+  "intent": "我擅长内容创作，预算3万以内，每周能投入20小时，希望做一人公司线上项目",
+  "answers": [
+    { "key": "budget", "value": "1-3万" }
+  ]
+}
+```
+
+Response `200`: `ProjectMatchResult`
+
+Notes:
+
+- If required context is missing, response status is `needs_input` and
+  `questions` contains follow-up questions.
+- If context is sufficient, response status is `completed` and `projects`
+  contains ranked matches.
+
+### List Project Matches
+
+`GET /api/v1/projects/matches?limit=20`
+
+Response `200`:
+
+```json
+{
+  "matches": []
+}
+```
+
+### Get Project Match
+
+`GET /api/v1/projects/matches/{id}`
+
+Response `200`: `ProjectMatchSession`
+
+Errors:
+
+- `400 invalid_match_id`
+- `404 match_not_found`
+
+### Favorite Project Match
+
+`POST /api/v1/projects/matches/{id}/favorite`
+
+Response `200`: `ProjectFavorite`
+
+Errors:
+
+- `400 invalid_match_id`
+- `404 match_not_found`
+
 ## Tasks
 
 All task endpoints are protected.
@@ -153,13 +224,37 @@ Response `200`: `Task`
 
 ### List Tasks
 
-`GET /api/v1/tasks?limit=20`
+`GET /api/v1/tasks?status=in_progress&project=商业沙盘&q=接口&limit=20`
+
+Query:
+
+- `status` optional task status enum.
+- `project` optional exact project name.
+- `q` optional keyword matched against title, project and learning field.
+- `limit` optional, capped at 100.
 
 Response:
 
 ```json
 {
   "tasks": []
+}
+```
+
+### Task Stats
+
+`GET /api/v1/tasks/stats`
+
+Response `200`:
+
+```json
+{
+  "total": 12,
+  "todo": 3,
+  "in_progress": 5,
+  "completed": 2,
+  "reminder": 2,
+  "overdue": 1
 }
 ```
 
@@ -220,6 +315,215 @@ Response:
 }
 ```
 
+## CRM
+
+All CRM endpoints are protected.
+
+Customer stages:
+
+- `new`
+- `contacted`
+- `qualified`
+- `proposal`
+- `won`
+- `lost`
+
+### List Customers
+
+`GET /api/v1/crm/customers?stage=contacted&q=启明星&limit=20`
+
+Query:
+
+- `stage` optional customer stage.
+- `q` optional keyword matched against name, phone, email and website.
+- `limit` optional, capped at 100 by service defaults.
+
+Response `200`:
+
+```json
+{
+  "customers": []
+}
+```
+
+### Get Customer
+
+`GET /api/v1/crm/customers/{id}`
+
+Errors:
+
+- `400 invalid_customer_id`
+- `404 customer_not_found`
+
+### Update Customer
+
+`PATCH /api/v1/crm/customers/{id}`
+
+Request fields are optional, but at least one field must be present:
+
+```json
+{
+  "name": "成都启明星教育",
+  "phone": "028-12345678",
+  "email": "hello@example.com",
+  "website": "https://example.com"
+}
+```
+
+Validation:
+
+- `name`, if present, must be non-empty after trimming.
+- Contact fields are trimmed and may be set to empty strings.
+
+Response `200`: `CrmCustomer`
+
+Errors:
+
+- `400 invalid_customer_id`
+- `400 invalid_crm_input`
+- `404 customer_not_found`
+
+### List Customer Activities
+
+`GET /api/v1/crm/customers/{id}/activities?limit=20`
+
+Response `200`:
+
+```json
+{
+  "activities": []
+}
+```
+
+Errors:
+
+- `400 invalid_customer_id`
+- `404 customer_not_found`
+
+### Import Lead
+
+`POST /api/v1/crm/customers/import-lead`
+
+Request:
+
+```json
+{
+  "lead_result_id": 99,
+  "name": "成都启明星教育",
+  "phone": "028-12345678",
+  "email": "hello@example.com",
+  "website": "https://example.com"
+}
+```
+
+Validation:
+
+- `lead_result_id` must be positive.
+- `name` must be non-empty after trimming.
+- Client-supplied `user_id` is ignored.
+
+Response `200`: `CrmCustomer`
+
+### Update Stage
+
+`POST /api/v1/crm/customers/{id}/stage`
+
+Request:
+
+```json
+{
+  "stage": "contacted",
+  "note": "电话已接通"
+}
+```
+
+Response `200`: `CrmCustomer`
+
+### Record Follow-up
+
+`POST /api/v1/crm/customers/{id}/follow-ups`
+
+Request:
+
+```json
+{
+  "note": "已发送资料",
+  "next_follow_up_at": "2026-07-03T14:00:00Z"
+}
+```
+
+Response `200`: `CrmFollowUp`
+
+### List Follow-ups
+
+`GET /api/v1/crm/follow-ups?customer_id=100&limit=20`
+
+Query:
+
+- `customer_id` optional.
+- `limit` optional.
+
+Response `200`:
+
+```json
+{
+  "follow_ups": []
+}
+```
+
+### List Due Customers
+
+`GET /api/v1/crm/customers/due?limit=20`
+
+Response `200`:
+
+```json
+{
+  "customers": []
+}
+```
+
+### Pipeline Stats
+
+`GET /api/v1/crm/pipeline-stats`
+
+Response `200`:
+
+```json
+{
+  "total": 12,
+  "new": 2,
+  "contacted": 3,
+  "qualified": 2,
+  "proposal": 1,
+  "won": 3,
+  "lost": 1,
+  "due_today": 4
+}
+```
+
+### Generate Follow-up Copy
+
+`POST /api/v1/crm/customers/{id}/follow-up-copy`
+
+Request:
+
+```json
+{
+  "goal": "推进方案会"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "subject": "智能客服升级方案跟进",
+  "body": "您好，我们已根据贵司场景整理了下一步方案。",
+  "channel": "wechat"
+}
+```
+
 ## Growth
 
 All growth endpoints are protected.
@@ -271,6 +575,183 @@ Errors:
 
 - `400 invalid_model_id`
 - `404 model_not_found`
+
+### Get Model Scenarios
+
+`GET /api/v1/growth/models/{id}/scenarios`
+
+Response:
+
+```json
+{
+  "model_id": 99,
+  "model_name": "标准方案",
+  "scenarios": [
+    {
+      "name": "标准方案",
+      "revenue": 186960,
+      "cost": 119544,
+      "margin": 0.36,
+      "highlight": "当前推荐：投放验证关键词，私域承接高意向线索。"
+    }
+  ],
+  "generated_at": "2026-06-30T08:30:00Z"
+}
+```
+
+### Get Model Forecast
+
+`GET /api/v1/growth/models/{id}/forecast`
+
+Response:
+
+```json
+{
+  "model_id": 99,
+  "model_name": "标准方案",
+  "months": [
+    {
+      "month": "第3月",
+      "revenue": 186960,
+      "phase": "稳定投放",
+      "progress_percent": 60
+    }
+  ],
+  "generated_at": "2026-06-30T08:30:00Z"
+}
+```
+
+### Get Model Recommendations
+
+`GET /api/v1/growth/models/{id}/recommendations`
+
+Response:
+
+```json
+{
+  "model_id": 99,
+  "model_name": "标准方案",
+  "headline": "先提成交率，再扩大预算",
+  "summary": "当前模型每月预计产生 1632 条线索、228 个成交，优先提升转化质量再放大渠道预算。",
+  "cost_items": [
+    {
+      "name": "投放预算",
+      "amount": 68544,
+      "detail": "搜索词和信息流测试"
+    }
+  ],
+  "action_items": ["优先优化线索到成交转化率，比单纯买流量更划算。"],
+  "generated_at": "2026-06-30T08:30:00Z"
+}
+```
+
+## Leads
+
+All lead endpoints are protected.
+
+Lead task status values:
+
+- `queued`
+- `running`
+- `succeeded`
+- `failed`
+- `cancelled`
+- `refunded`
+
+### Create Lead Task
+
+`POST /api/v1/leads/tasks`
+
+Request:
+
+```json
+{
+  "query": "成都 教培 私域转化",
+  "idempotency_key": "lead-task-20260703-001"
+}
+```
+
+Validation:
+
+- `query` must be non-empty after trimming.
+- `idempotency_key` must be non-empty.
+- Client-supplied `user_id` is ignored.
+
+Response `200`: `LeadTask`
+
+### List Lead Tasks
+
+`GET /api/v1/leads/tasks?limit=20`
+
+Response:
+
+```json
+{
+  "tasks": []
+}
+```
+
+### Get Lead Task
+
+`GET /api/v1/leads/tasks/{id}`
+
+Response:
+
+```json
+{
+  "task": {
+    "id": 99,
+    "user_id": 42,
+    "query": "成都 教培 私域转化",
+    "status": "succeeded",
+    "idempotency_key": "lead-task-20260703-001",
+    "credit_cost": 1,
+    "created_at": "2026-06-25T12:00:00Z",
+    "updated_at": "2026-06-25T12:05:00Z"
+  },
+  "progress_percent": 100,
+  "message": "线索采集已完成，可以查看结果并导入 CRM。",
+  "results_count": 12
+}
+```
+
+Errors:
+
+- `400 invalid_task_id`
+- `404 task_not_found`
+
+### List Lead Results
+
+`GET /api/v1/leads/tasks/{id}/results?limit=20`
+
+Response:
+
+```json
+{
+  "results": [
+    {
+      "id": 7,
+      "task_id": 99,
+      "name": "成都启明星教育",
+      "phone": "028-12345678",
+      "website": "https://example.com",
+      "evidence": [
+        {
+          "type": "website",
+          "title": "官网出现暑期招生咨询入口",
+          "url": "https://example.com"
+        }
+      ],
+      "created_at": "2026-06-25T12:05:00Z"
+    }
+  ]
+}
+```
+
+Errors:
+
+- `400 invalid_task_id`
+- `404 task_not_found`
 
 ## Competitor
 
@@ -398,6 +879,80 @@ Response `200`: `LearningDiagnosis`
 Protected.
 
 Response `200`: `LearningDiagnosis`
+
+Errors:
+
+- `404 diagnosis_not_found`
+
+### Latest Diagnosis Gaps
+
+`GET /api/v1/learning/diagnoses/latest/gaps`
+
+Protected. Derived from the latest completed diagnosis; no separate table.
+
+Response `200`:
+
+```json
+{
+  "diagnosis_id": 99,
+  "goal": "提升AI能力",
+  "project": "智能客服",
+  "overall_score": 72,
+  "gaps": [
+    {
+      "name": "数据分析能力",
+      "current": 64,
+      "target": 86,
+      "gap": 22,
+      "priority": "high",
+      "summary": "需要加强漏斗和转化分析。",
+      "evidence": "诊断显示数据分析能力当前为64分，目标差距22分。",
+      "recommended": "优先补齐数据分析能力。"
+    }
+  ],
+  "evidence": [],
+  "generated_at": "2026-07-03T10:00:00Z"
+}
+```
+
+Errors:
+
+- `404 diagnosis_not_found`
+
+### Latest Diagnosis Recommendations
+
+`GET /api/v1/learning/diagnoses/latest/recommendations`
+
+Protected. Derived from the latest completed diagnosis.
+
+Response `200` includes `focus`, `recommendations`, and suggested learning
+`methods`.
+
+Errors:
+
+- `404 diagnosis_not_found`
+
+### Latest Diagnosis Plan
+
+`GET /api/v1/learning/diagnoses/latest/plan`
+
+Protected. Derived from the latest completed diagnosis.
+
+Response `200` includes `title`, `description`, `recommendations`, `stages`,
+`estimated_hours`, and `weekly_suggestion`.
+
+Errors:
+
+- `404 diagnosis_not_found`
+
+### Latest Diagnosis Report
+
+`GET /api/v1/learning/diagnoses/latest/report`
+
+Protected. Derived from the latest completed diagnosis.
+
+Response `200` includes `overall_score`, `dimensions`, `priority_gaps`,
+`recommendations`, and `evidence`.
 
 Errors:
 
@@ -842,3 +1397,918 @@ Validation:
 - `content` is capped at 120,000 bytes.
 
 Response `200`: `CopilotFile`
+
+## Planned Next Slice Contracts
+
+Status: Mixed. Notifications, membership extensions, content/help/support
+extensions, and home aggregation are implemented. Account is partially
+implemented except password update.
+
+These contracts come from `docs/plans/2026-07-02-page-backend-gap-analysis-and-architecture.md`.
+They cover the first low-risk backend slice: account, notifications, membership
+catalog/usage, content/help, and home aggregation.
+
+## Account
+
+Status: Partially implemented. All endpoints in this section are implemented
+except `PATCH /api/v1/account/password`, which still needs auth-service password
+verification/update wiring.
+
+All account endpoints are protected.
+
+### Get Profile
+
+`GET /api/v1/account/profile`
+
+Response `200`:
+
+```json
+{
+  "profile": {
+    "id": 42,
+    "nickname": "张晨",
+    "phone": "13800138000",
+    "email": "",
+    "wechat": "",
+    "company": "智活AI科技有限公司",
+    "industry": "企业服务",
+    "role": "创始人",
+    "onboarding_completed": true,
+    "created_at": "2026-07-02T10:00:00Z",
+    "updated_at": "2026-07-02T10:00:00Z"
+  },
+  "bindings": [
+    { "type": "phone", "masked_value": "138****8000", "bound": true },
+    { "type": "wechat", "masked_value": "", "bound": false }
+  ]
+}
+```
+
+### Update Profile
+
+`PATCH /api/v1/account/profile`
+
+Request fields are optional:
+
+```json
+{
+  "nickname": "张晨",
+  "email": "founder@example.com",
+  "wechat": "zhangchen",
+  "company": "智活AI科技有限公司",
+  "industry": "企业服务",
+  "role": "创始人"
+}
+```
+
+Validation:
+
+- If present, string fields are trimmed.
+- `email`, if present and non-empty, must be a valid email shape.
+- Client-supplied `id`, `phone`, `created_at`, and `updated_at` are ignored.
+
+Response `200`: same shape as Get Profile.
+
+### Get Onboarding
+
+`GET /api/v1/account/onboarding`
+
+Response `200`:
+
+```json
+{
+  "completed": false,
+  "sections": [
+    {
+      "key": "identity",
+      "title": "基本身份",
+      "fields": {
+        "role": "创始人"
+      }
+    }
+  ]
+}
+```
+
+### Save Onboarding
+
+`PUT /api/v1/account/onboarding`
+
+Request:
+
+```json
+{
+  "sections": [
+    {
+      "key": "identity",
+      "fields": {
+        "role": "创始人"
+      }
+    }
+  ]
+}
+```
+
+Validation:
+
+- `sections` must be present.
+- Section keys and field keys must be non-empty after trimming.
+
+Response `200`: same shape as Get Onboarding.
+
+### Complete Onboarding
+
+`POST /api/v1/account/onboarding/complete`
+
+Response `200`:
+
+```json
+{
+  "completed": true
+}
+```
+
+### Update Password
+
+`PATCH /api/v1/account/password`
+
+Request:
+
+```json
+{
+  "current_password": "old-password",
+  "new_password": "new-password"
+}
+```
+
+Validation:
+
+- `current_password` and `new_password` must be non-empty.
+- Password verification and storage stay owned by the auth service.
+
+Response `204`.
+
+### Get Preferences
+
+`GET /api/v1/account/preferences`
+
+Response `200`:
+
+```json
+{
+  "notifications_enabled": true,
+  "default_model": "deepseek",
+  "language": "zh-CN",
+  "timezone": "Asia/Shanghai"
+}
+```
+
+### Update Preferences
+
+`PATCH /api/v1/account/preferences`
+
+Request fields are optional:
+
+```json
+{
+  "notifications_enabled": true,
+  "default_model": "deepseek",
+  "language": "zh-CN",
+  "timezone": "Asia/Shanghai"
+}
+```
+
+Response `200`: same shape as Get Preferences.
+
+### Get Quotas
+
+`GET /api/v1/account/quotas`
+
+Response `200`:
+
+```json
+{
+  "quotas": [
+    {
+      "key": "ai_tokens",
+      "label": "AI智算额度",
+      "used": 120,
+      "limit": 1000,
+      "unit": "次/月",
+      "reset_at": "2026-08-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### List Account Content
+
+`GET /api/v1/account/content?limit=20`
+
+Response `200`:
+
+```json
+{
+  "items": [
+    {
+      "id": "analysis:99",
+      "type": "analysis",
+      "title": "智能客服系统项目匹配",
+      "summary": "91分",
+      "url": "/analysis/sessions/99",
+      "created_at": "2026-07-02T10:00:00Z"
+    }
+  ]
+}
+```
+
+### Delete Account
+
+`DELETE /api/v1/account`
+
+Response `202`:
+
+```json
+{
+  "status": "pending_deletion"
+}
+```
+
+## Notifications
+
+Status: Implemented.
+
+All notification endpoints are protected.
+
+Notification enums:
+
+- `type`: `system`, `task`, `analysis`, `lead`, `crm`, `membership`
+- `status`: `all`, `unread`, `read`
+
+### List Notifications
+
+`GET /api/v1/notifications?type=task&status=unread&limit=20`
+
+Response `200`:
+
+```json
+{
+  "notifications": [
+    {
+      "id": 101,
+      "type": "task",
+      "title": "任务提醒：AI 智能硬件项目拆解完成",
+      "summary": "报告已生成，可继续查看拆解结果。",
+      "body": "完整消息正文",
+      "source_type": "analysis_session",
+      "source_id": 99,
+      "action_label": "查看拆解报告",
+      "action_url": "/analysis/sessions/99",
+      "read_at": null,
+      "created_at": "2026-07-02T10:00:00Z"
+    }
+  ]
+}
+```
+
+### Get Notification
+
+`GET /api/v1/notifications/{id}`
+
+Errors:
+
+- `400 invalid_notification_id`
+- `404 notification_not_found`
+
+### Mark Notification Read
+
+`PATCH /api/v1/notifications/{id}/read`
+
+Response `200`: `Notification`
+
+### Mark All Notifications Read
+
+`POST /api/v1/notifications/read-all`
+
+Response `200`:
+
+```json
+{
+  "updated": 12
+}
+```
+
+### Notification Summary
+
+`GET /api/v1/notifications/summary`
+
+Response `200`:
+
+```json
+{
+  "unread": 3,
+  "by_type": [
+    { "type": "task", "count": 2 },
+    { "type": "crm", "count": 1 }
+  ],
+  "latest": []
+}
+```
+
+## Membership Extensions
+
+Status: Implemented.
+
+The existing `GET /api/v1/membership/me` and
+`POST /api/v1/redemptions/redeem` endpoints remain implemented. The endpoints
+below extend membership for the membership and profile pages.
+
+### List Plans
+
+`GET /api/v1/membership/plans`
+
+Response `200`:
+
+```json
+{
+  "plans": [
+    {
+      "id": 2,
+      "code": "pro",
+      "name": "会员版",
+      "price_cents": 6900,
+      "billing_cycle": "month",
+      "features": ["线索数据实时更新", "去水印导出结果"],
+      "quotas": [
+        {
+          "key": "lead_tasks",
+          "label": "AI线索任务",
+          "limit": 30,
+          "unit": "次/月"
+        }
+      ],
+      "recommended": true
+    }
+  ]
+}
+```
+
+### Get Membership Usage
+
+`GET /api/v1/membership/usage`
+
+Response `200`:
+
+```json
+{
+  "usage": [
+    {
+      "key": "lead_tasks",
+      "label": "AI线索任务",
+      "used": 8,
+      "limit": 30,
+      "unit": "次/月",
+      "reset_at": "2026-08-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+### List Orders
+
+`GET /api/v1/membership/orders?limit=20`
+
+Response `200`:
+
+```json
+{
+  "orders": [
+    {
+      "id": 12,
+      "order_no": "ZS-20250531-0012",
+      "plan_code": "pro",
+      "amount_cents": 6900,
+      "status": "paid",
+      "created_at": "2026-07-02T10:00:00Z",
+      "paid_at": "2026-07-02T10:01:00Z"
+    }
+  ]
+}
+```
+
+### Create Checkout Order
+
+`POST /api/v1/membership/checkout`
+
+Request:
+
+```json
+{
+  "plan_code": "pro",
+  "billing_cycle": "month"
+}
+```
+
+Validation:
+
+- `plan_code` must match an active plan.
+- `billing_cycle` must match the selected plan.
+
+Response `200`:
+
+```json
+{
+  "order": {
+    "id": 13,
+    "order_no": "ZS-20260702-0013",
+    "plan_code": "pro",
+    "amount_cents": 6900,
+    "status": "pending"
+  },
+  "payment": {
+    "mode": "manual",
+    "message": "请联系顾问完成开通"
+  }
+}
+```
+
+## Content, Community, Help, and Support Extensions
+
+Status: Implemented for content tools, article bookmarks, community join,
+help, and support ticket endpoints. Tool recommendation endpoints remain
+planned and are marked below.
+
+Existing public content endpoints remain implemented. The endpoints below extend
+content-driven pages and add help/support.
+
+### List Tools With Filters
+
+`GET /api/v1/content/tools?category=创业获客&q=canva&sort=hot&limit=20`
+
+Query:
+
+- `category` optional.
+- `q` optional search keyword.
+- `sort` optional: `featured`, `latest`, `hot`, `favorite`.
+
+Response `200`:
+
+```json
+{
+  "tools": []
+}
+```
+
+### Get Tool
+
+`GET /api/v1/content/tools/{slug}`
+
+Errors:
+
+- `404 tool_not_found`
+
+### Favorite Tool
+
+`POST /api/v1/content/tools/{slug}/favorite`
+
+Response `200`:
+
+```json
+{
+  "slug": "canva-ai",
+  "favorited": true
+}
+```
+
+### Unfavorite Tool
+
+`DELETE /api/v1/content/tools/{slug}/favorite`
+
+Response `200`:
+
+```json
+{
+  "slug": "canva-ai",
+  "favorited": false
+}
+```
+
+### Create Tool Recommendation
+
+Status: Planned, not implemented.
+
+`POST /api/v1/tools/recommendations`
+
+Request:
+
+```json
+{
+  "need": "我想做小红书海报，还想配套文案和数据复盘"
+}
+```
+
+Validation:
+
+- `need` must be non-empty after trimming.
+
+Response `200`:
+
+```json
+{
+  "id": 31,
+  "summary": "需求摘要",
+  "tools": [],
+  "created_at": "2026-07-02T10:00:00Z"
+}
+```
+
+### Get Tool Recommendation Plan
+
+Status: Planned, not implemented.
+
+`GET /api/v1/tools/recommendation-plans/{id}`
+
+Errors:
+
+- `400 invalid_recommendation_id`
+- `404 recommendation_not_found`
+
+### Article Bookmark
+
+`POST /api/v1/content/articles/{slug}/bookmark`
+
+Response `200`:
+
+```json
+{
+  "slug": "ai-customer-service",
+  "bookmarked": true
+}
+```
+
+`DELETE /api/v1/content/articles/{slug}/bookmark`
+
+Response `200`:
+
+```json
+{
+  "slug": "ai-customer-service",
+  "bookmarked": false
+}
+```
+
+### Join Community Request
+
+`POST /api/v1/community/join-requests`
+
+Request:
+
+```json
+{
+  "community": "members",
+  "contact": "13800138000",
+  "note": "希望加入创业成长互助社区"
+}
+```
+
+Validation:
+
+- `community` must be `members` or `enterprise`.
+- `contact` must be non-empty after trimming.
+
+Response `200`:
+
+```json
+{
+  "id": 9,
+  "status": "submitted"
+}
+```
+
+### List Help Topics
+
+`GET /api/v1/help/topics`
+
+Response `200`:
+
+```json
+{
+  "topics": [
+    { "key": "account", "name": "账号与安全" }
+  ]
+}
+```
+
+### List Help Articles
+
+`GET /api/v1/help/articles?topic=account&q=登录&limit=20`
+
+Response `200`:
+
+```json
+{
+  "articles": [
+    {
+      "slug": "login-help",
+      "title": "如何登录账号",
+      "topic": "account",
+      "summary": "登录常见问题"
+    }
+  ]
+}
+```
+
+### Get Help Article
+
+`GET /api/v1/help/articles/{slug}`
+
+Errors:
+
+- `404 help_article_not_found`
+
+### Create Support Ticket
+
+`POST /api/v1/support/tickets`
+
+Request:
+
+```json
+{
+  "topic": "套餐与额度",
+  "title": "额度没有更新",
+  "body": "我兑换后额度仍未变化。"
+}
+```
+
+Validation:
+
+- `title` and `body` must be non-empty after trimming.
+
+Response `200`:
+
+```json
+{
+  "id": 22,
+  "status": "open",
+  "created_at": "2026-07-02T10:00:00Z"
+}
+```
+
+### List Support Tickets
+
+`GET /api/v1/support/tickets?limit=20`
+
+Response `200`:
+
+```json
+{
+  "tickets": []
+}
+```
+
+## Home Aggregation
+
+Status: Implemented.
+
+### Home Summary
+
+`GET /api/v1/home/summary`
+
+Response `200`:
+
+```json
+{
+  "hero_cards": [],
+  "recommendations": [],
+  "recent_tasks": [],
+  "notification_summary": {
+    "unread": 3,
+    "latest": []
+  },
+  "account_summary": {
+    "plan_name": "会员版",
+    "quota_warnings": []
+  }
+}
+```
+
+Notes:
+
+- Home summary is an aggregation endpoint, not a source of truth.
+- It should tolerate partial source-domain failures by returning safe empty
+  arrays for failed optional sections.
+
+## GEO Acquisition
+
+Status: Implemented for Postgres-backed overview reads, analysis request
+submission, recent request listing/detail, and worker status processing. Full
+analyzer execution, evidence generation, result freshness, CRM handoff, and
+admin/write APIs for overview rows are still missing.
+
+All GEO endpoints are protected.
+
+GEO analysis request statuses:
+
+- `queued`
+- `running`
+- `succeeded`
+- `failed`
+
+### GEO Overview
+
+`GET /api/v1/geo/overview`
+
+Response `200`:
+
+```json
+{
+  "stats": [],
+  "engines": [],
+  "lead_signals": [],
+  "keywords": [],
+  "content_tasks": []
+}
+```
+
+Optional populated item shapes:
+
+```json
+{
+  "stats": [{ "key": "coverage", "label": "覆盖指标", "value": "12%" }],
+  "engines": [{ "name": "AI Search", "coverage_percent": 22, "status": "待优化" }],
+  "lead_signals": [{ "title": "线索信号", "detail": "来自后端的线索信号" }],
+  "keywords": [{
+    "id": 1,
+    "query": "后端关键词",
+    "intent": "研究",
+    "coverage": "待覆盖",
+    "score": 71,
+    "action": "补充内容页"
+  }],
+  "content_tasks": [{
+    "id": 2,
+    "type": "内容页",
+    "title": "后端返回的内容任务",
+    "priority": "高",
+    "due_at": "2026-07-08"
+  }]
+}
+```
+
+### Create GEO Analysis Request
+
+`POST /api/v1/geo/analysis-requests`
+
+Request:
+
+```json
+{
+  "target": "面向制造业的 AI 质检工具"
+}
+```
+
+Validation:
+
+- `target` must be non-empty after trimming.
+- Client-supplied `user_id` and `status` are ignored.
+- Creating a request does not create mock overview rows. The request is stored
+  with `status: "queued"` and enqueues a `geo.analysis` background job.
+- The current worker marks the request `running`, then `failed` with
+  `error_message: "analyzer_not_configured"` when no GEO analyzer is configured.
+  It must not synthesize overview rows.
+
+Response `200`:
+
+```json
+{
+  "id": 7,
+  "user_id": 42,
+  "target": "面向制造业的 AI 质检工具",
+  "status": "queued",
+  "created_at": "2026-07-04T08:00:00Z",
+  "updated_at": "2026-07-04T08:00:00Z"
+}
+```
+
+Errors:
+
+- `400 invalid_request`
+- `500 service_not_ready`
+
+Worker-visible failed request example:
+
+```json
+{
+  "id": 7,
+  "user_id": 42,
+  "target": "面向制造业的 AI 质检工具",
+  "status": "failed",
+  "error_message": "analyzer_not_configured",
+  "created_at": "2026-07-04T08:00:00Z",
+  "updated_at": "2026-07-04T08:01:00Z"
+}
+```
+
+### List GEO Analysis Requests
+
+`GET /api/v1/geo/analysis-requests?limit=20`
+
+Response `200`:
+
+```json
+{
+  "requests": [
+    {
+      "id": 7,
+      "user_id": 42,
+      "target": "面向制造业的 AI 质检工具",
+      "status": "queued",
+      "created_at": "2026-07-04T08:00:00Z",
+      "updated_at": "2026-07-04T08:00:00Z"
+    }
+  ]
+}
+```
+
+Notes:
+
+- Only returns requests owned by the authenticated user.
+- `limit` defaults to `20` and is capped to `100`.
+- Empty list responses return `{"requests":[]}`.
+
+Errors:
+
+- `400 invalid_limit`
+
+### Get GEO Analysis Request
+
+`GET /api/v1/geo/analysis-requests/{id}`
+
+Response `200`:
+
+```json
+{
+  "id": 7,
+  "user_id": 42,
+  "target": "面向制造业的 AI 质检工具",
+  "status": "queued",
+  "created_at": "2026-07-04T08:00:00Z",
+  "updated_at": "2026-07-04T08:00:00Z"
+}
+```
+
+Notes:
+
+- Only returns requests owned by the authenticated user.
+- This endpoint does not include generated evidence yet; it only returns the
+  stored request metadata.
+- `error_message` is optional and appears when the request has a failure reason.
+
+Errors:
+
+- `400 invalid_analysis_request_id`
+- `404 analysis_request_not_found`
+
+## Enterprise Companion
+
+Status: Implemented as a read-only Postgres-backed overview endpoint. It reads
+user-scoped metrics, plans, delivery board items, milestones, and cases. Full
+enterprise inquiry, delivery workflow, milestone write/admin APIs, and payment
+handoff are still missing.
+
+All enterprise endpoints are protected.
+
+### Enterprise Overview
+
+`GET /api/v1/enterprise/overview`
+
+Response `200`:
+
+```json
+{
+  "stats": [],
+  "plans": [],
+  "delivery_board": [],
+  "milestones": [],
+  "cases": []
+}
+```
+
+Optional populated item shapes:
+
+```json
+{
+  "stats": [{ "key": "companies", "label": "服务企业数", "value": "3" }],
+  "plans": [{
+    "id": 1,
+    "title": "陪跑方案",
+    "audience": "增长团队",
+    "price_label": "待报价",
+    "focus": ["诊断", "训练"],
+    "result": "完成系统上线"
+  }],
+  "delivery_board": [{ "stage": "诊断中", "count": 1, "detail": "交付阶段" }],
+  "milestones": [{ "time_label": "第1周", "title": "里程碑", "detail": "完成诊断" }],
+  "cases": [{ "id": 7, "company": "企业案例", "result": "完成落地复盘" }]
+}
+```

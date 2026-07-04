@@ -2,6 +2,7 @@ package membership
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 )
 
 type postgresDB interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 	Begin(ctx context.Context) (pgx.Tx, error)
@@ -47,6 +49,169 @@ func (r *PostgresRepository) CurrentSnapshot(ctx context.Context, userID int64, 
 		Plan:          plan,
 		Subscription:  subscription,
 		CreditBalance: balance,
+	}, nil
+}
+
+func (r *PostgresRepository) ListPlans(ctx context.Context) ([]PlanOption, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT ROW_NUMBER() OVER (ORDER BY display_order, code)::BIGINT AS id,
+		       code, name, price_cents, billing_cycle, features, recommended
+		FROM membership_plans
+		WHERE active = TRUE
+		ORDER BY display_order, code
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var plans []PlanOption
+	byCode := map[string]int{}
+	for rows.Next() {
+		var plan PlanOption
+		var features []byte
+		if err := rows.Scan(&plan.ID, &plan.Code, &plan.Name, &plan.PriceCents, &plan.BillingCycle, &features, &plan.Recommended); err != nil {
+			return nil, err
+		}
+		if len(features) > 0 {
+			if err := json.Unmarshal(features, &plan.Features); err != nil {
+				return nil, err
+			}
+		}
+		byCode[plan.Code] = len(plans)
+		plans = append(plans, plan)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	quotaRows, err := r.db.Query(ctx, `
+		SELECT plan_code, key, label, limit_value, unit
+		FROM membership_plan_quotas
+		ORDER BY plan_code, display_order, key
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer quotaRows.Close()
+	for quotaRows.Next() {
+		var planCode string
+		var quota PlanQuota
+		if err := quotaRows.Scan(&planCode, &quota.Key, &quota.Label, &quota.Limit, &quota.Unit); err != nil {
+			return nil, err
+		}
+		if index, ok := byCode[planCode]; ok {
+			plans[index].Quotas = append(plans[index].Quotas, quota)
+		}
+	}
+	if err := quotaRows.Err(); err != nil {
+		return nil, err
+	}
+	if plans == nil {
+		return []PlanOption{}, nil
+	}
+	return plans, nil
+}
+
+func (r *PostgresRepository) CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT key, label, used, limit_value, unit, reset_at
+		FROM membership_usage
+		WHERE user_id = $1
+		ORDER BY key
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var usage []UsageItem
+	for rows.Next() {
+		var item UsageItem
+		if err := rows.Scan(&item.Key, &item.Label, &item.Used, &item.Limit, &item.Unit, &item.ResetAt); err != nil {
+			return nil, err
+		}
+		usage = append(usage, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if usage == nil {
+		return []UsageItem{}, nil
+	}
+	return usage, nil
+}
+
+func (r *PostgresRepository) ListOrders(ctx context.Context, userID int64, limit int) ([]Order, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, order_no, plan_code, amount_cents, status, created_at, paid_at
+		FROM membership_orders
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var orders []Order
+	for rows.Next() {
+		var order Order
+		if err := rows.Scan(&order.ID, &order.OrderNo, &order.PlanCode, &order.AmountCents, &order.Status, &order.CreatedAt, &order.PaidAt); err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if orders == nil {
+		return []Order{}, nil
+	}
+	return orders, nil
+}
+
+func (r *PostgresRepository) CreateCheckout(ctx context.Context, input CheckoutInput, now time.Time) (CheckoutResult, error) {
+	var plan struct {
+		Code         string
+		Name         string
+		PriceCents   int
+		BillingCycle string
+	}
+	err := r.db.QueryRow(ctx, `
+		SELECT code, name, price_cents, billing_cycle
+		FROM membership_plans
+		WHERE code = $1 AND active = TRUE
+	`, input.PlanCode).Scan(&plan.Code, &plan.Name, &plan.PriceCents, &plan.BillingCycle)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return CheckoutResult{}, ErrPlanNotFound
+	}
+	if err != nil {
+		return CheckoutResult{}, err
+	}
+	if plan.BillingCycle != input.BillingCycle {
+		return CheckoutResult{}, ErrPlanNotFound
+	}
+
+	var order Order
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO membership_orders (order_no, user_id, plan_code, amount_cents, status, created_at)
+		VALUES ($1, $2, $3, $4, 'pending', $5)
+		RETURNING id, order_no, plan_code, amount_cents, status, created_at, paid_at
+	`, input.OrderNo, input.UserID, plan.Code, plan.PriceCents, now).Scan(
+		&order.ID,
+		&order.OrderNo,
+		&order.PlanCode,
+		&order.AmountCents,
+		&order.Status,
+		&order.CreatedAt,
+		&order.PaidAt,
+	)
+	if err != nil {
+		return CheckoutResult{}, err
+	}
+	return CheckoutResult{
+		Order:   order,
+		Payment: PaymentInfo{Mode: "manual", Message: "请联系顾问完成开通"},
 	}, nil
 }
 

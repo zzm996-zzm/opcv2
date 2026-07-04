@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningRecommendations } from "../lib/learningApi";
 
 const recommendationSteps = [
   ["1", "收集信息", "获取项目信息与目标", "complete"],
@@ -63,6 +65,40 @@ const studyMethods = [
 ] as const;
 
 function LearningRecommendationPage() {
+  const [recommendations, setRecommendations] = useState<LearningRecommendations | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    learningApi
+      .getLatestRecommendations()
+      .then((payload) => {
+        if (active) setRecommendations(payload);
+      })
+      .catch(() => {
+        if (active) setRecommendations(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleFocusDirections = recommendations?.focus.length
+    ? recommendations.focus.map((item, index) => [
+      item.name,
+      item.priority === "high" ? "优先级 高" : item.priority === "medium" ? "优先级 中" : "优先级 普通",
+      item.summary,
+      index === 0 ? "headset" : index === 1 ? "chat" : "bars"
+    ] as const)
+    : focusDirections;
+  const visibleStudyMethods = recommendations?.methods.length
+    ? recommendations.methods.map((item, index) => [
+      item.title,
+      item.value,
+      item.detail,
+      index === 0 ? "clock" : index === 1 ? "calendar" : index === 2 ? "path" : "target"
+    ] as const)
+    : studyMethods;
+
   return (
     <V4PageShell>
       <section className="learning-page diagnosis-page recommendation-page" aria-label="推荐方案">
@@ -97,7 +133,7 @@ function LearningRecommendationPage() {
           <section className="diagnosis-card recommendation-focus-card" aria-label="优先补强方向">
             <h2><span>1</span> 优先补强方向</h2>
             <div className="recommendation-focus-grid">
-              {focusDirections.map(([title, priority, desc, icon]) => (
+              {visibleFocusDirections.map(([title, priority, desc, icon]) => (
                 <article key={title}>
                   <i className={`recommendation-icon ${icon}`} aria-hidden="true" />
                   <div>
@@ -137,7 +173,7 @@ function LearningRecommendationPage() {
           <section className="diagnosis-card recommendation-method-card" aria-label="建议学习方式">
             <h2><span>3</span> 建议学习方式</h2>
             <div className="recommendation-method-grid">
-              {studyMethods.map(([title, value, desc, icon]) => (
+              {visibleStudyMethods.map(([title, value, desc, icon]) => (
                 <article key={title}>
                   <i className={`recommendation-method-icon ${icon}`} aria-hidden="true" />
                   <div>
@@ -153,7 +189,12 @@ function LearningRecommendationPage() {
           <section className="diagnosis-card recommendation-next-card" aria-label="下一步可选动作">
             <div>
               <h2><span>4</span> 下一步可选动作</h2>
-              <p>如果你需要系统化学习，可一键生成阶段化学习路径。</p>
+            <p>如果你需要系统化学习，可一键生成阶段化学习路径。</p>
+            {recommendations?.recommendations.length ? (
+              <ul>
+                {recommendations.recommendations.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            ) : null}
             </div>
             <Link className="recommendation-primary" to="/learning/plan">生成系统学习路径 <span aria-hidden="true">→</span></Link>
             <Link className="recommendation-secondary" to="/learning/courses">查看全部课程</Link>

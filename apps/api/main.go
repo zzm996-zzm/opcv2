@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/analysis"
 	"github.com/zzm/opcv2/internal/auth"
@@ -18,10 +19,14 @@ import (
 	"github.com/zzm/opcv2/internal/copilot"
 	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/dashboard"
+	"github.com/zzm/opcv2/internal/enterprise"
+	"github.com/zzm/opcv2/internal/geo"
 	"github.com/zzm/opcv2/internal/growth"
+	"github.com/zzm/opcv2/internal/home"
 	"github.com/zzm/opcv2/internal/leads"
 	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
+	"github.com/zzm/opcv2/internal/notifications"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/health"
 	"github.com/zzm/opcv2/internal/platform/httpserver"
@@ -31,6 +36,7 @@ import (
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
 	"github.com/zzm/opcv2/internal/projects"
 	"github.com/zzm/opcv2/internal/sandbox"
+	"github.com/zzm/opcv2/internal/support"
 	"github.com/zzm/opcv2/internal/tasks"
 )
 
@@ -86,6 +92,12 @@ func main() {
 		GenerateCode: func() (string, error) { return cfg.SMSDevCode, nil },
 	})
 	authHTTP := auth.NewHTTPHandler(authService, tokenManager, cfg.Environment == "production")
+	accountRepository := account.NewPostgresRepository(db)
+	accountService := account.NewService(accountRepository)
+	accountHTTP := account.NewHTTPHandler(accountService)
+	notificationsRepository := notifications.NewPostgresRepository(db)
+	notificationsService := notifications.NewService(notificationsRepository)
+	notificationsHTTP := notifications.NewHTTPHandler(notificationsService)
 	membershipRepository := membership.NewPostgresRepository(db)
 	membershipService := membership.NewService(membershipRepository)
 	membershipHTTP := membership.NewHTTPHandler(membershipService)
@@ -125,15 +137,30 @@ func main() {
 	contentRepository := content.NewPostgresRepository(db)
 	contentService := content.NewService(contentRepository)
 	contentHTTP := content.NewHTTPHandler(contentService)
+	supportRepository := support.NewPostgresRepository(db)
+	supportService := support.NewService(supportRepository)
+	supportHTTP := support.NewHTTPHandler(supportService)
 	sandboxRepository := sandbox.NewPostgresRepository(db)
 	sandboxService := sandbox.NewService(sandboxRepository, aiService)
 	sandboxHTTP := sandbox.NewHTTPHandler(sandboxService)
 	tasksRepository := tasks.NewPostgresRepository(db)
 	tasksService := tasks.NewService(tasksRepository)
 	tasksHTTP := tasks.NewHTTPHandler(tasksService)
+	homeService := home.NewService(home.Dependencies{
+		Notifications: notificationsService,
+		Membership:    membershipService,
+		Tasks:         tasksService,
+	})
+	homeHTTP := home.NewHTTPHandler(homeService)
 	dashboardRepository := dashboard.NewPostgresRepository(db)
 	dashboardService := dashboard.NewService(dashboardRepository)
 	dashboardHTTP := dashboard.NewHTTPHandler(dashboardService)
+	geoRepository := geo.NewPostgresRepository(db)
+	geoService := geo.NewService(geoRepository, geo.WithQueue(taskqueue.NewClient(cfg.RedisAddr)))
+	geoHTTP := geo.NewHTTPHandler(geoService)
+	enterpriseRepository := enterprise.NewPostgresRepository(db)
+	enterpriseService := enterprise.NewService(enterpriseRepository)
+	enterpriseHTTP := enterprise.NewHTTPHandler(enterpriseService)
 	growthRepository := growth.NewPostgresRepository(db)
 	growthService := growth.NewService(growthRepository)
 	growthHTTP := growth.NewHTTPHandler(growthService)
@@ -156,20 +183,26 @@ func main() {
 			AllowedOrigins:         cfg.CORSAllowedOrigins,
 			ExpensiveEndpointLimit: cfg.ExpensiveEndpointLimit,
 		}, httpserver.Handlers{
-			Auth:       authHTTP,
-			Membership: membershipHTTP,
-			Analysis:   analysisHTTP,
-			Projects:   projectsHTTP,
-			Leads:      leadsHTTP,
-			CRM:        crmHTTP,
-			Content:    contentHTTP,
-			Sandbox:    sandboxHTTP,
-			Tasks:      tasksHTTP,
-			Dashboard:  dashboardHTTP,
-			Growth:     growthHTTP,
-			Competitor: competitorHTTP,
-			Learning:   learningHTTP,
-			Copilot:    copilotHTTP,
+			Auth:          authHTTP,
+			Account:       accountHTTP,
+			Notifications: notificationsHTTP,
+			Home:          homeHTTP,
+			Membership:    membershipHTTP,
+			Analysis:      analysisHTTP,
+			Projects:      projectsHTTP,
+			Leads:         leadsHTTP,
+			CRM:           crmHTTP,
+			Content:       contentHTTP,
+			Support:       supportHTTP,
+			Sandbox:       sandboxHTTP,
+			Tasks:         tasksHTTP,
+			Dashboard:     dashboardHTTP,
+			Geo:           geoHTTP,
+			Enterprise:    enterpriseHTTP,
+			Growth:        growthHTTP,
+			Competitor:    competitorHTTP,
+			Learning:      learningHTTP,
+			Copilot:       copilotHTTP,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

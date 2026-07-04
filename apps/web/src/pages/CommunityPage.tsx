@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { apiErrorMessage } from "../lib/apiErrors";
+import { contentApi, type CommunityConfig } from "../lib/contentApi";
 import { CdkTopNav } from "./AnalysisPage";
 
 const freeFeatures = [
@@ -15,25 +18,6 @@ const vipFeatures = [
   ["线下私享活动", "高质量闭门会"]
 ] as const;
 
-const communityPosts = [
-  ["小林创业中", "AI如何搭建私域的3个关键动作", "2小时前", "精华", "23", "12"],
-  ["在线上", "AI+内容如何打造低成本获客闭环？", "5小时前", "", "18", "9"],
-  ["运营老张", "7天提升转化率的落地SOP分享", "昨天", "", "31", "15"]
-] as const;
-
-const events = [
-  ["直播分享", "企业私域增长的底层逻辑与实操打法", "智活AI增长顾问 · 老K", "预约"],
-  ["案例拆解", "从冷启动到月入百万：真实案例拆解", "私域操盘手 · Abby", "预约"],
-  ["线下沙龙", "深圳创业者线下闭门交流会（限定20人）", "智活AI · 社群运营", "报名"]
-] as const;
-
-const valueStats = [
-  ["活跃成员", "1,200+", "本周新增 67"],
-  ["本周互动", "328", "话题回复数"],
-  ["干货分享", "56", "本周新增"],
-  ["资源对接", "89", "本周新增"]
-] as const;
-
 const growthSteps = [
   ["1", "免费分析", "输入你的项目与目标，AI为你生成分析报告与增长建议"],
   ["2", "社群沉淀", "加入免费社群，学习方法、组织伙伴、互助成长"],
@@ -42,6 +26,24 @@ const growthSteps = [
 ] as const;
 
 function CommunityPage() {
+  const [config, setConfig] = useState<CommunityConfig | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    contentApi
+      .getCommunityConfig()
+      .then((payload) => {
+        if (active) setConfig(payload);
+      })
+      .catch((error) => {
+        if (active) setError(apiErrorMessage(error, "暂时无法读取社群配置"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <main className="cdk-analysis-page cdk-community-page">
       <CdkTopNav active="社群" />
@@ -51,8 +53,9 @@ function CommunityPage() {
             <span>连接 · 学习 · 成长</span>
             <div className="community-hero-row">
               <div>
-                <h1>加入智活社群，与优秀创业者一起增长</h1>
-                <p>从免费分析到VIP获客，我们陪伴你每一步成长，助力生意持续增长。</p>
+                <h1>{config?.headline ?? "加入智活社群，与优秀创业者一起增长"}</h1>
+                <p>{config?.description ?? "从免费分析到VIP获客，我们陪伴你每一步成长，助力生意持续增长。"}</p>
+                {error && <small className="form-error" role="alert">{error}</small>}
               </div>
               <aside>
                 <div className="community-avatar-stack" aria-hidden="true">
@@ -61,7 +64,7 @@ function CommunityPage() {
                   <i />
                   <i />
                 </div>
-                <strong>已聚集 1,200+ 创业者一起成长</strong>
+                <strong>社群人数待接入</strong>
               </aside>
             </div>
           </header>
@@ -82,7 +85,7 @@ function CommunityPage() {
                 ))}
               </div>
               <Link to="/community/members">免费加入社群</Link>
-              <footer>已加入 892 人 · 本周新增 67 人</footer>
+              <footer>成员数据待接入</footer>
             </article>
 
             <article className="community-entry-card vip">
@@ -100,7 +103,7 @@ function CommunityPage() {
                 ))}
               </div>
               <Link to="/community/enterprise">升级VIP加入</Link>
-              <footer>已加入 326 家企业 · 续费率 78%</footer>
+              <footer>企业数据待接入</footer>
             </article>
           </section>
 
@@ -108,20 +111,9 @@ function CommunityPage() {
             <article className="community-panel community-posts">
               <header>
                 <h2>社群动态</h2>
-                <button type="button">最新评论</button>
                 <Link to="/community/members">查看全部 ›</Link>
               </header>
-              {communityPosts.map(([author, title, time, tag, likes, comments]) => (
-                <section key={title}>
-                  <i aria-hidden="true" />
-                  <div>
-                    <strong>{title}</strong>
-                    <small>{author} · {time}</small>
-                  </div>
-                  {tag && <span>{tag}</span>}
-                  <footer aria-label="互动数据">♡ {likes} / ◎ {comments}</footer>
-                </section>
-              ))}
+              <p>暂无社群动态</p>
               <Link className="community-panel-link" to="/community/members">查看全部讨论 ›</Link>
             </article>
 
@@ -130,41 +122,17 @@ function CommunityPage() {
                 <h2>本周活动预告</h2>
                 <Link to="/community/members">全部活动 ›</Link>
               </header>
-              {events.map(([type, title, host, action]) => (
-                <section key={title}>
-                  <i aria-hidden="true" />
-                  <div>
-                    <span>{type}</span>
-                    <strong>{title}</strong>
-                    <small>{host}</small>
-                  </div>
-                  <button type="button">{action}</button>
-                </section>
-              ))}
+              <p>暂无活动数据</p>
             </article>
 
             <article className="community-panel community-value">
               <header>
                 <h2>社群价值数据</h2>
-                <small>社区成长中</small>
+                <small>等待社区统计接口</small>
               </header>
-              <div className="community-value-grid">
-                {valueStats.map(([label, value, note]) => (
-                  <section key={label}>
-                    <span>{label}</span>
-                    <strong>{value}</strong>
-                    <small>{note}</small>
-                  </section>
-                ))}
-              </div>
-              <blockquote>
-                在社群里认识了很多同频的创业者，获得了宝贵的建议和资源，少走了很多弯路。
-                <cite>Lisa · 教育行业创始人</cite>
-              </blockquote>
+              <p>暂无社群价值数据</p>
             </article>
           </section>
-
-          <p className="community-hidden-report">智能客服系统机会分析报告</p>
 
           <section className="community-growth-path" aria-label="你的成长路径">
             <h2>你的成长路径</h2>

@@ -45,6 +45,19 @@ describe("projectsApi", () => {
     );
   });
 
+  it("gets project match detail", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 99, user_id: 42, intent: "线上项目", status: "completed" }), { status: 200 })
+    );
+
+    await projectsApi.getMatch(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/matches/99",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
   it("favorites a project match", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: 7, user_id: 42, session_id: 99 }), { status: 200 })

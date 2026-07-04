@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { apiErrorMessage } from "../lib/apiErrors";
 import { contentApi, type ContentTool } from "../lib/contentApi";
@@ -10,6 +10,7 @@ type ToolsPageProps = {
 };
 
 type DisplayTool = {
+  slug?: string;
   name: string;
   desc: string;
   tags: readonly string[];
@@ -17,6 +18,8 @@ type DisplayTool = {
   platform: string;
   accent: string;
   category: string;
+  url?: string;
+  favorited?: boolean;
 };
 
 const categories = ["精选", "最新", "热门", "收藏"] as const;
@@ -29,164 +32,17 @@ const hotScenarios = [
   ["自动化省时神器", "解放重复性工作", "robot"]
 ] as const;
 
-const tools = [
-  {
-    name: "Canva AI",
-    desc: "AI驱动的在线设计工具，快速生成高质量海报、PPT、社媒内容等。",
-    tags: ["图片设计", "AI设计", "营销素材"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "canva",
-    category: "图片设计"
-  },
-  {
-    name: "DeepSeek",
-    desc: "强大的AI对话助手，擅长深度思考与复杂问题解答。",
-    tags: ["AI对话", "内容生成", "效率提升"],
-    price: "免费",
-    platform: "Web",
-    accent: "deepseek",
-    category: "内容生产"
-  },
-  {
-    name: "飞书多维表格",
-    desc: "AI驱动的多维表格，轻松搭建业务流程与数据管理系统。",
-    tags: ["数据管理", "团队协作", "自动化"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "feishu",
-    category: "办公"
-  },
-  {
-    name: "Apollo",
-    desc: "AI文案与内容生产平台，快速产出高转化营销文案与广告内容。",
-    tags: ["文案写作", "广告营销", "内容生成"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "apollo",
-    category: "创业获客"
-  },
-  {
-    name: "高德 POI",
-    desc: "高德地图POI数据服务，精准获取地理位置与商户信息。",
-    tags: ["数据获取", "线索挖掘", "本地生活"],
-    price: "可用",
-    platform: "Web",
-    accent: "amap",
-    category: "数据分析"
-  },
-  {
-    name: "小红书需求监听",
-    desc: "实时监测小红书平台用户需求与热门话题，发现潜在商机。",
-    tags: ["社媒监听", "需求洞察", "热点挖掘"],
-    price: "可用",
-    platform: "Web",
-    accent: "xiaohongshu",
-    category: "创业获客"
-  },
-  {
-    name: "腾讯企点",
-    desc: "智能客户管理与营销平台，连接客户，提升转化与复购。",
-    tags: ["客户管理", "营销自动化", "客户服务"],
-    price: "付费",
-    platform: "Web",
-    accent: "tencent",
-    category: "客户管理"
-  },
-  {
-    name: "Google Analytics",
-    desc: "专业的网站数据分析工具，洞察流量来源与用户行为。",
-    tags: ["数据分析", "用户洞察", "网站分析"],
-    price: "免费",
-    platform: "Web",
-    accent: "google",
-    category: "数据分析"
-  },
-  {
-    name: "SimilarWeb",
-    desc: "全球网站流量与竞争分析，洞察行业趋势与竞品表现。",
-    tags: ["竞争分析", "流量分析", "市场洞察"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "similarweb",
-    category: "数据分析"
-  }
-] as const;
-
-const recommendedTools = [
-  {
-    name: "ChatGPT",
-    desc: "智能对话与内容创作助手",
-    tags: ["内容创作", "文案撰写", "用户洞察"],
-    reason: "擅长市场调研、用户洞察、内容大纲与文案生成，帮助你快速产出高质量营销文案与方案。",
-    accent: "chatgpt"
-  },
-  {
-    name: "Canva AI",
-    desc: "智能设计与多媒体创作",
-    tags: ["设计制作", "社媒运营", "品牌物料"],
-    reason: "快速生成海报、社媒素材、演示文稿等视觉内容，内置模板丰富，适合低预算高效制作。",
-    accent: "canva"
-  },
-  {
-    name: "Notion AI",
-    desc: "智能笔记与知识管理助手",
-    tags: ["协作管理", "内容规划", "项目执行"],
-    reason: "用于方案规划、内容日历与协作管理，整合信息与任务，帮助团队高效协同落地。",
-    accent: "notion"
-  }
-] as const;
-
-const planSteps = [
-  {
-    step: "1",
-    title: "市场调研",
-    tool: "Perplexity",
-    why: "实时检索全网权威信息与数据，快速了解新能源市场规模、趋势、竞品与用户痛点。",
-    output: "市场洞察报告、竞品分析、用户需求总结与趋势预测。",
-    accent: "perplexity"
-  },
-  {
-    step: "2",
-    title: "内容策划",
-    tool: "Notion AI 或 Claude",
-    why: "结构化梳理目标受众与卖点，生成内容框架、脚本大纲与传播策略。",
-    output: "短视频脚本、内容大纲、传播策略、关键信息点与分镜脚本。",
-    accent: "notion"
-  },
-  {
-    step: "3",
-    title: "短视频生成",
-    tool: "Runway",
-    why: "AI视频生成与编辑能力强，支持文生视频、智能剪辑与特效，快速产出高质量短视频。",
-    output: "完整短视频成片、字幕与配乐版本。",
-    accent: "runway"
-  },
-  {
-    step: "4",
-    title: "营销文案与投放优化",
-    tool: "Jasper 或 Gamma",
-    why: "生成高转化营销文案与广告创意，沉淀投放报告与策略展示。",
-    output: "广告文案、投放素材文案、A/B测试版本、数据可视化报告。",
-    accent: "jasper"
-  }
-] as const;
-
-const adviceCards = [
-  ["时间预估", "整体预计 3-5 个工作日", ["市场调研：0.5-1 天", "内容策划：1 天", "短视频生成：1-2 天", "文案与投放优化：0.5-1 天"]],
-  ["成本敏感度", "中等", ["整体成本可控，按需使用订阅/按量付费。", "可优先使用免费额度启动。", "组合使用可显著降低人力时间成本。"]],
-  ["关键注意事项", "执行前确认", ["明确目标受众与核心卖点。", "准备品牌素材和参数说明。", "投放前建议进行小范围 A/B 测试。"]]
-] as const;
-
 function toDisplayTool(tool: ContentTool): DisplayTool {
   return {
+    slug: tool.slug,
     name: tool.name,
     desc: tool.description || "AI 工具能力已收录，可进入详情查看适用场景。",
-    tags: ["AI工具", "已收录", tool.status === "published" ? "公开可见" : "草稿"],
+    tags: ["AI工具", tool.category || "已收录", tool.status === "published" ? "公开可见" : "草稿"],
     price: "可用",
     platform: tool.url ? "Web" : "待补充",
     accent: "notion",
-    category: "办公"
+    category: tool.category || "办公",
+    url: tool.url
   };
 }
 
@@ -213,25 +69,34 @@ function ToolLibrary({ full }: { full: boolean }) {
   const [apiTools, setApiTools] = useState<DisplayTool[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("全部工具");
   const [selectedTab, setSelectedTab] = useState("精选");
+  const [search, setSearch] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
+    setError("");
     contentApi
-      .listTools()
+      .listTools({
+        category: selectedCategory === "全部工具" ? undefined : selectedCategory,
+        q: search,
+        sort: toolSort(selectedTab),
+        limit: full ? 100 : 9
+      })
       .then((payload) => {
-        if (active) setApiTools(payload.tools.map(toDisplayTool));
+        if (!active) return;
+        setApiTools(payload.tools.map(toDisplayTool));
       })
       .catch((error) => {
-        if (active) setError(apiErrorMessage(error, "暂时无法读取工具库"));
+        if (!active) return;
+        setError(apiErrorMessage(error, "暂时无法读取工具库"));
+        setApiTools([]);
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [full, search, selectedCategory, selectedTab]);
 
-  const sourceTools = full && apiTools.length > 0 ? apiTools : tools;
-  const visibleTools = full ? sourceTools : sourceTools.slice(0, 9);
+  const visibleTools = full ? apiTools : apiTools.slice(0, 9);
   const visibleScenarios = full ? hotScenarios : hotScenarios.slice(0, 3);
 
   return (
@@ -244,7 +109,12 @@ function ToolLibrary({ full }: { full: boolean }) {
       <section className="toolhub-search-block" aria-label="工具筛选">
         <label className="toolhub-search">
           <span aria-hidden="true">⌕</span>
-          <input aria-label="搜索工具" placeholder="搜索工具名，用途或标签" />
+          <input
+            aria-label="搜索工具"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="搜索工具名，用途或标签"
+            value={search}
+          />
         </label>
         <div className="toolhub-filter-row">
           <div className="toolhub-tabs" role="tablist" aria-label="工具分类">
@@ -307,7 +177,9 @@ function ToolLibrary({ full }: { full: boolean }) {
 
         <div className={`toolhub-grid ${full ? "full" : ""}`} aria-label="工具列表">
           {error && <p className="form-error" role="alert">{error}</p>}
-          {visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
+          {visibleTools.length === 0 ? (
+            <div className="module-empty-state" role="status">暂无工具数据</div>
+          ) : visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
         </div>
       </section>
 
@@ -317,6 +189,26 @@ function ToolLibrary({ full }: { full: boolean }) {
 }
 
 function ToolCard({ tool }: { tool: DisplayTool }) {
+  const [favorited, setFavorited] = useState(Boolean(tool.favorited));
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+
+  async function toggleFavorite() {
+    if (!tool.slug || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      const result = favorited
+        ? await contentApi.unfavoriteTool(tool.slug)
+        : await contentApi.favoriteTool(tool.slug);
+      setFavorited(result.favorited);
+    } catch (error) {
+      setError(apiErrorMessage(error, "收藏失败，请稍后再试"));
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <article className="toolhub-card">
       <span className={`toolhub-logo ${tool.accent}`} aria-hidden="true" />
@@ -326,12 +218,21 @@ function ToolCard({ tool }: { tool: DisplayTool }) {
         <div className="toolhub-tag-row">
           {tool.tags.map((tag) => <span key={tag}>{tag}</span>)}
         </div>
+        {error && <small className="form-error" role="alert">{error}</small>}
       </div>
-      <button className="toolhub-favorite" aria-label={`收藏${tool.name}`} type="button">♡</button>
+      <button
+        className="toolhub-favorite"
+        aria-label={`${favorited ? "取消收藏" : "收藏"}${tool.name}`}
+        disabled={!tool.slug || pending}
+        onClick={toggleFavorite}
+        type="button"
+      >
+        {favorited ? "★" : "♡"}
+      </button>
       <footer>
         <span className={tool.price.includes("付费") ? "paid" : "free"}>{tool.price}</span>
         <small>{tool.platform}</small>
-        <Link to="/tools/detail">查看详情 ›</Link>
+        <Link to={tool.slug ? `/tools/detail?tool=${tool.slug}` : "/tools/detail"}>查看详情 ›</Link>
       </footer>
     </article>
   );
@@ -344,43 +245,10 @@ function ToolRecommendation() {
         <h1>工具推荐结果</h1>
         <p>根据你的问题与画像，为你匹配适合的 AI 工具</p>
       </header>
-      <section className="toolhub-summary">
-        <h2>需求摘要</h2>
-        <p>目标：为智能客服SaaS产品制定内容营销与获客方案；预算有限；需要文案、设计与协作工具</p>
-      </section>
       <section className="toolhub-recommend">
-        <h2>为你推荐的 AI 工具（3）</h2>
-        <div>
-          {recommendedTools.map((tool) => (
-            <article key={tool.name}>
-              <span className={`toolhub-logo ${tool.accent}`} aria-hidden="true" />
-              <h3>{tool.name}</h3>
-              <p>{tool.desc}</p>
-              <b>免费版可用</b>
-              <strong>为什么推荐</strong>
-              <small>{tool.reason}</small>
-              <strong>适用场景标签</strong>
-              <div className="toolhub-tag-row">
-                {tool.tags.map((tag) => <span key={tag}>{tag}</span>)}
-              </div>
-              <Link to="/tools/detail">查看详情 ›</Link>
-            </article>
-          ))}
-        </div>
+        <h2>为你推荐的 AI 工具</h2>
+        <div className="module-empty-state" role="status">暂无工具推荐结果</div>
       </section>
-      <section className="toolhub-advice">
-        <h2>推荐理由与使用建议</h2>
-        <ul>
-          <li>内容创作（ChatGPT）：用于输出 SEO 文章、推广文案、邮件/脚本，建立内容资产。</li>
-          <li>视觉设计（Canva AI）：将文案快速转化为各类营销素材，提升内容传播效率。</li>
-          <li>协作管理（Notion AI）：制定内容日历、管理项目进度与资产沉淀，保障执行落地。</li>
-          <li>组合使用建议：ChatGPT 产出内容 → Canva AI 制作素材 → Notion AI 管理计划与复盘。</li>
-        </ul>
-      </section>
-      <footer className="toolhub-bottom-actions">
-        <Link className="primary" to="/tools/recommendation-plan">生成整套方案</Link>
-        <button type="button">存为收藏</button>
-      </footer>
     </>
   );
 }
@@ -395,85 +263,75 @@ function ToolPlan() {
         <h1>整套工具方案 <span>组合能力</span></h1>
         <p>基于您的需求，智能匹配并串联最优工具组合，助力高效完成目标</p>
       </header>
-      <section className="toolhub-plan-summary">
-        <article><strong>您的原始需求</strong><p>为一款智能手机防跟踪新品制定从市场调研到视频内容生产，再到营销文案与投放优化的完整方案。</p></article>
-        <article><strong>我们的目标</strong><p>用最合适的AI工具组合，完成从洞察 → 内容 → 制作 → 投放优化的全流程，提升效率并降低成本。</p></article>
-      </section>
-      <section className="toolhub-plan-layout">
-        <div className="toolhub-flow">
-          <h2>推荐执行流程 <span>4步完成</span></h2>
-          <div>
-            {planSteps.map((item, index) => (
-              <article key={item.step}>
-                <i>{item.step}</i>
-                <h3>{item.title}</h3>
-                <small>使用 {item.tool}</small>
-                <span className={`toolhub-logo ${item.accent}`} aria-hidden="true" />
-                <strong>为什么用它</strong>
-                <p>{item.why}</p>
-                <strong>产出内容</strong>
-                <p>{item.output}</p>
-                <Link to="/tools/detail">查看工具详情 ›</Link>
-                {index < planSteps.length - 1 && <b aria-hidden="true">→</b>}
-              </article>
-            ))}
-          </div>
-        </div>
-        <aside className="toolhub-plan-aside">
-          <section>
-            <h2>方案概览</h2>
-            <p>适用对象：消费电子 / 智能硬件品牌、市场部、内容团队、运营团队</p>
-            <div className="budget-meter" aria-label="预算友好度"><span /><span /><span /><span /><span className="muted" /></div>
-            <p>上手难度：★★★☆☆</p>
-            <p>预计周期：3-5 个工作日</p>
-          </section>
-          <section>
-            <h2>下一步操作</h2>
-            <button type="button">保存方案</button>
-            <button type="button">导出PDF</button>
-            <small>保存后可在「任务中心」中查看，并随时使用与执行。</small>
-          </section>
-        </aside>
-      </section>
-      <section className="toolhub-execution">
-        <h2>执行建议</h2>
-        <div>
-          {adviceCards.map(([title, badge, points]) => (
-            <article key={title}>
-              <h3>{title}</h3>
-              <strong>{badge}</strong>
-              <ul>{points.map((point) => <li key={point}>{point}</li>)}</ul>
-            </article>
-          ))}
-        </div>
-      </section>
+      <div className="module-empty-state" role="status">暂无工具方案</div>
     </>
   );
 }
 
 function ToolDetail() {
+  const location = useLocation();
+  const toolSlug = new URLSearchParams(location.search).get("tool") || "midjourney";
+  const [tool, setTool] = useState<ContentTool | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setError("");
+    contentApi
+      .getTool(toolSlug)
+      .then((payload) => {
+        if (active) setTool(payload);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setTool(null);
+        setError(apiErrorMessage(error, "暂时无法读取工具详情"));
+      });
+    return () => {
+      active = false;
+    };
+  }, [toolSlug]);
+
+  if (!tool) {
+    return (
+      <>
+        <nav className="toolhub-breadcrumb" aria-label="工具详情路径">
+          <Link to="/tools">工具箱</Link><span>/</span><b>工具详情</b>
+        </nav>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="module-empty-state" role="status">暂无工具详情</div>
+      </>
+    );
+  }
+
+  const title = tool.name;
+  const description = tool.description || "暂无工具说明";
+  const category = tool.category || "未分类";
+  const website = tool.url || "";
+
   return (
     <>
       <nav className="toolhub-breadcrumb" aria-label="工具详情路径">
-        <Link to="/tools">工具箱</Link><span>/</span><Link to="/tools/all">绘图</Link><span>/</span><b>Midjourney</b>
+        <Link to="/tools">工具箱</Link><span>/</span><Link to="/tools/all">{category}</Link><span>/</span><b>{title}</b>
       </nav>
+      {error && <p className="form-error" role="alert">{error}</p>}
       <section className="toolhub-detail-hero">
         <div className="toolhub-detail-copy">
           <span className="toolhub-logo midjourney large" aria-hidden="true" />
           <div>
-            <h1>Midjourney</h1>
-            <p>专业 AI 图像生成工具</p>
+            <h1>{title}</h1>
+            <p>{description}</p>
             <div className="toolhub-tag-row">
-              {["绘图", "设计", "创意"].map((tag) => <span key={tag}>{tag}</span>)}
+              {[category, "AI工具", tool?.status === "draft" ? "草稿" : "公开"].map((tag) => <span key={tag}>{tag}</span>)}
             </div>
           </div>
           <div className="toolhub-detail-actions">
-            <button type="button">访问官网</button>
+            {website ? <a href={website}>访问官网</a> : <span>暂无官网</span>}
             <button type="button">收藏工具</button>
             <Link to="/tools/recommend">让智活 Copilot 评估是否适合我 ›</Link>
           </div>
         </div>
-        <figure className="toolhub-detail-visual" aria-label="Midjourney 生成图像预览">
+        <figure className="toolhub-detail-visual" aria-label={`${title} 工具能力预览`}>
           <span /><span /><span /><span />
         </figure>
       </section>
@@ -482,40 +340,39 @@ function ToolDetail() {
         <div className="toolhub-detail-grid">
           <article>
             <h3>功能简介</h3>
-            <p>Midjourney 是一款通过自然语言描述生成高质量图像的 AI 工具，擅长艺术创作、概念设计、插画与视觉探索。</p>
+            <p>{description}</p>
             <h3>适用场景</h3>
-            <p>创意构思、概念设计、插画制作、品牌视觉、游戏/影视设定、营销素材等。</p>
+            <p>{category}、内容生产、营销素材、增长分析等。</p>
             <h3>优点</h3>
-            <p>图像质量高、风格多样、生成速度快，创意表现力强，持续迭代更新。</p>
+            <p>暂无优点说明</p>
             <h3>注意点</h3>
-            <p>需要学习提示词写法以获得更理想的效果；部分复杂场景可能需要多次迭代优化。</p>
+            <p>暂无注意事项</p>
           </article>
           <article>
             <h3>使用步骤</h3>
-            <p>注册/登录 → 加入 Discord → 输入提示词 → 生成图像 → 优化迭代或下载。</p>
+            <p>暂无使用步骤</p>
             <h3>入口链接</h3>
-            <p><a href="https://www.midjourney.com/">https://www.midjourney.com/</a></p>
+            <p>{website ? <a href={website}>{website}</a> : "暂无入口链接"}</p>
             <h3>价格信息</h3>
-            <p>订阅制：基础计划 $10/月起，专业计划 $30/月起，企业计划 $60/月起。</p>
+            <p>暂无价格信息</p>
             <h3>适合人群</h3>
-            <p>设计师、插画师、内容创作者、市场营销人员、产品经理、学生等。</p>
+            <p>暂无适合人群说明</p>
           </article>
         </div>
       </section>
       <section className="toolhub-solve">
         <h2>用它解决什么</h2>
-        <p>Midjourney 可以帮助你快速把想法转化为高质量视觉内容，提升创作效率，激发灵感，并在各类场景中发挥重要作用。</p>
-        <div>
-          {["创意激发", "概念设计", "内容创作", "品牌视觉", "营销素材"].map((item) => (
-            <article key={item}>
-              <strong>{item}</strong>
-              <small>快速生成可参考的视觉方案，辅助产品、场景、角色等设计探索。</small>
-            </article>
-          ))}
-        </div>
+        <p>{description}</p>
       </section>
     </>
   );
+}
+
+function toolSort(tab: string) {
+  if (tab === "最新") return "latest";
+  if (tab === "热门") return "hot";
+  if (tab === "收藏") return "favorite";
+  return "featured";
 }
 
 function ToolPagination() {
@@ -552,14 +409,11 @@ function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["varian
       <div className="learning-chat toolhub-chat">
         {isPlan ? (
           <>
-            <article className="user"><p>请帮我生成一套从市场调研到视频推广的工具方案</p></article>
-            <article><span className="ai-avatar">A</span><p>好的，我已为你生成从市场调研到视频推广的整套工具方案，包含四个环节和执行建议。</p></article>
-            <article className="toolhub-copilot-card"><Link to="/tools/recommendation-plan">查看从市场调研到视频推广的工具方案 ›</Link></article>
+            <article><span className="ai-avatar">A</span><p>暂无工具方案，待推荐接口接入后这里会展示生成结果。</p></article>
           </>
         ) : isRecommend ? (
           <>
-            <article><span className="ai-avatar">A</span><p>收到！基于你的需求，我为你推荐了 3 款最合适的 AI 工具：ChatGPT、Canva AI、Notion AI。</p></article>
-            <article><span className="ai-avatar">A</span><p>这三款工具可覆盖文案、设计与协作方面的主要需求，并兼顾免费可用与低成本策略。</p></article>
+            <article><span className="ai-avatar">A</span><p>暂无工具推荐结果，待推荐接口接入后这里会展示匹配工具。</p></article>
           </>
         ) : isDetail ? (
           <>
@@ -588,16 +442,7 @@ function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["varian
       </form>
       <section className="toolhub-ai-results" aria-label="AI 推荐结果">
         <header><h2>AI 推荐结果</h2><button type="button">×</button></header>
-        <p><strong>需求：</strong>做小红书获客海报，并配套文案和数据复盘</p>
-        <div>{["图片设计", "文案生成", "数据分析"].map((tag) => <span key={tag}>{tag}</span>)}</div>
-        {["Canva AI", "Apollo", "飞书多维表格", "Google Analytics"].map((name) => (
-          <article key={name}>
-            <b>{name.slice(0, 1)}</b>
-            <span>{name}</span>
-            <Link to="/tools/detail">一键跳转 ↗</Link>
-          </article>
-        ))}
-        <button type="button">☆ 收藏本次推荐</button>
+        <p className="module-empty-state">暂无AI推荐结果</p>
       </section>
     </aside>
   );

@@ -6,11 +6,13 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type postgresDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
 }
 
 type PostgresRepository struct {
@@ -94,13 +96,41 @@ func (r *PostgresRepository) UpsertArticle(ctx context.Context, article Article)
 	))
 }
 
-func (r *PostgresRepository) ListTools(ctx context.Context) ([]Tool, error) {
+func (r *PostgresRepository) BookmarkArticle(ctx context.Context, userID int64, slug string) (BookmarkResult, error) {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO content_article_bookmarks (user_id, article_slug)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id, article_slug) DO NOTHING
+	`, userID, slug)
+	if err != nil {
+		return BookmarkResult{}, err
+	}
+	return BookmarkResult{Slug: slug, Bookmarked: true}, nil
+}
+
+func (r *PostgresRepository) UnbookmarkArticle(ctx context.Context, userID int64, slug string) (BookmarkResult, error) {
+	_, err := r.db.Exec(ctx, `
+		DELETE FROM content_article_bookmarks
+		WHERE user_id = $1 AND article_slug = $2
+	`, userID, slug)
+	if err != nil {
+		return BookmarkResult{}, err
+	}
+	return BookmarkResult{Slug: slug, Bookmarked: false}, nil
+}
+
+func (r *PostgresRepository) ListTools(ctx context.Context, filters ToolFilters) ([]Tool, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, slug, name, description, url, status, created_at, updated_at
+		SELECT id, slug, name, description, url, status, COALESCE(category, ''), created_at, updated_at
 		FROM content_tools
 		WHERE status = 'published'
-		ORDER BY created_at DESC
-	`)
+		  AND ($1 = '' OR category = $1)
+		  AND ($2 = '' OR name ILIKE '%' || $2 || '%' OR description ILIKE '%' || $2 || '%')
+		ORDER BY
+		  CASE WHEN $3 = 'hot' THEN sort_weight ELSE 0 END DESC,
+		  created_at DESC
+		LIMIT $4
+	`, filters.Category, filters.Query, filters.Sort, filters.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -117,23 +147,60 @@ func (r *PostgresRepository) ListTools(ctx context.Context) ([]Tool, error) {
 	return tools, rows.Err()
 }
 
+func (r *PostgresRepository) GetTool(ctx context.Context, slug string) (Tool, error) {
+	tool, err := scanTool(r.db.QueryRow(ctx, `
+		SELECT id, slug, name, description, url, status, COALESCE(category, ''), created_at, updated_at
+		FROM content_tools
+		WHERE slug = $1 AND status = 'published'
+	`, slug))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Tool{}, ErrToolNotFound
+	}
+	return tool, err
+}
+
+func (r *PostgresRepository) FavoriteTool(ctx context.Context, userID int64, slug string) (FavoriteResult, error) {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO content_tool_favorites (user_id, tool_slug)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id, tool_slug) DO NOTHING
+	`, userID, slug)
+	if err != nil {
+		return FavoriteResult{}, err
+	}
+	return FavoriteResult{Slug: slug, Favorited: true}, nil
+}
+
+func (r *PostgresRepository) UnfavoriteTool(ctx context.Context, userID int64, slug string) (FavoriteResult, error) {
+	_, err := r.db.Exec(ctx, `
+		DELETE FROM content_tool_favorites
+		WHERE user_id = $1 AND tool_slug = $2
+	`, userID, slug)
+	if err != nil {
+		return FavoriteResult{}, err
+	}
+	return FavoriteResult{Slug: slug, Favorited: false}, nil
+}
+
 func (r *PostgresRepository) UpsertTool(ctx context.Context, tool Tool) (Tool, error) {
 	return scanTool(r.db.QueryRow(ctx, `
-		INSERT INTO content_tools (slug, name, description, url, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO content_tools (slug, name, description, url, status, category, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (slug) DO UPDATE SET
 			name = EXCLUDED.name,
 			description = EXCLUDED.description,
 			url = EXCLUDED.url,
 			status = EXCLUDED.status,
+			category = EXCLUDED.category,
 			updated_at = EXCLUDED.updated_at
-		RETURNING id, slug, name, description, url, status, created_at, updated_at
+		RETURNING id, slug, name, description, url, status, COALESCE(category, ''), created_at, updated_at
 	`,
 		tool.Slug,
 		tool.Name,
 		tool.Description,
 		tool.URL,
 		tool.Status,
+		tool.Category,
 		tool.CreatedAt,
 		tool.UpdatedAt,
 	))
@@ -168,6 +235,82 @@ func (r *PostgresRepository) UpsertCommunityConfig(ctx context.Context, config C
 		config.CreatedAt,
 		config.UpdatedAt,
 	))
+}
+
+func (r *PostgresRepository) CreateCommunityJoinRequest(ctx context.Context, userID int64, input CommunityJoinInput) (CommunityJoinRequest, error) {
+	var request CommunityJoinRequest
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO community_join_requests (user_id, community, contact, note)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, user_id, community, contact, note, status, created_at
+	`, userID, input.Community, input.Contact, input.Note).Scan(
+		&request.ID,
+		&request.UserID,
+		&request.Community,
+		&request.Contact,
+		&request.Note,
+		&request.Status,
+		&request.CreatedAt,
+	)
+	return request, err
+}
+
+func (r *PostgresRepository) ListHelpTopics(ctx context.Context) ([]HelpTopic, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT key, name
+		FROM help_topics
+		ORDER BY display_order, key
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var topics []HelpTopic
+	for rows.Next() {
+		var topic HelpTopic
+		if err := rows.Scan(&topic.Key, &topic.Name); err != nil {
+			return nil, err
+		}
+		topics = append(topics, topic)
+	}
+	return topics, rows.Err()
+}
+
+func (r *PostgresRepository) ListHelpArticles(ctx context.Context, filters HelpArticleFilters) ([]HelpArticle, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, slug, topic, title, summary, '' AS body, created_at, updated_at
+		FROM help_articles
+		WHERE status = 'published'
+		  AND ($1 = '' OR topic = $1)
+		  AND ($2 = '' OR title ILIKE '%' || $2 || '%' OR summary ILIKE '%' || $2 || '%')
+		ORDER BY created_at DESC
+		LIMIT $3
+	`, filters.Topic, filters.Query, filters.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var articles []HelpArticle
+	for rows.Next() {
+		article, err := scanHelpArticle(rows)
+		if err != nil {
+			return nil, err
+		}
+		articles = append(articles, article)
+	}
+	return articles, rows.Err()
+}
+
+func (r *PostgresRepository) GetHelpArticle(ctx context.Context, slug string) (HelpArticle, error) {
+	article, err := scanHelpArticle(r.db.QueryRow(ctx, `
+		SELECT id, slug, topic, title, summary, body, created_at, updated_at
+		FROM help_articles
+		WHERE slug = $1 AND status = 'published'
+	`, slug))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return HelpArticle{}, ErrHelpArticleNotFound
+	}
+	return article, err
 }
 
 func (r *PostgresRepository) ListBrandMetrics(ctx context.Context) ([]BrandMetric, error) {
@@ -287,10 +430,26 @@ func scanTool(scanner scanner) (Tool, error) {
 		&tool.Description,
 		&tool.URL,
 		&tool.Status,
+		&tool.Category,
 		&tool.CreatedAt,
 		&tool.UpdatedAt,
 	)
 	return tool, err
+}
+
+func scanHelpArticle(scanner scanner) (HelpArticle, error) {
+	var article HelpArticle
+	err := scanner.Scan(
+		&article.ID,
+		&article.Slug,
+		&article.Topic,
+		&article.Title,
+		&article.Summary,
+		&article.Body,
+		&article.CreatedAt,
+		&article.UpdatedAt,
+	)
+	return article, err
 }
 
 func scanCommunityConfig(scanner scanner) (CommunityConfig, error) {

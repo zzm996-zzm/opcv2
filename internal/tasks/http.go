@@ -14,7 +14,8 @@ import (
 
 type Application interface {
 	CreateTask(ctx context.Context, input CreateInput) (Task, error)
-	ListTasks(ctx context.Context, userID int64, limit int) ([]Task, error)
+	ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error)
+	TaskStats(ctx context.Context, userID int64) (Stats, error)
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
 }
@@ -30,6 +31,7 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/tasks", h.createTask)
 	router.GET("/tasks", h.listTasks)
+	router.GET("/tasks/stats", h.taskStats)
 	router.GET("/tasks/:id", h.getTask)
 	router.PATCH("/tasks/:id", h.updateTask)
 }
@@ -64,12 +66,31 @@ func (h *HTTPHandler) listTasks(c *gin.Context) {
 	if !ok {
 		return
 	}
-	tasks, err := h.app.ListTasks(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	status := strings.TrimSpace(c.Query("status"))
+	if status != "" && !validStatus(status) {
+		httpapi.BadRequest(c, "invalid_status")
+		return
+	}
+	tasks, err := h.app.ListTasks(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), ListFilters{
+		Status:  status,
+		Project: c.Query("project"),
+		Query:   c.Query("q"),
+		Limit:   limit,
+	})
 	if err != nil {
 		writeError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"tasks": httpapi.EnsureSlice(tasks)})
+}
+
+func (h *HTTPHandler) taskStats(c *gin.Context) {
+	stats, err := h.app.TaskStats(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, stats)
 }
 
 func (h *HTTPHandler) getTask(c *gin.Context) {

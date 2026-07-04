@@ -13,6 +13,10 @@ type memoryRepository struct {
 	codes         map[string]*RedemptionCode
 	redemptions   map[string]Redemption
 	subscriptions map[int64]Subscription
+	plans         []PlanOption
+	usage         []UsageItem
+	orders        []Order
+	checkout      CheckoutInput
 }
 
 func newMemoryRepository() *memoryRepository {
@@ -83,6 +87,35 @@ func (r *memoryRepository) RedeemCode(ctx context.Context, input RedeemInput, no
 	return RedeemResult{Snapshot: snapshot, Redemption: redemption}, nil
 }
 
+func (r *memoryRepository) ListPlans(context.Context) ([]PlanOption, error) {
+	return r.plans, nil
+}
+
+func (r *memoryRepository) CurrentUsage(context.Context, int64) ([]UsageItem, error) {
+	return r.usage, nil
+}
+
+func (r *memoryRepository) ListOrders(_ context.Context, _ int64, limit int) ([]Order, error) {
+	if limit > len(r.orders) {
+		limit = len(r.orders)
+	}
+	return r.orders[:limit], nil
+}
+
+func (r *memoryRepository) CreateCheckout(_ context.Context, input CheckoutInput, _ time.Time) (CheckoutResult, error) {
+	r.checkout = input
+	for _, plan := range r.plans {
+		if plan.Code == input.PlanCode && plan.BillingCycle == input.BillingCycle {
+			order := Order{ID: 13, OrderNo: input.OrderNo, PlanCode: plan.Code, AmountCents: plan.PriceCents, Status: OrderPending}
+			return CheckoutResult{
+				Order:   order,
+				Payment: PaymentInfo{Mode: "manual", Message: "请联系顾问完成开通"},
+			}, nil
+		}
+	}
+	return CheckoutResult{}, ErrPlanNotFound
+}
+
 func TestServiceReturnsFreeSnapshotForNewUser(t *testing.T) {
 	service := NewService(newMemoryRepository())
 
@@ -148,5 +181,69 @@ func TestServiceRejectsInvalidCode(t *testing.T) {
 	_, err := service.Redeem(context.Background(), RedeemInput{UserID: 42, Code: "NOPE"})
 	if !errors.Is(err, ErrCodeNotFound) {
 		t.Fatalf("Redeem() error = %v, want ErrCodeNotFound", err)
+	}
+}
+
+func TestServiceListsPlans(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.plans = []PlanOption{{
+		Code:         PlanPro,
+		Name:         "会员版",
+		PriceCents:   6900,
+		BillingCycle: "month",
+		Recommended:  true,
+	}}
+	service := NewService(repository)
+
+	plans, err := service.ListPlans(context.Background())
+
+	if err != nil {
+		t.Fatalf("ListPlans() error = %v", err)
+	}
+	if len(plans) != 1 || plans[0].Code != PlanPro || !plans[0].Recommended {
+		t.Fatalf("plans = %+v", plans)
+	}
+}
+
+func TestServiceListsUsageAndOrdersWithCappedLimit(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.usage = []UsageItem{{Key: "lead_tasks", Used: 8, Limit: 30, Unit: "次/月"}}
+	repository.orders = []Order{{ID: 1}, {ID: 2}}
+	service := NewService(repository)
+
+	usage, err := service.CurrentUsage(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("CurrentUsage() error = %v", err)
+	}
+	orders, err := service.ListOrders(context.Background(), 42, 500)
+	if err != nil {
+		t.Fatalf("ListOrders() error = %v", err)
+	}
+
+	if len(usage) != 1 || len(orders) != 2 {
+		t.Fatalf("usage/orders = %+v/%+v", usage, orders)
+	}
+}
+
+func TestServiceCreatesManualCheckoutOrder(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.plans = []PlanOption{{Code: PlanPro, BillingCycle: "month", PriceCents: 6900}}
+	service := NewService(repository)
+	service.now = func() time.Time { return time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC) }
+
+	result, err := service.CreateCheckout(context.Background(), CheckoutInput{
+		UserID:       42,
+		PlanCode:     " pro ",
+		BillingCycle: " month ",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateCheckout() error = %v", err)
+	}
+	if result.Order.Status != OrderPending || result.Payment.Mode != "manual" {
+		t.Fatalf("result = %+v", result)
+	}
+	if repository.checkout.PlanCode != PlanPro || repository.checkout.BillingCycle != "month" || repository.checkout.OrderNo == "" {
+		t.Fatalf("checkout = %+v", repository.checkout)
 	}
 }

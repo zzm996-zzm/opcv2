@@ -2,6 +2,8 @@ package learning
 
 import (
 	"context"
+	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -80,4 +82,190 @@ func (s *Service) LatestDiagnosis(ctx context.Context, userID int64) (Diagnosis,
 		return Diagnosis{}, ErrServiceNotReady
 	}
 	return s.repository.LatestDiagnosis(ctx, userID)
+}
+
+func (s *Service) LatestGaps(ctx context.Context, userID int64) (DiagnosisGaps, error) {
+	diagnosis, err := s.LatestDiagnosis(ctx, userID)
+	if err != nil {
+		return DiagnosisGaps{}, err
+	}
+	return deriveGaps(diagnosis), nil
+}
+
+func (s *Service) LatestRecommendations(ctx context.Context, userID int64) (DiagnosisRecommendations, error) {
+	diagnosis, err := s.LatestDiagnosis(ctx, userID)
+	if err != nil {
+		return DiagnosisRecommendations{}, err
+	}
+	gaps := prioritizedGaps(diagnosis)
+	focus := make([]RecommendationFocus, 0, len(gaps))
+	for _, gap := range gaps {
+		focus = append(focus, RecommendationFocus{
+			Name:     gap.Name,
+			Priority: gap.Priority,
+			Summary:  gap.Recommended,
+		})
+	}
+	return DiagnosisRecommendations{
+		DiagnosisID:     diagnosis.ID,
+		Goal:            diagnosis.Goal,
+		Project:         diagnosis.Project,
+		Focus:           focus,
+		Recommendations: diagnosis.Recommendations,
+		Methods: []LearningMethod{
+			{Title: "建议每周学习节奏", Value: "每周 6-8 小时", Detail: "建议每周学习 2-3 次，并保留复盘时间。"},
+			{Title: "预计完成周期", Value: "3-4 周", Detail: "约 24-32 小时学习量。"},
+			{Title: "建议学习顺序", Value: learningOrder(gaps), Detail: "先补关键短板，再巩固通用能力。"},
+			{Title: "学习目标产出", Value: "3 个能力交付物", Detail: "完成实战练习、项目拆解和复盘报告。"},
+		},
+		GeneratedAt: diagnosis.UpdatedAt,
+	}, nil
+}
+
+func (s *Service) LatestPlan(ctx context.Context, userID int64) (DiagnosisPlan, error) {
+	diagnosis, err := s.LatestDiagnosis(ctx, userID)
+	if err != nil {
+		return DiagnosisPlan{}, err
+	}
+	gaps := prioritizedGaps(diagnosis)
+	stages := make([]PlanStage, 0, len(gaps)+1)
+	stages = append(stages, PlanStage{
+		Number:    1,
+		Title:     "AI基础认知",
+		Status:    "进行中",
+		Courses:   []string{"AI基础入门", "AI能力地图与应用场景"},
+		Duration:  "4.5 小时",
+		Goal:      "理解AI基本概念与能力边界，建立用AI解决问题的思维框架。",
+		Milestone: "完成AI基础测验",
+	})
+	for index, gap := range gaps {
+		stages = append(stages, PlanStage{
+			Number:    index + 2,
+			Title:     gap.Name,
+			Status:    "未开始",
+			Courses:   coursesForGap(gap.Name),
+			Duration:  "6.0 小时",
+			Goal:      gap.Recommended,
+			Milestone: fmt.Sprintf("完成%s实战任务", gap.Name),
+		})
+	}
+	return DiagnosisPlan{
+		DiagnosisID:      diagnosis.ID,
+		Title:            formatPlanTitle(diagnosis.Goal),
+		Description:      fmt.Sprintf("基于你的项目方向与能力诊断结果，为你定制学习路径，助你掌握“%s”相关能力。", diagnosis.Project),
+		Recommendations:  diagnosis.Recommendations,
+		Stages:           stages,
+		EstimatedHours:   24,
+		WeeklySuggestion: "每周 6-8 小时",
+		GeneratedAt:      diagnosis.UpdatedAt,
+	}, nil
+}
+
+func (s *Service) LatestReport(ctx context.Context, userID int64) (DiagnosisReport, error) {
+	diagnosis, err := s.LatestDiagnosis(ctx, userID)
+	if err != nil {
+		return DiagnosisReport{}, err
+	}
+	return DiagnosisReport{
+		DiagnosisID:     diagnosis.ID,
+		Goal:            diagnosis.Goal,
+		Project:         diagnosis.Project,
+		OverallScore:    diagnosis.OverallScore,
+		Dimensions:      diagnosis.Dimensions,
+		PriorityGaps:    prioritizedGaps(diagnosis),
+		Recommendations: diagnosis.Recommendations,
+		Evidence:        diagnosisEvidence(diagnosis),
+		GeneratedAt:     diagnosis.UpdatedAt,
+	}, nil
+}
+
+func deriveGaps(diagnosis Diagnosis) DiagnosisGaps {
+	return DiagnosisGaps{
+		DiagnosisID:  diagnosis.ID,
+		Goal:         diagnosis.Goal,
+		Project:      diagnosis.Project,
+		OverallScore: diagnosis.OverallScore,
+		Gaps:         prioritizedGaps(diagnosis),
+		Evidence:     diagnosisEvidence(diagnosis),
+		GeneratedAt:  diagnosis.UpdatedAt,
+	}
+}
+
+func prioritizedGaps(diagnosis Diagnosis) []GapItem {
+	dimensions := append([]Dimension(nil), diagnosis.Dimensions...)
+	sort.SliceStable(dimensions, func(i, j int) bool {
+		return dimensions[i].Gap > dimensions[j].Gap
+	})
+	if len(dimensions) > 3 {
+		dimensions = dimensions[:3]
+	}
+	gaps := make([]GapItem, 0, len(dimensions))
+	for index, dimension := range dimensions {
+		target := dimension.Score + dimension.Gap
+		if target > 100 {
+			target = 100
+		}
+		gaps = append(gaps, GapItem{
+			Name:        dimension.Name,
+			Current:     dimension.Score,
+			Target:      target,
+			Gap:         dimension.Gap,
+			Priority:    gapPriority(index),
+			Summary:     dimension.Summary,
+			Evidence:    fmt.Sprintf("诊断显示%s当前为%d分，目标差距%d分。", dimension.Name, dimension.Score, dimension.Gap),
+			Recommended: fmt.Sprintf("优先补齐%s，结合%s项目做一次可交付练习。", dimension.Name, diagnosis.Project),
+		})
+	}
+	return gaps
+}
+
+func gapPriority(index int) string {
+	switch index {
+	case 0:
+		return "high"
+	case 1:
+		return "medium"
+	default:
+		return "normal"
+	}
+}
+
+func diagnosisEvidence(diagnosis Diagnosis) []string {
+	return []string{
+		fmt.Sprintf("学习目标：%s", diagnosis.Goal),
+		fmt.Sprintf("项目方向：%s", diagnosis.Project),
+		"结合课程进度、任务应用和工具使用深度生成。",
+	}
+}
+
+func learningOrder(gaps []GapItem) string {
+	names := make([]string, 0, len(gaps))
+	for _, gap := range gaps {
+		names = append(names, gap.Name)
+	}
+	if len(names) == 0 {
+		return "AI基础认知 → 提示词工程 → 行业分析"
+	}
+	return strings.Join(names, " → ")
+}
+
+func coursesForGap(name string) []string {
+	if strings.Contains(name, "提示词") {
+		return []string{"提示词工程实战", "AI工具箱实践指南"}
+	}
+	if strings.Contains(name, "数据") {
+		return []string{"数据洞察与竞品研究实战", "AI行业分析方法"}
+	}
+	if strings.Contains(name, "市场") || strings.Contains(name, "行业") {
+		return []string{"AI行业分析方法", "竞品全盘数据破解实战"}
+	}
+	return []string{name, "实战项目复盘"}
+}
+
+func formatPlanTitle(goal string) string {
+	goal = strings.TrimSpace(strings.TrimPrefix(goal, "提升"))
+	if goal == "" {
+		return "系统学习路径"
+	}
+	return goal + "路径"
 }

@@ -16,6 +16,9 @@ type Application interface {
 	CreateModel(ctx context.Context, input CreateInput) (Model, error)
 	ListModels(ctx context.Context, userID int64, limit int) ([]Model, error)
 	GetModel(ctx context.Context, userID, id int64) (Model, error)
+	ModelScenarios(ctx context.Context, userID, id int64) (GrowthScenarios, error)
+	ModelForecast(ctx context.Context, userID, id int64) (GrowthForecast, error)
+	ModelRecommendations(ctx context.Context, userID, id int64) (GrowthRecommendations, error)
 }
 
 type HTTPHandler struct {
@@ -30,6 +33,9 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/growth/models", h.createModel)
 	router.GET("/growth/models", h.listModels)
 	router.GET("/growth/models/:id", h.getModel)
+	router.GET("/growth/models/:id/scenarios", h.modelScenarios)
+	router.GET("/growth/models/:id/forecast", h.modelForecast)
+	router.GET("/growth/models/:id/recommendations", h.modelRecommendations)
 }
 
 func (h *HTTPHandler) createModel(c *gin.Context) {
@@ -77,9 +83,8 @@ func (h *HTTPHandler) listModels(c *gin.Context) {
 }
 
 func (h *HTTPHandler) getModel(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil || id <= 0 {
-		httpapi.BadRequest(c, "invalid_model_id")
+	id, ok := modelIDParam(c)
+	if !ok {
 		return
 	}
 	model, err := h.app.GetModel(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
@@ -88,6 +93,54 @@ func (h *HTTPHandler) getModel(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, model)
+}
+
+func (h *HTTPHandler) modelScenarios(c *gin.Context) {
+	id, ok := modelIDParam(c)
+	if !ok {
+		return
+	}
+	scenarios, err := h.app.ModelScenarios(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, scenarios)
+}
+
+func (h *HTTPHandler) modelForecast(c *gin.Context) {
+	id, ok := modelIDParam(c)
+	if !ok {
+		return
+	}
+	forecast, err := h.app.ModelForecast(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, forecast)
+}
+
+func (h *HTTPHandler) modelRecommendations(c *gin.Context) {
+	id, ok := modelIDParam(c)
+	if !ok {
+		return
+	}
+	recommendations, err := h.app.ModelRecommendations(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, recommendations)
+}
+
+func modelIDParam(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		httpapi.BadRequest(c, "invalid_model_id")
+		return 0, false
+	}
+	return id, true
 }
 
 func writeError(c *gin.Context, err error) {

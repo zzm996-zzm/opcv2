@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
-import { learningApi, type LearningDiagnosis, type LearningDimension } from "../lib/learningApi";
+import { learningApi, type LearningDimension, type LearningReport } from "../lib/learningApi";
 
 const reportSteps = [
   ["1", "收集信息", "获取项目与数据", "complete"],
@@ -71,28 +71,38 @@ function toPriorityGap(dimension: LearningDimension, index: number) {
 }
 
 function LearningReportPage() {
-  const [diagnosis, setDiagnosis] = useState<LearningDiagnosis | null>(null);
+  const [report, setReport] = useState<LearningReport | null>(null);
 
   useEffect(() => {
     let active = true;
     learningApi
-      .getLatestDiagnosis()
+      .getLatestReport()
       .then((payload) => {
-        if (active) setDiagnosis(payload);
+        if (active) setReport(payload);
       })
       .catch(() => {
-        if (active) setDiagnosis(null);
+        if (active) setReport(null);
       });
     return () => {
       active = false;
     };
   }, []);
 
-  const visibleGoal = diagnosis ? formatGoal(diagnosis.goal) : "智能客服与市场分析能力提升";
-  const visibleScore = diagnosis?.overall_score ?? 62;
-  const visibleAbilityScores = diagnosis?.dimensions.length ? diagnosis.dimensions.map(toAbilityScore) : abilityScores;
-  const visiblePriorityGaps = diagnosis?.dimensions.length
-    ? [...diagnosis.dimensions].sort((a, b) => b.gap - a.gap).slice(0, 3).map(toPriorityGap)
+  const visibleGoal = report ? formatGoal(report.goal) : "智能客服与市场分析能力提升";
+  const visibleScore = report?.overall_score ?? 62;
+  const visibleAbilityScores = report?.dimensions.length ? report.dimensions.map(toAbilityScore) : abilityScores;
+  const visiblePriorityGaps = report?.priority_gaps.length
+    ? report.priority_gaps.map((gap, index) => {
+      const badges = ["差距最大", "重点提升", "持续补强"] as const;
+      return [
+        `优先补齐：${gap.name}`,
+        badges[index] ?? "持续补强",
+        gap.summary || gap.recommended,
+        `${gap.current}分`
+      ] as const;
+    })
+    : report?.dimensions.length
+      ? [...report.dimensions].sort((a, b) => b.gap - a.gap).slice(0, 3).map(toPriorityGap)
     : priorityGaps;
   const topGap = (visiblePriorityGaps[0]?.[0] ?? "智能客服案例拆解").replace(/^优先补齐：/, "");
 
@@ -197,7 +207,10 @@ function LearningReportPage() {
             <section className="diagnosis-card report-evidence-card" aria-label="诊断依据">
               <h2>诊断依据 <span>已分析</span></h2>
               <div>
-                {evidenceItems.map(([title, desc, icon]) => (
+                {(report?.evidence.length
+                  ? report.evidence.map((item, index) => [`诊断依据 ${index + 1}`, item, index === 0 ? "grid" : index === 1 ? "check" : "case"] as const)
+                  : evidenceItems
+                ).map(([title, desc, icon]) => (
                   <article key={title}>
                     <i className={`report-evidence-icon ${icon}`} aria-hidden="true" />
                     <div>

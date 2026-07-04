@@ -99,6 +99,7 @@ describe("SandboxPage", () => {
 
     expect(await screen.findByText("企业AI运营平台")).toBeInTheDocument();
     expect(screen.getByText("验证企业AI运营平台")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看报告" })).toHaveAttribute("href", "/sandbox/sessions/99/report");
     cleanup();
 
     render(<MemoryRouter initialEntries={["/sandbox/report"]}><App /></MemoryRouter>);
@@ -107,6 +108,47 @@ describe("SandboxPage", () => {
     expect(screen.getByText("AI运营平台具备清晰落地空间")).toBeInTheDocument();
     expect(screen.getByText("门店老板关注降本增效")).toBeInTheDocument();
     expect(screen.getByText("先做3家门店试点")).toBeInTheDocument();
+  });
+
+  it("loads a sandbox report from a session route", async () => {
+    signIn();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/sandbox/sessions?limit=10") {
+        return Promise.resolve(new Response(JSON.stringify({ sessions: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/sandbox/sessions/99") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 99,
+          user_id: 7,
+          goal: "验证企业AI运营平台",
+          target_users: "连锁门店老板",
+          product: "企业AI运营平台",
+          roles: ["用户视角", "投资人视角"],
+          status: "completed",
+          report: {
+            score: 91,
+            summary: "AI运营平台具备清晰落地空间",
+            metrics: [{ label: "综合可行性", value: "91" }],
+            role_summaries: [{ role: "用户视角", view: "门店老板关注降本增效" }],
+            risks: ["渠道教育成本偏高"],
+            next_actions: ["先做3家门店试点"]
+          },
+          created_at: "2026-06-30T08:00:00Z",
+          updated_at: "2026-06-30T08:10:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    render(<MemoryRouter initialEntries={["/sandbox/sessions/99/report"]}><App /></MemoryRouter>);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/sandbox/sessions/99",
+      expect.objectContaining({ method: "GET" })
+    ));
+    expect(await screen.findByRole("heading", { name: "企业AI运营平台" })).toBeInTheDocument();
+    expect(screen.getByText("AI运营平台具备清晰落地空间")).toBeInTheDocument();
   });
 
   it("creates and runs a sandbox session from the start page", async () => {

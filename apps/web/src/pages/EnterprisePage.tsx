@@ -1,59 +1,39 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 import V4PageShell from "../components/V4PageShell";
-
-const enterpriseStats = [
-  ["服务企业", "38"],
-  ["平均周期", "12周"],
-  ["交付任务", "164"],
-  ["续约率", "72%"]
-] as const;
-
-const plans = [
-  {
-    title: "增长团队训练营",
-    audience: "适合 10-50 人销售/运营团队",
-    price: "¥12万起",
-    focus: ["AI工具流搭建", "线索开发 SOP", "周度经营复盘"],
-    result: "4 周内搭好从获客到 CRM 的标准动作"
-  },
-  {
-    title: "AI获客陪跑",
-    audience: "适合正在验证新项目的业务团队",
-    price: "¥18万起",
-    focus: ["GEO内容矩阵", "竞品监测", "高意向线索池"],
-    result: "8 周内跑通目标客户画像和首批成交机会"
-  },
-  {
-    title: "企业定制系统",
-    audience: "适合需要私有流程和数据看板的企业",
-    price: "定制报价",
-    focus: ["需求诊断", "系统集成", "交付培训"],
-    result: "12 周内完成流程定制、数据接入和团队上线"
-  }
-] as const;
-
-const deliveryBoard = [
-  ["诊断中", "4", "业务访谈、数据梳理、流程盘点"],
-  ["方案中", "7", "项目路径、ROI 测算、资源排期"],
-  ["交付中", "12", "工具配置、团队训练、周度复盘"],
-  ["复盘中", "5", "指标验收、续约判断、二期规划"]
-] as const;
-
-const milestones = [
-  ["第1周", "企业诊断", "厘清业务目标、客户画像、组织分工和数据现状"],
-  ["第2-4周", "流程搭建", "上线 AI 线索开发、CRM 跟进、任务中心和经营仪表盘"],
-  ["第5-8周", "团队陪跑", "周度复盘关键客户、竞品动态、GEO 内容与成交动作"],
-  ["第9-12周", "验收迭代", "沉淀 SOP、训练团队负责人、规划下一阶段增长实验"]
-] as const;
-
-const cases = [
-  ["连锁教育集团", "客服响应效率提升 43%，新增可跟进商机 86 个"],
-  ["职业培训机构", "8 周跑通 GEO 获客内容，试点校区转化率提升 18%"],
-  ["企业内训服务商", "完成销售流程标准化，报价周期从 5 天缩短到 2 天"]
-] as const;
+import { apiErrorMessage } from "../lib/apiErrors";
+import { enterpriseApi, type EnterpriseOverview } from "../lib/enterpriseApi";
 
 function EnterprisePage() {
+  const [overview, setOverview] = useState<EnterpriseOverview | null>(null);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    enterpriseApi
+      .overview()
+      .then((payload) => {
+        if (!active) return;
+        setOverview(payload);
+        setLoadError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setOverview(null);
+        setLoadError(apiErrorMessage(error, "暂时无法读取企业陪跑数据"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const stats = overview?.stats ?? [];
+  const plans = overview?.plans ?? [];
+  const deliveryBoard = overview?.delivery_board ?? [];
+  const milestones = overview?.milestones ?? [];
+  const cases = overview?.cases ?? [];
+  const hasOverviewData = stats.length > 0 || plans.length > 0 || deliveryBoard.length > 0 || milestones.length > 0 || cases.length > 0;
+
   return (
     <V4PageShell className="enterprise-shell">
       <section className="module-page enterprise-page" aria-label="企业定制化陪跑">
@@ -70,11 +50,32 @@ function EnterprisePage() {
             <span className="module-kicker">企业服务 · 定制交付</span>
             <h2>从业务问题到团队上线，陪企业把 AI 增长流程真正跑起来</h2>
             <p>通过企业诊断、工具配置、实战陪跑和交付验收，把项目超市、GEO 获客、AI 线索开发和 CRM 组合成企业自己的增长系统。</p>
+            {loadError && <p className="form-error" role="alert">{loadError}</p>}
+            {!loadError && !hasOverviewData && <p className="form-error" role="status">企业陪跑后端接口未接入</p>}
             <div className="module-stat-strip">
-              {enterpriseStats.map(([label, value]) => (
-                <article key={label}>
-                  <small>{label}</small>
-                  <strong>{value}</strong>
+              {stats.length === 0 ? (
+                <>
+                  <article>
+                    <small>服务企业数</small>
+                    <strong>0</strong>
+                  </article>
+                  <article>
+                    <small>平均周期</small>
+                    <strong>未接入</strong>
+                  </article>
+                  <article>
+                    <small>交付任务数</small>
+                    <strong>0</strong>
+                  </article>
+                  <article>
+                    <small>续约率数据</small>
+                    <strong>未接入</strong>
+                  </article>
+                </>
+              ) : stats.map((item) => (
+                <article key={item.key}>
+                  <small>{item.label}</small>
+                  <strong>{item.value}</strong>
                 </article>
               ))}
             </div>
@@ -106,20 +107,20 @@ function EnterprisePage() {
             </div>
 
             <div className="enterprise-plan-grid">
+              {plans.length === 0 && <p>暂无陪跑方案</p>}
               {plans.map((plan) => (
-                <article key={plan.title}>
+                <article key={plan.id}>
                   <header>
                     <div>
                       <h3>{plan.title}</h3>
-                      <small>{plan.audience}</small>
+                      <small>{plan.audience || "未标注适用对象"}</small>
                     </div>
-                    <strong>{plan.price}</strong>
+                    <strong>{plan.price_label || "未报价"}</strong>
                   </header>
-                  <p>{plan.result}</p>
+                  <p>{plan.result || "暂无交付结果"}</p>
                   <div className="tool-tags">
                     {plan.focus.map((item) => <span key={item}>{item}</span>)}
                   </div>
-                  <Link to="/crm">沉淀到CRM</Link>
                 </article>
               ))}
             </div>
@@ -127,13 +128,14 @@ function EnterprisePage() {
 
           <aside className="enterprise-delivery-card" aria-label="交付看板">
             <h2>交付看板</h2>
-            {deliveryBoard.map(([stage, count, detail]) => (
-              <article key={stage}>
+            {deliveryBoard.length === 0 && <p>暂无交付看板数据</p>}
+            {deliveryBoard.map((item) => (
+              <article key={item.stage}>
                 <span>
-                  <strong>{stage}</strong>
-                  <small>{detail}</small>
+                  <strong>{item.stage}</strong>
+                  <small>{item.detail || "暂无说明"}</small>
                 </span>
-                <em>{count}</em>
+                <em>{item.count}</em>
               </article>
             ))}
           </aside>
@@ -148,11 +150,12 @@ function EnterprisePage() {
               </div>
             </div>
             <div className="enterprise-milestones">
-              {milestones.map(([time, title, detail]) => (
-                <article key={time}>
-                  <b>{time}</b>
-                  <strong>{title}</strong>
-                  <small>{detail}</small>
+              {milestones.length === 0 && <p>暂无陪跑里程碑</p>}
+              {milestones.map((item) => (
+                <article key={`${item.time_label}-${item.title}`}>
+                  <b>{item.time_label}</b>
+                  <strong>{item.title}</strong>
+                  <small>{item.detail || "暂无说明"}</small>
                 </article>
               ))}
             </div>
@@ -160,10 +163,11 @@ function EnterprisePage() {
 
           <aside className="enterprise-case-card" aria-label="企业案例">
             <h2>企业案例</h2>
-            {cases.map(([company, result]) => (
-              <article key={company}>
-                <strong>{company}</strong>
-                <small>{result}</small>
+            {cases.length === 0 && <p>暂无企业案例</p>}
+            {cases.map((item) => (
+              <article key={item.id}>
+                <strong>{item.company}</strong>
+                <small>{item.result || "暂无案例结果"}</small>
               </article>
             ))}
           </aside>

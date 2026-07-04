@@ -11,10 +11,19 @@ type Repository interface {
 	ListArticles(ctx context.Context) ([]Article, error)
 	GetArticle(ctx context.Context, slug string) (Article, error)
 	UpsertArticle(ctx context.Context, article Article) (Article, error)
-	ListTools(ctx context.Context) ([]Tool, error)
+	BookmarkArticle(ctx context.Context, userID int64, slug string) (BookmarkResult, error)
+	UnbookmarkArticle(ctx context.Context, userID int64, slug string) (BookmarkResult, error)
+	ListTools(ctx context.Context, filters ToolFilters) ([]Tool, error)
+	GetTool(ctx context.Context, slug string) (Tool, error)
+	FavoriteTool(ctx context.Context, userID int64, slug string) (FavoriteResult, error)
+	UnfavoriteTool(ctx context.Context, userID int64, slug string) (FavoriteResult, error)
 	UpsertTool(ctx context.Context, tool Tool) (Tool, error)
 	GetCommunityConfig(ctx context.Context) (CommunityConfig, error)
 	UpsertCommunityConfig(ctx context.Context, config CommunityConfig) (CommunityConfig, error)
+	CreateCommunityJoinRequest(ctx context.Context, userID int64, input CommunityJoinInput) (CommunityJoinRequest, error)
+	ListHelpTopics(ctx context.Context) ([]HelpTopic, error)
+	ListHelpArticles(ctx context.Context, filters HelpArticleFilters) ([]HelpArticle, error)
+	GetHelpArticle(ctx context.Context, slug string) (HelpArticle, error)
 	ListBrandMetrics(ctx context.Context) ([]BrandMetric, error)
 	UpsertBrandMetric(ctx context.Context, metric BrandMetric) (BrandMetric, error)
 	ListBrandCases(ctx context.Context) ([]BrandCase, error)
@@ -76,15 +85,82 @@ func (s *Service) CreateArticle(ctx context.Context, userID int64, input Article
 	return s.repository.UpsertArticle(ctx, article)
 }
 
-func (s *Service) ListTools(ctx context.Context) ([]Tool, error) {
+func (s *Service) BookmarkArticle(ctx context.Context, userID int64, slug string) (BookmarkResult, error) {
+	if s.repository == nil {
+		return BookmarkResult{}, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if userID <= 0 || slug == "" {
+		return BookmarkResult{}, ErrInvalidInput
+	}
+	return s.repository.BookmarkArticle(ctx, userID, slug)
+}
+
+func (s *Service) UnbookmarkArticle(ctx context.Context, userID int64, slug string) (BookmarkResult, error) {
+	if s.repository == nil {
+		return BookmarkResult{}, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if userID <= 0 || slug == "" {
+		return BookmarkResult{}, ErrInvalidInput
+	}
+	return s.repository.UnbookmarkArticle(ctx, userID, slug)
+}
+
+func (s *Service) ListTools(ctx context.Context, filters ToolFilters) ([]Tool, error) {
 	if s.repository == nil {
 		return nil, ErrServiceNotReady
 	}
-	tools, err := s.repository.ListTools(ctx)
+	filters.Category = strings.TrimSpace(filters.Category)
+	filters.Query = strings.TrimSpace(filters.Query)
+	filters.Sort = strings.TrimSpace(filters.Sort)
+	if filters.Sort == "" {
+		filters.Sort = "featured"
+	}
+	if filters.Limit <= 0 {
+		filters.Limit = 20
+	}
+	if filters.Limit > 100 {
+		filters.Limit = 100
+	}
+	tools, err := s.repository.ListTools(ctx, filters)
 	if tools == nil {
 		tools = []Tool{}
 	}
 	return tools, err
+}
+
+func (s *Service) GetTool(ctx context.Context, slug string) (Tool, error) {
+	if s.repository == nil {
+		return Tool{}, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return Tool{}, ErrInvalidInput
+	}
+	return s.repository.GetTool(ctx, slug)
+}
+
+func (s *Service) FavoriteTool(ctx context.Context, userID int64, slug string) (FavoriteResult, error) {
+	if s.repository == nil {
+		return FavoriteResult{}, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if userID <= 0 || slug == "" {
+		return FavoriteResult{}, ErrInvalidInput
+	}
+	return s.repository.FavoriteTool(ctx, userID, slug)
+}
+
+func (s *Service) UnfavoriteTool(ctx context.Context, userID int64, slug string) (FavoriteResult, error) {
+	if s.repository == nil {
+		return FavoriteResult{}, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if userID <= 0 || slug == "" {
+		return FavoriteResult{}, ErrInvalidInput
+	}
+	return s.repository.UnfavoriteTool(ctx, userID, slug)
 }
 
 func (s *Service) UpsertTool(ctx context.Context, userID int64, input ToolInput) (Tool, error) {
@@ -102,6 +178,7 @@ func (s *Service) UpsertTool(ctx context.Context, userID int64, input ToolInput)
 		Description: input.Description,
 		URL:         input.URL,
 		Status:      input.Status,
+		Category:    input.Category,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	})
@@ -132,6 +209,60 @@ func (s *Service) UpdateCommunityConfig(ctx context.Context, userID int64, input
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	})
+}
+
+func (s *Service) CreateCommunityJoinRequest(ctx context.Context, userID int64, input CommunityJoinInput) (CommunityJoinRequest, error) {
+	if s.repository == nil {
+		return CommunityJoinRequest{}, ErrServiceNotReady
+	}
+	input.Community = strings.TrimSpace(input.Community)
+	input.Contact = strings.TrimSpace(input.Contact)
+	input.Note = strings.TrimSpace(input.Note)
+	if userID <= 0 || input.Contact == "" || (input.Community != "members" && input.Community != "enterprise") {
+		return CommunityJoinRequest{}, ErrInvalidInput
+	}
+	return s.repository.CreateCommunityJoinRequest(ctx, userID, input)
+}
+
+func (s *Service) ListHelpTopics(ctx context.Context) ([]HelpTopic, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	topics, err := s.repository.ListHelpTopics(ctx)
+	if topics == nil {
+		topics = []HelpTopic{}
+	}
+	return topics, err
+}
+
+func (s *Service) ListHelpArticles(ctx context.Context, filters HelpArticleFilters) ([]HelpArticle, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	filters.Topic = strings.TrimSpace(filters.Topic)
+	filters.Query = strings.TrimSpace(filters.Query)
+	if filters.Limit <= 0 {
+		filters.Limit = 20
+	}
+	if filters.Limit > 100 {
+		filters.Limit = 100
+	}
+	articles, err := s.repository.ListHelpArticles(ctx, filters)
+	if articles == nil {
+		articles = []HelpArticle{}
+	}
+	return articles, err
+}
+
+func (s *Service) GetHelpArticle(ctx context.Context, slug string) (HelpArticle, error) {
+	if s.repository == nil {
+		return HelpArticle{}, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return HelpArticle{}, ErrInvalidInput
+	}
+	return s.repository.GetHelpArticle(ctx, slug)
 }
 
 func (s *Service) GetBrand(ctx context.Context) (BrandContent, error) {
@@ -231,6 +362,7 @@ func normalizeToolInput(input ToolInput) ToolInput {
 	input.Name = strings.TrimSpace(input.Name)
 	input.Description = strings.TrimSpace(input.Description)
 	input.URL = strings.TrimSpace(input.URL)
+	input.Category = strings.TrimSpace(input.Category)
 	input.Status = strings.TrimSpace(input.Status)
 	if input.Status == "" {
 		input.Status = StatusDraft

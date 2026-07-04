@@ -129,3 +129,45 @@ func TestPostgresRepositoryStoresLeadResults(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryListsLeadResults(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 24, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, task_id, name, phone, email, website, evidence, created_at
+		FROM lead_results
+		WHERE task_id = $1
+		ORDER BY created_at DESC, id DESC
+		LIMIT $2
+	`)).
+		WithArgs(int64(99), 20).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "task_id", "name", "phone", "email", "website", "evidence", "created_at",
+		}).AddRow(
+			int64(7),
+			int64(99),
+			"成都启明星教育",
+			"028-12345678",
+			"",
+			"https://example.com",
+			[]byte(`[{"type":"website","title":"官网","url":"https://example.com"}]`),
+			now,
+		))
+
+	repository := NewPostgresRepository(db)
+	results, err := repository.ListResults(context.Background(), 99, 20)
+	if err != nil {
+		t.Fatalf("ListResults() error = %v", err)
+	}
+	if len(results) != 1 || results[0].Name != "成都启明星教育" || len(results[0].Evidence) != 1 {
+		t.Fatalf("results = %+v", results)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

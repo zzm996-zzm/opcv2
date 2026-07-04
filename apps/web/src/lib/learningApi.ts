@@ -47,6 +47,82 @@ export type LearningDiagnosis = {
   updated_at: string;
 };
 
+export type LearningGapItem = {
+  name: string;
+  current: number;
+  target: number;
+  gap: number;
+  priority: string;
+  summary: string;
+  evidence: string;
+  recommended: string;
+};
+
+export type LearningGaps = {
+  diagnosis_id: number;
+  goal: string;
+  project: string;
+  overall_score: number;
+  gaps: LearningGapItem[];
+  evidence: string[];
+  generated_at: string;
+};
+
+export type LearningRecommendationFocus = {
+  name: string;
+  priority: string;
+  summary: string;
+};
+
+export type LearningMethod = {
+  title: string;
+  value: string;
+  detail: string;
+};
+
+export type LearningRecommendations = {
+  diagnosis_id: number;
+  goal: string;
+  project: string;
+  focus: LearningRecommendationFocus[];
+  recommendations: string[];
+  methods: LearningMethod[];
+  generated_at: string;
+};
+
+export type LearningPlanStage = {
+  number: number;
+  title: string;
+  status: string;
+  courses: string[];
+  duration: string;
+  goal: string;
+  milestone: string;
+};
+
+export type LearningPlan = {
+  diagnosis_id: number;
+  title: string;
+  description: string;
+  recommendations: string[];
+  stages: LearningPlanStage[];
+  estimated_hours: number;
+  weekly_suggestion: string;
+  generated_at: string;
+};
+
+export type LearningReport = {
+  diagnosis_id: number;
+  goal: string;
+  project: string;
+  overall_score: number;
+  dimensions: LearningDimension[];
+  priority_gaps: LearningGapItem[];
+  recommendations: string[];
+  evidence: string[];
+  generated_at: string;
+};
+
 export type CourseFilter = {
   category?: string;
   limit?: number;
@@ -88,6 +164,30 @@ export const learningApi = {
 
   getLatestDiagnosis() {
     return apiRequest<LearningDiagnosis>("/api/v1/learning/diagnoses/latest", {
+      method: "GET"
+    });
+  },
+
+  getLatestGaps() {
+    return apiRequest<LearningGaps>("/api/v1/learning/diagnoses/latest/gaps", {
+      method: "GET"
+    });
+  },
+
+  getLatestRecommendations() {
+    return apiRequest<LearningRecommendations>("/api/v1/learning/diagnoses/latest/recommendations", {
+      method: "GET"
+    });
+  },
+
+  getLatestPlan() {
+    return apiRequest<LearningPlan>("/api/v1/learning/diagnoses/latest/plan", {
+      method: "GET"
+    });
+  },
+
+  getLatestReport() {
+    return apiRequest<LearningReport>("/api/v1/learning/diagnoses/latest/report", {
       method: "GET"
     });
   }

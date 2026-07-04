@@ -5,11 +5,11 @@ import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { competitorApi, type CompetitorScan } from "../lib/competitorApi";
 
-const dataStats = [
-  ["采集完成", "86%"],
-  ["数据源", "7"],
-  ["异常信号", "12"],
-  ["AI结论", "5"]
+const emptyDataStats = [
+  ["采集完成", "0%"],
+  ["竞品数", "0"],
+  ["高威胁", "0"],
+  ["AI结论", "0"]
 ] as const;
 
 const dataSources = [
@@ -17,40 +17,6 @@ const dataSources = [
   ["招聘动态", "岗位、团队扩张、重点能力", "采集中"],
   ["内容矩阵", "公众号、视频号、SEO 页面", "已采集"],
   ["投放素材", "关键词、落地页、转化钩子", "排队中"]
-] as const;
-
-const competitors = [
-  {
-    name: "小鹅通",
-    category: "知识付费 / 企业培训",
-    score: "91",
-    signal: "近期强调 AI 助教、直播转化和企微私域联动",
-    risk: "强",
-    tags: ["价格页更新", "招聘增长", "内容密集"]
-  },
-  {
-    name: "有赞教育",
-    category: "教育 SaaS / 私域运营",
-    score: "84",
-    signal: "案例页新增连锁培训机构，主打多门店运营能力",
-    risk: "中",
-    tags: ["案例新增", "渠道扩张", "低价套餐"]
-  },
-  {
-    name: "企微管家",
-    category: "CRM / 客户运营",
-    score: "76",
-    signal: "内容重点从 SCRM 转向 AI 线索跟进和客户分层",
-    risk: "中",
-    tags: ["定位调整", "关键词变化", "销售招聘"]
-  }
-] as const;
-
-const conclusions = [
-  ["定位变化", "头部竞品正在从工具售卖转向“AI + 私域增长方案”，单纯功能对比已经不够。"],
-  ["价格策略", "低门槛套餐用于获客，高阶功能绑定企微、直播和数据分析能力，利于后续升级。"],
-  ["获客重点", "内容和案例集中押注教育培训、知识付费、企业内训三个高频场景。"],
-  ["反击建议", "优先打造“AI课程增长 + 企微转化”的组合案例，用结果页和落地任务承接。"]
 ] as const;
 
 const taskFlow = [
@@ -84,10 +50,14 @@ function CompetitorDataPage() {
     };
   }, []);
 
-  const visibleCompetitors = latestScan?.competitors.length ? latestScan.competitors : competitors;
-  const visibleConclusions = latestScan?.conclusions.length
-    ? latestScan.conclusions.map((item) => [item.title, item.detail] as const)
-    : conclusions;
+  const visibleStats = latestScan ? [
+    ["采集完成", latestScan.status === "completed" ? "100%" : "0%"],
+    ["竞品数", String(latestScan.competitors.length)],
+    ["高威胁", String(latestScan.competitors.filter((item) => item.risk === "强").length)],
+    ["AI结论", String(latestScan.conclusions.length)]
+  ] as const : emptyDataStats;
+  const visibleCompetitors = latestScan?.competitors ?? [];
+  const visibleConclusions = latestScan?.conclusions.map((item) => [item.title, item.detail] as const) ?? [];
 
   async function startScan() {
     if (isScanning) return;
@@ -121,11 +91,11 @@ function CompetitorDataPage() {
 
         <section className="module-overview-card competitor-data-hero">
           <div className="module-overview-copy">
-            <span className="module-kicker">智能客服行业竞品扫描</span>
+            <span className="module-kicker">{latestScan ? latestScan.targets.join(" / ") : "暂无扫描任务"}</span>
             <h2>把分散的公开信号合成一张可行动的竞品地图</h2>
             <p>系统会从官网、招聘、内容、价格、案例和投放素材中提取变化，识别竞品正在抢什么客户、推什么能力、用什么话术。</p>
             <div className="module-stat-strip">
-              {dataStats.map(([label, value]) => (
+              {visibleStats.map(([label, value]) => (
                 <article key={label}>
                   <small>{label}</small>
                   <strong>{value}</strong>
@@ -190,7 +160,9 @@ function CompetitorDataPage() {
             </div>
           </div>
           <div className="competitor-card-grid">
-            {visibleCompetitors.map((item) => (
+            {visibleCompetitors.length === 0 ? (
+              <div className="module-empty-state" role="status">暂无竞品画像</div>
+            ) : visibleCompetitors.map((item) => (
               <article key={item.name}>
                 <header>
                   <div>
@@ -221,7 +193,9 @@ function CompetitorDataPage() {
               </div>
             </div>
             <div className="competitor-conclusion-list">
-              {visibleConclusions.map(([title, detail]) => (
+              {visibleConclusions.length === 0 ? (
+                <div className="module-empty-state" role="status">暂无破解结论</div>
+              ) : visibleConclusions.map(([title, detail]) => (
                 <article key={title}>
                   <strong>{title}</strong>
                   <p>{detail}</p>
@@ -232,8 +206,8 @@ function CompetitorDataPage() {
 
           <aside className="competitor-action-card" aria-label="建议动作">
             <h2>建议动作</h2>
-            <strong>先补案例页，再打价格差异</strong>
-            <p>竞品正在强化 AI 私域增长叙事。建议用 2 个真实案例证明“课程增长 + 企微转化”闭环，同时生成一份对比型销售材料。</p>
+            <strong>{visibleConclusions.length > 0 ? "根据破解结论生成反击任务" : "暂无建议动作"}</strong>
+            <p>{visibleConclusions[0]?.[1] ?? "完成一次竞品采集后，这里会显示后端生成的反击建议。"}</p>
             <Link to="/tasks">生成反击任务</Link>
           </aside>
         </section>

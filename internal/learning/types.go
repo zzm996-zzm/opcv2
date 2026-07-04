@@ -40,9 +40,9 @@ type Progress struct {
 	CourseSlug        string    `json:"course_slug"`
 	CourseTitle       string    `json:"course_title"`
 	Percent           int       `json:"percent"`
-	LastLesson         string    `json:"last_lesson"`
+	LastLesson        string    `json:"last_lesson"`
 	RecommendedAction string    `json:"recommended_action"`
-	UpdatedAt          time.Time `json:"updated_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type Dimension struct {
@@ -69,4 +69,80 @@ type CreateDiagnosisInput struct {
 	UserID  int64  `json:"-"`
 	Goal    string `json:"goal"`
 	Project string `json:"project"`
+}
+
+type GapItem struct {
+	Name        string `json:"name"`
+	Current     int    `json:"current"`
+	Target      int    `json:"target"`
+	Gap         int    `json:"gap"`
+	Priority    string `json:"priority"`
+	Summary     string `json:"summary"`
+	Evidence    string `json:"evidence"`
+	Recommended string `json:"recommended"`
+}
+
+type DiagnosisGaps struct {
+	DiagnosisID  int64     `json:"diagnosis_id"`
+	Goal         string    `json:"goal"`
+	Project      string    `json:"project"`
+	OverallScore int       `json:"overall_score"`
+	Gaps         []GapItem `json:"gaps"`
+	Evidence     []string  `json:"evidence"`
+	GeneratedAt  time.Time `json:"generated_at"`
+}
+
+type RecommendationFocus struct {
+	Name     string `json:"name"`
+	Priority string `json:"priority"`
+	Summary  string `json:"summary"`
+}
+
+type LearningMethod struct {
+	Title  string `json:"title"`
+	Value  string `json:"value"`
+	Detail string `json:"detail"`
+}
+
+type DiagnosisRecommendations struct {
+	DiagnosisID     int64                 `json:"diagnosis_id"`
+	Goal            string                `json:"goal"`
+	Project         string                `json:"project"`
+	Focus           []RecommendationFocus `json:"focus"`
+	Recommendations []string              `json:"recommendations"`
+	Methods         []LearningMethod      `json:"methods"`
+	GeneratedAt     time.Time             `json:"generated_at"`
+}
+
+type PlanStage struct {
+	Number    int      `json:"number"`
+	Title     string   `json:"title"`
+	Status    string   `json:"status"`
+	Courses   []string `json:"courses"`
+	Duration  string   `json:"duration"`
+	Goal      string   `json:"goal"`
+	Milestone string   `json:"milestone"`
+}
+
+type DiagnosisPlan struct {
+	DiagnosisID      int64       `json:"diagnosis_id"`
+	Title            string      `json:"title"`
+	Description      string      `json:"description"`
+	Recommendations  []string    `json:"recommendations"`
+	Stages           []PlanStage `json:"stages"`
+	EstimatedHours   int         `json:"estimated_hours"`
+	WeeklySuggestion string      `json:"weekly_suggestion"`
+	GeneratedAt      time.Time   `json:"generated_at"`
+}
+
+type DiagnosisReport struct {
+	DiagnosisID     int64       `json:"diagnosis_id"`
+	Goal            string      `json:"goal"`
+	Project         string      `json:"project"`
+	OverallScore    int         `json:"overall_score"`
+	Dimensions      []Dimension `json:"dimensions"`
+	PriorityGaps    []GapItem   `json:"priority_gaps"`
+	Recommendations []string    `json:"recommendations"`
+	Evidence        []string    `json:"evidence"`
+	GeneratedAt     time.Time   `json:"generated_at"`
 }

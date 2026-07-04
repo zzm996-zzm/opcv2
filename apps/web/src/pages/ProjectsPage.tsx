@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
@@ -36,6 +36,7 @@ type MatchHistoryRow = {
   title: string;
   count: string;
   detail: string;
+  href: string;
 };
 
 const opportunityBadges = [
@@ -195,7 +196,8 @@ function toHistoryRow(session: ProjectMatchSession): MatchHistoryRow {
   return {
     title: firstProject?.title ?? session.intent,
     count: `${projects.length || 0} 个匹配机会`,
-    detail: session.intent || session.status
+    detail: session.intent || session.status,
+    href: `/projects/matches/${session.id}`
   };
 }
 
@@ -377,7 +379,9 @@ function MatchRequest() {
           ))}
         </section>
       )}
-      {result?.status === "completed" && matchedProjects.length > 0 && <MatchResults projects={matchedProjects} />}
+      {result?.status === "completed" && matchedProjects.length > 0 && (
+        <MatchResults projects={matchedProjects} sessionId={result.session_id} />
+      )}
       <Considerations />
     </>
   );
@@ -507,7 +511,9 @@ function MatchQuestions() {
   );
 }
 
-function MatchResults({ projects = resultProjects }: { projects?: readonly DisplayProject[] }) {
+function MatchResults({ projects = resultProjects, sessionId }: { projects?: readonly DisplayProject[]; sessionId?: number }) {
+  const detailHref = sessionId ? `/projects/matches/${sessionId}` : "/projects/detail";
+
   return (
     <>
       <div className="pm-result-head">
@@ -544,7 +550,7 @@ function MatchResults({ projects = resultProjects }: { projects?: readonly Displ
                 {project.reasons.map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
               <div className="pm-result-actions">
-                <Link to="/projects/detail">查看拆解</Link>
+                <Link to={detailHref}>查看拆解</Link>
                 <button aria-label={`加入对比 ${project.title}`} type="button">加入对比</button>
                 <button type="button">收藏</button>
               </div>
@@ -556,7 +562,7 @@ function MatchResults({ projects = resultProjects }: { projects?: readonly Displ
           <h2>为什么推荐这些项目</h2>
           <p>基于多维评估模型，为你筛选最合适的机会。</p>
           {["能力匹配 40%", "预算匹配 25%", "资源门槛 20%", "增长潜力 15%"].map((item) => <article key={item}>{item}</article>)}
-          <Link to="/projects/detail">查看项目完整拆解</Link>
+          <Link to={detailHref}>查看项目完整拆解</Link>
         </aside>
       </section>
     </>
@@ -584,7 +590,7 @@ function MatchHistory() {
 
   const rows = sessions.length > 0
     ? sessions.map(toHistoryRow)
-    : historyItems.map(([title, count, detail]) => ({ title, count, detail }));
+    : historyItems.map(([title, count, detail]) => ({ title, count, detail, href: "/projects/results" }));
 
   return (
     <>
@@ -593,12 +599,12 @@ function MatchHistory() {
         <div className="pm-panel">
           <h2>历史匹配</h2>
           {error && <p className="form-error" role="alert">{error}</p>}
-          {rows.map(({ title, count, detail }) => (
+          {rows.map(({ title, count, detail, href }) => (
             <article className="pm-history-row" key={title}>
               <strong>{title}</strong>
               <span>{count}</span>
               <small>{detail}</small>
-              <Link to="/projects/results">查看结果</Link>
+              <Link to={href}>查看结果</Link>
             </article>
           ))}
         </div>
@@ -620,19 +626,57 @@ function MatchHistory() {
 }
 
 function ProjectDetail() {
+  const { matchId } = useParams();
+  const [session, setSession] = useState<ProjectMatchSession | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!matchId) return;
+    const id = Number(matchId);
+    if (!Number.isFinite(id) || id <= 0) {
+      setError("匹配记录不存在");
+      return;
+    }
+    let active = true;
+    projectsApi
+      .getMatch(id)
+      .then((payload) => {
+        if (active) {
+          setSession(payload);
+          setError("");
+        }
+      })
+      .catch((error) => {
+        if (active) setError(apiErrorMessage(error, "暂时无法读取项目详情"));
+      });
+    return () => {
+      active = false;
+    };
+  }, [matchId]);
+
+  const project = session?.result?.projects?.[0];
+  const title = project?.title ?? "AI短视频脚本工作室";
+  const subtitle = project
+    ? `来自匹配需求：${session?.intent ?? "项目匹配"}`
+    : "为知识博主/品牌/商家提供短视频脚本本地化制作服务";
+  const conditionTags = project
+    ? [`匹配度 ${project.score}分`, `预算 ${project.budget}`, ...project.tags.slice(0, 2)]
+    : ["匹配度 94分", "预算 1-3万", "1-3个月启动", "轻资产"];
+
   return (
     <>
       <section className="pm-detail-hero">
         <div>
           <p>项目超市 / 匹配结果 / 项目详情</p>
-          <h1>AI短视频脚本工作室</h1>
-          <small>为知识博主/品牌/商家提供短视频脚本本地化制作服务</small>
+          <h1>{title}</h1>
+          <small>{subtitle}</small>
           <div className="pm-condition-strip">
-            {["匹配度 94分", "预算 1-3万", "1-3个月启动", "轻资产"].map((item) => <span key={item}>{item}</span>)}
+            {conditionTags.map((item) => <span key={item}>{item}</span>)}
           </div>
         </div>
         <AiCubeArt />
       </section>
+      {error && <p className="form-error" role="alert">{error}</p>}
       <nav className="pm-detail-tabs" aria-label="项目详情模块">
         {["诊断是否能做", "成功路径", "当前数据", "真实案例库", "优劣势", "可学经验", "要避免行为"].map((item) => <a key={item} href={`#${item}`}>{item}</a>)}
       </nav>

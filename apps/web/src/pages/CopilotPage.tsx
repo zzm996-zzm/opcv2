@@ -1,4 +1,4 @@
-import { FormEvent, forwardRef, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, FormEvent, forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
@@ -6,32 +6,34 @@ import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotFile, ty
 
 export type CopilotVariant = "home" | "new" | "models" | "files" | "memories" | "compare" | "rename" | "delete";
 type ComposerPopover = "models" | "files" | "memories" | null;
+const MAX_COMPARE_MODELS = 3;
+
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionEventLike = {
+  resultIndex: number;
+  results: ArrayLike<{
+    isFinal: boolean;
+    0: { transcript: string };
+  }>;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 const quickActions = [
   ["trend", "分析项目机会", "请帮我分析当前项目的市场机会、目标客户、竞争格局和落地风险。"],
   ["briefcase", "推荐工具", "请根据当前目标，推荐适合的 AI 工具、使用场景、成本和落地优先级。"],
   ["doc", "制定落地计划", "请帮我制定一份可执行的落地计划，包含阶段目标、关键任务、负责人和验收标准。"],
   ["page", "总结当前页面", "请总结当前页面的核心信息，并提炼下一步最应该推进的行动。"]
-] as const;
-
-type ConversationItem = {
-  title: string;
-  desc: string;
-  time: string;
-  active?: boolean;
-  menu?: boolean;
-  group?: string;
-};
-
-const conversations: ConversationItem[] = [
-  { title: "智能客服系统项目机会分析", desc: "分析市场机会、推荐工具与...", time: "10:32", active: true, menu: true },
-  { title: "竞争对手监测方案设计", desc: "如何搭建竞品监测体系?", time: "09:15" },
-  { title: "CRM客户管理落地计划", desc: "制定阶段性落地路线图", time: "08:47" },
-  { title: "数据资产治理方法论", desc: "企业数据治理的5步进阶步骤", time: "16:22", group: "昨天" },
-  { title: "GEO获客策略建议", desc: "针对SaaS产品的获客策略", time: "14:08" },
-  { title: "AI教学课程内容设计", desc: "设计面向销售团队的AI课程", time: "11:30" },
-  { title: "商业沙盘模拟复盘", desc: "本次沙盘的关键复盘点", time: "06-24", group: "更早" },
-  { title: "增长测算模型搭建", desc: "建立业务增长测算模型", time: "06-23" }
 ] as const;
 
 type CopilotModel = {
@@ -56,56 +58,6 @@ const fallbackModels: CopilotModel[] = [
   { name: "Claude opus4.8", value: "claude-opus", icon: "ai" },
   { name: "Grok4.3", value: "grok", icon: "black" },
   { name: "Development", value: "development-model", icon: "black" }
-] as const;
-
-type ReferenceItem = {
-  section: string;
-  title: string;
-  meta: string;
-  kind: "pdf" | "sheet" | "chat";
-  checked: boolean;
-  current?: boolean;
-  time?: string;
-};
-
-const referenceItems: ReferenceItem[] = [
-  { section: "当前页面", title: "智能客服市场分析报告.pdf", meta: "PDF · 1.8 MB", kind: "pdf", checked: true, current: true },
-  { section: "最近上传文件", title: "智能客服竞品功能对比表.xlsx", meta: "XLSX · 320 KB", kind: "sheet", checked: false, time: "昨天" },
-  { section: "历史对话", title: "竞争对手监测方案设计", meta: "对话 · 2024-06-20 09:15", kind: "chat", checked: false },
-  { section: "我的内容", title: "客户成功案例：某政务热线升...", meta: "文档 · 昨天", kind: "sheet", checked: false }
-] as const;
-
-const comparisonAnswers = [
-  {
-    model: "GPT-4o",
-    icon: "swirl",
-    sections: [
-      ["市场规模与增长趋势", "2024年中国智能客服市场规模约为 95.2 亿元，预计到 2027 年将达 181.6 亿元，年复合增长率约 24.0%。"],
-      ["竞争格局", "头部集中且持续分化，阿里云、腾讯云、百度智能云、华为云等占据主要市场份额。"],
-      ["客户需求", "降本增效、提升客户体验、全渠道整合与个性化服务成为核心诉求。"],
-      ["机会点", "大模型驱动的智能化升级、垂直行业解决方案、出海与多语言服务是主要机会。"]
-    ]
-  },
-  {
-    model: "Claude opus4.8",
-    icon: "ai",
-    sections: [
-      ["市场规模与增长趋势", "2024 市场规模约 92.3 亿元，受大模型普及推动，预计 2027 年达 175.8 亿元，CAGR 为 23.3%。"],
-      ["竞争格局", "市场呈现“一超多强”格局，云厂商+AI厂商+SaaS厂商协同竞争。"],
-      ["客户需求", "更注重智能化水平，尤其是 AI 理解与生成能力，和业务闭环效果。"],
-      ["机会点", "AI 原生应用、行业 Know-how 沉淀、数据安全与合规能力将形成差异化壁垒。"]
-    ]
-  },
-  {
-    model: "Grok4.3",
-    icon: "black",
-    sections: [
-      ["市场规模与增长趋势", "2024 年市场规模约 98.7 亿元，增长强劲，预计 2027 年突破 190 亿元，年复合增长率 24.8%。"],
-      ["竞争格局", "竞争激烈，头部厂商加速布局大模型与全渠道，区域性厂商在细分行业突围。"],
-      ["客户需求", "对实时响应、复杂问题解决和数据分析洞察的需求显著提升。"],
-      ["机会点", "多模态交互、客服+营销一体化、智能体落地是关键机会。"]
-    ]
-  }
 ] as const;
 
 function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
@@ -139,17 +91,17 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [activePopover, setActivePopover] = useState<ComposerPopover>(routePopover);
   const [typewriterContent, setTypewriterContent] = useState<Record<number, string>>({});
   const [selectedModel, setSelectedModel] = useState(fallbackModels[0].value);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [isSavingFile, setIsSavingFile] = useState(false);
   const [isTestingModel, setIsTestingModel] = useState(false);
-  const [useHistoryFallback, setUseHistoryFallback] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [error, setError] = useState("");
   const chatAreaRef = useRef<HTMLDivElement | null>(null);
   const typewriterTimersRef = useRef<Map<number, number>>(new Map());
   const composerWrapRef = useRef<HTMLDivElement | null>(null);
+  const sendAbortRef = useRef<AbortController | null>(null);
 
   const activeThread = useMemo(
     () => threads.find((thread) => thread.id === activeThreadID) ?? null,
@@ -158,32 +110,28 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
 
   useEffect(() => {
     let active = true;
-    setIsLoading(true);
     Promise.allSettled([copilotApi.listThreads(), copilotApi.listModels()])
       .then(([threadsResult, modelsResult]) => {
         if (!active) return;
         if (threadsResult.status === "fulfilled") {
           setThreads(threadsResult.value.threads);
-          setActiveThreadID(threadsResult.value.threads[0]?.id ?? null);
-          setUseHistoryFallback(false);
+          setActiveThreadID(isNew ? null : threadsResult.value.threads[0]?.id ?? null);
         } else {
-          setUseHistoryFallback(true);
-          setError("暂时无法加载历史会话，已显示示例内容");
+          setThreads([]);
+          setActiveThreadID(null);
+          setError("暂时无法加载历史会话");
         }
         if (modelsResult.status === "fulfilled" && modelsResult.value.models.length > 0) {
           const nextModels = toDisplayModels(modelsResult.value.models);
           setAvailableModels(nextModels);
           setSelectedModel(nextModels.find((model) => model.selected)?.value ?? nextModels[0].value);
-          setCompareModelValues(nextModels.filter((model) => model.selected).map((model) => model.value).slice(0, 4));
+          setCompareModelValues(nextModels.filter((model) => model.selected).map((model) => model.value).slice(0, MAX_COMPARE_MODELS));
         }
       })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
     return () => {
       active = false;
     };
-  }, []);
+  }, [isNew]);
 
   useEffect(() => {
     setActivePopover(routePopover);
@@ -211,7 +159,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         }
       })
       .catch(() => {
-        if (active) setError("暂时无法加载会话消息，已显示示例内容");
+        if (active) setError("暂时无法加载会话消息");
       });
     return () => {
       active = false;
@@ -336,6 +284,8 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     event.preventDefault();
     const content = draft.trim();
     if (!content || isSending) return;
+    const abortController = new AbortController();
+    sendAbortRef.current = abortController;
     setDraft("");
     setError("");
     setIsSending(true);
@@ -355,7 +305,8 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         setCompareQuestion(optimisticQuestion);
         setCompareAnswers([]);
         setCompareSummary(null);
-        const result = await copilotApi.compareMessages(thread.id, { content, models });
+        const result = await copilotApi.compareMessages(thread.id, { content, models }, abortController.signal);
+        if (abortController.signal.aborted) return;
         setCompareQuestion(result.user_message);
         setCompareAnswers(result.answers);
         setCompareSummary(null);
@@ -374,7 +325,8 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         content,
         model: selectedModel,
         reference_ids: selectedReferenceIDs
-      });
+      }, abortController.signal);
+      if (abortController.signal.aborted) return;
       setMessages((current) => [
         ...current.filter((message) => message.id !== optimisticUserMessage.id),
         result.user_message,
@@ -383,6 +335,12 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       startTypewriter(result.assistant_message);
       setThreads((current) => current.map((item) => item.id === thread.id ? { ...item, updated_at: result.assistant_message.created_at } : item));
     } catch (requestError) {
+      if (abortController.signal.aborted) {
+        setMessages((current) => current.filter((message) => message.id >= 0));
+        if (isCompare) setCompareQuestion((current) => current && current.id < 0 ? null : current);
+        setError("已暂停本次对话");
+        return;
+      }
       setDraft(content);
       setMessages((current) => current.filter((message) => message.id >= 0));
       if (isCompare) {
@@ -390,8 +348,18 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       }
       setError(requestError instanceof Error ? requestError.message : "发送失败，请稍后重试");
     } finally {
+      if (sendAbortRef.current === abortController) sendAbortRef.current = null;
       setIsSending(false);
     }
+  }
+
+  function handlePauseConversation() {
+    sendAbortRef.current?.abort();
+    typewriterTimersRef.current.forEach((timer) => window.clearInterval(timer));
+    typewriterTimersRef.current.clear();
+    setTypewriterContent({});
+    setIsSending(false);
+    setError("已暂停本次对话");
   }
 
   async function handleNewThread() {
@@ -478,11 +446,11 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     }
   }
 
-  async function handleSaveFile(input: { name: string; content: string }) {
+  async function handleSaveFile(input: { name: string; content: string; mime_type?: string }) {
     setIsSavingFile(true);
     setError("");
     try {
-      const file = await copilotApi.saveFile({ name: input.name, mime_type: "text/plain", content: input.content });
+      const file = await copilotApi.saveFile({ name: input.name, mime_type: input.mime_type || "text/plain", content: input.content });
       setFiles((current) => [file, ...current.filter((item) => item.id !== file.id)]);
       setSelectedReferenceIDs((current) => current.includes(file.id) ? current : [...current, file.id]);
     } catch (requestError) {
@@ -504,7 +472,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         if (current.length === 1) return current;
         return current.filter((item) => item !== value);
       }
-      return [...current, value].slice(0, 4);
+      return [...current, value].slice(0, MAX_COMPARE_MODELS);
     });
   }
 
@@ -530,7 +498,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   return (
     <V4PageShell className="copilot-shell" showCopilotMini={false}>
       <section
-        className={"copilot-workbench " + (isCompare ? "compare-mode " : "") + (showRename || showDelete ? "modal-open" : "")}
+        className={"copilot-workbench " + (isCompare ? "compare-mode " : "") + (historyCollapsed ? "history-collapsed " : "") + (showRename || showDelete ? "modal-open" : "")}
         aria-label="智活 Copilot 工作台"
       >
         <div className="copilot-main-panel">
@@ -562,14 +530,12 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
                 question={compareQuestion}
                 summary={compareSummary}
               />
-            ) : isNew ? (
-              <EmptyConversation onPrompt={(prompt) => setDraft(prompt)} />
             ) : (
               <ChatThread
                 messages={messages}
                 isSending={isSending}
                 typewriterContent={typewriterContent}
-                useFallback={messages.length === 0 && !isLoading}
+                onPrompt={(prompt) => setDraft(prompt)}
               />
             )}
           </div>
@@ -583,6 +549,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
             onDraftChange={setDraft}
             onModelChange={setSelectedModel}
             onSubmit={handleSend}
+            onPause={handlePauseConversation}
             activePopover={activePopover}
             onPopoverChange={setActivePopover}
             ref={composerWrapRef}
@@ -602,9 +569,10 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
 
         <ConversationSidebar
           activeThreadID={activeThreadID}
+          collapsed={historyCollapsed}
           threads={threads}
-          useFallback={useHistoryFallback}
           showThreadMenu={showModelPicker}
+          onToggleCollapsed={() => setHistoryCollapsed((current) => !current)}
           onSelectThread={setActiveThreadID}
           onNewThread={handleNewThread}
         />
@@ -647,7 +615,14 @@ function CompareHeader({
   onToggleModel: (value: string) => void;
 }) {
   const selectedCount = selectedModels.length;
-  const displayedModels = models.slice(0, 6);
+  const modelByValue = new Map(models.map((model) => [model.value, model]));
+  const selectedModelOptions = selectedModels
+    .map((value) => modelByValue.get(value))
+    .filter((model): model is CopilotModel => Boolean(model));
+  const displayedModels = [
+    ...selectedModelOptions,
+    ...models.filter((model) => !selectedModels.includes(model.value)).slice(0, Math.max(MAX_COMPARE_MODELS - selectedModelOptions.length, 0))
+  ];
 
   return (
     <header className="copilot-compare-head">
@@ -660,10 +635,10 @@ function CompareHeader({
       </div>
       <div className="copilot-compare-settings" aria-label="对比设置">
         <strong>对比设置:</strong>
-        <button type="button">{Math.min(selectedCount, 4)} 模型</button>
+        <button type="button">{Math.min(selectedCount, MAX_COMPARE_MODELS)} 模型</button>
         {displayedModels.map((model) => {
           const selected = selectedModels.includes(model.value);
-          const disabled = !selected && selectedModels.length >= 4;
+          const disabled = !selected && selectedModels.length >= MAX_COMPARE_MODELS;
           return (
           <button
             aria-label={`${selected ? "取消选择" : "选择模型"} ${model.name}`}
@@ -688,14 +663,14 @@ function ChatThread({
   messages,
   isSending,
   typewriterContent,
-  useFallback
+  onPrompt
 }: {
   messages: CopilotMessage[];
   isSending: boolean;
   typewriterContent?: Record<number, string>;
-  useFallback?: boolean;
+  onPrompt: (prompt: string) => void;
 }) {
-  if (!useFallback && messages.length > 0) {
+  if (messages.length > 0) {
     return (
       <div className="copilot-chat-thread" aria-label="会话内容">
         {messages.map((message) => (
@@ -717,54 +692,11 @@ function ChatThread({
     );
   }
 
-  return (
+  return isSending ? (
     <div className="copilot-chat-thread" aria-label="会话内容">
-      <article className="copilot-message user">
-        <UserMessageBubble content="请帮我分析智能客服系统的市场机会和竞争格局。" time="10:32 ✓✓" />
-        <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>
-      </article>
-
-      <article className="copilot-message assistant">
-        <span className="v4-logo" aria-hidden="true" />
-        <div className="copilot-bubble compact">
-          <p>好的，我将从市场规模、增长趋势、竞争格局、客户需求与机会点四个维度为你分析智能客服系统的市场机会。</p>
-          <time>10:32</time>
-        </div>
-      </article>
-
-      <article className="copilot-message assistant report">
-        <span className="v4-logo" aria-hidden="true" />
-        <div className="copilot-bubble report-card">
-          <h2>一、市场规模与增长趋势</h2>
-          <ul>
-            <li>2024年中国智能客服市场规模约为 95.2 亿元，预计 2027 年将达到 181.6 亿元，年复合增长率约 24.0%。</li>
-            <li>受益于企业降本增效、用户体验提升与大模型技术普及，市场保持高速增长。</li>
-          </ul>
-          <h2>二、竞争格局</h2>
-          <ul>
-            <li>第一梯队：阿里云、腾讯云、百度智能云、华为云等，具备强大技术与生态能力。</li>
-            <li>第二梯队：容联云、智齿科技、环信等，聚焦垂直场景与中大型客户。</li>
-            <li>新兴玩家：大量AI原生创业公司，依托大模型+场景化能力切入细分赛道。</li>
-          </ul>
-          <div className="copilot-file-chip">
-            <span className="pdf-thumb" aria-hidden="true">PDF</span>
-            <span>
-              <strong>智能客服市场分析报告.pdf</strong>
-              <small>PDF · 1.8 MB</small>
-            </span>
-          </div>
-          <time>10:33</time>
-        </div>
-      </article>
-
-      <article className="copilot-message user lower">
-        <UserMessageBubble content="请基于上面的分析，推荐适合我们的工具和落地路径。" time="10:34 ✓✓" />
-        <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>
-      </article>
-
-      {isSending && <ThinkingMessage />}
+      <ThinkingMessage />
     </div>
-  );
+  ) : <EmptyConversation onPrompt={onPrompt} />;
 }
 
 function UserMessageBubble({ content, time }: { content: string; time: string }) {
@@ -793,7 +725,7 @@ function ThinkingMessage() {
 
 function EmptyConversation({ onPrompt }: { onPrompt: (prompt: string) => void }) {
   return (
-    <div className="copilot-empty-state">
+    <div className="copilot-empty-state" aria-label="会话内容">
       <div className="copilot-empty-card">
         <div className="empty-orbit" aria-hidden="true">
           <span />
@@ -832,19 +764,36 @@ function CompareConversation({
   summary: CopilotMessage | null;
 }) {
   const hasBackendAnswers = answers.length > 0;
+  const hasCompareContent = Boolean(question || hasBackendAnswers || summary || isSending);
+  const answerCountClass = `answer-count-${Math.min(Math.max(answers.length, 1), MAX_COMPARE_MODELS)}`;
+
+  if (!hasCompareContent) {
+    return (
+      <div className="copilot-comparison empty" aria-label="对比分析内容">
+        <div className="comparison-empty-card">
+          <span className="copilot-ui-icon trend" aria-hidden="true" />
+          <h2>开始 AI 对比分析</h2>
+          <p>选择模型后发送问题，回答会在这里按模型并排展示。</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="copilot-comparison">
-      <article className="copilot-message user compare-question">
-        <UserMessageBubble
-          content={question?.content ?? "请分析 2024 年中国智能客服市场的规模、增长趋势、竞争格局、客户需求与机会点。"}
-          time={question ? formatTime(question.created_at) : "10:35 ✓"}
-        />
-        <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>
-      </article>
+      {question && (
+        <article className="compare-question-card">
+          <span className="copilot-ui-icon trend" aria-hidden="true" />
+          <div>
+            <strong>本次问题</strong>
+            <p>{question.content}</p>
+          </div>
+          <time>{formatTime(question.created_at)}</time>
+        </article>
+      )}
       {isSending && <ThinkingMessage />}
-      <div className="comparison-grid">
-        {hasBackendAnswers ? answers.map((answer) => (
+      <div className={`comparison-grid ${answerCountClass}`}>
+        {answers.map((answer) => (
           <article key={answer.model} className="comparison-card">
             <header>
               <span className={"model-glyph " + modelIcon(answer.model, 0)} aria-hidden="true" />
@@ -855,21 +804,6 @@ function CompareConversation({
             <section>
               <p>{answer.assistant_message.content}</p>
             </section>
-          </article>
-        )) : comparisonAnswers.map((answer) => (
-          <article key={answer.model} className="comparison-card">
-            <header>
-              <span className={"model-glyph " + answer.icon} aria-hidden="true" />
-              <h2>{answer.model}</h2>
-              <b>回答完成</b>
-              <time>10:35</time>
-            </header>
-            {answer.sections.map(([title, body], index) => (
-              <section key={title}>
-                <h3>{index + 1}、{title}</h3>
-                <p>{body}</p>
-              </section>
-            ))}
           </article>
         ))}
       </div>
@@ -886,10 +820,12 @@ function CompareConversation({
           </section>
         </article>
       )}
-      <button className="compare-summary-button" disabled={!hasBackendAnswers || isSummarizing} onClick={onSummarize} type="button">
-        <span className="copilot-ui-icon doc" aria-hidden="true" />
-        {isSummarizing ? "正在总结" : "总结本次对比分析"}
-      </button>
+      {hasBackendAnswers && (
+        <button className="compare-summary-button" disabled={isSummarizing} onClick={onSummarize} type="button">
+          <span className="copilot-ui-icon doc" aria-hidden="true" />
+          {isSummarizing ? "正在总结" : "总结本次对比分析"}
+        </button>
+      )}
     </div>
   );
 }
@@ -909,10 +845,11 @@ const Composer = forwardRef<HTMLDivElement, {
   onModelChange: (value: string) => void;
   onSaveMemory: (input: { key: string; value: string }) => void;
   onDeleteMemory: (id: number) => void;
-  onSaveFile: (input: { name: string; content: string }) => void;
+  onSaveFile: (input: { name: string; content: string; mime_type?: string }) => Promise<void>;
   onToggleReference: (id: number) => void;
   onInsertReferences: () => void;
   onSubmit: (event: FormEvent) => void;
+  onPause: () => void;
   activePopover?: ComposerPopover;
   onPopoverChange: (popover: ComposerPopover) => void;
   compare?: boolean;
@@ -935,12 +872,16 @@ const Composer = forwardRef<HTMLDivElement, {
   onToggleReference,
   onInsertReferences,
   onSubmit,
+  onPause,
   activePopover,
   onPopoverChange,
   compare
 }, ref) {
   const selectedModelLabel = models.find((item) => item.value === model)?.name ?? model;
   const [deepThinking, setDeepThinking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState("");
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const showModelPicker = activePopover === "models";
   const showReferencePicker = activePopover === "files";
   const showMemoryPanel = activePopover === "memories";
@@ -949,8 +890,52 @@ const Composer = forwardRef<HTMLDivElement, {
     [files, selectedReferenceIDs]
   );
 
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
+
   function handleVoiceDraft() {
-    onDraftChange(draft.trim() ? `${draft} ` : "请帮我整理这段语音输入的核心需求：");
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      setVoiceStatus("语音输入已暂停");
+      return;
+    }
+    const SpeechRecognition = (
+      window as Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }
+    ).SpeechRecognition ?? (
+      window as Window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }
+    ).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceStatus("当前浏览器不支持语音输入");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (event) => {
+      let transcript = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        transcript += event.results[index][0].transcript;
+      }
+      const nextDraft = `${draft.trim() ? `${draft.trim()} ` : ""}${transcript.trim()}`.trim();
+      onDraftChange(nextDraft);
+      setVoiceStatus(transcript.trim() ? "正在识别语音" : "请开始说话");
+    };
+    recognition.onerror = () => {
+      setIsListening(false);
+      setVoiceStatus("语音识别失败，请重试");
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    setVoiceStatus("请开始说话");
+    recognition.start();
   }
 
   return (
@@ -1036,15 +1021,22 @@ const Composer = forwardRef<HTMLDivElement, {
             <b className="vip">VIP</b>
           </button>
           <span className="composer-spacer" />
-          <button aria-label="语音输入" className="icon-only" onClick={handleVoiceDraft} type="button">
+          <button aria-label={isListening ? "暂停语音输入" : "语音输入"} className={"icon-only voice-button " + (isListening ? "listening" : "")} onClick={handleVoiceDraft} type="button">
             <span className="mic-icon" aria-hidden="true" />
           </button>
-          <button aria-label="发送" className="send-button" disabled={isSending || !draft.trim()} type="submit">
-            <span aria-hidden="true">↗</span>
-          </button>
+          {isSending ? (
+            <button aria-label="暂停对话" className="send-button pause-button" onClick={onPause} type="button">
+              <span aria-hidden="true">Ⅱ</span>
+            </button>
+          ) : (
+            <button aria-label="发送" className="send-button" disabled={!draft.trim()} type="submit">
+              <span aria-hidden="true">↗</span>
+            </button>
+          )}
         </div>
       </form>
       {error && <p className="ai-disclaimer">{error}</p>}
+      {voiceStatus && <p className="ai-disclaimer voice-status">{voiceStatus}</p>}
       <p className="ai-disclaimer">ⓘ 内容由 AI 生成，请注意甄别准确性</p>
     </div>
   );
@@ -1188,13 +1180,14 @@ function ReferencePicker({
   files: CopilotFile[];
   isSavingFile: boolean;
   selectedIDs: number[];
-  onSaveFile: (input: { name: string; content: string }) => void;
+  onSaveFile: (input: { name: string; content: string; mime_type?: string }) => Promise<void>;
   onToggle: (id: number) => void;
   onInsert: () => void;
 }) {
   const [fileName, setFileName] = useState("");
   const [fileContent, setFileContent] = useState("");
-  let previousSection = "";
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("");
   const hasBackendFiles = files.length > 0;
 
   function handleSave(event: FormEvent) {
@@ -1207,9 +1200,50 @@ function ReferencePicker({
     setFileContent("");
   }
 
+  async function saveDroppedFiles(fileList: FileList | File[]) {
+    const nextFiles = Array.from(fileList);
+    if (nextFiles.length === 0 || isSavingFile) return;
+    setUploadStatus(`正在读取 ${nextFiles.length} 个文件`);
+    for (const file of nextFiles) {
+      const content = await readFileAsText(file);
+      await onSaveFile({ name: file.name, content, mime_type: file.type || "text/plain" });
+    }
+    setUploadStatus(`已上传 ${nextFiles.length} 个文件`);
+  }
+
+  function handleFileInput(event: ChangeEvent<HTMLInputElement>) {
+    const nextFiles = event.target.files;
+    if (!nextFiles) return;
+    void saveDroppedFiles(nextFiles).finally(() => {
+      event.target.value = "";
+    });
+  }
+
+  function handleDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    void saveDroppedFiles(event.dataTransfer.files);
+  }
+
   return (
     <div className="copilot-popover reference-picker" role="dialog" aria-label="引用">
       <h2>引用</h2>
+      <label
+        className={"reference-dropzone " + (isDragging ? "dragging" : "")}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setIsDragging(true);
+        }}
+        onDragOver={(event) => event.preventDefault()}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+      >
+        <input aria-label="选择上传文件" multiple onChange={handleFileInput} type="file" />
+        <span className="copilot-ui-icon clip" aria-hidden="true" />
+        <strong>拖拽文件到这里，或点击选择</strong>
+        <small>文本、Markdown、CSV 等内容会保存为可引用资料</small>
+      </label>
+      {uploadStatus && <p className="reference-upload-status">{uploadStatus}</p>}
       <form className="reference-upload-form" onSubmit={handleSave}>
         <label>
           <span>文件名称</span>
@@ -1261,26 +1295,9 @@ function ReferencePicker({
               );
             })}
           </div>
-        ) : referenceItems.map((item) => {
-          const showSection = item.section !== previousSection;
-          previousSection = item.section;
-
-          return (
-            <div key={item.title}>
-              {showSection && <h3>{item.section}</h3>}
-              <label className={item.checked ? "checked" : ""}>
-                <input checked={item.checked} readOnly type="checkbox" />
-                <span className={"reference-file " + item.kind} aria-hidden="true" />
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{item.meta}</small>
-                </span>
-                {item.current && <b>当前</b>}
-                {item.time && <em>{item.time}</em>}
-              </label>
-            </div>
-          );
-        })}
+        ) : (
+          <p className="reference-empty">暂无可引用文件，上传后会自动选中。</p>
+        )}
       </div>
       <footer>
         <span>已选择 {selectedIDs.length} 项</span>
@@ -1292,16 +1309,18 @@ function ReferencePicker({
 
 function ConversationSidebar({
   activeThreadID,
+  collapsed,
   threads,
-  useFallback,
   showThreadMenu,
+  onToggleCollapsed,
   onSelectThread,
   onNewThread
 }: {
   activeThreadID: number | null;
+  collapsed: boolean;
   threads: CopilotThread[];
-  useFallback: boolean;
   showThreadMenu?: boolean;
+  onToggleCollapsed: () => void;
   onSelectThread: (id: number) => void;
   onNewThread: () => void;
 }) {
@@ -1312,51 +1331,50 @@ function ConversationSidebar({
     desc: thread.model || "Copilot 会话",
     time: formatTime(thread.updated_at),
     active: thread.id === activeThreadID
-  })) : useFallback ? conversations.map((item, index) => ({
-    id: -index - 1,
-    title: item.title,
-    desc: item.desc,
-    time: item.time,
-    active: item.active,
-    group: item.group
   })) : [];
 
   return (
-    <aside className="copilot-history" aria-label="会话记录">
+    <aside className={"copilot-history " + (collapsed ? "collapsed" : "")} aria-label="会话记录">
       <header>
-        <button aria-label="收起会话记录" type="button">»</button>
-        <button onClick={onNewThread} type="button">＋ 新建会话</button>
+        <button aria-label={collapsed ? "展开会话记录" : "收起会话记录"} onClick={onToggleCollapsed} type="button">
+          {collapsed ? "«" : "»"}
+        </button>
+        {!collapsed && <button onClick={onNewThread} type="button">＋ 新建会话</button>}
       </header>
-      <label className="history-search">
-        <span aria-hidden="true">⌕</span>
-        <input placeholder="搜索会话" />
-      </label>
-      <div className="history-list">
-        {displayThreads.map((item, index) => {
-          const group = "group" in item && item.group ? item.group : (index < 3 ? "今天" : "");
-          const showGroup = group && group !== lastGroup;
-          if (group) lastGroup = group;
+      {!collapsed && (
+        <>
+          <label className="history-search">
+            <span aria-hidden="true">⌕</span>
+            <input placeholder="搜索会话" />
+          </label>
+          <div className="history-list">
+            {displayThreads.map((item, index) => {
+              const group = index < 3 ? "今天" : "";
+              const showGroup = group && group !== lastGroup;
+              if (group) lastGroup = group;
 
-          return (
-            <div key={item.title}>
-              {showGroup && <h2>{group}</h2>}
-              <article className={item.active ? "active" : ""}>
-                <Link onClick={() => item.id > 0 && onSelectThread(item.id)} to="/copilot">
-                  <strong>{item.title}</strong>
-                  <span>{item.desc}</span>
-                </Link>
-                <time>{item.time}</time>
-                {item.active && (
-                  <button aria-label="会话更多操作" className="history-more" type="button">
-                    ⋮
-                  </button>
-                )}
-              </article>
-            </div>
-          );
-        })}
-      </div>
-      {showThreadMenu && (
+              return (
+                <div key={item.title}>
+                  {showGroup && <h2>{group}</h2>}
+                  <article className={item.active ? "active" : ""}>
+                    <Link onClick={() => item.id > 0 && onSelectThread(item.id)} to="/copilot">
+                      <strong>{item.title}</strong>
+                      <span>{item.desc}</span>
+                    </Link>
+                    <time>{item.time}</time>
+                    {item.active && (
+                      <button aria-label="会话更多操作" className="history-more" type="button">
+                        ⋮
+                      </button>
+                    )}
+                  </article>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+      {showThreadMenu && !collapsed && (
         <div className="thread-action-menu" role="menu" aria-label="会话操作">
           <Link role="menuitem" to="/copilot/rename">重命名</Link>
           <Link role="menuitem" to="/copilot/delete">删除</Link>
@@ -1378,6 +1396,16 @@ function formatFileSize(bytes?: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function readFileAsText(file: File) {
+  if ("text" in file && typeof file.text === "function") return file.text();
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("文件读取失败"));
+    reader.readAsText(file);
+  });
 }
 
 function toDisplayModels(models: CopilotModelOption[]): CopilotModel[] {

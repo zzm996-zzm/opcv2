@@ -55,6 +55,12 @@ export const projectsApi = {
     });
   },
 
+  getMatch(id: number) {
+    return apiRequest<ProjectMatchSession>(`/api/v1/projects/matches/${id}`, {
+      method: "GET"
+    });
+  },
+
   favoriteMatch(id: number) {
     return apiRequest<ProjectFavorite>(`/api/v1/projects/matches/${id}/favorite`, {
       method: "POST"

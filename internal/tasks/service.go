@@ -8,7 +8,8 @@ import (
 
 type Repository interface {
 	CreateTask(ctx context.Context, task Task) (Task, error)
-	ListTasks(ctx context.Context, userID int64, limit int) ([]Task, error)
+	ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error)
+	TaskStats(ctx context.Context, userID int64, now time.Time) (Stats, error)
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
 }
@@ -40,14 +41,30 @@ func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, erro
 	return s.repository.CreateTask(ctx, task)
 }
 
-func (s *Service) ListTasks(ctx context.Context, userID int64, limit int) ([]Task, error) {
+func (s *Service) ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error) {
 	if s.repository == nil {
 		return nil, ErrServiceNotReady
 	}
-	if limit <= 0 || limit > 100 {
-		limit = 20
+	filters.Status = strings.TrimSpace(filters.Status)
+	filters.Project = strings.TrimSpace(filters.Project)
+	filters.Query = strings.TrimSpace(filters.Query)
+	if filters.Status != "" {
+		filters.Status = normalizeStatus(filters.Status)
 	}
-	return s.repository.ListTasks(ctx, userID, limit)
+	if filters.Limit <= 0 {
+		filters.Limit = 20
+	}
+	if filters.Limit > 100 {
+		filters.Limit = 100
+	}
+	return s.repository.ListTasks(ctx, userID, filters)
+}
+
+func (s *Service) TaskStats(ctx context.Context, userID int64) (Stats, error) {
+	if s.repository == nil {
+		return Stats{}, ErrServiceNotReady
+	}
+	return s.repository.TaskStats(ctx, userID, s.now())
 }
 
 func (s *Service) GetTask(ctx context.Context, userID, id int64) (Task, error) {

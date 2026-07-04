@@ -26,13 +26,86 @@ export type CrmFollowUp = {
   created_at: string;
 };
 
+export type CrmActivity = {
+  id: number;
+  user_id: number;
+  customer_id: number;
+  type: string;
+  note?: string;
+  created_at: string;
+};
+
 export type CrmFollowUpCopy = {
   subject: string;
   body: string;
   channel: string;
 };
 
+export type CrmPipelineStats = {
+  total: number;
+  new: number;
+  contacted: number;
+  qualified: number;
+  proposal: number;
+  won: number;
+  lost: number;
+  due_today: number;
+};
+
+export type CrmCustomerFilters = {
+  stage?: CrmStage;
+  q?: string;
+  limit?: number;
+};
+
+export type CrmFollowUpFilters = {
+  customerId?: number;
+  limit?: number;
+};
+
+function customerQuery(filters: CrmCustomerFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.stage) params.set("stage", filters.stage);
+  if (filters.q) params.set("q", filters.q);
+  if (filters.limit) params.set("limit", String(filters.limit));
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function followUpQuery(filters: CrmFollowUpFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.customerId) params.set("customer_id", String(filters.customerId));
+  if (filters.limit) params.set("limit", String(filters.limit));
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
 export const crmApi = {
+  listCustomers(filters: CrmCustomerFilters = {}) {
+    return apiRequest<{ customers: CrmCustomer[] }>(`/api/v1/crm/customers${customerQuery(filters)}`, {
+      method: "GET"
+    });
+  },
+
+  getCustomer(customerId: number) {
+    return apiRequest<CrmCustomer>(`/api/v1/crm/customers/${customerId}`, {
+      method: "GET"
+    });
+  },
+
+  updateCustomer(customerId: number, input: { name?: string; phone?: string; email?: string; website?: string }) {
+    return apiRequest<CrmCustomer>(`/api/v1/crm/customers/${customerId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  },
+
+  listActivities(customerId: number, limit = 20) {
+    return apiRequest<{ activities: CrmActivity[] }>(`/api/v1/crm/customers/${customerId}/activities?limit=${limit}`, {
+      method: "GET"
+    });
+  },
+
   importLead(input: { leadResultId: number; name: string; phone?: string; email?: string; website?: string }) {
     return apiRequest<CrmCustomer>("/api/v1/crm/customers/import-lead", {
       method: "POST",
@@ -48,6 +121,12 @@ export const crmApi = {
 
   listDueCustomers(limit = 20) {
     return apiRequest<{ customers: CrmCustomer[] }>(`/api/v1/crm/customers/due?limit=${limit}`, {
+      method: "GET"
+    });
+  },
+
+  listFollowUps(filters: CrmFollowUpFilters = {}) {
+    return apiRequest<{ follow_ups: CrmFollowUp[] }>(`/api/v1/crm/follow-ups${followUpQuery(filters)}`, {
       method: "GET"
     });
   },
@@ -73,6 +152,12 @@ export const crmApi = {
     return apiRequest<CrmFollowUpCopy>(`/api/v1/crm/customers/${customerId}/follow-up-copy`, {
       method: "POST",
       body: JSON.stringify(input)
+    });
+  },
+
+  pipelineStats() {
+    return apiRequest<CrmPipelineStats>("/api/v1/crm/pipeline-stats", {
+      method: "GET"
     });
   }
 };

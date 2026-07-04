@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
@@ -105,10 +105,23 @@ const historyRows = [
 
 const selectedRoleIndexes = new Set([0, 1, 3, 4]);
 
+type SandboxHistoryRow = {
+  title: string;
+  detail: string;
+  role: string;
+  time: string;
+  status: string;
+  score: string;
+  risk: string;
+  href: string;
+};
+
 function SandboxPage({ variant = "home" }: SandboxPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { sessionId } = useParams();
   const [sessions, setSessions] = useState<SandboxSession[]>([]);
+  const [selectedSession, setSelectedSession] = useState<SandboxSession | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
 
@@ -127,8 +140,26 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!sessionId) return;
+    const id = Number(sessionId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    let active = true;
+    sandboxApi
+      .getSession(id)
+      .then((payload) => {
+        if (active) setSelectedSession(payload);
+      })
+      .catch(() => {
+        if (active) setSelectedSession(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [sessionId]);
+
   const routedSession = (location.state as { sandboxSession?: SandboxSession } | null)?.sandboxSession ?? null;
-  const reportSession = routedSession ?? sessions.find((session) => session.status === "completed" && session.report) ?? sessions.find((session) => session.report) ?? null;
+  const reportSession = routedSession ?? selectedSession ?? sessions.find((session) => session.status === "completed" && session.report) ?? sessions.find((session) => session.report) ?? null;
 
   async function startSandbox(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
@@ -525,19 +556,31 @@ function sessionRisk(session: SandboxSession) {
 }
 
 function toHistoryRow(session: SandboxSession) {
-  return [
-    session.product || session.goal,
-    session.goal,
-    session.roles.join(" ") || "未选择角色",
-    formatSessionTime(session.updated_at),
-    session.status === "completed" ? "已完成" : "草稿",
-    session.report ? (session.report.score / 10).toFixed(1) : "-",
-    sessionRisk(session)
-  ] as const;
+  return {
+    title: session.product || session.goal,
+    detail: session.goal,
+    role: session.roles.join(" ") || "未选择角色",
+    time: formatSessionTime(session.updated_at),
+    status: session.status === "completed" ? "已完成" : "草稿",
+    score: session.report ? (session.report.score / 10).toFixed(1) : "-",
+    risk: sessionRisk(session),
+    href: `/sandbox/sessions/${session.id}/report`
+  };
 }
 
 function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
-  const visibleRows = sessions.length ? sessions.map(toHistoryRow) : historyRows;
+  const visibleRows: SandboxHistoryRow[] = sessions.length
+    ? sessions.map(toHistoryRow)
+    : historyRows.map(([title, detail, role, time, status, score, risk]) => ({
+      title,
+      detail,
+      role,
+      time,
+      status,
+      score,
+      risk,
+      href: "/sandbox/report"
+    }));
 
   return (
     <SandboxWorkLayout mode="history">
@@ -571,7 +614,7 @@ function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
             <span>风险等级</span>
             <span>操作</span>
           </div>
-          {visibleRows.map(([title, detail, role, time, status, score, risk]) => (
+          {visibleRows.map(({ title, detail, role, time, status, score, risk, href }) => (
             <article key={title}>
               <strong>{title}<small>{detail}</small></strong>
               <span>{role}</span>
@@ -579,7 +622,7 @@ function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
               <em>{status}</em>
               <b>★ {score}</b>
               <i>{risk}</i>
-              <Link to="/sandbox/report">查看报告</Link>
+              <Link to={href}>查看报告</Link>
             </article>
           ))}
         </div>

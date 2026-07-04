@@ -5,48 +5,11 @@ import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { competitorApi, type CompetitorEvent, type CompetitorWatchItem } from "../lib/competitorApi";
 
-const monitoringStats = [
-  ["监测中竞品", "12"],
-  ["今日新增动态", "18"],
-  ["高风险预警", "4"],
-  ["已生成任务", "7"]
-] as const;
-
-const trackedCompetitors = [
-  {
-    name: "小鹅通",
-    category: "知识付费 / 企业培训",
-    status: "高频变化",
-    threat: "强",
-    lastSeen: "12 分钟前",
-    channels: ["价格页", "招聘", "公众号"],
-    signal: "新增 AI 助教套餐介绍，并同步发布 3 个直播转化案例。"
-  },
-  {
-    name: "有赞教育",
-    category: "私域运营 / 教育 SaaS",
-    status: "稳定监测",
-    threat: "中",
-    lastSeen: "46 分钟前",
-    channels: ["案例页", "SEO", "投放"],
-    signal: "官网案例页新增连锁校区样板，关键词从开课转向门店增长。"
-  },
-  {
-    name: "企微管家",
-    category: "CRM / 客户运营",
-    status: "定位漂移",
-    threat: "中",
-    lastSeen: "1 小时前",
-    channels: ["招聘", "内容矩阵", "产品页"],
-    signal: "销售岗位 JD 强调 AI 线索跟进，内容标题开始绑定客户分层。"
-  }
-] as const;
-
-const timeline = [
-  ["09:42", "小鹅通", "价格页新增 AI 助教权益", "套餐页把直播答疑、课后作业批改和私域转化写入核心卖点。", "强"],
-  ["10:18", "有赞教育", "案例页新增连锁培训机构", "突出多门店排课、统一运营和企微客户沉淀，适合做销售话术对照。", "中"],
-  ["11:07", "企微管家", "招聘岗位出现 AI 客户运营", "新增 2 个增长运营岗位，要求会用 AI 做线索分层和内容触达。", "中"],
-  ["12:26", "增长黑盒", "投放素材集中测试低价课", "素材主打 9.9 元训练营入口，后端承接企业内训方案。", "低"]
+const emptyMonitoringStats = [
+  ["监测中竞品", "0"],
+  ["今日新增动态", "0"],
+  ["高风险预警", "0"],
+  ["已生成任务", "0"]
 ] as const;
 
 const channelHealth = [
@@ -61,12 +24,6 @@ const alertRules = [
   ["招聘扩张", "识别销售、增长、AI 产品岗位的异常增长"],
   ["内容爆发", "监测公众号、视频号、SEO 页面标题变化"],
   ["产品转向", "从产品页和案例页判断定位、场景和客群变化"]
-] as const;
-
-const nextActions = [
-  "生成小鹅通 AI 助教套餐对比稿",
-  "把有赞教育连锁案例拆成销售问答",
-  "为企微管家定位变化创建跟进任务"
 ] as const;
 
 function formatEventTime(value: string) {
@@ -129,8 +86,16 @@ function CompetitorMonitoringPage() {
     };
   }, []);
 
-  const visibleCompetitors = watchlist.length > 0 ? watchlist.map(toTrackedCompetitor) : trackedCompetitors;
-  const visibleTimeline = events.length > 0 ? events.map(toTimelineRow) : timeline;
+  const visibleCompetitors = watchlist.map(toTrackedCompetitor);
+  const visibleTimeline = events.map(toTimelineRow);
+  const highRiskCount = watchlist.filter((item) => item.threat === "强").length + events.filter((item) => item.level === "强").length;
+  const visibleStats = watchlist.length > 0 || events.length > 0 ? [
+    ["监测中竞品", String(watchlist.length)],
+    ["今日新增动态", String(events.length)],
+    ["高风险预警", String(highRiskCount)],
+    ["已生成任务", "0"]
+  ] as const : emptyMonitoringStats;
+  const firstAlert = visibleTimeline.find(([, , , , level]) => level === "强") ?? visibleTimeline[0] ?? null;
 
   return (
     <V4PageShell className="competitor-monitoring-shell">
@@ -150,7 +115,7 @@ function CompetitorMonitoringPage() {
             <h2>从“偶尔看看竞品”升级成持续预警系统</h2>
             <p>监测规则会自动巡检竞品公开页面和内容渠道，识别高频变化、定位漂移与获客动作，并把可执行建议推送到任务中心。</p>
             <div className="module-stat-strip">
-              {monitoringStats.map(([label, value]) => (
+              {visibleStats.map(([label, value]) => (
                 <article key={label}>
                   <small>{label}</small>
                   <strong>{value}</strong>
@@ -165,10 +130,10 @@ function CompetitorMonitoringPage() {
               <i className="dot hot" aria-hidden="true" />
               <i className="dot warm" aria-hidden="true" />
               <i className="dot cool" aria-hidden="true" />
-              <strong>4</strong>
+              <strong>{highRiskCount}</strong>
               <small>高风险预警</small>
             </div>
-            <p>最近 24 小时内，价格页和内容矩阵出现连续变化，建议优先生成销售对比材料。</p>
+            <p>{firstAlert ? `${firstAlert[1]}：${firstAlert[2]}` : "暂无高风险预警，新增监测对象后这里会展示最新异常信号。"}</p>
           </div>
         </section>
 
@@ -187,7 +152,9 @@ function CompetitorMonitoringPage() {
             </div>
 
             <div className="monitoring-competitor-list">
-              {visibleCompetitors.map((item) => (
+              {visibleCompetitors.length === 0 ? (
+                <div className="module-empty-state" role="status">暂无监测对象</div>
+              ) : visibleCompetitors.map((item) => (
                 <article key={item.name}>
                   <span className={`monitoring-pulse ${item.threat === "强" ? "hot" : ""}`} aria-hidden="true" />
                   <div>
@@ -228,7 +195,9 @@ function CompetitorMonitoringPage() {
               </div>
             </div>
             <div className="monitoring-timeline">
-              {visibleTimeline.map(([time, company, title, detail, level]) => (
+              {visibleTimeline.length === 0 ? (
+                <div className="module-empty-state" role="status">暂无监测动态</div>
+              ) : visibleTimeline.map(([time, company, title, detail, level]) => (
                 <article key={`${time}-${title}`}>
                   <time>{time}</time>
                   <div>
@@ -244,10 +213,10 @@ function CompetitorMonitoringPage() {
 
           <aside className="monitoring-action-card" aria-label="预警动作">
             <h2>今日预警</h2>
-            <strong>先处理小鹅通价格页变化</strong>
-            <p>该变化与 AI 助教、直播转化和企微私域同时关联，可能影响销售对比话术。</p>
+            <strong>{firstAlert ? `先处理${firstAlert[1]}动态` : "暂无今日预警"}</strong>
+            <p>{firstAlert ? firstAlert[3] : "后端返回监测事件后，这里会展示需要优先处理的预警动作。"}</p>
             <div>
-              {nextActions.map((action) => <span key={action}>{action}</span>)}
+              {firstAlert ? <span>{firstAlert[2]}</span> : <span>暂无反击任务</span>}
             </div>
             <Link to="/tasks">生成反击任务</Link>
           </aside>

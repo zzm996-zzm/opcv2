@@ -45,19 +45,27 @@ describe("LearningReportPage", () => {
   it("loads diagnosis dimensions into the report", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
-        id: 99,
-        user_id: 7,
+        diagnosis_id: 99,
         goal: "提升企业AI落地能力",
         project: "企业AI运营项目",
-        status: "completed",
         overall_score: 82,
         dimensions: [
           { name: "自动化运营能力", score: 88, gap: 6, summary: "自动化运营能力表现较好" },
           { name: "业务场景拆解", score: 58, gap: 24, summary: "需要补齐场景拆解方法" }
         ],
+        priority_gaps: [{
+          name: "业务场景拆解",
+          current: 58,
+          target: 82,
+          gap: 24,
+          priority: "high",
+          summary: "需要补齐场景拆解方法",
+          evidence: "诊断显示业务场景拆解差距最大",
+          recommended: "完成一次项目拆解练习"
+        }],
         recommendations: ["优先补齐业务场景拆解"],
-        created_at: "2026-06-30T08:00:00Z",
-        updated_at: "2026-06-30T08:00:00Z"
+        evidence: ["项目方向：企业AI运营项目"],
+        generated_at: "2026-06-30T08:00:00Z"
       }), { status: 200 })
     );
 

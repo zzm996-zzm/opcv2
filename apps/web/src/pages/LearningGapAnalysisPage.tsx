@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { learningApi, type LearningGaps } from "../lib/learningApi";
 
 const gapSteps = [
   ["✓", "收集信息", "获取项目&数据与目标", "complete"],
@@ -61,6 +63,43 @@ const priorityItems = [
 const radarAxis = ["AI基础认知", "提示词工程实战", "行业分析方法", "智能客服案例拆解", "数据洞察能力", "工具应用熟练度"];
 
 function LearningGapAnalysisPage() {
+  const [gaps, setGaps] = useState<LearningGaps | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    learningApi
+      .getLatestGaps()
+      .then((payload) => {
+        if (active) setGaps(payload);
+      })
+      .catch(() => {
+        if (active) setGaps(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleTargetTags = gaps ? ["提升专业能力", gaps.goal, gaps.project] : targetTags;
+  const visibleGapItems = gaps?.gaps.length
+    ? gaps.gaps.map((item) => ({
+      title: item.name,
+      level: item.priority === "high" ? "差距较大" : item.priority === "medium" ? "差距中等" : "持续补强",
+      current: `${item.current} 分`,
+      target: `${item.target} 分`,
+      gap: `${item.gap} 分`,
+      reason: item.summary,
+      evidence: item.evidence,
+      icon: item.priority === "high" ? "bot" : item.priority === "medium" ? "chat" : "bars"
+    }))
+    : gapItems;
+  const visibleEvidenceSources = gaps?.evidence.length
+    ? gaps.evidence.map((item, index) => [`诊断依据 ${index + 1}`, item, "来自最新能力诊断", index === 0 ? "profile" : index === 1 ? "cube" : "check"] as const)
+    : evidenceSources;
+  const visiblePriorityItems = gaps?.gaps.length
+    ? gaps.gaps.map((item, index) => [String(index + 1), item.name, `差距 ${item.gap} 分`] as const)
+    : priorityItems;
+
   return (
     <V4PageShell>
       <section className="learning-page diagnosis-page gap-page" aria-label="差距分析">
@@ -102,11 +141,11 @@ function LearningGapAnalysisPage() {
             <div className="gap-comparison-body">
               <article className="goal-direction-card">
                 <small>你的目标方向</small>
-                <h3>智能客服与市场分析能力提升</h3>
+                <h3>{gaps?.goal ?? "智能客服与市场分析能力提升"}</h3>
                 <div>
-                  {targetTags.map((tag) => <span key={tag}>{tag}</span>)}
+                  {visibleTargetTags.map((tag) => <span key={tag}>{tag}</span>)}
                 </div>
-                <p><strong>目标描述</strong> 掌握智能客服服务方案设计、数据洞察与分析能力，能够独立完成智能客服项目的落地与优化。</p>
+                <p><strong>目标描述</strong> 掌握{gaps?.project ?? "智能客服"}相关能力，能够独立完成项目落地与优化。</p>
               </article>
 
               <div className="gap-radar-wrap" aria-label="差距分析雷达图">
@@ -150,7 +189,7 @@ function LearningGapAnalysisPage() {
             <section className="diagnosis-card gap-cause-card" aria-label="关键差距与原因">
               <h2>关键差距与原因 <span>按差距从大到小排序</span></h2>
               <div className="gap-cause-list">
-                {gapItems.map((item, index) => (
+                {visibleGapItems.map((item, index) => (
                   <article key={item.title}>
                     <span className="gap-number">{index + 1}</span>
                     <div>
@@ -168,7 +207,7 @@ function LearningGapAnalysisPage() {
             <section className="diagnosis-card gap-evidence-card" aria-label="判断依据">
               <h2>判断依据 <span>基于多维数据分析</span></h2>
               <div>
-                {evidenceSources.map(([title, desc, detail, icon]) => (
+                {visibleEvidenceSources.map(([title, desc, detail, icon]) => (
                   <article key={title}>
                     <i className={`source-icon ${icon}`} aria-hidden="true" />
                     <div>
@@ -185,7 +224,7 @@ function LearningGapAnalysisPage() {
               <h2>优先补齐顺序 <span>推荐学习顺序</span></h2>
               <div className="gap-priority-body">
                 <ol>
-                  {priorityItems.map(([number, title, gap]) => (
+                  {visiblePriorityItems.map(([number, title, gap]) => (
                     <li key={title}>
                       <span>{number}</span>
                       <strong>{title}</strong>

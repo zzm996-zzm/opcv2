@@ -7,7 +7,8 @@ import (
 
 func DefaultRegistry() jobs.Registry {
 	return jobs.Registry{
-		jobs.TypeLeadSearch: true,
+		jobs.TypeLeadSearch:  true,
+		jobs.TypeGeoAnalysis: true,
 	}
 }
 

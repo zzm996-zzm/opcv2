@@ -5,7 +5,10 @@ import (
 	"time"
 )
 
-const TypeLeadSearch = "leads.search"
+const (
+	TypeLeadSearch  = "leads.search"
+	TypeGeoAnalysis = "geo.analysis"
+)
 
 var (
 	ErrUnknownType           = errors.New("unknown job type")

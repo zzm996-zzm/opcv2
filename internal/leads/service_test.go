@@ -58,6 +58,26 @@ func (r *memoryRepository) StoreResults(_ context.Context, taskID int64, leads [
 	return nil
 }
 
+func (r *memoryRepository) ListResults(_ context.Context, taskID int64, limit int) ([]LeadResult, error) {
+	leads := r.results[taskID]
+	results := make([]LeadResult, 0, len(leads))
+	for index, lead := range leads {
+		results = append(results, LeadResult{
+			ID:       int64(index + 1),
+			TaskID:   taskID,
+			Name:     lead.Name,
+			Phone:    lead.Phone,
+			Email:    lead.Email,
+			Website:  lead.Website,
+			Evidence: lead.Evidence,
+		})
+	}
+	if limit > 0 && len(results) > limit {
+		return results[:limit], nil
+	}
+	return results, nil
+}
+
 func (r *memoryRepository) ListTasks(_ context.Context, userID int64, limit int) ([]Task, error) {
 	var tasks []Task
 	for _, task := range r.tasks {
@@ -220,5 +240,63 @@ func TestServiceWorkerDoesNotRefundProviderQuotaFailure(t *testing.T) {
 	}
 	if len(credits.refunded) != 0 {
 		t.Fatalf("refunded = %+v", credits.refunded)
+	}
+}
+
+func TestServiceGetsTaskDetailForOwner(t *testing.T) {
+	repository := &memoryRepository{results: map[int64][]Lead{
+		100: {{Name: "成都启明星教育"}},
+	}}
+	task, _, err := repository.CreateTask(context.Background(), Task{UserID: 42, Query: "成都 教培", Status: StatusSucceeded, IdempotencyKey: "lead-task-42"})
+	if err != nil {
+		t.Fatalf("CreateTask fixture error = %v", err)
+	}
+	service := NewService(repository, &fakeCredits{}, &fakeQueue{}, nil)
+
+	detail, err := service.GetTask(context.Background(), 42, task.ID)
+
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if detail.Task.ID != task.ID || detail.ProgressPercent != 100 || detail.ResultsCount != 1 {
+		t.Fatalf("detail = %+v", detail)
+	}
+}
+
+func TestServiceRejectsOtherUsersLeadTask(t *testing.T) {
+	repository := &memoryRepository{}
+	task, _, err := repository.CreateTask(context.Background(), Task{UserID: 7, Query: "成都 教培", Status: StatusSucceeded, IdempotencyKey: "lead-task-7"})
+	if err != nil {
+		t.Fatalf("CreateTask fixture error = %v", err)
+	}
+	service := NewService(repository, &fakeCredits{}, &fakeQueue{}, nil)
+
+	_, err = service.GetTask(context.Background(), 42, task.ID)
+
+	if !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("err = %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestServiceListsTaskResultsForOwner(t *testing.T) {
+	repository := &memoryRepository{results: map[int64][]Lead{
+		100: {
+			{Name: "成都启明星教育", Phone: "028-12345678", Evidence: []Evidence{{Type: "website", Title: "官网", URL: "https://example.com"}}},
+			{Name: "橙果职业培训"},
+		},
+	}}
+	task, _, err := repository.CreateTask(context.Background(), Task{UserID: 42, Query: "成都 教培", Status: StatusSucceeded, IdempotencyKey: "lead-task-42"})
+	if err != nil {
+		t.Fatalf("CreateTask fixture error = %v", err)
+	}
+	service := NewService(repository, &fakeCredits{}, &fakeQueue{}, nil)
+
+	results, err := service.ListResults(context.Background(), 42, task.ID, 1)
+
+	if err != nil {
+		t.Fatalf("ListResults() error = %v", err)
+	}
+	if len(results) != 1 || results[0].Name != "成都启明星教育" || len(results[0].Evidence) != 1 {
+		t.Fatalf("results = %+v", results)
 	}
 }

@@ -27,6 +27,51 @@ export type GrowthModel = {
   updated_at: string;
 };
 
+export type GrowthScenario = {
+  name: string;
+  revenue: number;
+  cost: number;
+  margin: number;
+  highlight: string;
+};
+
+export type GrowthScenarios = {
+  model_id: number;
+  model_name: string;
+  scenarios: GrowthScenario[];
+  generated_at: string;
+};
+
+export type ForecastMonth = {
+  month: string;
+  revenue: number;
+  phase: string;
+  progress_percent: number;
+};
+
+export type GrowthForecast = {
+  model_id: number;
+  model_name: string;
+  months: ForecastMonth[];
+  generated_at: string;
+};
+
+export type CostItem = {
+  name: string;
+  amount: number;
+  detail: string;
+};
+
+export type GrowthRecommendations = {
+  model_id: number;
+  model_name: string;
+  headline: string;
+  summary: string;
+  cost_items: CostItem[];
+  action_items: string[];
+  generated_at: string;
+};
+
 export const growthApi = {
   createModel(input: {
     name: string;
@@ -59,6 +104,24 @@ export const growthApi = {
 
   getModel(id: number) {
     return apiRequest<GrowthModel>(`/api/v1/growth/models/${id}`, {
+      method: "GET"
+    });
+  },
+
+  modelScenarios(id: number) {
+    return apiRequest<GrowthScenarios>(`/api/v1/growth/models/${id}/scenarios`, {
+      method: "GET"
+    });
+  },
+
+  modelForecast(id: number) {
+    return apiRequest<GrowthForecast>(`/api/v1/growth/models/${id}/forecast`, {
+      method: "GET"
+    });
+  },
+
+  modelRecommendations(id: number) {
+    return apiRequest<GrowthRecommendations>(`/api/v1/growth/models/${id}/recommendations`, {
       method: "GET"
     });
   }

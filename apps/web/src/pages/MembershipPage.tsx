@@ -1,58 +1,15 @@
+import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { apiErrorMessage } from "../lib/apiErrors";
+import {
+  membershipApi,
+  type MembershipOrder,
+  type MembershipPlanOption,
+  type MembershipSnapshot,
+  type MembershipUsageItem
+} from "../lib/membershipApi";
 import { CdkTopNav } from "./AnalysisPage";
-
-const plans = [
-  {
-    name: "免费版",
-    desc: "体验基础功能",
-    price: "¥0",
-    note: "",
-    action: "当前使用",
-    tone: "free",
-    recommended: false,
-    quota: ["每月获客积分 50 积分", "可核实线索 10 条/月", "对标拆解 5 次/月", "AI 生成内容 10 次/月"],
-    modules: ["模块一：免费分析（限次）", "模块二：内容严选客", "社群：免费层"]
-  },
-  {
-    name: "基础会员",
-    desc: "适合B2B或本地实体",
-    price: "¥69",
-    note: "¥828/年　省35%",
-    action: "立即订阅",
-    tone: "basic",
-    recommended: false,
-    quota: ["每月获客积分 800 积分", "可核实线索 80 条/月", "对标拆解 30 次/月", "AI 生成内容 200 次/月"],
-    modules: ["模块一：免费分析（不限次）", "模块二：实战获客（单一身份）", "模块三：内容整合部内容", "社群：进阶层"]
-  },
-  {
-    name: "标准会员",
-    desc: "适合高客单B2C",
-    price: "¥199",
-    note: "¥2,388/年　省35%",
-    action: "立即订阅",
-    tone: "standard",
-    recommended: true,
-    quota: ["每月获客积分 2,400 积分", "可核实线索 250 条/月", "对标拆解 100 次/月", "AI 生成内容 600 次/月"],
-    modules: ["模块一：免费分析（不限次）", "模块二：实战获客（高客单身份）", "模块三：内容整合部内容", "社群：进阶层", "导出结果去水印"]
-  },
-  {
-    name: "高级/企业版",
-    desc: "适合跨境及团队使用",
-    price: "¥499",
-    note: "¥5,988/年　省35%",
-    action: "立即订阅",
-    tone: "enterprise",
-    recommended: false,
-    quota: ["每月获客积分 6,000 积分", "可核实线索 800 条/月", "对标拆解 300 次/月", "AI 生成内容 1,500 次/月"],
-    modules: ["模块一：免费分析（不限次）", "模块二：实战获客（团队身份）", "模块三：内容整合部内容", "社群：企业定制层", "多成员协作（最多 10 人）", "数据导出 / API 接入"]
-  }
-] as const;
-
-const orders = [
-  ["ZS-20250531-0012", "企业版（续行）", "2025-05-31 10:25", "已支付", "¥9,999.00", "已开票"],
-  ["ZS-20240428-0018", "企业版（新付）", "2024-04-28 09:18", "已支付", "¥9,999.00", "已开票"]
-] as const;
 
 const benefits = ["线索数据实时更新", "去水印导出结果", "优先处理与客服支持", "社群活动内容与活动", "积分可加购，未用完不累计"] as const;
 
@@ -60,10 +17,106 @@ type MembershipPageProps = {
   showUpgrade?: boolean;
 };
 
+const planTone = ["free", "basic", "standard", "enterprise"] as const;
+
+function formatPrice(cents: number) {
+  if (cents === 0) return "¥0";
+  const amount = cents / 100;
+  return Number.isInteger(amount) ? `¥${amount}` : `¥${amount.toFixed(2)}`;
+}
+
+function formatAmount(cents: number) {
+  return `¥${(cents / 100).toFixed(2)}`;
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return "未支付";
+  return new Date(value).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+}
+
+function orderStatusLabel(status: string) {
+  if (status === "paid") return "已支付";
+  if (status === "pending") return "待支付";
+  return status;
+}
+
+function planName(plans: MembershipPlanOption[], code: string) {
+  return plans.find((plan) => plan.code === code)?.name ?? code;
+}
+
 function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
-  if (showUpgrade) {
-    return <RedeemPage />;
+  return showUpgrade ? <RedeemPage /> : <PurchaseMembershipPage />;
+}
+
+function PurchaseMembershipPage() {
+  const [snapshot, setSnapshot] = useState<MembershipSnapshot | null>(null);
+  const [plans, setPlans] = useState<MembershipPlanOption[]>([]);
+  const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
+  const [orders, setOrders] = useState<MembershipOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [checkoutPlan, setCheckoutPlan] = useState("");
+  const [checkoutMessage, setCheckoutMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      membershipApi.current(),
+      membershipApi.listPlans(),
+      membershipApi.usage(),
+      membershipApi.listOrders(20)
+    ])
+      .then(([snapshotPayload, plansPayload, usagePayload, ordersPayload]) => {
+        if (!active) return;
+        setSnapshot(snapshotPayload);
+        setPlans(plansPayload.plans);
+        setUsage(usagePayload.usage);
+        setOrders(ordersPayload.orders);
+        setLoadError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setLoadError(apiErrorMessage(error, "暂时无法读取会员信息"));
+        setSnapshot(null);
+        setPlans([]);
+        setUsage([]);
+        setOrders([]);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function createCheckout(plan: MembershipPlanOption) {
+    setCheckoutPlan(plan.code);
+    setCheckoutMessage("");
+    try {
+      const result = await membershipApi.checkout({
+        plan_code: plan.code,
+        billing_cycle: plan.billing_cycle
+      });
+      setOrders((current) => [result.order, ...current]);
+      setCheckoutMessage(`已创建订单 ${result.order.order_no}，${result.payment.message || "客服会协助完成支付"}`);
+    } catch (error) {
+      setCheckoutMessage(apiErrorMessage(error, "暂时无法创建订单"));
+    } finally {
+      setCheckoutPlan("");
+    }
   }
+
+  const currentPlanCode = snapshot?.plan.code;
+  const currentPlanName = snapshot?.plan.name ?? "未开通";
+  const visibleBenefits = plans.find((plan) => plan.code === currentPlanCode)?.features ?? benefits;
 
   return (
     <main className="cdk-analysis-page cdk-membership-page">
@@ -84,25 +137,34 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
 
       <section className="cdk-membership-main">
         <div className="cdk-plan-grid" aria-label="会员计划">
-          {plans.map((plan) => (
-            <article className={`cdk-plan-card ${plan.tone} ${plan.recommended ? "recommended" : ""}`} key={plan.name}>
+          {loading && <p>正在读取会员计划...</p>}
+          {loadError && <p className="form-error" role="alert">{loadError}</p>}
+          {!loading && !loadError && plans.length === 0 && <p>暂无可购买套餐</p>}
+          {plans.map((plan, index) => (
+            <article className={`cdk-plan-card ${planTone[index % planTone.length]} ${plan.recommended ? "recommended" : ""}`} key={plan.code}>
               {plan.recommended && <i>推荐</i>}
               <header>
                 <span aria-hidden="true" />
                 <div>
                   <h2>{plan.name}</h2>
-                  <p>{plan.desc}</p>
+                  <p>{plan.features[0] ?? "适合持续使用 AI 获客能力"}</p>
                 </div>
               </header>
-              <strong>{plan.price}<small>/月</small></strong>
-              {plan.note && <p className="cdk-plan-note">{plan.note}</p>}
-              <button type="button">{plan.action}</button>
+              <strong>{formatPrice(plan.price_cents)}<small>/{plan.billing_cycle === "year" ? "年" : "月"}</small></strong>
+              {plan.billing_cycle === "year" && <p className="cdk-plan-note">按年计费</p>}
+              <button
+                disabled={checkoutPlan === plan.code || currentPlanCode === plan.code}
+                onClick={() => void createCheckout(plan)}
+                type="button"
+              >
+                {currentPlanCode === plan.code ? "当前使用" : checkoutPlan === plan.code ? "创建中..." : `开通${plan.name}`}
+              </button>
               <div className="cdk-plan-quota">
-                {plan.quota.map((item) => <span key={item}>{item}</span>)}
+                {plan.quotas.map((item) => <span key={item.key}>{item.label} {item.limit} {item.unit}</span>)}
               </div>
               <section>
                 <h3>可用板块</h3>
-                {plan.modules.map((item) => <small key={item}>✓ {item}</small>)}
+                {plan.features.map((item) => <small key={item}>✓ {item}</small>)}
               </section>
             </article>
           ))}
@@ -112,18 +174,20 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
           <article>
             <h2>统一货币：获客积分</h2>
             <p>积分可用于解锁各项AI功能，按使用扣除，当月有效</p>
+            {snapshot && <strong>当前积分 {snapshot.credit_balance}</strong>}
             <div>
-              <span>对标拆解（每次）<b>10 积分</b></span>
-              <span>可核实线索（每条）<b>10~30 积分</b></span>
-              <span>AI 生成内容（每次）<b>5 积分</b></span>
+              {usage.length > 0 ? usage.map((item) => (
+                <span key={item.key}>{item.label} {item.used}/{item.limit} {item.unit}</span>
+              )) : <span>暂无额度使用记录</span>}
             </div>
           </article>
           <article>
             <h2>包含权益</h2>
-            {benefits.map((item) => <p key={item}>✓ {item}</p>)}
+            {visibleBenefits.map((item) => <p key={item}>✓ {item}</p>)}
           </article>
         </aside>
       </section>
+      {checkoutMessage && <p className="form-success" role="status">{checkoutMessage}</p>}
 
       <section className="cdk-membership-safe">
         <strong>没有风险的订阅体验</strong>
@@ -137,11 +201,15 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
           <div className="order-head">
             {["订单号", "套餐", "支付时间", "支付状态", "金额", "支付方式", "操作"].map((item) => <span key={item}>{item}</span>)}
           </div>
+          {orders.length === 0 && <p>暂无订单记录</p>}
           {orders.map((order) => (
-            <div className="order-row" key={order[0]}>
-              {order.map((item, index) => (
-                <span className={index === 3 ? "paid" : ""} key={`${order[0]}-${item}`}>{item}</span>
-              ))}
+            <div className="order-row" key={order.id}>
+              <span>{order.order_no}</span>
+              <span>{planName(plans, order.plan_code)}</span>
+              <span>{formatDateTime(order.paid_at ?? order.created_at)}</span>
+              <span className={order.status === "paid" ? "paid" : ""}>{orderStatusLabel(order.status)}</span>
+              <span>{formatAmount(order.amount_cents)}</span>
+              <span>{order.status === "paid" ? "手动支付" : "待确认"}</span>
               <a href="/membership">查看详情</a>
             </div>
           ))}
@@ -149,12 +217,58 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
       </section>
 
       <h2 className="sr-only">会员与账单</h2>
-      <h2 className="sr-only">企业版 会员生效</h2>
+      <h2 className="sr-only">{currentPlanName} 会员生效</h2>
     </main>
   );
 }
 
 function RedeemPage() {
+  const [snapshot, setSnapshot] = useState<MembershipSnapshot | null>(null);
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [redeeming, setRedeeming] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    membershipApi
+      .current()
+      .then((payload) => {
+        if (!active) return;
+        setSnapshot(payload);
+      })
+      .catch(() => {
+        if (!active) return;
+        setSnapshot(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function redeem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = code.trim();
+    if (!trimmed) {
+      setMessage("请输入兑换码");
+      return;
+    }
+    setRedeeming(true);
+    setMessage("");
+    try {
+      const result = await membershipApi.redeem(trimmed);
+      setSnapshot(result.snapshot);
+      setMessage(result.already_redeemed ? "兑换码已使用，账户权益保持不变" : `兑换成功，当前会员：${result.snapshot.plan.name}`);
+    } catch (error) {
+      setMessage(apiErrorMessage(error, "兑换失败，请稍后重试"));
+    } finally {
+      setRedeeming(false);
+    }
+  }
+
   return (
     <main className="cdk-analysis-page cdk-membership-page cdk-redeem-page">
       <CdkTopNav active="会员计划" />
@@ -168,7 +282,7 @@ function RedeemPage() {
       </section>
 
       <section className="cdk-redeem-layout">
-        <article className="cdk-redeem-card">
+        <form className="cdk-redeem-card" onSubmit={(event) => void redeem(event)}>
           <div className="cdk-redeem-tabs">
             <button className="active" type="button">兑换会员/权益</button>
             <button type="button">兑换积分</button>
@@ -176,11 +290,17 @@ function RedeemPage() {
           <label>
             兑换码
             <div>
-              <input aria-label="兑换码" placeholder="请输入16-32位兑换码（区分大小写）" />
+              <input
+                aria-label="兑换码"
+                onChange={(event) => setCode(event.target.value)}
+                placeholder="请输入16-32位兑换码（区分大小写）"
+                value={code}
+              />
               <button type="button">粘贴兑换码</button>
             </div>
           </label>
-          <button type="button">立即兑换</button>
+          <button disabled={redeeming} type="submit">{redeeming ? "兑换中..." : "立即兑换"}</button>
+          {message && <p className="form-success" role="status">{message}</p>}
           <section>
             <h2>兑换码说明</h2>
             <ul>
@@ -190,13 +310,13 @@ function RedeemPage() {
               <li>如遇问题，请联系客服</li>
             </ul>
           </section>
-        </article>
+        </form>
 
         <aside className="cdk-redeem-side">
           <section>
             <h2>当前账户信息</h2>
-            <div><span>当前会员</span><strong>标准会员</strong><Link to="/membership">查看详情 ›</Link></div>
-            <div><span>当前积分</span><strong>2,400 积分</strong><Link to="/membership">去购买 ›</Link></div>
+            <div><span>当前会员</span><strong>{loading ? "读取中..." : snapshot?.plan.name ?? "未开通"}</strong><Link to="/membership">查看详情 ›</Link></div>
+            <div><span>当前积分</span><strong>{snapshot?.credit_balance ?? 0} 积分</strong><Link to="/membership">去购买 ›</Link></div>
           </section>
           <section>
             <h2>温馨提示</h2>

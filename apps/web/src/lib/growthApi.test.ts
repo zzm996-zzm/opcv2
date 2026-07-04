@@ -10,7 +10,10 @@ describe("growthApi", () => {
   it("creates and lists growth models", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, name: "标准方案" }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ scenarios: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ months: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ action_items: [] }), { status: 200 }));
 
     await growthApi.createModel({
       name: "标准方案",
@@ -22,6 +25,9 @@ describe("growthApi", () => {
       deliveryCost: 51000
     });
     await growthApi.listModels();
+    await growthApi.modelScenarios(99);
+    await growthApi.modelForecast(99);
+    await growthApi.modelRecommendations(99);
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -40,5 +46,8 @@ describe("growthApi", () => {
       })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/growth/models", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/growth/models/99/scenarios", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/growth/models/99/forecast", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(5, "/api/v1/growth/models/99/recommendations", expect.objectContaining({ method: "GET" }));
   });
 });

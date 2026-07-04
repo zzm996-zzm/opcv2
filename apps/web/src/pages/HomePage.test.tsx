@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authSession } from "../lib/authSession";
+import { homeApi } from "../lib/homeApi";
 import HomePage from "./HomePage";
+
+vi.mock("../lib/homeApi", () => ({
+  homeApi: {
+    summary: vi.fn()
+  }
+}));
 
 describe("HomePage", () => {
   afterEach(() => {
@@ -11,7 +18,7 @@ describe("HomePage", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows the signed-in user and logs out from the account menu", async () => {
+  function signIn() {
     authSession.set({
       access_token: "access-token",
       access_token_expires_at: "2026-06-11T12:00:00Z",
@@ -23,6 +30,87 @@ describe("HomePage", () => {
         status: "active"
       }
     });
+  }
+
+  function mockHomeSummary() {
+    vi.mocked(homeApi.summary).mockResolvedValue({
+      hero_cards: [
+        { title: "项目雷达", summary: "发现高潜力机会", url: "/projects" },
+        { title: "落地任务", summary: "推进今日待办", url: "/tasks" }
+      ],
+      recommendations: [
+        { title: "本地AI获客顾问", summary: "适合轻资产启动", url: "/projects/detail" }
+      ],
+      recent_tasks: [
+        { id: 41, title: "联调首页聚合接口", project: "工作台", status: "in_progress", due_at: "2026-07-02T10:00:00Z" }
+      ],
+      notification_summary: {
+        unread: 1,
+        latest: [
+          { id: 7, type: "task", title: "任务提醒", summary: "联调首页聚合接口即将截止", action_url: "/tasks", created_at: "2026-07-02T09:30:00Z" }
+        ]
+      },
+      account_summary: {
+        plan_name: "会员版",
+        credit_balance: 88,
+        quota_warnings: [{ key: "analysis", label: "AI分析额度", used: 28, limit: 30, message: "AI分析额度即将用完" }]
+      }
+    });
+  }
+
+  it("loads home summary from API", async () => {
+    signIn();
+    mockHomeSummary();
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("heading", { name: "项目雷达" })).toBeInTheDocument();
+    expect(screen.getByText("本地AI获客顾问")).toBeInTheDocument();
+    expect(screen.getByText("联调首页聚合接口")).toBeInTheDocument();
+    expect(screen.getByText("会员版")).toBeInTheDocument();
+    expect(screen.getByText("88 积分")).toBeInTheDocument();
+    expect(screen.getByText("AI分析额度即将用完")).toBeInTheDocument();
+    expect(homeApi.summary).toHaveBeenCalled();
+  });
+
+  it("renders empty home summary sections instead of static dashboard records", async () => {
+    signIn();
+    vi.mocked(homeApi.summary).mockResolvedValue({
+      hero_cards: [],
+      recommendations: [],
+      recent_tasks: [],
+      notification_summary: {
+        unread: 0,
+        latest: []
+      },
+      account_summary: {
+        plan_name: "基础版",
+        credit_balance: 0,
+        quota_warnings: []
+      }
+    });
+
+    render(
+      <MemoryRouter>
+        <HomePage menuState="notice" />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("暂无推荐内容")).toBeInTheDocument();
+    expect(screen.getByText("暂无待办任务")).toBeInTheDocument();
+    expect(screen.getByText("暂无通知")).toBeInTheDocument();
+    expect(screen.queryByText("完成【AI 智能硬件】项目商业画布")).not.toBeInTheDocument();
+    expect(screen.queryByText("项目推荐")).not.toBeInTheDocument();
+    expect(screen.queryByText("竞品价格监测数据已更新完成")).not.toBeInTheDocument();
+  });
+
+  it("shows the signed-in user and logs out from the account menu", async () => {
+    signIn();
+    mockHomeSummary();
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response(null, { status: 204 }));
@@ -34,7 +122,8 @@ describe("HomePage", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "张晨的账号菜单" }));
-    expect(screen.getByText("有效期至 2025-12-31")).toBeInTheDocument();
+    const accountMenu = await screen.findByRole("dialog", { name: "头像下拉框" });
+    expect(within(accountMenu).getByText("88 积分")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "退出登录" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -42,17 +131,8 @@ describe("HomePage", () => {
   });
 
   it("clears the local session even when logout cannot reach the API", async () => {
-    authSession.set({
-      access_token: "access-token",
-      access_token_expires_at: "2026-06-11T12:00:00Z",
-      is_new_user: false,
-      user: {
-        id: 7,
-        nickname: "张晨",
-        phone: "13800138000",
-        status: "active"
-      }
-    });
+    signIn();
+    mockHomeSummary();
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
 
     render(
@@ -67,18 +147,9 @@ describe("HomePage", () => {
     expect(await screen.findByRole("link", { name: "登录 / 注册" })).toBeInTheDocument();
   });
 
-  it("opens notification menu and Copilot utility states", () => {
-    authSession.set({
-      access_token: "access-token",
-      access_token_expires_at: "2026-06-11T12:00:00Z",
-      is_new_user: false,
-      user: {
-        id: 7,
-        nickname: "张晨",
-        phone: "13800138000",
-        status: "active"
-      }
-    });
+  it("opens notification menu and Copilot utility states", async () => {
+    signIn();
+    mockHomeSummary();
 
     render(
       <MemoryRouter>
@@ -88,7 +159,7 @@ describe("HomePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "通知" }));
     expect(screen.getByRole("dialog", { name: "通知下拉框" })).toBeInTheDocument();
-    expect(screen.getByText("项目分析完成")).toBeInTheDocument();
+    expect(await screen.findByText("任务提醒")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "打开智活 Copilot" }));
     fireEvent.click(screen.getByRole("button", { name: "打开 Copilot 设置" }));
@@ -100,17 +171,8 @@ describe("HomePage", () => {
   });
 
   it("renders direct Copilot settings and file states", () => {
-    authSession.set({
-      access_token: "access-token",
-      access_token_expires_at: "2026-06-11T12:00:00Z",
-      is_new_user: false,
-      user: {
-        id: 7,
-        nickname: "张晨",
-        phone: "13800138000",
-        status: "active"
-      }
-    });
+    signIn();
+    mockHomeSummary();
 
     const { unmount } = render(
       <MemoryRouter>
@@ -133,17 +195,8 @@ describe("HomePage", () => {
   });
 
   it("renders direct home dropdown and collapsed assistant states", () => {
-    authSession.set({
-      access_token: "access-token",
-      access_token_expires_at: "2026-06-11T12:00:00Z",
-      is_new_user: false,
-      user: {
-        id: 7,
-        nickname: "张晨",
-        phone: "13800138000",
-        status: "active"
-      }
-    });
+    signIn();
+    mockHomeSummary();
 
     const noticeRender = render(
       <MemoryRouter>

@@ -12,6 +12,7 @@ type fakeRepository struct {
 	updated Task
 	task    Task
 	tasks   []Task
+	filters ListFilters
 	err     error
 }
 
@@ -23,7 +24,8 @@ func (r *fakeRepository) CreateTask(_ context.Context, task Task) (Task, error) 
 	return task, r.err
 }
 
-func (r *fakeRepository) ListTasks(_ context.Context, userID int64, limit int) ([]Task, error) {
+func (r *fakeRepository) ListTasks(_ context.Context, userID int64, filters ListFilters) ([]Task, error) {
+	r.filters = filters
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -33,7 +35,34 @@ func (r *fakeRepository) ListTasks(_ context.Context, userID int64, limit int) (
 			rows = append(rows, task)
 		}
 	}
-	return rows[:min(len(rows), limit)], nil
+	return rows[:min(len(rows), filters.Limit)], nil
+}
+
+func (r *fakeRepository) TaskStats(_ context.Context, userID int64, now time.Time) (Stats, error) {
+	if r.err != nil {
+		return Stats{}, r.err
+	}
+	stats := Stats{}
+	for _, task := range r.tasks {
+		if task.UserID != userID {
+			continue
+		}
+		stats.Total++
+		switch task.Status {
+		case StatusTodo:
+			stats.Todo++
+		case StatusInProgress:
+			stats.InProgress++
+		case StatusCompleted:
+			stats.Completed++
+		case StatusReminder:
+			stats.Reminder++
+		}
+		if task.DueAt != nil && task.DueAt.Before(now) && task.Status != StatusCompleted {
+			stats.Overdue++
+		}
+	}
+	return stats, nil
 }
 
 func (r *fakeRepository) GetTask(_ context.Context, userID, id int64) (Task, error) {
@@ -99,13 +128,53 @@ func TestServiceListsOnlyUserTasks(t *testing.T) {
 	}}
 	service := NewService(repository)
 
-	rows, err := service.ListTasks(context.Background(), 42, 20)
+	rows, err := service.ListTasks(context.Background(), 42, ListFilters{Limit: 20})
 
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
 	if len(rows) != 1 || rows[0].Title != "我的任务" {
 		t.Fatalf("rows = %+v", rows)
+	}
+}
+
+func TestServiceNormalizesTaskFilters(t *testing.T) {
+	repository := &fakeRepository{tasks: []Task{{ID: 1, UserID: 42, Title: "我的任务"}}}
+	service := NewService(repository)
+
+	_, err := service.ListTasks(context.Background(), 42, ListFilters{
+		Status:  " in_progress ",
+		Project: " 商业沙盘 ",
+		Query:   " 接口 ",
+		Limit:   500,
+	})
+
+	if err != nil {
+		t.Fatalf("ListTasks() error = %v", err)
+	}
+	if repository.filters.Status != StatusInProgress || repository.filters.Project != "商业沙盘" || repository.filters.Query != "接口" || repository.filters.Limit != 100 {
+		t.Fatalf("filters = %+v", repository.filters)
+	}
+}
+
+func TestServiceReturnsTaskStats(t *testing.T) {
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	due := now.Add(-time.Hour)
+	repository := &fakeRepository{tasks: []Task{
+		{ID: 1, UserID: 42, Status: StatusTodo, DueAt: &due},
+		{ID: 2, UserID: 42, Status: StatusInProgress},
+		{ID: 3, UserID: 7, Status: StatusCompleted},
+	}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	stats, err := service.TaskStats(context.Background(), 42)
+
+	if err != nil {
+		t.Fatalf("TaskStats() error = %v", err)
+	}
+	if stats.Total != 2 || stats.Todo != 1 || stats.InProgress != 1 || stats.Overdue != 1 {
+		t.Fatalf("stats = %+v", stats)
 	}
 }
 

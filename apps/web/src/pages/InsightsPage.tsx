@@ -1,73 +1,15 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 
+import { apiErrorMessage } from "../lib/apiErrors";
+import { contentApi, type ContentArticle } from "../lib/contentApi";
 import { CdkTopNav } from "./AnalysisPage";
 
 type InsightsPageProps = {
   variant?: "list" | "detail" | "fileAnalysis";
 };
 
-const focusItems = [
-  ["AI 客服行业市场规模持续增长", "2024 年中国智能客服市场规模预计突破 120 亿元，年复合增长率达 28%。", "chart"],
-  ["出海企业布局东南亚加速", "东南亚数字经济规模突破 3000 亿美元，SaaS 与 AI 应用需求旺盛。", "globe"],
-  ["AI 营销自动化趋势观察", "生成式 AI 与自动化营销深度融合，助力企业降本增效与精细化运营。", "cube"]
-] as const;
-
-const articles = [
-  {
-    title: "企业智能客服落地实践：从成本中心到增长引擎",
-    summary: "越来越多企业通过智能客服系统实现服务效率提升与客户体验升级。本文从部署策略、场景选择、效果评估等方面，分享企业的实践路径与关键启示。",
-    source: "虎嗅智库",
-    time: "2024-06-25 10:30",
-    tags: ["AI客服", "客户体验", "降本增效"],
-    visual: "bot"
-  },
-  {
-    title: "出海新机遇：东南亚SaaS市场洞察与机会分析",
-    summary: "东南亚 SaaS 市场进入高速增长期，本报告从市场规模、核心国家、行业机会及竞争格局等维度，解读出海企业的增长机会。",
-    source: "亿欧智库",
-    time: "2024-06-25 09:15",
-    tags: ["出海", "SaaS", "东南亚"],
-    visual: "map"
-  },
-  {
-    title: "AI驱动的自动化营销：提升转化率的实战方法论",
-    summary: "结合 AI 算法与自动化工具，实现用户洞察、内容生成、渠道触达与效果优化的闭环，全面提升营销 ROI。",
-    source: "增长黑盒",
-    time: "2024-06-24 16:45",
-    tags: ["自动化营销", "AI应用", "转化率"],
-    visual: "target"
-  },
-  {
-    title: "大模型在企业级应用的落地路径与挑战",
-    summary: "从技术选型、数据治理、场景落地到组织变革，系统梳理大模型在企业落地的关键步骤与常见挑战。",
-    source: "InfoQ",
-    time: "2024-06-24 14:20",
-    tags: ["大模型", "企业应用", "技术趋势"],
-    visual: "chip"
-  },
-  {
-    title: "2024上半年AI投融资盘点：热门赛道与资本动向",
-    summary: "回顾 2024 年上半年全球 AI 领域投融资情况，聚焦热门赛道、代表性企业与资本趋势，为创业者与投资人提供参考。",
-    source: "投资界",
-    time: "2024-06-24 11:05",
-    tags: ["投融资", "AI", "资本市场"],
-    visual: "growth"
-  },
-  {
-    title: "企业数字化转型加速：AI+业务流程重塑案例集",
-    summary: "精选制造、零售、金融等行业的 AI+ 流程重塑案例，解析企业如何通过智能化实现效率提升与业务创新。",
-    source: "钛媒体",
-    time: "2024-06-24 09:40",
-    tags: ["数字化转型", "流程自动化", "行业案例"],
-    visual: "cloud"
-  }
-] as const;
-
-const relatedCards = [
-  ["大模型时代智能客服的技术演进与应用实践", "量子位智库", "2024-06-18 14:22", "大模型应用"],
-  ["从降本到增长：智能客服如何驱动业务增长", "艾瑞咨询", "2024-06-10 10:30", "增长"],
-  ["智能客服落地指南：从0到1构建企业专属方案", "智活AI研究院", "2024-06-05 09:45", "落地方法"]
-] as const;
+const articleVisuals = ["bot", "map", "target", "chip", "growth", "cloud"] as const;
 
 const references = [
   ["艾瑞咨询", "《2024年中国智能客服行业研究报告》", "2024-04-18"],
@@ -75,6 +17,28 @@ const references = [
   ["赛迪顾问", "《2024中国企业AI应用白皮书》", "2024-06-12"],
   ["Gartner", "Cool Vendors in Customer Service and Support, 2024", "2024-07-15"]
 ] as const;
+
+type DisplayArticle = {
+  slug: string;
+  title: string;
+  summary: string;
+  source: string;
+  time: string;
+  tags: readonly string[];
+  visual: string;
+};
+
+function toDisplayArticle(article: ContentArticle, index: number): DisplayArticle {
+  return {
+    slug: article.slug,
+    title: article.title,
+    summary: article.summary || "资讯正文已收录，进入详情查看完整内容。",
+    source: "智活AI研究院",
+    time: formatInsightTime(article.published_at || article.created_at),
+    tags: ["AI创业", "增长洞察", article.status === "published" ? "已发布" : "草稿"],
+    visual: articleVisuals[index % articleVisuals.length]
+  };
+}
 
 function InsightsPage({ variant = "list" }: InsightsPageProps) {
   return (
@@ -91,6 +55,29 @@ function InsightsPage({ variant = "list" }: InsightsPageProps) {
 }
 
 function InsightList({ compact }: { compact: boolean }) {
+  const [apiArticles, setApiArticles] = useState<DisplayArticle[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    contentApi
+      .listArticles()
+      .then((payload) => {
+        if (!active) return;
+        setApiArticles(payload.articles.map(toDisplayArticle));
+      })
+      .catch((error) => {
+        if (!active) return;
+        setError(apiErrorMessage(error, "暂时无法读取资讯列表"));
+        setApiArticles([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleArticles = apiArticles;
+
   return (
     <>
       <header className="insights-title">
@@ -119,35 +106,32 @@ function InsightList({ compact }: { compact: boolean }) {
       <section className="insights-focus" aria-label="今日关注">
         <div>
           <h2>今日关注</h2>
-          <small>🔥 更新 12 条</small>
+          <small>更新 {visibleArticles.length} 条</small>
         </div>
-        {focusItems.map(([title, desc, visual]) => (
-          <article key={title}>
-            <span className={`focus-art ${visual}`} aria-hidden="true" />
-            <strong>{title}</strong>
-            <p>{desc}</p>
-          </article>
-        ))}
+        <div className="module-empty-state" role="status">暂无今日关注</div>
         <Link to="/insights/file-analysis">查看全部专题 ›</Link>
       </section>
 
       <section className={`insight-list-card ${compact ? "compact" : ""}`} aria-label="资讯列表">
-        {articles.map((article) => (
-          <article className="insight-row" key={article.title}>
-            <span className={`insight-thumb ${article.visual}`} aria-hidden="true" />
-            <div className="insight-row-copy">
-              <h2>{article.title}</h2>
-              <p>{article.summary}</p>
-              <footer>
-                <strong>{article.source}</strong>
-                <time>{article.time}</time>
-                {article.tags.map((tag) => <span key={tag}>{tag}</span>)}
-              </footer>
-            </div>
-            <button aria-label={`收藏${article.title}`} className="insight-star" type="button">☆</button>
-            <Link className="insight-detail-link" to="/insights/detail">查看详情</Link>
-          </article>
-        ))}
+        {error && <p className="form-error" role="alert">{error}</p>}
+        {visibleArticles.length === 0 ? (
+          <div className="module-empty-state" role="status">暂无资讯数据</div>
+        ) : visibleArticles.map((article) => (
+            <article className="insight-row" key={article.title}>
+              <span className={`insight-thumb ${article.visual}`} aria-hidden="true" />
+              <div className="insight-row-copy">
+                <h2>{article.title}</h2>
+                <p>{article.summary}</p>
+                <footer>
+                  <strong>{article.source}</strong>
+                  <time>{article.time}</time>
+                  {article.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                </footer>
+              </div>
+              <button aria-label={`收藏${article.title}`} className="insight-star" type="button">☆</button>
+              <Link className="insight-detail-link" to={`/insights/detail?article=${article.slug}`}>查看详情</Link>
+            </article>
+          ))}
       </section>
 
       <footer className="insights-pagination" aria-label="资讯分页">
@@ -165,6 +149,66 @@ function InsightList({ compact }: { compact: boolean }) {
 }
 
 function InsightDetail() {
+  const location = useLocation();
+  const articleSlug = new URLSearchParams(location.search).get("article") || "ai-customer-service";
+  const [article, setArticle] = useState<ContentArticle | null>(null);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setError("");
+    contentApi
+      .getArticle(articleSlug)
+      .then((payload) => {
+        if (active) setArticle(payload);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setArticle(null);
+        setError(apiErrorMessage(error, "暂时无法读取资讯详情"));
+      });
+    return () => {
+      active = false;
+    };
+  }, [articleSlug]);
+
+  async function toggleBookmark() {
+    setError("");
+    try {
+      const result = bookmarked
+        ? await contentApi.unbookmarkArticle(articleSlug)
+        : await contentApi.bookmarkArticle(articleSlug);
+      setBookmarked(result.bookmarked);
+    } catch (error) {
+      setError(apiErrorMessage(error, "收藏失败，请稍后再试"));
+    }
+  }
+
+  if (!article) {
+    return (
+      <article className="insight-detail-page">
+        <nav aria-label="资讯路径">
+          <Link to="/insights">咨询通</Link>
+          <span>/</span>
+          <b>资讯详情</b>
+        </nav>
+        <header>
+          <div className="insight-detail-actions">
+            <Link className="primary" to="/insights/file-analysis">分析我能学到什么</Link>
+          </div>
+          {error && <p className="form-error" role="alert">{error}</p>}
+        </header>
+        <div className="module-empty-state" role="status">暂无资讯详情</div>
+      </article>
+    );
+  }
+
+  const title = article.title;
+  const summary = article.summary || "暂无资讯摘要";
+  const body = article.body || "暂无资讯正文";
+  const publishedAt = formatInsightTime(article.published_at || article.created_at);
+
   return (
     <article className="insight-detail-page">
       <nav aria-label="资讯路径">
@@ -172,13 +216,13 @@ function InsightDetail() {
         <span>/</span>
         <Link to="/insights">AI资讯</Link>
         <span>/</span>
-        <b>资讯详情</b>
+        <b>{title}</b>
       </nav>
       <header>
-        <h1>企业智能客服进入规模化落地阶段：从效率工具走向增长引擎</h1>
+        <h1>{title}</h1>
         <div className="insight-meta-row">
-          <span>来源：量子位智库</span>
-          <time>发布时间：2024-06-25 09:15</time>
+          <span>来源：智活AI研究院</span>
+          <time>发布时间：{publishedAt}</time>
           <span>作者：量子位智库团队</span>
         </div>
         <div className="insight-tag-row">
@@ -186,38 +230,19 @@ function InsightDetail() {
         </div>
         <div className="insight-detail-actions">
           <Link className="primary" to="/insights/file-analysis">分析我能学到什么</Link>
-          <button type="button">☆ 收藏</button>
+          <button aria-label={bookmarked ? "取消收藏资讯" : "收藏资讯"} onClick={toggleBookmark} type="button">
+            {bookmarked ? "★ 已收藏" : "☆ 收藏"}
+          </button>
           <button type="button">原始来源 ↗</button>
         </div>
+        {error && <p className="form-error" role="alert">{error}</p>}
       </header>
       <div className="insight-article-layout">
         <div className="insight-article">
           <span className="insight-article-cover bot" aria-hidden="true" />
           <section>
             <h2>市场背景</h2>
-            <p>在大模型技术加速成熟、企业数字化转型纵深推进的背景下，智能客服正从早期的“降本工具”加速演进为“增长触点”。2023年中国智能客服市场规模超过百亿元，同期增长显著，预计未来将保持较高增速。</p>
-          </section>
-          <section>
-            <h2>关键趋势</h2>
-            <ul>
-              <li>大模型驱动体验跃迁：多轮理解、生成式回复与知识推理能力提升服务质量。</li>
-              <li>全渠道融合成为标配：打通在线客服、电话、社媒、邮件等触点，构建一致客户服务旅程。</li>
-              <li>从被动响应到主动服务：基于用户行为与意图识别，提前触达并推动服务向增值转化。</li>
-              <li>数据闭环与知识进化：对话数据沉淀为企业知识资产，持续提升业务洞察能力。</li>
-            </ul>
-          </section>
-          <section>
-            <h2>企业落地启示</h2>
-            <p>智能客服的价值不再局限于降本，更体现在对客户体验的重塑与业务增长的驱动。领先企业将智能客服与 CRM、营销自动化、工单系统等深度集成，实现客户洞察、服务响应与业务转化的协同。</p>
-          </section>
-          <section>
-            <h2>行动建议</h2>
-            <ol>
-              <li>优先梳理高频高价值场景，从“问题解决率”和“客户满意度”双指标驱动落地。</li>
-              <li>构建企业专属知识中台，沉淀高质量知识资产，持续优化模型效果。</li>
-              <li>打通服务与销售链路，将客服数据参与销售提醒、商机识别和客户分层。</li>
-              <li>建立数据监测与效果评估体系，持续迭代与规模化复制成功经验。</li>
-            </ol>
+            <p>{body}</p>
           </section>
         </div>
 
@@ -225,7 +250,7 @@ function InsightDetail() {
           <h2>资讯摘要</h2>
           <section>
             <strong>核心观点</strong>
-            <p>智能客服已从效率工具升级为增长引擎，通过大模型、全渠道融合与数据闭环，驱动客户体验提升与业务增长。</p>
+            <p>{summary}</p>
           </section>
           <section>
             <strong>适合谁关注</strong>
@@ -241,20 +266,6 @@ function InsightDetail() {
           </section>
         </aside>
       </div>
-
-      <section className="insight-related" aria-label="相关推荐">
-        <h2>相关推荐</h2>
-        <div>
-          {relatedCards.map(([title, source, time, tag], index) => (
-            <Link key={title} to="/insights/detail">
-              <span className={`insight-thumb small ${articles[index].visual}`} aria-hidden="true" />
-              <strong>{title}</strong>
-              <small>{source} · {time}</small>
-              <b>{tag}</b>
-            </Link>
-          ))}
-        </div>
-      </section>
     </article>
   );
 }
@@ -398,6 +409,17 @@ function FileAnalysisChat() {
       </section>
     </div>
   );
+}
+
+function formatInsightTime(value: string) {
+  return new Date(value).toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).replace(/\//g, "-");
 }
 
 export default InsightsPage;

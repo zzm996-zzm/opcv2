@@ -42,14 +42,30 @@ describe("leadsApi", () => {
   });
 
   it("lists lead tasks with limit", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ tasks: [] }), { status: 200 })
-    );
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ tasks: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        task: { id: 99, query: "成都 教培", status: "succeeded" },
+        progress_percent: 100,
+        message: "线索采集已完成。",
+        results_count: 1
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 }));
 
     await leadsApi.listTasks(10);
+    await leadsApi.getTask(99);
+    await leadsApi.listResults(99, 10);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/leads/tasks?limit=10",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/leads/tasks/99",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/leads/tasks/99/results?limit=10",
       expect.objectContaining({ method: "GET" })
     );
   });

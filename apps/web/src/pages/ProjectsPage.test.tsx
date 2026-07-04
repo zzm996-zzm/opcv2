@@ -148,7 +148,43 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "匹配历史与收藏" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "历史匹配" })).toBeInTheDocument();
     expect(await screen.findByText("本地AI获客顾问")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看结果" })).toHaveAttribute("href", "/projects/matches/99");
     expect(screen.getByRole("heading", { name: "收藏项目" })).toBeInTheDocument();
+  });
+
+  it("renders match detail from API session", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        id: 99,
+        user_id: 7,
+        intent: "本地B端AI获客服务",
+        status: "completed",
+        result: {
+          session_id: 99,
+          status: "completed",
+          projects: [{
+            rank: 1,
+            title: "本地AI获客顾问",
+            score: 91,
+            tags: ["B端服务", "轻资产"],
+            budget: "¥2,000 - ¥6,000",
+            reasons: ["客户需求明确", "交付可标准化"],
+            risk: "需要控制交付边界"
+          }]
+        },
+        created_at: "2026-06-24T12:00:00Z",
+        updated_at: "2026-06-24T12:00:00Z"
+      }), { status: 200 })
+    );
+    renderProjectRoute("/projects/matches/99");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/matches/99",
+      expect.objectContaining({ method: "GET" })
+    ));
+    expect(await screen.findByRole("heading", { name: "本地AI获客顾问" })).toBeInTheDocument();
+    expect(screen.getByText("匹配度 91分")).toBeInTheDocument();
+    expect(screen.getByText("预算 ¥2,000 - ¥6,000")).toBeInTheDocument();
   });
 
   it("renders paid sample overlay state", () => {

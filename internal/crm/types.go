@@ -19,6 +19,7 @@ const (
 const (
 	ActivityStageChanged     = "stage_changed"
 	ActivityFollowUpRecorded = "follow_up_recorded"
+	ActivityCustomerUpdated  = "customer_updated"
 )
 
 var (
@@ -44,6 +45,15 @@ type UpdateStageInput struct {
 	Note       string `json:"note,omitempty"`
 }
 
+type UpdateCustomerInput struct {
+	UserID     int64   `json:"-"`
+	CustomerID int64   `json:"-"`
+	Name       *string `json:"name,omitempty"`
+	Phone      *string `json:"phone,omitempty"`
+	Email      *string `json:"email,omitempty"`
+	Website    *string `json:"website,omitempty"`
+}
+
 type RecordFollowUpInput struct {
 	UserID         int64     `json:"-"`
 	CustomerID     int64     `json:"-"`
@@ -54,6 +64,19 @@ type RecordFollowUpInput struct {
 type ListDueInput struct {
 	UserID int64
 	Limit  int
+}
+
+type ListCustomersInput struct {
+	UserID int64
+	Stage  string
+	Q      string
+	Limit  int
+}
+
+type ListFollowUpsInput struct {
+	UserID     int64
+	CustomerID int64
+	Limit      int
 }
 
 type FollowUpCopyInput struct {
@@ -99,4 +122,15 @@ type FollowUp struct {
 	Note           string    `json:"note"`
 	NextFollowUpAt time.Time `json:"next_follow_up_at"`
 	CreatedAt      time.Time `json:"created_at"`
+}
+
+type PipelineStats struct {
+	Total     int `json:"total"`
+	New       int `json:"new"`
+	Contacted int `json:"contacted"`
+	Qualified int `json:"qualified"`
+	Proposal  int `json:"proposal"`
+	Won       int `json:"won"`
+	Lost      int `json:"lost"`
+	DueToday  int `json:"due_today"`
 }

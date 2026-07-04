@@ -47,12 +47,30 @@ type Task struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 
+type TaskDetail struct {
+	Task            Task   `json:"task"`
+	ProgressPercent int    `json:"progress_percent"`
+	Message         string `json:"message"`
+	ResultsCount    int    `json:"results_count"`
+}
+
 type Lead struct {
 	Name     string     `json:"name"`
 	Phone    string     `json:"phone,omitempty"`
 	Email    string     `json:"email,omitempty"`
 	Website  string     `json:"website,omitempty"`
 	Evidence []Evidence `json:"evidence,omitempty"`
+}
+
+type LeadResult struct {
+	ID        int64      `json:"id"`
+	TaskID    int64      `json:"task_id"`
+	Name      string     `json:"name"`
+	Phone     string     `json:"phone,omitempty"`
+	Email     string     `json:"email,omitempty"`
+	Website   string     `json:"website,omitempty"`
+	Evidence  []Evidence `json:"evidence,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 type Evidence struct {

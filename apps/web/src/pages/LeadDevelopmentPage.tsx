@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { apiErrorMessage } from "../lib/apiErrors";
-import { leadsApi, type LeadTask } from "../lib/leadsApi";
+import { leadsApi, type LeadResult, type LeadTask, type LeadTaskDetail } from "../lib/leadsApi";
 import { CdkTopNav } from "./AnalysisPage";
 
 type LeadCompany = {
@@ -13,46 +13,6 @@ type LeadCompany = {
   signals: readonly string[];
   next: string;
 };
-
-const leadStats = [
-  ["可触达企业", "328"],
-  ["高意向线索", "46"],
-  ["今日待跟进", "12"],
-  ["预计机会额", "¥86万"]
-] as const;
-
-const crmStats: ReadonlyArray<readonly [string, string]> = [
-  ...leadStats,
-  ["跟进中", "1,426"],
-  ["已成交", "532"]
-];
-
-const leadCompanies = [
-  {
-    name: "星桥教育集团",
-    industry: "连锁教育 / 私域运营",
-    score: "92",
-    stage: "高意向",
-    signals: ["近期招聘客服主管", "公众号强调招生转化", "企微矩阵活跃"],
-    next: "发送智能客服 + 企微转化方案"
-  },
-  {
-    name: "橙果职业培训",
-    industry: "职业培训 / 成人教育",
-    score: "84",
-    stage: "可开发",
-    signals: ["新增校区", "课程咨询量增长", "官网表单更新"],
-    next: "补充行业案例后预约演示"
-  },
-  {
-    name: "领航企业内训",
-    industry: "企业培训 / B端服务",
-    score: "78",
-    stage: "待验证",
-    signals: ["投放关键词变化", "内容聚焦客户成功", "销售岗位扩张"],
-    next: "先用公开信息完成需求画像"
-  }
-] as const;
 
 const sourceChannels = [
   ["天眼查企业库", "主体、规模、行业、联系方式", "已接入"],
@@ -66,12 +26,6 @@ const developmentPath = [
   ["2", "抓取信号", "从工商、招聘、内容和官网变化里提取购买意图"],
   ["3", "AI评分", "按匹配度、时机、预算和触达难度给出优先级"],
   ["4", "加入CRM", "生成跟进话术、下一步动作和提醒时间"]
-] as const;
-
-const followups = [
-  ["今天 14:00", "星桥教育集团", "发送智能客服选型清单"],
-  ["明天 10:30", "橙果职业培训", "预约增长负责人演示"],
-  ["06-25 16:00", "领航企业内训", "补充企业内训行业案例"]
 ] as const;
 
 const scoringRules = [
@@ -101,22 +55,59 @@ function toLeadCompany(task: LeadTask): LeadCompany {
   };
 }
 
+function toLeadCompanyFromResult(result: LeadResult): LeadCompany {
+  const evidence = result.evidence ?? [];
+  const signals = evidence.length > 0
+    ? evidence.slice(0, 3).map((item) => item.title)
+    : [
+      result.phone ? `电话：${result.phone}` : "联系方式待补充",
+      result.email ? `邮箱：${result.email}` : "邮箱待补充",
+      result.website ? "官网入口已识别" : "官网待验证"
+    ];
+  const score = 82 + Math.min(evidence.length * 4, 12) + (result.phone || result.email ? 4 : 0);
+  return {
+    name: result.name,
+    industry: result.website || "AI线索采集结果",
+    score: String(Math.min(score, 98)),
+    stage: score >= 90 ? "高意向" : "可开发",
+    signals,
+    next: result.phone || result.email ? "加入 CRM 并安排首轮触达" : "先补充联系人和公开业务信号"
+  };
+}
+
 function LeadDevelopmentPage() {
   const [query, setQuery] = useState("");
   const [tasks, setTasks] = useState<LeadTask[]>([]);
+  const [taskDetail, setTaskDetail] = useState<LeadTaskDetail | null>(null);
+  const [results, setResults] = useState<LeadResult[]>([]);
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
-    leadsApi
-      .listTasks(20)
-      .then((payload) => {
-        if (active) setTasks(payload.tasks);
-      })
-      .catch((error) => {
+    async function loadTasks() {
+      try {
+        const payload = await leadsApi.listTasks(20);
+        if (!active) return;
+        setTasks(payload.tasks);
+        const completed = payload.tasks.find((task) => task.status === "succeeded");
+        if (!completed) {
+          setTaskDetail(null);
+          setResults([]);
+          return;
+        }
+        const [detailPayload, resultsPayload] = await Promise.all([
+          leadsApi.getTask(completed.id).catch(() => null),
+          leadsApi.listResults(completed.id, 20).catch(() => null)
+        ]);
+        if (!active) return;
+        setTaskDetail(detailPayload);
+        setResults(resultsPayload?.results ?? []);
+      } catch (error) {
         if (active) setError(apiErrorMessage(error, "暂时无法读取线索任务"));
-      });
+      }
+    }
+    void loadTasks();
     return () => {
       active = false;
     };
@@ -133,6 +124,8 @@ function LeadDevelopmentPage() {
         idempotencyKey: `lead-task-${Date.now()}`
       });
       setTasks((current) => [task, ...current.filter((item) => item.id !== task.id)]);
+      setTaskDetail(null);
+      setResults([]);
       setQuery("");
     } catch (error) {
       setError(apiErrorMessage(error, "暂时无法创建线索任务，请稍后重试"));
@@ -141,7 +134,24 @@ function LeadDevelopmentPage() {
     }
   }
 
-  const companies = tasks.length > 0 ? tasks.map(toLeadCompany) : leadCompanies;
+  const companies = results.length > 0
+    ? results.map(toLeadCompanyFromResult)
+    : tasks.length > 0
+      ? tasks.map(toLeadCompany)
+      : [];
+  const crmStats: ReadonlyArray<readonly [string, string]> = companies.length > 0
+    ? [
+      ["可触达企业", String(results.length || companies.length)],
+      ["高意向线索", String(companies.filter((company) => company.stage === "高意向").length)],
+      ["线索任务", String(tasks.length)],
+      ["待导入CRM", String(results.length)]
+    ]
+    : [];
+  const leadResultSummary = taskDetail
+    ? `${taskDetail.message} 已发现 ${taskDetail.results_count} 条候选线索。`
+    : companies.length > 0
+      ? "展示后端返回的线索任务和采集结果，优先处理购买时机明确、触达入口清晰的企业"
+      : "暂无线索任务，提交目标客户画像后这里会展示采集结果。";
 
   return (
     <main className="cdk-analysis-page cdk-leads-page">
@@ -199,13 +209,15 @@ function LeadDevelopmentPage() {
           <Link className="cdk-leads-secondary" to="/leads">查看获客任务</Link>
         </div>
         <div className="cdk-leads-stat-grid">
-          {crmStats.map(([label, value], index) => (
-            <article key={label}>
-              <i className={`stat-${index + 1}`} aria-hidden="true" />
-              <small>{label}</small>
-              <strong>{value}</strong>
-            </article>
-          ))}
+          {crmStats.length === 0 ? (
+            <div className="module-empty-state" role="status">暂无CRM统计</div>
+          ) : crmStats.map(([label, value], index) => (
+              <article key={label}>
+                <i className={`stat-${index + 1}`} aria-hidden="true" />
+                <small>{label}</small>
+                <strong>{value}</strong>
+              </article>
+            ))}
         </div>
         <aside className="cdk-leads-follow-table">
           <header>
@@ -215,15 +227,7 @@ function LeadDevelopmentPage() {
           <div className="cdk-leads-table-head">
             <span>客户/公司</span><span>阶段</span><span>负责人</span><span>下次跟进时间</span>
           </div>
-          {followups.map(([time, company, action], index) => (
-            <article key={`${time}-${company}`}>
-              <strong>{company}</strong>
-              <span>{index === 1 ? "已沟通" : "跟进中"}</span>
-              <small>{index === 0 ? "李明" : index === 1 ? "陈晨" : "赵磊"}</small>
-              <time>{time}</time>
-              <em>{action}</em>
-            </article>
-          ))}
+          <p className="module-empty-state" role="status">暂无待跟进客户</p>
         </aside>
       </section>
 
@@ -231,7 +235,7 @@ function LeadDevelopmentPage() {
         <div className="cdk-section-head">
           <div>
             <h2>高意向线索</h2>
-            <p>按 AI 评分排序，优先处理购买时机明确、触达入口清晰的企业</p>
+            <p>{leadResultSummary}</p>
           </div>
           <div className="module-chip-row compact">
             {["全部", "高意向", "可开发", "待验证"].map((view, index) => (
@@ -241,25 +245,27 @@ function LeadDevelopmentPage() {
         </div>
 
         <div className="leads-company-list">
-          {companies.map((company) => (
-            <article key={company.name}>
-              <header>
-                <div>
-                  <h3>{company.name}</h3>
-                  <small>{company.industry}</small>
+          {companies.length === 0 ? (
+            <div className="module-empty-state" role="status">暂无高意向线索</div>
+          ) : companies.map((company) => (
+              <article key={company.name}>
+                <header>
+                  <div>
+                    <h3>{company.name}</h3>
+                    <small>{company.industry}</small>
+                  </div>
+                  <strong>{company.score}</strong>
+                </header>
+                <p>{company.next}</p>
+                <div className="tool-tags">
+                  {company.signals.map((signal) => <span key={signal}>{signal}</span>)}
                 </div>
-                <strong>{company.score}</strong>
-              </header>
-              <p>{company.next}</p>
-              <div className="tool-tags">
-                {company.signals.map((signal) => <span key={signal}>{signal}</span>)}
-              </div>
-              <footer>
-                <span className={company.stage === "高意向" ? "hot" : ""}>{company.stage}</span>
-                <Link to="/crm">加入CRM</Link>
-              </footer>
-            </article>
-          ))}
+                <footer>
+                  <span className={company.stage === "高意向" ? "hot" : ""}>{company.stage}</span>
+                  <Link to="/crm">加入CRM</Link>
+                </footer>
+              </article>
+            ))}
         </div>
       </section>
 

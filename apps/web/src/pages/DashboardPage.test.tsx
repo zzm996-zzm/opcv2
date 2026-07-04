@@ -35,14 +35,20 @@ describe("DashboardPage", () => {
     );
   }
 
-  it("renders the dashboard workbench instead of the placeholder", () => {
+  it("renders the dashboard workbench with empty backend state", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ metrics: [], projects: [], trend: [], pipeline: [], alerts: [], actions: [] }), { status: 200 })
+    );
+
     renderDashboardRoute();
 
     expect(screen.getByRole("heading", { name: "仪表盘" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "生成经营周报" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "经营指标" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "增长趋势" })).toBeInTheDocument();
-    expect(screen.getByText("智能客服系统")).toBeInTheDocument();
+    expect(await screen.findByText("暂无经营指标")).toBeInTheDocument();
+    expect(screen.getByText("暂无项目机会")).toBeInTheDocument();
+    expect(screen.queryByText("智能客服系统")).not.toBeInTheDocument();
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
   });
 
@@ -71,7 +77,7 @@ describe("DashboardPage", () => {
     expect(screen.getByText("检查仪表盘聚合接口")).toBeInTheDocument();
   });
 
-  it("shows backend load errors while keeping fallback dashboard data visible", async () => {
+  it("shows backend load errors without rendering fallback dashboard data", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "invalid_request" }), { status: 400 })
     );
@@ -79,6 +85,7 @@ describe("DashboardPage", () => {
     renderDashboardRoute();
 
     expect(await screen.findByText("请求参数有误，请检查后重试")).toBeInTheDocument();
-    expect(screen.getByText("智能客服系统")).toBeInTheDocument();
+    expect(screen.getByText("暂无经营指标")).toBeInTheDocument();
+    expect(screen.queryByText("智能客服系统")).not.toBeInTheDocument();
   });
 });

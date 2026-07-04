@@ -12,14 +12,15 @@ import (
 )
 
 type fakeApplication struct {
-	input  CreateInput
-	userID int64
-	taskID int64
-	limit  int
-	update TaskUpdate
-	task   Task
-	tasks  []Task
-	err    error
+	input   CreateInput
+	userID  int64
+	taskID  int64
+	filters ListFilters
+	update  TaskUpdate
+	task    Task
+	tasks   []Task
+	stats   Stats
+	err     error
 }
 
 func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task, error) {
@@ -27,10 +28,15 @@ func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task
 	return a.task, a.err
 }
 
-func (a *fakeApplication) ListTasks(_ context.Context, userID int64, limit int) ([]Task, error) {
+func (a *fakeApplication) ListTasks(_ context.Context, userID int64, filters ListFilters) ([]Task, error) {
 	a.userID = userID
-	a.limit = limit
+	a.filters = filters
 	return a.tasks, a.err
+}
+
+func (a *fakeApplication) TaskStats(_ context.Context, userID int64) (Stats, error) {
+	a.userID = userID
+	return a.stats, a.err
 }
 
 func (a *fakeApplication) GetTask(_ context.Context, userID, id int64) (Task, error) {
@@ -146,6 +152,22 @@ func TestListTasksEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 }
 
+func TestListTasksEndpointPassesFilters(t *testing.T) {
+	app := &fakeApplication{tasks: []Task{{ID: 99, UserID: 42, Title: "我的任务"}}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks?status=in_progress&project=商业沙盘&q=接口&limit=10", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.filters.Status != StatusInProgress || app.filters.Project != "商业沙盘" || app.filters.Query != "接口" || app.filters.Limit != 10 {
+		t.Fatalf("filters = %+v", app.filters)
+	}
+}
+
 func TestListTasksEndpointReturnsEmptyArrayAndCapsLimit(t *testing.T) {
 	app := &fakeApplication{}
 	router := tasksTestRouter(app)
@@ -157,11 +179,27 @@ func TestListTasksEndpointReturnsEmptyArrayAndCapsLimit(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.userID != 42 || app.limit != 100 {
-		t.Fatalf("user/limit = %d/%d", app.userID, app.limit)
+	if app.userID != 42 || app.filters.Limit != 100 {
+		t.Fatalf("user/limit = %d/%d", app.userID, app.filters.Limit)
 	}
 	if !strings.Contains(recorder.Body.String(), `"tasks":[]`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestTaskStatsEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{stats: Stats{Total: 3, Todo: 1, InProgress: 1, Completed: 1}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/stats", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || !strings.Contains(recorder.Body.String(), `"total":3`) {
+		t.Fatalf("user/body = %d/%s", app.userID, recorder.Body.String())
 	}
 }
 

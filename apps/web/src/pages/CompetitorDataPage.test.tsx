@@ -35,12 +35,17 @@ describe("CompetitorDataPage", () => {
     );
   }
 
-  it("renders the competitor data cracking workbench", () => {
+  it("renders the competitor data cracking workbench with empty backend state", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ scans: [] }), { status: 200 })
+    );
+
     renderCompetitorDataPage();
 
     expect(screen.getByRole("heading", { name: "竞品全盘数据破解" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "启动采集任务" })).toBeInTheDocument();
-    expect(screen.getByText("小鹅通")).toBeInTheDocument();
+    expect(await screen.findByText("暂无竞品画像")).toBeInTheDocument();
+    expect(screen.queryByText("小鹅通")).not.toBeInTheDocument();
     expect(screen.getByText("AI 破解结论")).toBeInTheDocument();
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
   });
@@ -82,7 +87,7 @@ describe("CompetitorDataPage", () => {
     expect(screen.getByText("自动化增强")).toBeInTheDocument();
   });
 
-  it("shows backend load errors while keeping fallback competitor data visible", async () => {
+  it("shows backend load errors without rendering fallback competitor data", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "invalid_request" }), { status: 400 })
     );
@@ -90,7 +95,8 @@ describe("CompetitorDataPage", () => {
     renderCompetitorDataPage();
 
     expect(await screen.findByText("请求参数有误，请检查后重试")).toBeInTheDocument();
-    expect(screen.getByText("小鹅通")).toBeInTheDocument();
+    expect(screen.getByText("暂无竞品画像")).toBeInTheDocument();
+    expect(screen.queryByText("小鹅通")).not.toBeInTheDocument();
   });
 
   it("creates a competitor scan and refreshes the displayed conclusion", async () => {

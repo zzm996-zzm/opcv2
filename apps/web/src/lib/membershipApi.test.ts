@@ -57,4 +57,29 @@ describe("membershipApi", () => {
       expect.any(Object)
     );
   });
+
+  it("loads plans usage orders and creates checkout", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ plans: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ usage: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ orders: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ order: { id: 13, status: "pending" }, payment: { mode: "manual" } }), { status: 200 }));
+
+    await membershipApi.listPlans();
+    await membershipApi.usage();
+    await membershipApi.listOrders(10);
+    await membershipApi.checkout({ plan_code: "pro", billing_cycle: "month" });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/membership/plans", expect.any(Object));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/membership/usage", expect.any(Object));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/membership/orders?limit=10", expect.any(Object));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/api/v1/membership/checkout",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ plan_code: "pro", billing_cycle: "month" })
+      })
+    );
+  });
 });

@@ -71,10 +71,13 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 		SELECT id, user_id, title, project, status, priority, due_at, tools, learning, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
+		  AND ($2 = '' OR status = $2)
+		  AND ($3 = '' OR project = $3)
+		  AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR project ILIKE '%' || $4 || '%' OR learning ILIKE '%' || $4 || '%')
 		ORDER BY created_at DESC
-		LIMIT $2
+		LIMIT $5
 	`)).
-		WithArgs(int64(42), 20).
+		WithArgs(int64(42), StatusTodo, "AI线索开发", "客户", 20).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "user_id", "title", "project", "status", "priority", "due_at", "tools", "learning", "created_at", "updated_at",
 		}).AddRow(
@@ -92,12 +95,53 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 		))
 
 	repository := NewPostgresRepository(db)
-	tasks, err := repository.ListTasks(context.Background(), 42, 20)
+	tasks, err := repository.ListTasks(context.Background(), 42, ListFilters{
+		Status:  StatusTodo,
+		Project: "AI线索开发",
+		Query:   "客户",
+		Limit:   20,
+	})
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
 	if len(tasks) != 1 || tasks[0].ID != 99 || tasks[0].Tools[0] != "CRM" {
 		t.Fatalf("tasks = %+v", tasks)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryReturnsTaskStats(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT
+			COUNT(*)::INT,
+			COUNT(*) FILTER (WHERE status = 'todo')::INT,
+			COUNT(*) FILTER (WHERE status = 'in_progress')::INT,
+			COUNT(*) FILTER (WHERE status = 'completed')::INT,
+			COUNT(*) FILTER (WHERE status = 'reminder')::INT,
+			COUNT(*) FILTER (WHERE due_at IS NOT NULL AND due_at < $2 AND status <> 'completed')::INT
+		FROM tasks
+		WHERE user_id = $1
+	`)).
+		WithArgs(int64(42), now).
+		WillReturnRows(pgxmock.NewRows([]string{"total", "todo", "in_progress", "completed", "reminder", "overdue"}).
+			AddRow(3, 1, 1, 1, 0, 1))
+
+	repository := NewPostgresRepository(db)
+	stats, err := repository.TaskStats(context.Background(), 42, now)
+	if err != nil {
+		t.Fatalf("TaskStats() error = %v", err)
+	}
+	if stats.Total != 3 || stats.InProgress != 1 || stats.Overdue != 1 {
+		t.Fatalf("stats = %+v", stats)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

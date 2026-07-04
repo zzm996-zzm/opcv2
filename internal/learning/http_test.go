@@ -12,15 +12,19 @@ import (
 )
 
 type fakeApp struct {
-	course         Course
-	courses        []Course
-	courseFilter   CourseFilter
-	progress       []Progress
-	diagnosis      Diagnosis
-	diagnosisInput CreateDiagnosisInput
-	progressUserID int64
-	latestUserID   int64
-	err            error
+	course          Course
+	courses         []Course
+	courseFilter    CourseFilter
+	progress        []Progress
+	diagnosis       Diagnosis
+	gaps            DiagnosisGaps
+	recommendations DiagnosisRecommendations
+	plan            DiagnosisPlan
+	report          DiagnosisReport
+	diagnosisInput  CreateDiagnosisInput
+	progressUserID  int64
+	latestUserID    int64
+	err             error
 }
 
 func (a *fakeApp) ListCourses(_ context.Context, filter CourseFilter) ([]Course, error) {
@@ -41,6 +45,22 @@ func (a *fakeApp) CreateDiagnosis(_ context.Context, input CreateDiagnosisInput)
 func (a *fakeApp) LatestDiagnosis(_ context.Context, userID int64) (Diagnosis, error) {
 	a.latestUserID = userID
 	return a.diagnosis, a.err
+}
+func (a *fakeApp) LatestGaps(_ context.Context, userID int64) (DiagnosisGaps, error) {
+	a.latestUserID = userID
+	return a.gaps, a.err
+}
+func (a *fakeApp) LatestRecommendations(_ context.Context, userID int64) (DiagnosisRecommendations, error) {
+	a.latestUserID = userID
+	return a.recommendations, a.err
+}
+func (a *fakeApp) LatestPlan(_ context.Context, userID int64) (DiagnosisPlan, error) {
+	a.latestUserID = userID
+	return a.plan, a.err
+}
+func (a *fakeApp) LatestReport(_ context.Context, userID int64) (DiagnosisReport, error) {
+	a.latestUserID = userID
+	return a.report, a.err
 }
 
 func TestHTTPHandlerListsCourses(t *testing.T) {
@@ -171,5 +191,65 @@ func TestHTTPHandlerGetsLatestDiagnosisForAuthenticatedUser(t *testing.T) {
 	}
 	if app.latestUserID != 42 {
 		t.Fatalf("latest diagnosis userID = %d, want authenticated user 42", app.latestUserID)
+	}
+}
+
+func TestHTTPHandlerGetsLatestDerivedLearningViews(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		app      *fakeApp
+		expected string
+	}{
+		{
+			name:     "gaps",
+			path:     "/api/v1/learning/diagnoses/latest/gaps",
+			app:      &fakeApp{gaps: DiagnosisGaps{DiagnosisID: 99, Gaps: []GapItem{{Name: "数据分析能力", Gap: 22}}}},
+			expected: `"gaps"`,
+		},
+		{
+			name:     "recommendations",
+			path:     "/api/v1/learning/diagnoses/latest/recommendations",
+			app:      &fakeApp{recommendations: DiagnosisRecommendations{DiagnosisID: 99, Focus: []RecommendationFocus{{Name: "数据分析能力"}}}},
+			expected: `"focus"`,
+		},
+		{
+			name:     "plan",
+			path:     "/api/v1/learning/diagnoses/latest/plan",
+			app:      &fakeApp{plan: DiagnosisPlan{DiagnosisID: 99, Title: "AI能力路径"}},
+			expected: `"title":"AI能力路径"`,
+		},
+		{
+			name:     "report",
+			path:     "/api/v1/learning/diagnoses/latest/report",
+			app:      &fakeApp{report: DiagnosisReport{DiagnosisID: 99, OverallScore: 82}},
+			expected: `"overall_score":82`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			router := gin.New()
+			group := router.Group("/api/v1")
+			group.Use(func(c *gin.Context) {
+				c.Set(auth.UserIDContextKey, int64(42))
+				c.Next()
+			})
+			NewHTTPHandler(tt.app).RegisterProtected(group)
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if tt.app.latestUserID != 42 {
+				t.Fatalf("latest userID = %d, want authenticated user 42", tt.app.latestUserID)
+			}
+			if !strings.Contains(recorder.Body.String(), tt.expected) {
+				t.Fatalf("body = %s, want %s", recorder.Body.String(), tt.expected)
+			}
+		})
 	}
 }

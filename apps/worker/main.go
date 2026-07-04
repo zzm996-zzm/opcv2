@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/zzm/opcv2/internal/geo"
 	"github.com/zzm/opcv2/internal/leads"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/postgres"
@@ -40,9 +41,12 @@ func main() {
 		taskqueue.NewClient(cfg.RedisAddr),
 		leadProvider,
 	)
+	geoRepository := geo.NewPostgresRepository(db)
+	geoService := geo.NewService(geoRepository)
 	server := taskqueue.NewServer(cfg.RedisAddr)
 	mux := taskqueue.NewMux()
 	leads.RegisterWorker(mux, leadsService)
+	geo.RegisterWorker(mux, geoService)
 	logger.Info("worker starting", "redis_addr", cfg.RedisAddr)
 	if err := server.Run(mux); err != nil {
 		logger.Error("run worker", "error", err)

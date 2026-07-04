@@ -17,6 +17,22 @@ export type Task = {
   updated_at: string;
 };
 
+export type TaskFilters = {
+  status?: TaskStatus;
+  project?: string;
+  q?: string;
+  limit?: number;
+};
+
+export type TaskStats = {
+  total: number;
+  todo: number;
+  in_progress: number;
+  completed: number;
+  reminder: number;
+  overdue: number;
+};
+
 export type CreateTaskInput = {
   title: string;
   project: string;
@@ -59,6 +75,17 @@ function toUpdatePayload(input: UpdateTaskInput) {
   };
 }
 
+function queryString(params: Record<string, string | number | undefined>) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") {
+      search.set(key, String(value));
+    }
+  });
+  const encoded = search.toString();
+  return encoded ? `?${encoded}` : "";
+}
+
 export const tasksApi = {
   createTask(input: CreateTaskInput) {
     return apiRequest<Task>("/api/v1/tasks", {
@@ -67,8 +94,15 @@ export const tasksApi = {
     });
   },
 
-  listTasks(limit = 20) {
-    return apiRequest<{ tasks: Task[] }>(`/api/v1/tasks?limit=${limit}`, {
+  listTasks(filters: TaskFilters | number = {}) {
+    const normalized = typeof filters === "number" ? { limit: filters } : filters;
+    return apiRequest<{ tasks: Task[] }>(`/api/v1/tasks${queryString(normalized)}`, {
+      method: "GET"
+    });
+  },
+
+  stats() {
+    return apiRequest<TaskStats>("/api/v1/tasks/stats", {
       method: "GET"
     });
   },

@@ -38,4 +38,17 @@ describe("sandboxApi", () => {
       expect.objectContaining({ method: "POST" })
     );
   });
+
+  it("gets a sandbox session by id", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 99, status: "completed" }), { status: 200 })
+    );
+
+    await sandboxApi.getSession(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/sandbox/sessions/99",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
 });

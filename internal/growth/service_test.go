@@ -99,3 +99,46 @@ func TestServiceRejectsOtherUsersModel(t *testing.T) {
 		t.Fatalf("err = %v, want ErrModelNotFound", err)
 	}
 }
+
+func TestServiceDerivesGrowthViewsFromModel(t *testing.T) {
+	model := Model{
+		ID:     99,
+		UserID: 42,
+		Name:   "智能客服系统 · 标准方案",
+		Assumptions: Assumptions{
+			MonthlyVisits:   24000,
+			LeadRate:        0.068,
+			DealRate:        0.14,
+			AverageOrder:    820,
+			AcquisitionCost: 42,
+			DeliveryCost:    51000,
+		},
+		Result:    Result{MonthlyRevenue: 186960, Leads: 1632, Deals: 228, PaybackDays: 20, NetMargin: 0.36},
+		UpdatedAt: time.Date(2026, 6, 30, 8, 30, 0, 0, time.UTC),
+	}
+	service := NewService(&fakeRepository{model: model})
+
+	scenarios, err := service.ModelScenarios(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ModelScenarios() error = %v", err)
+	}
+	if scenarios.ModelID != 99 || len(scenarios.Scenarios) != 3 || scenarios.Scenarios[1].Name != "标准方案" {
+		t.Fatalf("scenarios = %+v", scenarios)
+	}
+
+	forecast, err := service.ModelForecast(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ModelForecast() error = %v", err)
+	}
+	if forecast.ModelID != 99 || len(forecast.Months) != 5 || forecast.Months[2].Revenue != model.Result.MonthlyRevenue {
+		t.Fatalf("forecast = %+v", forecast)
+	}
+
+	recommendations, err := service.ModelRecommendations(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ModelRecommendations() error = %v", err)
+	}
+	if recommendations.ModelID != 99 || len(recommendations.CostItems) != 4 || len(recommendations.ActionItems) != 3 {
+		t.Fatalf("recommendations = %+v", recommendations)
+	}
+}

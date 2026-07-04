@@ -12,13 +12,16 @@ import (
 )
 
 type fakeApplication struct {
-	input   CreateInput
-	userID  int64
-	modelID int64
-	limit   int
-	model   Model
-	models  []Model
-	err     error
+	input           CreateInput
+	userID          int64
+	modelID         int64
+	limit           int
+	model           Model
+	models          []Model
+	scenarios       GrowthScenarios
+	forecast        GrowthForecast
+	recommendations GrowthRecommendations
+	err             error
 }
 
 func (a *fakeApplication) CreateModel(_ context.Context, input CreateInput) (Model, error) {
@@ -36,6 +39,24 @@ func (a *fakeApplication) GetModel(_ context.Context, userID, id int64) (Model, 
 	a.userID = userID
 	a.modelID = id
 	return a.model, a.err
+}
+
+func (a *fakeApplication) ModelScenarios(_ context.Context, userID, id int64) (GrowthScenarios, error) {
+	a.userID = userID
+	a.modelID = id
+	return a.scenarios, a.err
+}
+
+func (a *fakeApplication) ModelForecast(_ context.Context, userID, id int64) (GrowthForecast, error) {
+	a.userID = userID
+	a.modelID = id
+	return a.forecast, a.err
+}
+
+func (a *fakeApplication) ModelRecommendations(_ context.Context, userID, id int64) (GrowthRecommendations, error) {
+	a.userID = userID
+	a.modelID = id
+	return a.recommendations, a.err
 }
 
 func growthTestRouter(app Application) *gin.Engine {
@@ -148,5 +169,52 @@ func TestGetModelEndpointReturnsNotFoundForOtherUser(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestDerivedGrowthEndpointsUseAuthenticatedUserAndModelID(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		app  *fakeApplication
+		want string
+	}{
+		{
+			name: "scenarios",
+			path: "/api/v1/growth/models/99/scenarios",
+			app:  &fakeApplication{scenarios: GrowthScenarios{ModelID: 99, Scenarios: []GrowthScenario{{Name: "标准方案"}}}},
+			want: `"scenarios"`,
+		},
+		{
+			name: "forecast",
+			path: "/api/v1/growth/models/99/forecast",
+			app:  &fakeApplication{forecast: GrowthForecast{ModelID: 99, Months: []ForecastMonth{{Month: "第3月", Revenue: 186960}}}},
+			want: `"months"`,
+		},
+		{
+			name: "recommendations",
+			path: "/api/v1/growth/models/99/recommendations",
+			app:  &fakeApplication{recommendations: GrowthRecommendations{ModelID: 99, ActionItems: []string{"优先优化成交率"}}},
+			want: `"action_items"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := growthTestRouter(tt.app)
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+			}
+			if tt.app.userID != 42 || tt.app.modelID != 99 {
+				t.Fatalf("user/model = %d/%d, want 42/99", tt.app.userID, tt.app.modelID)
+			}
+			if !strings.Contains(recorder.Body.String(), tt.want) {
+				t.Fatalf("body = %s", recorder.Body.String())
+			}
+		})
 	}
 }

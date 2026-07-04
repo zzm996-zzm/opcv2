@@ -41,6 +41,22 @@ type TaskUpdate struct {
 	Learning *string    `json:"learning,omitempty"`
 }
 
+type ListFilters struct {
+	Status  string
+	Project string
+	Query   string
+	Limit   int
+}
+
+type Stats struct {
+	Total      int `json:"total"`
+	Todo       int `json:"todo"`
+	InProgress int `json:"in_progress"`
+	Completed  int `json:"completed"`
+	Reminder   int `json:"reminder"`
+	Overdue    int `json:"overdue"`
+}
+
 type Task struct {
 	ID        int64      `json:"id"`
 	UserID    int64      `json:"user_id"`
