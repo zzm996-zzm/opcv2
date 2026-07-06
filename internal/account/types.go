@@ -47,6 +47,27 @@ type OnboardingState struct {
 	Sections  []OnboardingSection `json:"sections"`
 }
 
+const (
+	ProfileGroupIdentity    = "identity"
+	ProfileGroupBusiness    = "business"
+	ProfileGroupProducts    = "products"
+	ProfileGroupResources   = "resources"
+	ProfileGroupGoals       = "goals"
+	ProfileGroupPreferences = "preferences"
+)
+
+type ProfileGroup struct {
+	Key    string            `json:"key"`
+	Title  string            `json:"title"`
+	Fields map[string]string `json:"fields"`
+}
+
+type ProfileContext struct {
+	UserID    int64          `json:"user_id"`
+	Completed bool           `json:"completed"`
+	Groups    []ProfileGroup `json:"groups"`
+}
+
 type Preferences struct {
 	NotificationsEnabled bool   `json:"notifications_enabled"`
 	DefaultModel         string `json:"default_model"`

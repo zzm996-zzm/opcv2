@@ -1484,6 +1484,72 @@ Validation:
 
 Response `200`: same shape as Get Profile.
 
+### Get Profile Context
+
+`GET /api/v1/account/profile-context`
+
+Returns the normalized six-group user profile context used by AI workflows.
+It merges basic account/profile fields with saved onboarding sections. Missing
+groups are returned as empty maps so callers can rely on stable keys.
+
+Group keys are fixed:
+
+- `identity`
+- `business`
+- `products`
+- `resources`
+- `goals`
+- `preferences`
+
+Response `200`:
+
+```json
+{
+  "user_id": 42,
+  "completed": true,
+  "groups": [
+    {
+      "key": "identity",
+      "title": "基本身份",
+      "fields": {
+        "nickname": "张晨",
+        "role": "创始人",
+        "industry": "企业服务"
+      }
+    },
+    {
+      "key": "business",
+      "title": "我的业务/公司",
+      "fields": {
+        "company": "智活AI科技有限公司",
+        "industry": "企业服务",
+        "stage": "启动"
+      }
+    },
+    {
+      "key": "products",
+      "title": "我的产品",
+      "fields": {}
+    },
+    {
+      "key": "resources",
+      "title": "能力与资源",
+      "fields": {}
+    },
+    {
+      "key": "goals",
+      "title": "目标与诉求",
+      "fields": {}
+    },
+    {
+      "key": "preferences",
+      "title": "偏好",
+      "fields": {}
+    }
+  ]
+}
+```
+
 ### Get Onboarding
 
 `GET /api/v1/account/onboarding`

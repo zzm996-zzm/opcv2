@@ -12,6 +12,7 @@ import (
 
 type Application interface {
 	GetProfile(ctx context.Context, userID int64) (ProfilePayload, error)
+	GetProfileContext(ctx context.Context, userID int64) (ProfileContext, error)
 	UpdateProfile(ctx context.Context, userID int64, update ProfileUpdate) (ProfilePayload, error)
 	GetOnboarding(ctx context.Context, userID int64) (OnboardingState, error)
 	SaveOnboarding(ctx context.Context, userID int64, state OnboardingState) (OnboardingState, error)
@@ -33,6 +34,7 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/account/profile", h.getProfile)
+	router.GET("/account/profile-context", h.getProfileContext)
 	router.PATCH("/account/profile", h.updateProfile)
 	router.GET("/account/onboarding", h.getOnboarding)
 	router.PUT("/account/onboarding", h.saveOnboarding)
@@ -51,6 +53,15 @@ func (h *HTTPHandler) getProfile(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, payload)
+}
+
+func (h *HTTPHandler) getProfileContext(c *gin.Context) {
+	context, err := h.app.GetProfileContext(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, context)
 }
 
 func (h *HTTPHandler) updateProfile(c *gin.Context) {

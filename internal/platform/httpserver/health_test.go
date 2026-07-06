@@ -136,6 +136,12 @@ type fakeAccountApp struct{}
 func (fakeAccountApp) GetProfile(context.Context, int64) (account.ProfilePayload, error) {
 	return account.ProfilePayload{Profile: account.Profile{ID: 42, Nickname: "张晨"}}, nil
 }
+func (fakeAccountApp) GetProfileContext(context.Context, int64) (account.ProfileContext, error) {
+	return account.ProfileContext{
+		UserID: 42,
+		Groups: []account.ProfileGroup{{Key: account.ProfileGroupIdentity, Title: "基本身份", Fields: map[string]string{"nickname": "张晨"}}},
+	}, nil
+}
 func (fakeAccountApp) UpdateProfile(context.Context, int64, account.ProfileUpdate) (account.ProfilePayload, error) {
 	return account.ProfilePayload{Profile: account.Profile{ID: 42, Nickname: "张晨"}}, nil
 }

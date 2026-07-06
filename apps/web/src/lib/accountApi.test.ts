@@ -26,6 +26,20 @@ describe("accountApi", () => {
     );
   });
 
+  it("reads profile context", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        user_id: 42,
+        completed: true,
+        groups: [{ key: "identity", title: "基本身份", fields: { nickname: "张晨" } }]
+      }), { status: 200 }));
+
+    const context = await accountApi.getProfileContext();
+
+    expect(context.groups[0].key).toBe("identity");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/account/profile-context", expect.any(Object));
+  });
+
   it("saves and completes onboarding", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ completed: false, sections: [] }), { status: 200 }))

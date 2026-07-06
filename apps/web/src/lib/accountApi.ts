@@ -45,6 +45,20 @@ export type OnboardingState = {
   sections: OnboardingSection[];
 };
 
+export type ProfileGroupKey = "identity" | "business" | "products" | "resources" | "goals" | "preferences";
+
+export type ProfileGroup = {
+  key: ProfileGroupKey;
+  title: string;
+  fields: Record<string, string>;
+};
+
+export type ProfileContext = {
+  user_id: number;
+  completed: boolean;
+  groups: ProfileGroup[];
+};
+
 export type AccountPreferences = {
   notifications_enabled: boolean;
   default_model: string;
@@ -79,6 +93,10 @@ export type AccountDeletionStatus = {
 export const accountApi = {
   getProfile() {
     return apiRequest<AccountProfilePayload>("/api/v1/account/profile");
+  },
+
+  getProfileContext() {
+    return apiRequest<ProfileContext>("/api/v1/account/profile-context");
   },
 
   updateProfile(input: AccountProfileUpdate) {

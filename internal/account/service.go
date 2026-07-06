@@ -77,6 +77,21 @@ func (s *Service) GetOnboarding(ctx context.Context, userID int64) (OnboardingSt
 	return s.repository.GetOnboarding(ctx, userID)
 }
 
+func (s *Service) GetProfileContext(ctx context.Context, userID int64) (ProfileContext, error) {
+	if err := s.ready(userID); err != nil {
+		return ProfileContext{}, err
+	}
+	profile, err := s.repository.GetProfile(ctx, userID)
+	if err != nil {
+		return ProfileContext{}, err
+	}
+	onboarding, err := s.repository.GetOnboarding(ctx, userID)
+	if err != nil {
+		return ProfileContext{}, err
+	}
+	return buildProfileContext(profile.Profile, onboarding), nil
+}
+
 func (s *Service) SaveOnboarding(ctx context.Context, userID int64, state OnboardingState) (OnboardingState, error) {
 	if err := s.ready(userID); err != nil {
 		return OnboardingState{}, err
@@ -166,5 +181,61 @@ func (s *Service) ready(userID int64) error {
 func trimString(value *string) {
 	if value != nil {
 		*value = strings.TrimSpace(*value)
+	}
+}
+
+func buildProfileContext(profile Profile, onboarding OnboardingState) ProfileContext {
+	groups := defaultProfileGroups(profile)
+	byKey := make(map[string]int, len(groups))
+	for index, group := range groups {
+		byKey[group.Key] = index
+	}
+	for _, section := range onboarding.Sections {
+		key := strings.TrimSpace(section.Key)
+		index, ok := byKey[key]
+		if !ok {
+			continue
+		}
+		if groups[index].Fields == nil {
+			groups[index].Fields = map[string]string{}
+		}
+		for field, value := range section.Fields {
+			field = strings.TrimSpace(field)
+			if field == "" {
+				continue
+			}
+			groups[index].Fields[field] = strings.TrimSpace(value)
+		}
+	}
+	return ProfileContext{
+		UserID:    profile.ID,
+		Completed: onboarding.Completed,
+		Groups:    groups,
+	}
+}
+
+func defaultProfileGroups(profile Profile) []ProfileGroup {
+	return []ProfileGroup{
+		{
+			Key:   ProfileGroupIdentity,
+			Title: "基本身份",
+			Fields: map[string]string{
+				"nickname": profile.Nickname,
+				"role":     profile.Role,
+				"industry": profile.Industry,
+			},
+		},
+		{
+			Key:   ProfileGroupBusiness,
+			Title: "我的业务/公司",
+			Fields: map[string]string{
+				"company":  profile.Company,
+				"industry": profile.Industry,
+			},
+		},
+		{Key: ProfileGroupProducts, Title: "我的产品", Fields: map[string]string{}},
+		{Key: ProfileGroupResources, Title: "能力与资源", Fields: map[string]string{}},
+		{Key: ProfileGroupGoals, Title: "目标与诉求", Fields: map[string]string{}},
+		{Key: ProfileGroupPreferences, Title: "偏好", Fields: map[string]string{}},
 	}
 }

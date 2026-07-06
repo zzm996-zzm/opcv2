@@ -13,6 +13,7 @@ import (
 
 type fakeApplication struct {
 	profile     ProfilePayload
+	context     ProfileContext
 	update      ProfileUpdate
 	onboarding  OnboardingState
 	preferences Preferences
@@ -28,6 +29,11 @@ type fakeApplication struct {
 func (a *fakeApplication) GetProfile(_ context.Context, userID int64) (ProfilePayload, error) {
 	a.userID = userID
 	return a.profile, a.err
+}
+
+func (a *fakeApplication) GetProfileContext(_ context.Context, userID int64) (ProfileContext, error) {
+	a.userID = userID
+	return a.context, a.err
 }
 
 func (a *fakeApplication) UpdateProfile(_ context.Context, userID int64, update ProfileUpdate) (ProfilePayload, error) {
@@ -103,6 +109,24 @@ func TestGetProfileEndpointUsesAuthenticatedUser(t *testing.T) {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
 	if app.userID != 42 || !strings.Contains(recorder.Body.String(), `"nickname":"张晨"`) {
+		t.Fatalf("user/body = %d/%s", app.userID, recorder.Body.String())
+	}
+}
+
+func TestGetProfileContextEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{context: ProfileContext{
+		UserID: 42,
+		Groups: []ProfileGroup{{Key: ProfileGroupIdentity, Title: "基本身份", Fields: map[string]string{"nickname": "张晨"}}},
+	}}
+	router := accountTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/account/profile-context", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || !strings.Contains(recorder.Body.String(), `"key":"identity"`) {
 		t.Fatalf("user/body = %d/%s", app.userID, recorder.Body.String())
 	}
 }

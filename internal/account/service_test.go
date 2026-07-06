@@ -145,6 +145,50 @@ func TestServiceCompletesOnboarding(t *testing.T) {
 	}
 }
 
+func TestServiceBuildsProfileContextWithSixGroups(t *testing.T) {
+	repository := &fakeRepository{
+		profile: ProfilePayload{Profile: Profile{
+			ID:       42,
+			Nickname: "张晨",
+			Company:  "智活AI",
+			Industry: "企业服务",
+			Role:     "创始人",
+		}},
+		onboarding: OnboardingState{
+			Completed: true,
+			Sections: []OnboardingSection{
+				{Key: "business", Title: "我的业务/公司", Fields: map[string]string{"stage": "启动", "channels": "私域"}},
+				{Key: "goals", Title: "目标与诉求", Fields: map[string]string{"short_term": "验证项目"}},
+			},
+		},
+	}
+	service := NewService(repository)
+
+	context, err := service.GetProfileContext(context.Background(), 42)
+
+	if err != nil {
+		t.Fatalf("GetProfileContext() error = %v", err)
+	}
+	if context.UserID != 42 || !context.Completed {
+		t.Fatalf("context = %+v", context)
+	}
+	if len(context.Groups) != 6 {
+		t.Fatalf("groups = %+v, want 6 groups", context.Groups)
+	}
+	identity := context.Groups[0]
+	if identity.Key != ProfileGroupIdentity || identity.Fields["nickname"] != "张晨" || identity.Fields["industry"] != "企业服务" {
+		t.Fatalf("identity = %+v", identity)
+	}
+	business := context.Groups[1]
+	if business.Key != ProfileGroupBusiness || business.Fields["company"] != "智活AI" || business.Fields["stage"] != "启动" {
+		t.Fatalf("business = %+v", business)
+	}
+	if context.Groups[2].Key != ProfileGroupProducts || context.Groups[3].Key != ProfileGroupResources ||
+		context.Groups[4].Key != ProfileGroupGoals || context.Groups[5].Key != ProfileGroupPreferences {
+		t.Fatalf("group order = %+v", context.Groups)
+	}
+}
+
 func TestServiceReturnsDefaultPreferences(t *testing.T) {
 	service := NewService(&fakeRepository{preferences: DefaultPreferences()})
 
