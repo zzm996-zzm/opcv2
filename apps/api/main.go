@@ -170,7 +170,11 @@ func main() {
 	growthService := growth.NewService(growthRepository)
 	growthHTTP := growth.NewHTTPHandler(growthService)
 	competitorRepository := competitor.NewPostgresRepository(db)
-	competitorService := competitor.NewService(competitorRepository, competitor.WithQuotaConsumer(membershipService))
+	competitorService := competitor.NewService(
+		competitorRepository,
+		competitor.WithQuotaConsumer(membershipService),
+		competitor.WithQueue(taskqueue.NewClient(cfg.RedisAddr)),
+	)
 	competitorHTTP := competitor.NewHTTPHandler(competitorService)
 	learningRepository := learning.NewPostgresRepository(db)
 	learningService := learning.NewService(learningRepository)

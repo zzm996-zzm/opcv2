@@ -6,11 +6,13 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type postgresDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 type PostgresRepository struct {
@@ -79,6 +81,42 @@ func (r *PostgresRepository) GetScan(ctx context.Context, userID, id int64) (Sca
 		return Scan{}, ErrScanNotFound
 	}
 	return scan, err
+}
+
+func (r *PostgresRepository) UpdateScanStatus(ctx context.Context, id int64, status string, progressPercent int, currentStep string, errorMessage string) (Scan, error) {
+	scan, err := scanScan(r.db.QueryRow(ctx, `
+		UPDATE competitor_scans
+		SET status = $2, progress_percent = $3, current_step = $4, error_message = $5, updated_at = NOW()
+		WHERE id = $1
+		RETURNING id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
+	`, id, status, progressPercent, currentStep, errorMessage))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Scan{}, ErrScanNotFound
+	}
+	return scan, err
+}
+
+func (r *PostgresRepository) StoreScanResults(ctx context.Context, id int64, result ScanResult) error {
+	competitors, err := json.Marshal(result.Competitors)
+	if err != nil {
+		return err
+	}
+	conclusions, err := json.Marshal(result.Conclusions)
+	if err != nil {
+		return err
+	}
+	tag, err := r.db.Exec(ctx, `
+		UPDATE competitor_scans
+		SET competitors = $2, conclusions = $3, updated_at = NOW()
+		WHERE id = $1
+	`, id, competitors, conclusions)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrScanNotFound
+	}
+	return nil
 }
 
 func (r *PostgresRepository) ListWatchlist(ctx context.Context, userID int64, limit int) ([]WatchItem, error) {

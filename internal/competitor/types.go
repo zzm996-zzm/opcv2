@@ -24,6 +24,11 @@ type CreateScanInput struct {
 	Focus   string   `json:"focus"`
 }
 
+type ScanResult struct {
+	Competitors []Competitor
+	Conclusions []Conclusion
+}
+
 type Scan struct {
 	ID              int64        `json:"id"`
 	UserID          int64        `json:"user_id"`

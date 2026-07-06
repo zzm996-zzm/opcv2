@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zzm/opcv2/internal/jobs"
 	"github.com/zzm/opcv2/internal/membership"
 )
 
@@ -15,12 +16,48 @@ type fakeRepository struct {
 	scans       []Scan
 	watchlist   []WatchItem
 	events      []Event
+	updates     []scanStatusUpdate
+	results     ScanResult
 	err         error
+}
+
+type scanStatusUpdate struct {
+	id              int64
+	status          string
+	progressPercent int
+	currentStep     string
+	errorMessage    string
+}
+
+type fakeQueue struct {
+	jobs []jobs.Job
+	err  error
+}
+
+type fakeScanner struct {
+	scan Scan
+	err  error
 }
 
 type fakeQuotaConsumer struct {
 	consumed []membership.ConsumeInput
 	err      error
+}
+
+func (q *fakeQueue) Enqueue(_ context.Context, job jobs.Job) error {
+	q.jobs = append(q.jobs, job)
+	return q.err
+}
+
+func (s *fakeScanner) Scan(_ context.Context, scan Scan) (ScanResult, error) {
+	s.scan = scan
+	if s.err != nil {
+		return ScanResult{}, s.err
+	}
+	return ScanResult{
+		Competitors: []Competitor{{Name: "小鹅通", Category: "知识付费", Score: 91, Risk: "high"}},
+		Conclusions: []Conclusion{{Title: "定位变化", Detail: "竞品正在强化 AI 私域能力。"}},
+	}, nil
 }
 
 func (c *fakeQuotaConsumer) CheckAndConsume(_ context.Context, input membership.ConsumeInput) (membership.UsageItem, error) {
@@ -60,6 +97,29 @@ func (r *fakeRepository) GetScan(_ context.Context, userID, id int64) (Scan, err
 		return Scan{}, ErrScanNotFound
 	}
 	return r.scan, nil
+}
+
+func (r *fakeRepository) UpdateScanStatus(_ context.Context, id int64, status string, progressPercent int, currentStep string, errorMessage string) (Scan, error) {
+	r.updates = append(r.updates, scanStatusUpdate{
+		id:              id,
+		status:          status,
+		progressPercent: progressPercent,
+		currentStep:     currentStep,
+		errorMessage:    errorMessage,
+	})
+	r.scan.Status = status
+	r.scan.ProgressPercent = progressPercent
+	r.scan.CurrentStep = currentStep
+	r.scan.ErrorMessage = errorMessage
+	return r.scan, r.err
+}
+
+func (r *fakeRepository) StoreScanResults(_ context.Context, id int64, result ScanResult) error {
+	r.results = result
+	r.scan.ID = id
+	r.scan.Competitors = result.Competitors
+	r.scan.Conclusions = result.Conclusions
+	return r.err
 }
 
 func (r *fakeRepository) ListWatchlist(_ context.Context, userID int64, limit int) ([]WatchItem, error) {
@@ -140,6 +200,78 @@ func TestServiceCreatesQueuedScanTask(t *testing.T) {
 	}
 	if repository.createdScan.UserID != 42 || repository.createdScan.CreatedAt != now {
 		t.Fatalf("created = %+v", repository.createdScan)
+	}
+}
+
+func TestServiceCreateScanEnqueuesCompetitorScanJob(t *testing.T) {
+	repository := &fakeRepository{}
+	queue := &fakeQueue{}
+	service := NewService(repository, WithQueue(queue))
+
+	scan, err := service.CreateScan(context.Background(), CreateScanInput{
+		UserID:  42,
+		Targets: []string{"小鹅通"},
+		Focus:   "价格变化",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateScan() error = %v", err)
+	}
+	if scan.ID != 99 {
+		t.Fatalf("scan.ID = %d, want 99", scan.ID)
+	}
+	if len(queue.jobs) != 1 {
+		t.Fatalf("jobs = %+v, want one competitor scan job", queue.jobs)
+	}
+	job := queue.jobs[0]
+	if job.Type != jobs.TypeCompetitorScan || job.IdempotencyKey != "competitor-scan-99" || job.Payload["scan_id"] != int64(99) {
+		t.Fatalf("job = %+v", job)
+	}
+}
+
+func TestServiceProcessScanStoresResultsAndMarksSucceeded(t *testing.T) {
+	repository := &fakeRepository{scan: Scan{ID: 99, UserID: 42, Targets: []string{"小鹅通"}, Focus: "价格变化", Status: StatusQueued}}
+	scanner := &fakeScanner{}
+	service := NewService(repository, WithScanner(scanner))
+
+	err := service.ProcessScan(context.Background(), 99)
+
+	if err != nil {
+		t.Fatalf("ProcessScan() error = %v", err)
+	}
+	if scanner.scan.ID != 99 || scanner.scan.Status != StatusRunning {
+		t.Fatalf("scanner scan = %+v", scanner.scan)
+	}
+	if len(repository.results.Competitors) != 1 || len(repository.results.Conclusions) != 1 {
+		t.Fatalf("results = %+v", repository.results)
+	}
+	if len(repository.updates) != 2 {
+		t.Fatalf("updates = %+v, want running and succeeded", repository.updates)
+	}
+	if repository.updates[0].status != StatusRunning || repository.updates[0].progressPercent != 30 || repository.updates[0].currentStep != "collecting_sources" {
+		t.Fatalf("running update = %+v", repository.updates[0])
+	}
+	if repository.updates[1].status != StatusSucceeded || repository.updates[1].progressPercent != 100 || repository.updates[1].currentStep != "succeeded" {
+		t.Fatalf("succeeded update = %+v", repository.updates[1])
+	}
+}
+
+func TestServiceProcessScanMarksFailedWhenScannerFails(t *testing.T) {
+	cause := errors.New("script account pool unavailable")
+	repository := &fakeRepository{scan: Scan{ID: 99, UserID: 42, Targets: []string{"小鹅通"}, Status: StatusQueued}}
+	service := NewService(repository, WithScanner(&fakeScanner{err: cause}))
+
+	err := service.ProcessScan(context.Background(), 99)
+
+	if !errors.Is(err, cause) {
+		t.Fatalf("ProcessScan() error = %v, want scanner cause", err)
+	}
+	if len(repository.updates) != 2 {
+		t.Fatalf("updates = %+v, want running and failed", repository.updates)
+	}
+	failed := repository.updates[1]
+	if failed.status != StatusFailed || failed.progressPercent != 100 || failed.currentStep != "failed" || failed.errorMessage != cause.Error() {
+		t.Fatalf("failed update = %+v", failed)
 	}
 }
 

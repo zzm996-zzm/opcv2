@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zzm/opcv2/internal/jobs"
 	"github.com/zzm/opcv2/internal/membership"
 )
 
@@ -15,8 +16,18 @@ type Repository interface {
 	CreateScan(ctx context.Context, scan Scan) (Scan, error)
 	ListScans(ctx context.Context, userID int64, limit int) ([]Scan, error)
 	GetScan(ctx context.Context, userID, id int64) (Scan, error)
+	UpdateScanStatus(ctx context.Context, id int64, status string, progressPercent int, currentStep string, errorMessage string) (Scan, error)
+	StoreScanResults(ctx context.Context, id int64, result ScanResult) error
 	ListWatchlist(ctx context.Context, userID int64, limit int) ([]WatchItem, error)
 	ListEvents(ctx context.Context, userID int64, limit int) ([]Event, error)
+}
+
+type Queue interface {
+	Enqueue(ctx context.Context, job jobs.Job) error
+}
+
+type Scanner interface {
+	Scan(ctx context.Context, scan Scan) (ScanResult, error)
 }
 
 type QuotaConsumer interface {
@@ -28,6 +39,8 @@ type Option func(*Service)
 type Service struct {
 	repository Repository
 	quota      QuotaConsumer
+	queue      Queue
+	scanner    Scanner
 	now        func() time.Time
 }
 
@@ -42,6 +55,18 @@ func NewService(repository Repository, options ...Option) *Service {
 func WithQuotaConsumer(quota QuotaConsumer) Option {
 	return func(service *Service) {
 		service.quota = quota
+	}
+}
+
+func WithQueue(queue Queue) Option {
+	return func(service *Service) {
+		service.queue = queue
+	}
+}
+
+func WithScanner(scanner Scanner) Option {
+	return func(service *Service) {
+		service.scanner = scanner
 	}
 }
 
@@ -62,7 +87,7 @@ func (s *Service) CreateScan(ctx context.Context, input CreateScanInput) (Scan, 
 		}
 	}
 	now := s.now()
-	return s.repository.CreateScan(ctx, Scan{
+	scan, err := s.repository.CreateScan(ctx, Scan{
 		UserID:          input.UserID,
 		Targets:         targets,
 		Focus:           focus,
@@ -73,6 +98,24 @@ func (s *Service) CreateScan(ctx context.Context, input CreateScanInput) (Scan, 
 		Conclusions:     []Conclusion{},
 		CreatedAt:       now,
 	})
+	if err != nil {
+		return Scan{}, err
+	}
+	if s.queue == nil {
+		return scan, nil
+	}
+	if err := s.queue.Enqueue(ctx, jobs.Job{
+		Type:           jobs.TypeCompetitorScan,
+		IdempotencyKey: fmt.Sprintf("competitor-scan-%d", scan.ID),
+		Payload: map[string]any{
+			"scan_id": scan.ID,
+		},
+		MaxRetry: 3,
+		Timeout:  10 * time.Minute,
+	}); err != nil {
+		return Scan{}, err
+	}
+	return scan, nil
 }
 
 func (s *Service) ListScans(ctx context.Context, userID int64, limit int) ([]Scan, error) {
@@ -114,6 +157,39 @@ func (s *Service) GetMonitoring(ctx context.Context, userID int64, limit int) (M
 		events = []Event{}
 	}
 	return MonitoringSnapshot{Watchlist: watchlist, Events: events}, nil
+}
+
+func (s *Service) ProcessScan(ctx context.Context, id int64) error {
+	if s.repository == nil {
+		return ErrServiceNotReady
+	}
+	scan, err := s.repository.UpdateScanStatus(ctx, id, StatusRunning, 30, "collecting_sources", "")
+	if err != nil {
+		return err
+	}
+	if s.scanner == nil {
+		_, err = s.repository.UpdateScanStatus(ctx, id, StatusFailed, 100, "failed", "scanner_not_configured")
+		return err
+	}
+	result, err := s.scanner.Scan(ctx, scan)
+	if err != nil {
+		_, updateErr := s.repository.UpdateScanStatus(ctx, id, StatusFailed, 100, "failed", strings.TrimSpace(err.Error()))
+		if updateErr != nil {
+			return updateErr
+		}
+		return err
+	}
+	if result.Competitors == nil {
+		result.Competitors = []Competitor{}
+	}
+	if result.Conclusions == nil {
+		result.Conclusions = []Conclusion{}
+	}
+	if err := s.repository.StoreScanResults(ctx, id, result); err != nil {
+		return err
+	}
+	_, err = s.repository.UpdateScanStatus(ctx, id, StatusSucceeded, 100, StatusSucceeded, "")
+	return err
 }
 
 func defaultCompetitors(targets []string) []Competitor {

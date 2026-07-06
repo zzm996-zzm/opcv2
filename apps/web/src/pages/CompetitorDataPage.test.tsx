@@ -8,6 +8,7 @@ import CompetitorDataPage from "./CompetitorDataPage";
 describe("CompetitorDataPage", () => {
   afterEach(() => {
     authSession.clear();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -181,5 +182,54 @@ describe("CompetitorDataPage", () => {
     expect(await screen.findByText("排队中")).toBeInTheDocument();
     expect(screen.getByText("脚本任务已排队，等待采集账号执行。")).toBeInTheDocument();
     expect(screen.getByText("0%")).toBeInTheDocument();
+  });
+
+  it("polls queued scans and displays worker progress updates", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/scans?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          scans: [{
+            id: 13,
+            user_id: 7,
+            targets: ["小鹅通"],
+            focus: "价格变化",
+            status: "queued",
+            progress_percent: 0,
+            current_step: "queued",
+            competitors: [],
+            conclusions: [],
+            created_at: "2026-06-30T08:00:00Z",
+            updated_at: "2026-06-30T08:00:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/scans/13" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 13,
+          user_id: 7,
+          targets: ["小鹅通"],
+          focus: "价格变化",
+          status: "running",
+          progress_percent: 30,
+          current_step: "collecting_sources",
+          competitors: [],
+          conclusions: [],
+          created_at: "2026-06-30T08:00:00Z",
+          updated_at: "2026-06-30T08:01:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderCompetitorDataPage();
+
+    expect(await screen.findByText("排队中")).toBeInTheDocument();
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(await screen.findByText("脚本正在采集公开数据，完成后会生成 AI 破解结论。")).toBeInTheDocument();
+    expect(screen.getByText("30%")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/competitor/scans/13", expect.objectContaining({ method: "GET" }));
   });
 });

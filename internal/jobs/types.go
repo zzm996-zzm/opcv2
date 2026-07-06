@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	TypeLeadSearch  = "leads.search"
-	TypeGeoAnalysis = "geo.analysis"
+	TypeLeadSearch     = "leads.search"
+	TypeGeoAnalysis    = "geo.analysis"
+	TypeCompetitorScan = "competitor.scan"
 )
 
 var (

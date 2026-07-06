@@ -102,6 +102,83 @@ func TestPostgresRepositoryGetsOwnedScan(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryUpdatesScanStatus(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE competitor_scans
+		SET status = $2, progress_percent = $3, current_step = $4, error_message = $5, updated_at = NOW()
+		WHERE id = $1
+		RETURNING id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
+	`)).
+		WithArgs(int64(99), StatusRunning, 30, "collecting_sources", "").
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "targets", "focus", "status", "progress_percent", "current_step", "error_message", "competitors", "conclusions", "created_at", "updated_at",
+		}).AddRow(
+			int64(99),
+			int64(42),
+			[]byte(`["小鹅通"]`),
+			"价格变化",
+			StatusRunning,
+			30,
+			"collecting_sources",
+			"",
+			[]byte(`[]`),
+			[]byte(`[]`),
+			now,
+			now,
+		))
+
+	repository := NewPostgresRepository(db)
+	scan, err := repository.UpdateScanStatus(context.Background(), 99, StatusRunning, 30, "collecting_sources", "")
+	if err != nil {
+		t.Fatalf("UpdateScanStatus() error = %v", err)
+	}
+	if scan.Status != StatusRunning || scan.ProgressPercent != 30 || scan.CurrentStep != "collecting_sources" {
+		t.Fatalf("scan = %+v", scan)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryStoresScanResults(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec(regexp.QuoteMeta(`
+		UPDATE competitor_scans
+		SET competitors = $2, conclusions = $3, updated_at = NOW()
+		WHERE id = $1
+	`)).
+		WithArgs(
+			int64(99),
+			pgxmock.AnyArg(),
+			pgxmock.AnyArg(),
+		).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	repository := NewPostgresRepository(db)
+	err = repository.StoreScanResults(context.Background(), 99, ScanResult{
+		Competitors: []Competitor{{Name: "小鹅通", Category: "知识付费", Score: 91, Risk: "high"}},
+		Conclusions: []Conclusion{{Title: "定位变化", Detail: "竞品正在强化 AI 私域能力。"}},
+	})
+	if err != nil {
+		t.Fatalf("StoreScanResults() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryListsMonitoringRows(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

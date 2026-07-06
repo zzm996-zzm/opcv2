@@ -813,8 +813,9 @@ free users get 5 scans/month, pro users get 200 scans/month.
 
 Notes:
 
-- Creating a scan only creates a queued script task. It must not fabricate competitor cards or AI conclusions.
-- Script execution, evidence capture, and AI result population are separate workflow steps.
+- Creating a scan creates a queued script task and enqueues a `competitor.scan` background job. It must not fabricate competitor cards or AI conclusions.
+- The worker marks scans `running` while processing, then writes scanner results and marks `succeeded`, or marks `failed` with `error_message`.
+- Evidence capture and real script account execution are separate provider implementation steps.
 
 Errors:
 

@@ -42,6 +42,10 @@ function scanStatusCopy(scan: CompetitorScan | null) {
   return { label: "已完成", detail: "采集与 AI 分析已完成，可以查看竞品画像和破解结论。", progress: 100 };
 }
 
+function shouldPollScan(scan: CompetitorScan | null) {
+  return scan?.status === "queued" || scan?.status === "running";
+}
+
 function CompetitorDataPage() {
   const [latestScan, setLatestScan] = useState<CompetitorScan | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -65,6 +69,27 @@ function CompetitorDataPage() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!shouldPollScan(latestScan)) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      void competitorApi
+        .getScan(latestScan.id)
+        .then((scan) => {
+          if (active) {
+            setLatestScan(scan);
+          }
+        })
+        .catch(() => {
+          // Keep the last visible status; the next interval can recover.
+        });
+    }, 3000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [latestScan?.id, latestScan?.status]);
 
   const statusCopy = scanStatusCopy(latestScan);
   const visibleStats = latestScan ? [

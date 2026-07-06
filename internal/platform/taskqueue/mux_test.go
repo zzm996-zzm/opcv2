@@ -26,4 +26,7 @@ func TestDefaultRegistryIncludesKnownJobTypes(t *testing.T) {
 	if !registry[jobs.TypeGeoAnalysis] {
 		t.Fatalf("DefaultRegistry() = %+v, want GEO analysis type", registry)
 	}
+	if !registry[jobs.TypeCompetitorScan] {
+		t.Fatalf("DefaultRegistry() = %+v, want competitor scan type", registry)
+	}
 }

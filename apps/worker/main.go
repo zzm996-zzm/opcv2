@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/geo"
 	"github.com/zzm/opcv2/internal/leads"
 	"github.com/zzm/opcv2/internal/platform/config"
@@ -43,10 +44,13 @@ func main() {
 	)
 	geoRepository := geo.NewPostgresRepository(db)
 	geoService := geo.NewService(geoRepository)
+	competitorRepository := competitor.NewPostgresRepository(db)
+	competitorService := competitor.NewService(competitorRepository)
 	server := taskqueue.NewServer(cfg.RedisAddr)
 	mux := taskqueue.NewMux()
 	leads.RegisterWorker(mux, leadsService)
 	geo.RegisterWorker(mux, geoService)
+	competitor.RegisterWorker(mux, competitorService)
 	logger.Info("worker starting", "redis_addr", cfg.RedisAddr)
 	if err := server.Run(mux); err != nil {
 		logger.Error("run worker", "error", err)
