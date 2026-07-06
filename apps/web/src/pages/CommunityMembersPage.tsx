@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { authSession } from "../lib/authSession";
@@ -181,11 +182,7 @@ function CommunityMembersPage() {
             <Link to="/learning/plan">制定落地计划 <span aria-hidden="true">›</span></Link>
           </nav>
 
-          <form className="learning-copilot-input">
-            <button aria-label="添加附件" type="button">+</button>
-            <input aria-label="向 Copilot 提问" placeholder="向我提问，或输入 @ 调用技能" />
-            <button aria-label="发送" type="button">›</button>
-          </form>
+          <MiniCopilotForm className="learning-copilot-input" placeholder="向我提问，或输入 @ 调用技能" sendIcon="›" />
         </aside>
       </section>
     </V4PageShell>

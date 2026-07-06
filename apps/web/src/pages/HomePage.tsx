@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import { authApi } from "../lib/authApi";
 import { authSession, useAuthSession } from "../lib/authSession";
 import { homeApi, type HomeSummary } from "../lib/homeApi";
@@ -515,7 +516,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   <Link to="/tools">推荐工具 <span aria-hidden="true">›</span></Link>
                   <Link to="/tasks">制定落地计划 <span aria-hidden="true">›</span></Link>
                 </div>
-                <form className="copilot-input">
+                <div className="copilot-input-stack">
                   {filesOpen && (
                     <div className="attachment-strip">
                       <article>
@@ -532,10 +533,14 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       </article>
                     </div>
                   )}
-                  <button aria-label="添加文件" onClick={() => setFilesOpen((open) => !open)} type="button">+</button>
-                  <input aria-label="询问智活 Copilot" placeholder="询问任何问题..." />
-                  <button aria-label="发送" type="button">↗</button>
-                </form>
+                  <MiniCopilotForm
+                    attachLabel="添加文件"
+                    className="copilot-input"
+                    inputAriaLabel="询问智活 Copilot"
+                    onAttach={() => setFilesOpen((open) => !open)}
+                    sendIcon="↗"
+                  />
+                </div>
               </>
             ) : (
               <button

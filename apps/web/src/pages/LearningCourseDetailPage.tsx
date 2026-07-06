@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 
 const outlineSections = [
@@ -211,12 +212,7 @@ function LearningCourseDetailPage() {
             <Link to="/learning/courses/detail">生成学习笔记 <span aria-hidden="true">›</span></Link>
             <Link to="/learning/recommended-courses">推荐相关案例学习 <span aria-hidden="true">›</span></Link>
           </nav>
-
-          <form className="learning-copilot-input">
-            <button aria-label="添加附件" type="button">+</button>
-            <input aria-label="向 Copilot 提问" placeholder="询问任何问题..." />
-            <button aria-label="发送" type="button">⌁</button>
-          </form>
+          <MiniCopilotForm className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

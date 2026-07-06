@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningGaps } from "../lib/learningApi";
 
@@ -281,12 +282,7 @@ function LearningGapAnalysisPage() {
             <Link to="/learning/recommendation">为什么会有这个结果? <span aria-hidden="true">›</span></Link>
             <Link to="/learning/report">下一步做什么 <span aria-hidden="true">›</span></Link>
           </nav>
-
-          <form className="learning-copilot-input">
-            <button aria-label="添加附件" type="button">+</button>
-            <input aria-label="向 Copilot 提问" placeholder="询问任何问题..." />
-            <button aria-label="发送" type="button">⌁</button>
-          </form>
+          <MiniCopilotForm className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

@@ -1,6 +1,7 @@
 import { useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi } from "../lib/learningApi";
 
@@ -203,12 +204,7 @@ function LearningDiagnosisPage() {
             <Link to="/learning/diagnosis">补充诊断信息 <span aria-hidden="true">›</span></Link>
             <Link to="/learning/recommended-courses">查看学习建议 <span aria-hidden="true">›</span></Link>
           </nav>
-
-          <form className="learning-copilot-input">
-            <button aria-label="添加附件" type="button">+</button>
-            <input aria-label="向 Copilot 提问" placeholder="询问任何问题..." />
-            <button aria-label="发送" type="button">⌁</button>
-          </form>
+          <MiniCopilotForm className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

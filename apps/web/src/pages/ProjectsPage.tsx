@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { projectsApi, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession } from "../lib/projectsApi";
@@ -905,11 +906,7 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
         <Link to="/tools/recommend">推荐工具</Link>
         <Link to="/tasks">制定落地计划</Link>
       </nav>
-      <label>
-        <span>＋</span>
-        <input aria-label="向 Copilot 提问" placeholder="询问任何问题..." />
-        <b>↗</b>
-      </label>
+      <MiniCopilotForm className="pm-copilot-input" attachIcon="＋" sendIcon="↗" />
     </aside>
   );
 }

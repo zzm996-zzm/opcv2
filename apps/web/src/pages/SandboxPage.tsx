@@ -1,6 +1,7 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { sandboxApi, type SandboxSession } from "../lib/sandboxApi";
@@ -717,11 +718,7 @@ function SandboxCopilot({ mode }: { mode: SandboxVariant }) {
           <Link key={item} to={item.includes("历史") ? "/sandbox/history" : item.includes("开始") ? "/sandbox/setup" : "#"}>{item}</Link>
         ))}
       </nav>
-      <label>
-        <span>＋</span>
-        <input aria-label="向沙盘 Copilot 提问" placeholder="询问任何问题..." />
-        <b>↗</b>
-      </label>
+      <MiniCopilotForm className="sandbox-copilot-input" inputAriaLabel="向沙盘 Copilot 提问" attachIcon="＋" sendIcon="↗" />
     </aside>
   );
 }

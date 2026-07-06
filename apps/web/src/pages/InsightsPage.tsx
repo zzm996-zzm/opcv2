@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { contentApi, type ContentArticle } from "../lib/contentApi";
 import { CdkTopNav } from "./AnalysisPage";
@@ -297,11 +298,11 @@ function InsightsCopilot({ variant }: { variant: NonNullable<InsightsPageProps["
         <Link to="/tools/recommend">推荐相关工具/报告 <span aria-hidden="true">›</span></Link>
       </nav>
 
-      <form className="learning-copilot-input">
-        <button aria-label="添加附件" type="button">+</button>
-        <input aria-label="向咨询通 Copilot 提问" placeholder={isFileAnalysis ? "继续提问，获取更精准的资讯..." : "询问任何问题..."} />
-        <button aria-label="发送" type="button">⌁</button>
-      </form>
+      <MiniCopilotForm
+        className="learning-copilot-input"
+        inputAriaLabel="向咨询通 Copilot 提问"
+        placeholder={isFileAnalysis ? "继续提问，获取更精准的资讯..." : "询问任何问题..."}
+      />
 
       <section className="insights-question-card" aria-label="可复用选题">
         <header><h2>可复用选题</h2><button type="button">换一批</button></header>

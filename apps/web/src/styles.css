@@ -1851,6 +1851,12 @@ a {
   border-radius: 12px;
 }
 
+.copilot-input-stack {
+  display: grid;
+  gap: 10px;
+  margin-top: auto;
+}
+
 .attachment-strip {
   grid-column: 1 / -1;
   display: grid;
@@ -3165,6 +3171,7 @@ a {
   border-radius: 50%;
   font-style: normal;
   font-weight: 900;
+  cursor: pointer;
   place-items: center;
 }
 
@@ -12357,7 +12364,8 @@ a {
 }
 
 .pm-copilot nav a,
-.pm-copilot label {
+.pm-copilot label,
+.pm-copilot-input {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: center;
@@ -12376,11 +12384,36 @@ a {
   grid-template-columns: 20px minmax(0, 1fr) 20px;
 }
 
+.pm-copilot-input {
+  grid-template-columns: 20px minmax(0, 1fr) 20px;
+}
+
 .pm-copilot input {
   min-width: 0;
   background: transparent;
   border: 0;
   outline: 0;
+}
+
+.pm-copilot-input input {
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+}
+
+.pm-copilot-input button {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: #1557ff;
+  background: transparent;
+  border: 0;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+  place-items: center;
 }
 
 .pm-panel {
@@ -14157,6 +14190,14 @@ a {
   place-items: center;
 }
 
+.learning-copilot-input button:disabled,
+.copilot-input button:disabled,
+.pm-copilot-input button:disabled,
+.sandbox-copilot-input button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .learning-copilot-input input {
   min-width: 0;
   color: #263f7b;
@@ -14165,6 +14206,48 @@ a {
   outline: 0;
   font-size: 12px;
   font-weight: 760;
+}
+
+.mini-copilot-live-thread {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.mini-copilot-live-thread article {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.mini-copilot-live-thread article.user {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mini-copilot-live-thread p {
+  margin: 0;
+  padding: 10px 12px;
+  color: #2d3f78;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(31, 68, 140, 0.08);
+  border-radius: 4px 12px 12px 12px;
+  font-size: 12px;
+  line-height: 1.65;
+  font-weight: 760;
+}
+
+.mini-copilot-live-thread article.user p {
+  justify-self: end;
+  color: #14306f;
+  background: #eef4ff;
+  border-radius: 12px 4px 12px 12px;
+}
+
+.mini-copilot-error {
+  color: #b42318 !important;
+  background: #fff4f2 !important;
+  border-color: #ffd5ce !important;
 }
 
 .diagnosis-page {
@@ -30793,7 +30876,8 @@ a {
   justify-self: end;
 }
 
-.sandbox-copilot label {
+.sandbox-copilot label,
+.sandbox-copilot-input {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) 24px;
   align-items: center;
@@ -30807,12 +30891,14 @@ a {
 }
 
 .sandbox-copilot label span,
-.sandbox-copilot label b {
+.sandbox-copilot label b,
+.sandbox-copilot-input button {
   color: #5b43ff;
   font-size: 18px;
 }
 
 .sandbox-copilot input,
+.sandbox-copilot-input input,
 .history-filter-row input,
 .sandbox-v2 textarea,
 .sandbox-v2 select {
@@ -30824,9 +30910,22 @@ a {
 }
 
 .sandbox-copilot input::placeholder,
+.sandbox-copilot-input input::placeholder,
 .history-filter-row input::placeholder,
 .sandbox-v2 textarea::placeholder {
   color: #9aa4c1;
+}
+
+.sandbox-copilot-input button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-weight: 900;
+  cursor: pointer;
+  place-items: center;
 }
 
 .sandbox-work-title {

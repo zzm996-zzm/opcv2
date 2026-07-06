@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningProgress } from "../lib/learningApi";
 
@@ -238,12 +239,7 @@ function LearningHistoryPage() {
             <Link to="/learning/report">查看学习时长分析 <span aria-hidden="true">›</span></Link>
             <Link to="/learning/plan">学习计划管理 <span aria-hidden="true">›</span></Link>
           </nav>
-
-          <form className="learning-copilot-input">
-            <button aria-label="添加附件" type="button">+</button>
-            <input aria-label="向 Copilot 提问" placeholder="询问任何问题..." />
-            <button aria-label="发送" type="button">⌁</button>
-          </form>
+          <MiniCopilotForm className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

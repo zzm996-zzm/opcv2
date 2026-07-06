@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { contentApi, type ContentTool } from "../lib/contentApi";
 import { CdkTopNav } from "./AnalysisPage";
@@ -435,11 +436,7 @@ function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["varian
         <Link to="/learning/plan">制定落地计划 <span aria-hidden="true">›</span></Link>
         {isRecommend && <Link to="/tools/recommendation-plan">生成整套方案 <span aria-hidden="true">›</span></Link>}
       </nav>
-      <form className="learning-copilot-input">
-        <button aria-label="添加附件" type="button">+</button>
-        <input aria-label="向工具箱 Copilot 提问" placeholder="询问任何问题..." />
-        <button aria-label="发送" type="button">⌁</button>
-      </form>
+      <MiniCopilotForm className="learning-copilot-input" inputAriaLabel="向工具箱 Copilot 提问" />
       <section className="toolhub-ai-results" aria-label="AI 推荐结果">
         <header><h2>AI 推荐结果</h2><button type="button">×</button></header>
         <p className="module-empty-state">暂无AI推荐结果</p>
