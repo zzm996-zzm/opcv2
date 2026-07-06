@@ -2,8 +2,13 @@ package competitor
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
+
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type Repository interface {
@@ -14,13 +19,30 @@ type Repository interface {
 	ListEvents(ctx context.Context, userID int64, limit int) ([]Event, error)
 }
 
+type QuotaConsumer interface {
+	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
+}
+
+type Option func(*Service)
+
 type Service struct {
 	repository Repository
+	quota      QuotaConsumer
 	now        func() time.Time
 }
 
-func NewService(repository Repository) *Service {
-	return &Service{repository: repository, now: time.Now}
+func NewService(repository Repository, options ...Option) *Service {
+	service := &Service{repository: repository, now: time.Now}
+	for _, option := range options {
+		option(service)
+	}
+	return service
+}
+
+func WithQuotaConsumer(quota QuotaConsumer) Option {
+	return func(service *Service) {
+		service.quota = quota
+	}
 }
 
 func (s *Service) CreateScan(ctx context.Context, input CreateScanInput) (Scan, error) {
@@ -28,11 +50,22 @@ func (s *Service) CreateScan(ctx context.Context, input CreateScanInput) (Scan, 
 		return Scan{}, ErrServiceNotReady
 	}
 	targets := normalizeStrings(input.Targets)
+	focus := strings.TrimSpace(input.Focus)
+	if s.quota != nil {
+		if _, err := s.quota.CheckAndConsume(ctx, membership.ConsumeInput{
+			UserID:         input.UserID,
+			FeatureKey:     membership.FeatureCompetitorScans,
+			Amount:         1,
+			IdempotencyKey: competitorScanIdempotencyKey(input.UserID, targets, focus),
+		}); err != nil {
+			return Scan{}, err
+		}
+	}
 	now := s.now()
 	return s.repository.CreateScan(ctx, Scan{
 		UserID:      input.UserID,
 		Targets:     targets,
-		Focus:       strings.TrimSpace(input.Focus),
+		Focus:       focus,
 		Status:      StatusCompleted,
 		Competitors: defaultCompetitors(targets),
 		Conclusions: defaultConclusions(),
@@ -124,4 +157,9 @@ func normalizeStrings(values []string) []string {
 		}
 	}
 	return normalized
+}
+
+func competitorScanIdempotencyKey(userID int64, targets []string, focus string) string {
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%d:%s:%s", userID, strings.Join(targets, "\x00"), focus)))
+	return "competitor-scan-" + hex.EncodeToString(hash[:8])
 }

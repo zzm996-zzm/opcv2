@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type fakeRepository struct {
@@ -63,10 +64,12 @@ func (r *fakeRepository) GetSession(_ context.Context, userID, id int64) (Sessio
 type fakeGenerator struct {
 	request ai.GenerateJSONRequest
 	content []byte
+	calls   int
 	err     error
 }
 
 func (g *fakeGenerator) GenerateJSON(_ context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
+	g.calls++
 	g.request = request
 	if g.err != nil {
 		return ai.GenerateJSONResult{}, g.err
@@ -77,6 +80,19 @@ func (g *fakeGenerator) GenerateJSON(_ context.Context, request ai.GenerateJSONR
 		}
 	}
 	return ai.GenerateJSONResult{Content: g.content}, nil
+}
+
+type fakeQuotaConsumer struct {
+	consumed []membership.ConsumeInput
+	err      error
+}
+
+func (c *fakeQuotaConsumer) CheckAndConsume(_ context.Context, input membership.ConsumeInput) (membership.UsageItem, error) {
+	c.consumed = append(c.consumed, input)
+	if c.err != nil {
+		return membership.UsageItem{}, c.err
+	}
+	return membership.UsageItem{Key: input.FeatureKey, Used: 1, Limit: 20}, nil
 }
 
 func TestServiceCreatesDraftSession(t *testing.T) {
@@ -101,6 +117,63 @@ func TestServiceCreatesDraftSession(t *testing.T) {
 	}
 	if repository.created.UserID != 42 || repository.created.Goal == "" || len(repository.created.Roles) != 3 {
 		t.Fatalf("created = %+v", repository.created)
+	}
+}
+
+func TestServiceRunSessionConsumesSandboxQuota(t *testing.T) {
+	report := Report{
+		Score:         83,
+		Summary:       "可以先做小范围验证",
+		Metrics:       []Metric{{Label: "市场吸引力", Value: "8.4"}},
+		RoleSummaries: []RoleSummary{{Role: "用户", View: "关注响应效率和数据安全"}},
+		Risks:         []string{"客户教育成本高"},
+		NextActions:   []string{"访谈 10 个目标客户"},
+	}
+	payload, _ := json.Marshal(report)
+	quota := &fakeQuotaConsumer{}
+	service := NewService(&fakeRepository{session: Session{
+		ID:          99,
+		UserID:      42,
+		Status:      StatusDraft,
+		Goal:        "验证项目",
+		TargetUsers: "教培机构",
+		Product:     "AI 工具",
+		Roles:       []string{"用户"},
+	}}, &fakeGenerator{content: payload}, WithQuotaConsumer(quota))
+
+	_, err := service.RunSession(context.Background(), 42, 99)
+
+	if err != nil {
+		t.Fatalf("RunSession() error = %v", err)
+	}
+	if len(quota.consumed) != 1 {
+		t.Fatalf("consumed = %+v, want one quota consume", quota.consumed)
+	}
+	consumed := quota.consumed[0]
+	if consumed.FeatureKey != membership.FeatureSandboxRuns || consumed.IdempotencyKey != "sandbox-run-99" {
+		t.Fatalf("consumed = %+v", consumed)
+	}
+}
+
+func TestServiceRunSessionStopsWhenSandboxQuotaExceeded(t *testing.T) {
+	generator := &fakeGenerator{content: []byte(`{}`)}
+	service := NewService(&fakeRepository{session: Session{
+		ID:          99,
+		UserID:      42,
+		Status:      StatusDraft,
+		Goal:        "验证项目",
+		TargetUsers: "教培机构",
+		Product:     "AI 工具",
+		Roles:       []string{"用户"},
+	}}, generator, WithQuotaConsumer(&fakeQuotaConsumer{err: membership.ErrQuotaExceeded}))
+
+	_, err := service.RunSession(context.Background(), 42, 99)
+
+	if !errors.Is(err, membership.ErrQuotaExceeded) {
+		t.Fatalf("err = %v, want ErrQuotaExceeded", err)
+	}
+	if generator.calls != 0 {
+		t.Fatalf("generator calls = %d, want 0", generator.calls)
 	}
 }
 

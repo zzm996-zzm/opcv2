@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type Repository interface {
@@ -22,14 +23,31 @@ type JSONGenerator interface {
 	GenerateJSON(ctx context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error)
 }
 
+type QuotaConsumer interface {
+	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
+}
+
+type Option func(*Service)
+
 type Service struct {
 	repository Repository
 	generator  JSONGenerator
+	quota      QuotaConsumer
 	now        func() time.Time
 }
 
-func NewService(repository Repository, generator JSONGenerator) *Service {
-	return &Service{repository: repository, generator: generator, now: time.Now}
+func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
+	service := &Service{repository: repository, generator: generator, now: time.Now}
+	for _, option := range options {
+		option(service)
+	}
+	return service
+}
+
+func WithQuotaConsumer(quota QuotaConsumer) Option {
+	return func(service *Service) {
+		service.quota = quota
+	}
 }
 
 func (s *Service) CreateSession(ctx context.Context, input CreateInput) (Session, error) {
@@ -55,6 +73,16 @@ func (s *Service) RunSession(ctx context.Context, userID, id int64) (Session, er
 	session, err := s.repository.GetSession(ctx, userID, id)
 	if err != nil {
 		return Session{}, err
+	}
+	if s.quota != nil {
+		if _, err := s.quota.CheckAndConsume(ctx, membership.ConsumeInput{
+			UserID:         userID,
+			FeatureKey:     membership.FeatureSandboxRuns,
+			Amount:         1,
+			IdempotencyKey: fmt.Sprintf("sandbox-run-%d", id),
+		}); err != nil {
+			return Session{}, err
+		}
 	}
 	report, err := s.generateReport(ctx, session)
 	if err != nil {

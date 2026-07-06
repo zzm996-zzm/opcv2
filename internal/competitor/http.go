@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/platform/httpapi"
 )
 
@@ -113,6 +114,10 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusNotFound, "scan_not_found")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+	case errors.Is(err, membership.ErrQuotaExceeded):
+		httpapi.Error(c, http.StatusPaymentRequired, "quota_exceeded")
+	case errors.Is(err, membership.ErrQuotaNotFound):
+		httpapi.Error(c, http.StatusInternalServerError, "quota_not_configured")
 	default:
 		httpapi.Error(c, http.StatusInternalServerError, "internal_error")
 	}

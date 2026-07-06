@@ -15,6 +15,9 @@ type memoryRepository struct {
 	subscriptions map[int64]Subscription
 	plans         []PlanOption
 	usage         []UsageItem
+	consumed      []ConsumeInput
+	consumeResult UsageItem
+	consumeErr    error
 	orders        []Order
 	checkout      CheckoutInput
 }
@@ -93,6 +96,14 @@ func (r *memoryRepository) ListPlans(context.Context) ([]PlanOption, error) {
 
 func (r *memoryRepository) CurrentUsage(context.Context, int64) ([]UsageItem, error) {
 	return r.usage, nil
+}
+
+func (r *memoryRepository) CheckAndConsume(_ context.Context, input ConsumeInput, _ time.Time) (UsageItem, error) {
+	r.consumed = append(r.consumed, input)
+	if r.consumeErr != nil {
+		return UsageItem{}, r.consumeErr
+	}
+	return r.consumeResult, nil
 }
 
 func (r *memoryRepository) ListOrders(_ context.Context, _ int64, limit int) ([]Order, error) {
@@ -245,5 +256,47 @@ func TestServiceCreatesManualCheckoutOrder(t *testing.T) {
 	}
 	if repository.checkout.PlanCode != PlanPro || repository.checkout.BillingCycle != "month" || repository.checkout.OrderNo == "" {
 		t.Fatalf("checkout = %+v", repository.checkout)
+	}
+}
+
+func TestServiceCheckAndConsumeNormalizesInput(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.consumeResult = UsageItem{Key: FeatureSandboxRuns, Used: 1, Limit: 20, Unit: "次/月"}
+	service := NewService(repository)
+	service.now = func() time.Time { return time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC) }
+
+	usage, err := service.CheckAndConsume(context.Background(), ConsumeInput{
+		UserID:         42,
+		FeatureKey:     " sandbox_runs ",
+		Amount:         0,
+		IdempotencyKey: " sandbox-run-99 ",
+	})
+
+	if err != nil {
+		t.Fatalf("CheckAndConsume() error = %v", err)
+	}
+	if usage.Used != 1 || len(repository.consumed) != 1 {
+		t.Fatalf("usage/consumed = %+v/%+v", usage, repository.consumed)
+	}
+	consumed := repository.consumed[0]
+	if consumed.FeatureKey != FeatureSandboxRuns || consumed.Amount != 1 || consumed.IdempotencyKey != "sandbox-run-99" {
+		t.Fatalf("consumed = %+v", consumed)
+	}
+}
+
+func TestServiceCheckAndConsumeReturnsQuotaExceeded(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.consumeErr = ErrQuotaExceeded
+	service := NewService(repository)
+
+	_, err := service.CheckAndConsume(context.Background(), ConsumeInput{
+		UserID:         42,
+		FeatureKey:     FeatureCompetitorScans,
+		Amount:         1,
+		IdempotencyKey: "competitor-scan-1",
+	})
+
+	if !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("err = %v, want ErrQuotaExceeded", err)
 	}
 }

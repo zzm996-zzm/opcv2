@@ -13,13 +13,21 @@ const (
 	PlanPro  = "pro"
 )
 
+const (
+	FeatureSandboxRuns     = "sandbox_runs"
+	FeatureCompetitorScans = "competitor_scans"
+)
+
 var (
 	ErrCodeNotFound    = errors.New("redemption code not found")
 	ErrCodeExpired     = errors.New("redemption code expired")
 	ErrCodeExhausted   = errors.New("redemption code exhausted")
 	ErrInvalidCode     = errors.New("invalid redemption code")
 	ErrInvalidCheckout = errors.New("invalid checkout")
+	ErrInvalidConsume  = errors.New("invalid membership usage consume")
 	ErrPlanNotFound    = errors.New("membership plan not found")
+	ErrQuotaExceeded   = errors.New("membership quota exceeded")
+	ErrQuotaNotFound   = errors.New("membership quota not found")
 	ErrUserIDRequired  = errors.New("user id required")
 	ErrServiceNotReady = errors.New("membership service is not configured")
 )
@@ -56,6 +64,13 @@ type UsageItem struct {
 	Limit   int        `json:"limit"`
 	Unit    string     `json:"unit"`
 	ResetAt *time.Time `json:"reset_at,omitempty"`
+}
+
+type ConsumeInput struct {
+	UserID         int64
+	FeatureKey     string
+	Amount         int
+	IdempotencyKey string
 }
 
 const (
@@ -163,6 +178,7 @@ type Repository interface {
 	RedeemCode(ctx context.Context, input RedeemInput, now time.Time) (RedeemResult, error)
 	ListPlans(ctx context.Context) ([]PlanOption, error)
 	CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, error)
+	CheckAndConsume(ctx context.Context, input ConsumeInput, now time.Time) (UsageItem, error)
 	ListOrders(ctx context.Context, userID int64, limit int) ([]Order, error)
 	CreateCheckout(ctx context.Context, input CheckoutInput, now time.Time) (CheckoutResult, error)
 }
@@ -218,6 +234,24 @@ func (s *Service) CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, 
 		return nil, ErrServiceNotReady
 	}
 	return s.repository.CurrentUsage(ctx, userID)
+}
+
+func (s *Service) CheckAndConsume(ctx context.Context, input ConsumeInput) (UsageItem, error) {
+	if input.UserID <= 0 {
+		return UsageItem{}, ErrUserIDRequired
+	}
+	input.FeatureKey = strings.TrimSpace(input.FeatureKey)
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	if input.Amount <= 0 {
+		input.Amount = 1
+	}
+	if input.FeatureKey == "" || input.IdempotencyKey == "" {
+		return UsageItem{}, ErrInvalidConsume
+	}
+	if s.repository == nil {
+		return UsageItem{}, ErrServiceNotReady
+	}
+	return s.repository.CheckAndConsume(ctx, input, s.now())
 }
 
 func (s *Service) ListOrders(ctx context.Context, userID int64, limit int) ([]Order, error) {

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type fakeRepository struct {
@@ -14,6 +16,19 @@ type fakeRepository struct {
 	watchlist   []WatchItem
 	events      []Event
 	err         error
+}
+
+type fakeQuotaConsumer struct {
+	consumed []membership.ConsumeInput
+	err      error
+}
+
+func (c *fakeQuotaConsumer) CheckAndConsume(_ context.Context, input membership.ConsumeInput) (membership.UsageItem, error) {
+	c.consumed = append(c.consumed, input)
+	if c.err != nil {
+		return membership.UsageItem{}, c.err
+	}
+	return membership.UsageItem{Key: input.FeatureKey, Used: 1, Limit: 200}, nil
 }
 
 func (r *fakeRepository) CreateScan(_ context.Context, scan Scan) (Scan, error) {
@@ -59,6 +74,47 @@ func (r *fakeRepository) ListEvents(_ context.Context, userID int64, limit int) 
 		return nil, r.err
 	}
 	return r.events[:min(len(r.events), limit)], nil
+}
+
+func TestServiceCreateScanConsumesCompetitorQuota(t *testing.T) {
+	repository := &fakeRepository{}
+	quota := &fakeQuotaConsumer{}
+	service := NewService(repository, WithQuotaConsumer(quota))
+
+	_, err := service.CreateScan(context.Background(), CreateScanInput{
+		UserID:  42,
+		Targets: []string{"小鹅通"},
+		Focus:   "价格变化",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateScan() error = %v", err)
+	}
+	if len(quota.consumed) != 1 {
+		t.Fatalf("consumed = %+v, want one quota consume", quota.consumed)
+	}
+	consumed := quota.consumed[0]
+	if consumed.FeatureKey != membership.FeatureCompetitorScans || consumed.IdempotencyKey == "" {
+		t.Fatalf("consumed = %+v", consumed)
+	}
+}
+
+func TestServiceCreateScanStopsWhenCompetitorQuotaExceeded(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository, WithQuotaConsumer(&fakeQuotaConsumer{err: membership.ErrQuotaExceeded}))
+
+	_, err := service.CreateScan(context.Background(), CreateScanInput{
+		UserID:  42,
+		Targets: []string{"小鹅通"},
+		Focus:   "价格变化",
+	})
+
+	if !errors.Is(err, membership.ErrQuotaExceeded) {
+		t.Fatalf("err = %v, want ErrQuotaExceeded", err)
+	}
+	if repository.createdScan.UserID != 0 {
+		t.Fatalf("created scan = %+v, want no scan created", repository.createdScan)
+	}
 }
 
 func TestServiceCreatesScanWithDevelopmentResult(t *testing.T) {

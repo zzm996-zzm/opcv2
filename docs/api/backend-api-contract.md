@@ -36,6 +36,8 @@ be treated as available until the matching backend handlers and tests land.
 | `service_not_ready` | 500 | Backend dependency is not configured. |
 | `internal_error` | 500 | Unclassified server error. |
 | `invalid_ai_result` | 500 | AI output failed backend validation. |
+| `quota_exceeded` | 402 | Authenticated user has exhausted the configured membership quota for this action. |
+| `quota_not_configured` | 500 | Backend quota config is missing for a gated action. |
 
 ## Sandbox
 
@@ -90,13 +92,18 @@ Response `200`: `SandboxSession`
 
 `POST /api/v1/sandbox/sessions/{id}/run`
 
+Consumes membership quota key `sandbox_runs`. Defaults seeded by migrations:
+free users get 1 run/month, pro users get 20 runs/month.
+
 Response `200`: `SandboxSession` with `status: "completed"` and populated `report`.
 
 Errors:
 
 - `400 invalid_session_id`
 - `404 session_not_found`
+- `402 quota_exceeded`
 - `500 invalid_ai_result`
+- `500 quota_not_configured`
 
 ### List Sessions
 
@@ -777,6 +784,14 @@ Validation:
 - Client-supplied `user_id` is ignored.
 
 Response `200`: `CompetitorScan`
+
+Consumes membership quota key `competitor_scans`. Defaults seeded by migrations:
+free users get 5 scans/month, pro users get 200 scans/month.
+
+Errors:
+
+- `402 quota_exceeded`
+- `500 quota_not_configured`
 
 ### List Scans
 
@@ -1722,6 +1737,15 @@ Status: Implemented.
 The existing `GET /api/v1/membership/me` and
 `POST /api/v1/redemptions/redeem` endpoints remain implemented. The endpoints
 below extend membership for the membership and profile pages.
+
+Server-side gated actions use the membership usage ledger. The current gated
+keys are:
+
+- `sandbox_runs`
+- `competitor_scans`
+
+Usage is reset monthly at the first day of the next month. Service methods use
+idempotency keys so retried actions do not double-charge quota.
 
 ### List Plans
 

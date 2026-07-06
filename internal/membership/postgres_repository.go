@@ -2,6 +2,7 @@ package membership
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"time"
@@ -127,9 +128,11 @@ func (r *PostgresRepository) CurrentUsage(ctx context.Context, userID int64) ([]
 	var usage []UsageItem
 	for rows.Next() {
 		var item UsageItem
-		if err := rows.Scan(&item.Key, &item.Label, &item.Used, &item.Limit, &item.Unit, &item.ResetAt); err != nil {
+		var resetAt sql.NullTime
+		if err := rows.Scan(&item.Key, &item.Label, &item.Used, &item.Limit, &item.Unit, &resetAt); err != nil {
 			return nil, err
 		}
+		item.ResetAt = nullableTime(resetAt)
 		usage = append(usage, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -137,6 +140,90 @@ func (r *PostgresRepository) CurrentUsage(ctx context.Context, userID int64) ([]
 	}
 	if usage == nil {
 		return []UsageItem{}, nil
+	}
+	return usage, nil
+}
+
+func (r *PostgresRepository) CheckAndConsume(ctx context.Context, input ConsumeInput, now time.Time) (UsageItem, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	planCode := PlanFree
+	subscription, err := r.activeSubscription(ctx, tx, input.UserID, now)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	if subscription.PlanCode != "" {
+		planCode = subscription.PlanCode
+	}
+
+	quota, err := r.planQuota(ctx, tx, planCode, input.FeatureKey)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	resetAt := nextMonthlyReset(now)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO membership_usage (user_id, key, label, used, limit_value, unit, reset_at, updated_at)
+		VALUES ($1, $2, $3, 0, $4, $5, $6, $7)
+		ON CONFLICT (user_id, key) DO NOTHING
+	`, input.UserID, input.FeatureKey, quota.Label, quota.Limit, quota.Unit, resetAt, now); err != nil {
+		return UsageItem{}, err
+	}
+
+	usage, err := r.lockUsage(ctx, tx, input.UserID, input.FeatureKey)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	if usage.ResetAt == nil || !usage.ResetAt.After(now) {
+		usage.Used = 0
+		usage.ResetAt = &resetAt
+	}
+	usage.Key = input.FeatureKey
+	usage.Label = quota.Label
+	usage.Limit = quota.Limit
+	usage.Unit = quota.Unit
+
+	if existing, ok, err := r.existingUsageEvent(ctx, tx, input); err != nil {
+		return UsageItem{}, err
+	} else if ok {
+		usage.Used = existing.Used
+		usage.ResetAt = existing.ResetAt
+		if err := tx.Commit(ctx); err != nil {
+			return UsageItem{}, err
+		}
+		return usage, nil
+	}
+
+	if usage.Used+input.Amount > quota.Limit {
+		return UsageItem{}, ErrQuotaExceeded
+	}
+	usedAfter := usage.Used + input.Amount
+	resetAtValue := resetAt
+	if usage.ResetAt != nil {
+		resetAtValue = *usage.ResetAt
+	}
+	if err := tx.QueryRow(ctx, `
+		UPDATE membership_usage
+		SET used = used + $3, label = $4, limit_value = $5, unit = $6, reset_at = $7, updated_at = $8
+		WHERE user_id = $1 AND key = $2
+		RETURNING used
+	`, input.UserID, input.FeatureKey, input.Amount, quota.Label, quota.Limit, quota.Unit, resetAtValue, now).Scan(&usage.Used); err != nil {
+		return UsageItem{}, err
+	}
+	if usage.Used != usedAfter {
+		usedAfter = usage.Used
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO membership_usage_events (user_id, key, idempotency_key, amount, used_after, reset_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, input.UserID, input.FeatureKey, input.IdempotencyKey, input.Amount, usedAfter, resetAtValue, now); err != nil {
+		return UsageItem{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return UsageItem{}, err
 	}
 	return usage, nil
 }
@@ -372,6 +459,70 @@ func (r *PostgresRepository) lockRedemptionCode(ctx context.Context, tx pgx.Tx, 
 		return lockedCode{}, ErrCodeNotFound
 	}
 	return result, err
+}
+
+func (r *PostgresRepository) planQuota(ctx context.Context, runner interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, planCode, featureKey string) (PlanQuota, error) {
+	var quota PlanQuota
+	err := runner.QueryRow(ctx, `
+		SELECT label, limit_value, unit
+		FROM membership_plan_quotas
+		WHERE plan_code = $1 AND key = $2
+	`, planCode, featureKey).Scan(&quota.Label, &quota.Limit, &quota.Unit)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PlanQuota{}, ErrQuotaNotFound
+	}
+	if err != nil {
+		return PlanQuota{}, err
+	}
+	quota.Key = featureKey
+	return quota, nil
+}
+
+func (r *PostgresRepository) lockUsage(ctx context.Context, tx pgx.Tx, userID int64, featureKey string) (UsageItem, error) {
+	var usage UsageItem
+	var resetAt sql.NullTime
+	err := tx.QueryRow(ctx, `
+		SELECT label, used, limit_value, unit, reset_at
+		FROM membership_usage
+		WHERE user_id = $1 AND key = $2
+		FOR UPDATE
+	`, userID, featureKey).Scan(&usage.Label, &usage.Used, &usage.Limit, &usage.Unit, &resetAt)
+	usage.Key = featureKey
+	usage.ResetAt = nullableTime(resetAt)
+	return usage, err
+}
+
+func (r *PostgresRepository) existingUsageEvent(ctx context.Context, tx pgx.Tx, input ConsumeInput) (UsageItem, bool, error) {
+	var usage UsageItem
+	var amount int
+	var resetAt sql.NullTime
+	err := tx.QueryRow(ctx, `
+		SELECT amount, used_after, reset_at
+		FROM membership_usage_events
+		WHERE user_id = $1 AND key = $2 AND idempotency_key = $3
+	`, input.UserID, input.FeatureKey, input.IdempotencyKey).Scan(&amount, &usage.Used, &resetAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UsageItem{}, false, nil
+	}
+	if err != nil {
+		return UsageItem{}, false, err
+	}
+	usage.Key = input.FeatureKey
+	usage.ResetAt = nullableTime(resetAt)
+	return usage, true, nil
+}
+
+func nextMonthlyReset(now time.Time) time.Time {
+	return time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, now.Location())
+}
+
+func nullableTime(value sql.NullTime) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Time
 }
 
 func (r *PostgresRepository) existingRedemption(ctx context.Context, tx pgx.Tx, userID, codeID int64) (Redemption, bool, error) {
