@@ -282,6 +282,41 @@ func TestServiceProcessScanMarksFailedWhenScannerFails(t *testing.T) {
 	}
 }
 
+func TestServiceRetryScanRequeuesFailedScan(t *testing.T) {
+	repository := &fakeRepository{scan: Scan{ID: 99, UserID: 42, Status: StatusFailed, ErrorMessage: "scanner_not_configured"}}
+	queue := &fakeQueue{}
+	service := NewService(repository, WithQueue(queue))
+
+	scan, err := service.RetryScan(context.Background(), 42, 99)
+
+	if err != nil {
+		t.Fatalf("RetryScan() error = %v", err)
+	}
+	if scan.Status != StatusQueued || scan.ProgressPercent != 0 || scan.CurrentStep != StatusQueued || scan.ErrorMessage != "" {
+		t.Fatalf("scan = %+v", scan)
+	}
+	if len(repository.updates) != 1 {
+		t.Fatalf("updates = %+v, want one queued status update", repository.updates)
+	}
+	if len(queue.jobs) != 1 {
+		t.Fatalf("jobs = %+v, want one retry job", queue.jobs)
+	}
+	job := queue.jobs[0]
+	if job.Type != jobs.TypeCompetitorScan || job.IdempotencyKey != "competitor-scan-retry-99" || job.Payload["scan_id"] != int64(99) {
+		t.Fatalf("job = %+v", job)
+	}
+}
+
+func TestServiceRetryScanRejectsOtherUsersScan(t *testing.T) {
+	service := NewService(&fakeRepository{scan: Scan{ID: 99, UserID: 7, Status: StatusFailed}}, WithQueue(&fakeQueue{}))
+
+	_, err := service.RetryScan(context.Background(), 42, 99)
+
+	if !errors.Is(err, ErrScanNotFound) {
+		t.Fatalf("err = %v, want ErrScanNotFound", err)
+	}
+}
+
 func TestServiceListsOnlyUserScans(t *testing.T) {
 	repository := &fakeRepository{scans: []Scan{
 		{ID: 1, UserID: 42, Focus: "我的扫描"},

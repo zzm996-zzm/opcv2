@@ -9626,6 +9626,24 @@ a {
   min-height: 88px;
 }
 
+.competitor-retry-button {
+  justify-self: start;
+  min-height: 34px;
+  padding: 0 14px;
+  color: #1557ff;
+  background: rgba(21, 87, 255, 0.08);
+  border: 1px solid rgba(21, 87, 255, 0.2);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 840;
+  cursor: pointer;
+}
+
+.competitor-retry-button:disabled {
+  color: #7c8daf;
+  cursor: not-allowed;
+}
+
 .competitor-data-grid,
 .competitor-lower-grid {
   display: grid;

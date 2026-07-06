@@ -136,6 +136,32 @@ func (s *Service) GetScan(ctx context.Context, userID, id int64) (Scan, error) {
 	return s.repository.GetScan(ctx, userID, id)
 }
 
+func (s *Service) RetryScan(ctx context.Context, userID, id int64) (Scan, error) {
+	if s.repository == nil || s.queue == nil {
+		return Scan{}, ErrServiceNotReady
+	}
+	scan, err := s.repository.GetScan(ctx, userID, id)
+	if err != nil {
+		return Scan{}, err
+	}
+	queued, err := s.repository.UpdateScanStatus(ctx, scan.ID, StatusQueued, 0, StatusQueued, "")
+	if err != nil {
+		return Scan{}, err
+	}
+	if err := s.queue.Enqueue(ctx, jobs.Job{
+		Type:           jobs.TypeCompetitorScan,
+		IdempotencyKey: fmt.Sprintf("competitor-scan-retry-%d", scan.ID),
+		Payload: map[string]any{
+			"scan_id": scan.ID,
+		},
+		MaxRetry: 3,
+		Timeout:  10 * time.Minute,
+	}); err != nil {
+		return Scan{}, err
+	}
+	return queued, nil
+}
+
 func (s *Service) GetMonitoring(ctx context.Context, userID int64, limit int) (MonitoringSnapshot, error) {
 	if s.repository == nil {
 		return MonitoringSnapshot{}, ErrServiceNotReady

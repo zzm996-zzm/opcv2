@@ -50,6 +50,7 @@ function CompetitorDataPage() {
   const [latestScan, setLatestScan] = useState<CompetitorScan | null>(null);
   const [loadError, setLoadError] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -118,6 +119,19 @@ function CompetitorDataPage() {
     }
   }
 
+  async function retryScan() {
+    if (isRetrying || !latestScan) return;
+    setIsRetrying(true);
+    try {
+      const scan = await competitorApi.retryScan(latestScan.id);
+      setLatestScan(scan);
+    } catch {
+      // Preserve the failed state so the user can retry again.
+    } finally {
+      setIsRetrying(false);
+    }
+  }
+
   return (
     <V4PageShell className="competitor-data-shell">
       <section className="module-page competitor-data-page" aria-label="竞品全盘数据破解">
@@ -140,6 +154,11 @@ function CompetitorDataPage() {
             <div className="module-empty-state" role="status">
               <strong>{statusCopy.label}</strong>
               <span>{statusCopy.detail}</span>
+              {latestScan?.status === "failed" ? (
+                <button className="competitor-retry-button" disabled={isRetrying} onClick={() => void retryScan()} type="button">
+                  {isRetrying ? "提交中..." : "重新采集"}
+                </button>
+              ) : null}
             </div>
             <div className="module-stat-strip">
               {visibleStats.map(([label, value]) => (

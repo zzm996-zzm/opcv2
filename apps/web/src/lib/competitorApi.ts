@@ -76,6 +76,12 @@ export const competitorApi = {
     });
   },
 
+  retryScan(id: number) {
+    return apiRequest<CompetitorScan>(`/api/v1/competitor/scans/${id}/retry`, {
+      method: "POST"
+    });
+  },
+
   getMonitoring(limit = 20) {
     return apiRequest<{ watchlist: CompetitorWatchItem[]; events: CompetitorEvent[] }>(`/api/v1/competitor/monitoring?limit=${limit}`, {
       method: "GET"

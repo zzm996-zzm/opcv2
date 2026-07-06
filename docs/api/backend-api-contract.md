@@ -846,6 +846,22 @@ Errors:
 - `400 invalid_scan_id`
 - `404 scan_not_found`
 
+### Retry Scan
+
+`POST /api/v1/competitor/scans/{id}/retry`
+
+Requeues an existing scan for the authenticated user. The service resets the
+scan to `queued`, sets `progress_percent` to `0`, clears `error_message`, and
+enqueues a `competitor.scan` background job.
+
+Response `200`: `CompetitorScan`
+
+Errors:
+
+- `400 invalid_scan_id`
+- `404 scan_not_found`
+- `500 service_not_ready`
+
 ### Monitoring
 
 `GET /api/v1/competitor/monitoring?limit=20`

@@ -39,6 +39,12 @@ func (a *fakeApplication) GetScan(_ context.Context, userID, id int64) (Scan, er
 	return a.scan, a.err
 }
 
+func (a *fakeApplication) RetryScan(_ context.Context, userID, id int64) (Scan, error) {
+	a.userID = userID
+	a.scanID = id
+	return a.scan, a.err
+}
+
 func (a *fakeApplication) GetMonitoring(_ context.Context, userID int64, limit int) (MonitoringSnapshot, error) {
 	a.userID = userID
 	a.limit = limit
@@ -162,6 +168,25 @@ func TestGetScanEndpointReturnsNotFoundForOtherUser(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestRetryScanEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{scan: Scan{ID: 99, UserID: 42, Status: StatusQueued}}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/competitor/scans/99/retry", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.scanID != 99 {
+		t.Fatalf("user/scan = %d/%d", app.userID, app.scanID)
+	}
+	if !strings.Contains(recorder.Body.String(), `"status":"queued"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }
 

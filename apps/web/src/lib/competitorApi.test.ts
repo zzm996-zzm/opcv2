@@ -27,4 +27,17 @@ describe("competitorApi", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/competitor/monitoring?limit=10", expect.objectContaining({ method: "GET" }));
   });
+
+  it("retries competitor scans", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, status: "queued", progress_percent: 0, current_step: "queued" }), { status: 200 }));
+
+    const scan = await competitorApi.retryScan(99);
+
+    expect(scan.status).toBe("queued");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/scans/99/retry",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
 });

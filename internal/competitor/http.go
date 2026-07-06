@@ -17,6 +17,7 @@ type Application interface {
 	CreateScan(ctx context.Context, input CreateScanInput) (Scan, error)
 	ListScans(ctx context.Context, userID int64, limit int) ([]Scan, error)
 	GetScan(ctx context.Context, userID, id int64) (Scan, error)
+	RetryScan(ctx context.Context, userID, id int64) (Scan, error)
 	GetMonitoring(ctx context.Context, userID int64, limit int) (MonitoringSnapshot, error)
 }
 
@@ -32,6 +33,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/competitor/scans", h.createScan)
 	router.GET("/competitor/scans", h.listScans)
 	router.GET("/competitor/scans/:id", h.getScan)
+	router.POST("/competitor/scans/:id/retry", h.retryScan)
 	router.GET("/competitor/monitoring", h.monitoring)
 }
 
@@ -78,6 +80,20 @@ func (h *HTTPHandler) getScan(c *gin.Context) {
 		return
 	}
 	scan, err := h.app.GetScan(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, scan)
+}
+
+func (h *HTTPHandler) retryScan(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		httpapi.BadRequest(c, "invalid_scan_id")
+		return
+	}
+	scan, err := h.app.RetryScan(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
 	if err != nil {
 		writeError(c, err)
 		return
