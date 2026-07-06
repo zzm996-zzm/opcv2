@@ -63,13 +63,15 @@ func (s *Service) CreateScan(ctx context.Context, input CreateScanInput) (Scan, 
 	}
 	now := s.now()
 	return s.repository.CreateScan(ctx, Scan{
-		UserID:      input.UserID,
-		Targets:     targets,
-		Focus:       focus,
-		Status:      StatusCompleted,
-		Competitors: defaultCompetitors(targets),
-		Conclusions: defaultConclusions(),
-		CreatedAt:   now,
+		UserID:          input.UserID,
+		Targets:         targets,
+		Focus:           focus,
+		Status:          StatusQueued,
+		ProgressPercent: 0,
+		CurrentStep:     StatusQueued,
+		Competitors:     []Competitor{},
+		Conclusions:     []Conclusion{},
+		CreatedAt:       now,
 	})
 }
 

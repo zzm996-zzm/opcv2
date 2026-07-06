@@ -764,6 +764,13 @@ Errors:
 
 All competitor endpoints are protected.
 
+Scan statuses:
+
+- `queued`
+- `running`
+- `succeeded`
+- `failed`
+
 ### Create Scan
 
 `POST /api/v1/competitor/scans`
@@ -785,8 +792,29 @@ Validation:
 
 Response `200`: `CompetitorScan`
 
+```json
+{
+  "id": 99,
+  "user_id": 42,
+  "targets": ["小鹅通", "有赞教育"],
+  "focus": "价格、案例、招聘和 AI 功能",
+  "status": "queued",
+  "progress_percent": 0,
+  "current_step": "queued",
+  "competitors": [],
+  "conclusions": [],
+  "created_at": "2026-07-06T10:00:00Z",
+  "updated_at": "2026-07-06T10:00:00Z"
+}
+```
+
 Consumes membership quota key `competitor_scans`. Defaults seeded by migrations:
 free users get 5 scans/month, pro users get 200 scans/month.
+
+Notes:
+
+- Creating a scan only creates a queued script task. It must not fabricate competitor cards or AI conclusions.
+- Script execution, evidence capture, and AI result population are separate workflow steps.
 
 Errors:
 

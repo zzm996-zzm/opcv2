@@ -117,7 +117,7 @@ func TestServiceCreateScanStopsWhenCompetitorQuotaExceeded(t *testing.T) {
 	}
 }
 
-func TestServiceCreatesScanWithDevelopmentResult(t *testing.T) {
+func TestServiceCreatesQueuedScanTask(t *testing.T) {
 	now := time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC)
 	repository := &fakeRepository{}
 	service := NewService(repository)
@@ -132,8 +132,11 @@ func TestServiceCreatesScanWithDevelopmentResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateScan() error = %v", err)
 	}
-	if scan.ID != 99 || scan.Status != StatusCompleted || len(scan.Competitors) == 0 || len(scan.Conclusions) == 0 {
+	if scan.ID != 99 || scan.Status != StatusQueued || scan.ProgressPercent != 0 || scan.CurrentStep != "queued" {
 		t.Fatalf("scan = %+v", scan)
+	}
+	if len(scan.Competitors) != 0 || len(scan.Conclusions) != 0 {
+		t.Fatalf("queued scan should not include generated results: %+v", scan)
 	}
 	if repository.createdScan.UserID != 42 || repository.createdScan.CreatedAt != now {
 		t.Fatalf("created = %+v", repository.createdScan)

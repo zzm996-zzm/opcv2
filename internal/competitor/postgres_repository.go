@@ -35,16 +35,16 @@ func (r *PostgresRepository) CreateScan(ctx context.Context, scan Scan) (Scan, e
 		return Scan{}, err
 	}
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO competitor_scans (user_id, targets, focus, status, competitors, conclusions, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+		INSERT INTO competitor_scans (user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
 		RETURNING id
-	`, scan.UserID, targets, scan.Focus, scan.Status, competitors, conclusions, scan.CreatedAt).Scan(&scan.ID)
+	`, scan.UserID, targets, scan.Focus, scan.Status, scan.ProgressPercent, scan.CurrentStep, scan.ErrorMessage, competitors, conclusions, scan.CreatedAt).Scan(&scan.ID)
 	return scan, err
 }
 
 func (r *PostgresRepository) ListScans(ctx context.Context, userID int64, limit int) ([]Scan, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, targets, focus, status, competitors, conclusions, created_at, updated_at
+		SELECT id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
 		FROM competitor_scans
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -71,7 +71,7 @@ func (r *PostgresRepository) ListScans(ctx context.Context, userID int64, limit 
 
 func (r *PostgresRepository) GetScan(ctx context.Context, userID, id int64) (Scan, error) {
 	scan, err := scanScan(r.db.QueryRow(ctx, `
-		SELECT id, user_id, targets, focus, status, competitors, conclusions, created_at, updated_at
+		SELECT id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
 		FROM competitor_scans
 		WHERE user_id = $1 AND id = $2
 	`, userID, id))
@@ -154,6 +154,9 @@ func scanScan(scanner scanScanner) (Scan, error) {
 		&targets,
 		&scan.Focus,
 		&scan.Status,
+		&scan.ProgressPercent,
+		&scan.CurrentStep,
+		&scan.ErrorMessage,
 		&competitors,
 		&conclusions,
 		&scan.CreatedAt,

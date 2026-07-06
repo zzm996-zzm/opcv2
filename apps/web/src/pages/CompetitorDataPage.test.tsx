@@ -150,4 +150,36 @@ describe("CompetitorDataPage", () => {
     expect(await screen.findByRole("heading", { name: "私域增长助手" })).toBeInTheDocument();
     expect(screen.getByText("销售自动化提速")).toBeInTheDocument();
   });
+
+  it("shows queued scan progress after creating a competitor scan", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/scans?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({ scans: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/scans" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 13,
+          user_id: 7,
+          targets: ["小鹅通", "有赞教育", "企微管家"],
+          focus: "价格、案例、招聘和 AI 功能",
+          status: "queued",
+          progress_percent: 0,
+          current_step: "queued",
+          competitors: [],
+          conclusions: [],
+          created_at: "2026-06-30T08:00:00Z",
+          updated_at: "2026-06-30T08:00:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderCompetitorDataPage();
+    fireEvent.click(screen.getByRole("button", { name: "启动采集任务" }));
+
+    expect(await screen.findByText("排队中")).toBeInTheDocument();
+    expect(screen.getByText("脚本任务已排队，等待采集账号执行。")).toBeInTheDocument();
+    expect(screen.getByText("0%")).toBeInTheDocument();
+  });
 });

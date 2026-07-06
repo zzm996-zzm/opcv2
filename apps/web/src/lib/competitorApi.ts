@@ -19,7 +19,10 @@ export type CompetitorScan = {
   user_id: number;
   targets: string[];
   focus: string;
-  status: "completed";
+  status: "queued" | "running" | "succeeded" | "failed" | "completed";
+  progress_percent: number;
+  current_step: string;
+  error_message?: string;
   competitors: CompetitorCard[];
   conclusions: CompetitorConclusion[];
   created_at: string;

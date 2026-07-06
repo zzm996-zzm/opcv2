@@ -5,7 +5,13 @@ import (
 	"time"
 )
 
-const StatusCompleted = "completed"
+const (
+	StatusQueued    = "queued"
+	StatusRunning   = "running"
+	StatusSucceeded = "succeeded"
+	StatusFailed    = "failed"
+	StatusCompleted = StatusSucceeded
+)
 
 var (
 	ErrServiceNotReady = errors.New("competitor service is not configured")
@@ -19,15 +25,18 @@ type CreateScanInput struct {
 }
 
 type Scan struct {
-	ID          int64        `json:"id"`
-	UserID      int64        `json:"user_id"`
-	Targets     []string     `json:"targets"`
-	Focus       string       `json:"focus"`
-	Status      string       `json:"status"`
-	Competitors []Competitor `json:"competitors"`
-	Conclusions []Conclusion `json:"conclusions"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
+	ID              int64        `json:"id"`
+	UserID          int64        `json:"user_id"`
+	Targets         []string     `json:"targets"`
+	Focus           string       `json:"focus"`
+	Status          string       `json:"status"`
+	ProgressPercent int          `json:"progress_percent"`
+	CurrentStep     string       `json:"current_step"`
+	ErrorMessage    string       `json:"error_message,omitempty"`
+	Competitors     []Competitor `json:"competitors"`
+	Conclusions     []Conclusion `json:"conclusions"`
+	CreatedAt       time.Time    `json:"created_at"`
+	UpdatedAt       time.Time    `json:"updated_at"`
 }
 
 type Competitor struct {

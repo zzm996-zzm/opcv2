@@ -26,6 +26,22 @@ const taskFlow = [
   ["4", "生成结论", "输出威胁等级和应对动作"]
 ] as const;
 
+function scanStatusCopy(scan: CompetitorScan | null) {
+  if (!scan) {
+    return { label: "未开始", detail: "启动一次采集任务后，这里会显示脚本队列与处理进度。", progress: 0 };
+  }
+  if (scan.status === "queued") {
+    return { label: "排队中", detail: "脚本任务已排队，等待采集账号执行。", progress: scan.progress_percent };
+  }
+  if (scan.status === "running") {
+    return { label: "采集中", detail: "脚本正在采集公开数据，完成后会生成 AI 破解结论。", progress: scan.progress_percent };
+  }
+  if (scan.status === "failed") {
+    return { label: "采集失败", detail: scan.error_message || "脚本采集失败，请稍后重试或联系运营检查账号池。", progress: scan.progress_percent };
+  }
+  return { label: "已完成", detail: "采集与 AI 分析已完成，可以查看竞品画像和破解结论。", progress: 100 };
+}
+
 function CompetitorDataPage() {
   const [latestScan, setLatestScan] = useState<CompetitorScan | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -50,8 +66,9 @@ function CompetitorDataPage() {
     };
   }, []);
 
+  const statusCopy = scanStatusCopy(latestScan);
   const visibleStats = latestScan ? [
-    ["采集完成", latestScan.status === "completed" ? "100%" : "0%"],
+    ["采集完成", `${statusCopy.progress}%`],
     ["竞品数", String(latestScan.competitors.length)],
     ["高威胁", String(latestScan.competitors.filter((item) => item.risk === "强").length)],
     ["AI结论", String(latestScan.conclusions.length)]
@@ -94,6 +111,10 @@ function CompetitorDataPage() {
             <span className="module-kicker">{latestScan ? latestScan.targets.join(" / ") : "暂无扫描任务"}</span>
             <h2>把分散的公开信号合成一张可行动的竞品地图</h2>
             <p>系统会从官网、招聘、内容、价格、案例和投放素材中提取变化，识别竞品正在抢什么客户、推什么能力、用什么话术。</p>
+            <div className="module-empty-state" role="status">
+              <strong>{statusCopy.label}</strong>
+              <span>{statusCopy.detail}</span>
+            </div>
             <div className="module-stat-strip">
               {visibleStats.map(([label, value]) => (
                 <article key={label}>

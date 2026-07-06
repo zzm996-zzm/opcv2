@@ -9,12 +9,14 @@ describe("competitorApi", () => {
 
   it("creates scans and gets monitoring snapshot", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, status: "completed" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, status: "queued", progress_percent: 0, current_step: "queued" }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ watchlist: [], events: [] }), { status: 200 }));
 
-    await competitorApi.createScan({ targets: ["小鹅通"], focus: "价格变化" });
+    const scan = await competitorApi.createScan({ targets: ["小鹅通"], focus: "价格变化" });
     await competitorApi.getMonitoring(10);
 
+    expect(scan.status).toBe("queued");
+    expect(scan.progress_percent).toBe(0);
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/v1/competitor/scans",
