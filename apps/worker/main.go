@@ -45,7 +45,16 @@ func main() {
 	geoRepository := geo.NewPostgresRepository(db)
 	geoService := geo.NewService(geoRepository)
 	competitorRepository := competitor.NewPostgresRepository(db)
-	competitorService := competitor.NewService(competitorRepository)
+	competitorScanner, err := newCompetitorScanner(cfg)
+	if err != nil {
+		logger.Error("configure competitor scanner", "provider", cfg.CompetitorScannerProvider, "error", err)
+		os.Exit(1)
+	}
+	competitorOptions := []competitor.Option{}
+	if competitorScanner != nil {
+		competitorOptions = append(competitorOptions, competitor.WithScanner(competitorScanner))
+	}
+	competitorService := competitor.NewService(competitorRepository, competitorOptions...)
 	server := taskqueue.NewServer(cfg.RedisAddr)
 	mux := taskqueue.NewMux()
 	leads.RegisterWorker(mux, leadsService)
@@ -70,5 +79,16 @@ func newLeadProvider(cfg config.Config) (leads.LeadProvider, error) {
 		}), nil
 	default:
 		return nil, errors.New("unsupported lead provider")
+	}
+}
+
+func newCompetitorScanner(cfg config.Config) (competitor.Scanner, error) {
+	switch cfg.CompetitorScannerProvider {
+	case "":
+		return nil, nil
+	case "development":
+		return competitor.NewDevelopmentScanner(), nil
+	default:
+		return nil, errors.New("unsupported competitor scanner provider")
 	}
 }

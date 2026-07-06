@@ -817,6 +817,7 @@ Notes:
 - Creating a scan creates a queued script task and enqueues a `competitor.scan` background job. It must not fabricate competitor cards or AI conclusions.
 - The worker marks scans `running` while processing, then writes scanner results and marks `succeeded`, or marks `failed` with `error_message`.
 - Successful scanner results can include `evidence_sources` with `source_type`, `title`, `url`, `summary`, and `captured_at`.
+- `OPCV2_COMPETITOR_SCANNER_PROVIDER=development` enables the development scanner for local/demo use. The default is empty, and production rejects the development scanner.
 - Real script account execution remains a separate provider implementation step.
 
 Errors:

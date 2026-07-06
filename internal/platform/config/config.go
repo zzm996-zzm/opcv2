@@ -17,30 +17,31 @@ type AIModelRoute struct {
 }
 
 type Config struct {
-	Environment              string
-	HTTPAddr                 string
-	DatabaseURL              string
-	RedisAddr                string
-	JWTSecret                string
-	SMSProvider              string
-	SMSDevCode               string
-	AIProvider               string
-	AIModel                  string
-	AIAPIKey                 string
-	AIBaseURL                string
-	AITimeoutSeconds         int
-	AIModelRoutes            []AIModelRoute
-	LeadProvider             string
-	TianyanchaAPIKey         string
-	TianyanchaBaseURL        string
-	TianyanchaTimeoutSeconds int
-	SerperAPIKey             string
-	SerperBaseURL            string
-	SerperTimeoutSeconds     int
-	AutoMigrate              bool
-	MigrationsPath           string
-	CORSAllowedOrigins       []string
-	ExpensiveEndpointLimit   int
+	Environment               string
+	HTTPAddr                  string
+	DatabaseURL               string
+	RedisAddr                 string
+	JWTSecret                 string
+	SMSProvider               string
+	SMSDevCode                string
+	AIProvider                string
+	AIModel                   string
+	AIAPIKey                  string
+	AIBaseURL                 string
+	AITimeoutSeconds          int
+	AIModelRoutes             []AIModelRoute
+	LeadProvider              string
+	CompetitorScannerProvider string
+	TianyanchaAPIKey          string
+	TianyanchaBaseURL         string
+	TianyanchaTimeoutSeconds  int
+	SerperAPIKey              string
+	SerperBaseURL             string
+	SerperTimeoutSeconds      int
+	AutoMigrate               bool
+	MigrationsPath            string
+	CORSAllowedOrigins        []string
+	ExpensiveEndpointLimit    int
 }
 
 func Load() (Config, error) {
@@ -50,30 +51,31 @@ func Load() (Config, error) {
 		smsProvider = "disabled"
 	}
 	cfg := Config{
-		Environment:              environment,
-		HTTPAddr:                 envOrDefault("OPCV2_HTTP_ADDR", ":8080"),
-		DatabaseURL:              envOrDefault("OPCV2_DATABASE_URL", "postgres://opcv2:opcv2@localhost:5432/opcv2?sslmode=disable"),
-		RedisAddr:                envOrDefault("OPCV2_REDIS_ADDR", "localhost:6379"),
-		JWTSecret:                envOrDefault("OPCV2_JWT_SECRET", "development-only-change-me"),
-		SMSProvider:              smsProvider,
-		SMSDevCode:               envOrDefault("OPCV2_SMS_DEV_CODE", "246810"),
-		AIProvider:               envOrDefault("OPCV2_AI_PROVIDER", "development"),
-		AIModel:                  envOrDefault("OPCV2_AI_MODEL", "development-model"),
-		AIAPIKey:                 os.Getenv("OPCV2_AI_API_KEY"),
-		AIBaseURL:                os.Getenv("OPCV2_AI_BASE_URL"),
-		AITimeoutSeconds:         envIntOrDefault("OPCV2_AI_TIMEOUT_SECONDS", 30),
-		AIModelRoutes:            envAIModelRoutes("OPCV2_AI_MODEL_ROUTES"),
-		LeadProvider:             envOrDefault("OPCV2_LEAD_PROVIDER", "development"),
-		TianyanchaAPIKey:         os.Getenv("OPCV2_TYC_API_KEY"),
-		TianyanchaBaseURL:        os.Getenv("OPCV2_TYC_BASE_URL"),
-		TianyanchaTimeoutSeconds: envIntOrDefault("OPCV2_TYC_TIMEOUT_SECONDS", 10),
-		SerperAPIKey:             os.Getenv("OPCV2_SERPER_API_KEY"),
-		SerperBaseURL:            os.Getenv("OPCV2_SERPER_BASE_URL"),
-		SerperTimeoutSeconds:     envIntOrDefault("OPCV2_SERPER_TIMEOUT_SECONDS", 10),
-		AutoMigrate:              envBoolOrDefault("OPCV2_AUTO_MIGRATE", true),
-		MigrationsPath:           envOrDefault("OPCV2_MIGRATIONS_PATH", "migrations"),
-		CORSAllowedOrigins:       envCSVOrDefault("OPCV2_CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),
-		ExpensiveEndpointLimit:   envIntOrDefault("OPCV2_EXPENSIVE_ENDPOINT_LIMIT", 20),
+		Environment:               environment,
+		HTTPAddr:                  envOrDefault("OPCV2_HTTP_ADDR", ":8080"),
+		DatabaseURL:               envOrDefault("OPCV2_DATABASE_URL", "postgres://opcv2:opcv2@localhost:5432/opcv2?sslmode=disable"),
+		RedisAddr:                 envOrDefault("OPCV2_REDIS_ADDR", "localhost:6379"),
+		JWTSecret:                 envOrDefault("OPCV2_JWT_SECRET", "development-only-change-me"),
+		SMSProvider:               smsProvider,
+		SMSDevCode:                envOrDefault("OPCV2_SMS_DEV_CODE", "246810"),
+		AIProvider:                envOrDefault("OPCV2_AI_PROVIDER", "development"),
+		AIModel:                   envOrDefault("OPCV2_AI_MODEL", "development-model"),
+		AIAPIKey:                  os.Getenv("OPCV2_AI_API_KEY"),
+		AIBaseURL:                 os.Getenv("OPCV2_AI_BASE_URL"),
+		AITimeoutSeconds:          envIntOrDefault("OPCV2_AI_TIMEOUT_SECONDS", 30),
+		AIModelRoutes:             envAIModelRoutes("OPCV2_AI_MODEL_ROUTES"),
+		LeadProvider:              envOrDefault("OPCV2_LEAD_PROVIDER", "development"),
+		CompetitorScannerProvider: strings.TrimSpace(os.Getenv("OPCV2_COMPETITOR_SCANNER_PROVIDER")),
+		TianyanchaAPIKey:          os.Getenv("OPCV2_TYC_API_KEY"),
+		TianyanchaBaseURL:         os.Getenv("OPCV2_TYC_BASE_URL"),
+		TianyanchaTimeoutSeconds:  envIntOrDefault("OPCV2_TYC_TIMEOUT_SECONDS", 10),
+		SerperAPIKey:              os.Getenv("OPCV2_SERPER_API_KEY"),
+		SerperBaseURL:             os.Getenv("OPCV2_SERPER_BASE_URL"),
+		SerperTimeoutSeconds:      envIntOrDefault("OPCV2_SERPER_TIMEOUT_SECONDS", 10),
+		AutoMigrate:               envBoolOrDefault("OPCV2_AUTO_MIGRATE", true),
+		MigrationsPath:            envOrDefault("OPCV2_MIGRATIONS_PATH", "migrations"),
+		CORSAllowedOrigins:        envCSVOrDefault("OPCV2_CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),
+		ExpensiveEndpointLimit:    envIntOrDefault("OPCV2_EXPENSIVE_ENDPOINT_LIMIT", 20),
 	}
 	if cfg.Environment == "production" {
 		if os.Getenv("OPCV2_JWT_SECRET") == "" {
@@ -99,6 +101,9 @@ func Load() (Config, error) {
 		}
 		if cfg.LeadProvider == "development" {
 			return Config{}, errors.New("OPCV2_LEAD_PROVIDER=development is not allowed in production")
+		}
+		if cfg.CompetitorScannerProvider == "development" {
+			return Config{}, errors.New("OPCV2_COMPETITOR_SCANNER_PROVIDER=development is not allowed in production")
 		}
 		if cfg.LeadProvider == "tianyancha" && cfg.TianyanchaAPIKey == "" {
 			return Config{}, errors.New("OPCV2_TYC_API_KEY is required in production")

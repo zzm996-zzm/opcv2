@@ -82,6 +82,7 @@ DEPLOY_HOST=prod DEPLOY_PATH=~/data/www/opcv2 ./update.sh
 - Redis: 容器内 `redis:6379`，宿主机 `6391`
 
 > MVP 阶段还未接真实短信服务商，`.env.server.example` 默认 `OPCV2_ENV=development` 和固定验证码。正式上线前必须接入真实 SMS Provider，再切到 `OPCV2_ENV=production`。
+> 竞品扫描 worker 默认不会生成开发样例；本地联调如需生成演示结果，可显式设置 `OPCV2_COMPETITOR_SCANNER_PROVIDER=development`。该配置在 production 环境会被拒绝。
 
 ### 国内服务器构建慢
 

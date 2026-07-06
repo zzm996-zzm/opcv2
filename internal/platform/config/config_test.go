@@ -16,6 +16,7 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	t.Setenv("OPCV2_AI_BASE_URL", "")
 	t.Setenv("OPCV2_AI_TIMEOUT_SECONDS", "")
 	t.Setenv("OPCV2_LEAD_PROVIDER", "")
+	t.Setenv("OPCV2_COMPETITOR_SCANNER_PROVIDER", "")
 	t.Setenv("OPCV2_TYC_API_KEY", "")
 	t.Setenv("OPCV2_TYC_BASE_URL", "")
 	t.Setenv("OPCV2_TYC_TIMEOUT_SECONDS", "")
@@ -56,6 +57,9 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	if cfg.LeadProvider != "development" || cfg.TianyanchaTimeoutSeconds != 10 || cfg.SerperTimeoutSeconds != 10 {
 		t.Fatalf("lead provider defaults = %+v, want development provider and 10s timeouts", cfg)
 	}
+	if cfg.CompetitorScannerProvider != "" {
+		t.Fatalf("CompetitorScannerProvider = %q, want empty default", cfg.CompetitorScannerProvider)
+	}
 	if len(cfg.CORSAllowedOrigins) == 0 || cfg.ExpensiveEndpointLimit != 20 {
 		t.Fatalf("security defaults = %+v, want development CORS origins and rate limit", cfg)
 	}
@@ -75,6 +79,7 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	t.Setenv("OPCV2_AI_BASE_URL", "https://api.example.test")
 	t.Setenv("OPCV2_AI_TIMEOUT_SECONDS", "45")
 	t.Setenv("OPCV2_LEAD_PROVIDER", "tianyancha")
+	t.Setenv("OPCV2_COMPETITOR_SCANNER_PROVIDER", "development")
 	t.Setenv("OPCV2_TYC_API_KEY", "test-tyc-key")
 	t.Setenv("OPCV2_TYC_BASE_URL", "https://tyc.example.test")
 	t.Setenv("OPCV2_TYC_TIMEOUT_SECONDS", "12")
@@ -108,6 +113,9 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	}
 	if cfg.LeadProvider != "tianyancha" || cfg.TianyanchaAPIKey != "test-tyc-key" || cfg.TianyanchaBaseURL != "https://tyc.example.test" || cfg.TianyanchaTimeoutSeconds != 12 {
 		t.Fatalf("Tianyancha overrides were not loaded: %+v", cfg)
+	}
+	if cfg.CompetitorScannerProvider != "development" {
+		t.Fatalf("CompetitorScannerProvider = %q, want development", cfg.CompetitorScannerProvider)
 	}
 	if cfg.SerperAPIKey != "test-serper-key" || cfg.SerperBaseURL != "https://serper.example.test" || cfg.SerperTimeoutSeconds != 13 {
 		t.Fatalf("Serper overrides were not loaded: %+v", cfg)
@@ -278,5 +286,22 @@ func TestLoadRejectsProductionTianyanchaWithoutAPIKey(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want production Tianyancha API key error")
+	}
+}
+
+func TestLoadRejectsProductionDevelopmentCompetitorScanner(t *testing.T) {
+	t.Setenv("OPCV2_ENV", "production")
+	t.Setenv("OPCV2_JWT_SECRET", "production-secret")
+	t.Setenv("OPCV2_SMS_PROVIDER", "disabled")
+	t.Setenv("OPCV2_AI_PROVIDER", "openai")
+	t.Setenv("OPCV2_AI_MODEL", "gpt-production")
+	t.Setenv("OPCV2_AI_API_KEY", "production-ai-key")
+	t.Setenv("OPCV2_LEAD_PROVIDER", "tianyancha")
+	t.Setenv("OPCV2_TYC_API_KEY", "production-tyc-key")
+	t.Setenv("OPCV2_CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("OPCV2_COMPETITOR_SCANNER_PROVIDER", "development")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want production competitor scanner provider error")
 	}
 }
