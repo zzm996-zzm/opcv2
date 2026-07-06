@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/membership"
 )
@@ -27,12 +29,17 @@ type QuotaConsumer interface {
 	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
 }
 
+type ProfileContextProvider interface {
+	GetProfileContext(ctx context.Context, userID int64) (account.ProfileContext, error)
+}
+
 type Option func(*Service)
 
 type Service struct {
 	repository Repository
 	generator  JSONGenerator
 	quota      QuotaConsumer
+	profile    ProfileContextProvider
 	now        func() time.Time
 }
 
@@ -47,6 +54,12 @@ func NewService(repository Repository, generator JSONGenerator, options ...Optio
 func WithQuotaConsumer(quota QuotaConsumer) Option {
 	return func(service *Service) {
 		service.quota = quota
+	}
+}
+
+func WithProfileContextProvider(provider ProfileContextProvider) Option {
+	return func(service *Service) {
+		service.profile = provider
 	}
 }
 
@@ -109,12 +122,16 @@ func (s *Service) GetSession(ctx context.Context, userID, id int64) (Session, er
 }
 
 func (s *Service) generateReport(ctx context.Context, session Session) (Report, error) {
+	profilePrompt, err := s.profilePrompt(ctx, session.UserID)
+	if err != nil {
+		return Report{}, err
+	}
 	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID:         session.UserID,
 		Feature:        "sandbox.run",
 		PromptVersion:  "sandbox_run_v1",
 		SystemPrompt:   "你是商业沙盘推演助手。必须只返回 JSON，字段严格匹配 sandbox_report。",
-		UserPrompt:     sandboxUserPrompt(session),
+		UserPrompt:     appendPromptSection(sandboxUserPrompt(session), profilePrompt),
 		SchemaName:     "sandbox_report",
 		Validate:       validateReportJSON,
 		RepairAttempts: 1,
@@ -132,6 +149,17 @@ func (s *Service) generateReport(ctx context.Context, session Session) (Report, 
 	return report, nil
 }
 
+func (s *Service) profilePrompt(ctx context.Context, userID int64) (string, error) {
+	if s.profile == nil {
+		return "", nil
+	}
+	profile, err := s.profile.GetProfileContext(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	return formatProfileContext(profile), nil
+}
+
 func sandboxUserPrompt(session Session) string {
 	return fmt.Sprintf(
 		"目标：%s\n目标用户：%s\n产品/方案：%s\n推演角色：%s",
@@ -140,6 +168,43 @@ func sandboxUserPrompt(session Session) string {
 		session.Product,
 		strings.Join(session.Roles, "、"),
 	)
+}
+
+func appendPromptSection(base string, section string) string {
+	section = strings.TrimSpace(section)
+	if section == "" {
+		return base
+	}
+	return base + "\n\n" + section
+}
+
+func formatProfileContext(profile account.ProfileContext) string {
+	if len(profile.Groups) == 0 {
+		return ""
+	}
+	lines := []string{"用户画像上下文："}
+	for _, group := range profile.Groups {
+		if len(group.Fields) == 0 {
+			continue
+		}
+		fields := make([]string, 0, len(group.Fields))
+		for key, value := range group.Fields {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			fields = append(fields, key+"="+value)
+		}
+		if len(fields) == 0 {
+			continue
+		}
+		sort.Strings(fields)
+		lines = append(lines, "- "+group.Title+"："+strings.Join(fields, "；"))
+	}
+	if len(lines) == 1 {
+		return ""
+	}
+	return strings.Join(lines, "\n")
 }
 
 func validateReportJSON(data []byte) error {

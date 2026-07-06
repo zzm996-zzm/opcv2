@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
 )
 
@@ -74,6 +76,15 @@ func (g *fakeJSONGenerator) GenerateJSON(_ context.Context, request ai.GenerateJ
 	return g.result, g.err
 }
 
+type fakeProfileContextProvider struct {
+	context account.ProfileContext
+	err     error
+}
+
+func (p *fakeProfileContextProvider) GetProfileContext(context.Context, int64) (account.ProfileContext, error) {
+	return p.context, p.err
+}
+
 func TestServiceAsksFollowUpForThinMatchRequest(t *testing.T) {
 	repository := &memoryRepository{}
 	service := NewService(repository, &fakeJSONGenerator{})
@@ -93,6 +104,46 @@ func TestServiceAsksFollowUpForThinMatchRequest(t *testing.T) {
 	}
 	if repository.sessions[0].UserID != 42 || repository.sessions[0].Status != StatusNeedsInput {
 		t.Fatalf("stored session = %+v", repository.sessions[0])
+	}
+}
+
+func TestServiceAddsProfileContextToMatchPrompt(t *testing.T) {
+	payload := MatchResult{
+		Status: StatusCompleted,
+		Projects: []ProjectMatch{{
+			Rank:    1,
+			Title:   "AI私域增长顾问",
+			Score:   91,
+			Tags:    []string{"私域", "企业服务"},
+			Budget:  "¥10,000 - ¥30,000",
+			Reasons: []string{"行业匹配", "目标清晰"},
+			Risk:    "交付依赖案例积累",
+		}},
+	}
+	content, _ := json.Marshal(payload)
+	generator := &fakeJSONGenerator{result: ai.GenerateJSONResult{Content: content}}
+	profile := &fakeProfileContextProvider{context: account.ProfileContext{
+		UserID:    42,
+		Completed: true,
+		Groups: []account.ProfileGroup{
+			{Key: account.ProfileGroupBusiness, Title: "我的业务/公司", Fields: map[string]string{"company": "智活AI", "stage": "启动"}},
+			{Key: account.ProfileGroupGoals, Title: "目标与诉求", Fields: map[string]string{"short_term": "验证企业服务项目"}},
+		},
+	}}
+	service := NewService(&memoryRepository{}, generator, WithProfileContextProvider(profile))
+
+	_, err := service.CreateMatch(context.Background(), MatchInput{
+		UserID: 42,
+		Intent: "我擅长企业服务，预算3万以内，每周能投入20小时，希望做线上轻资产项目",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateMatch() error = %v", err)
+	}
+	if !strings.Contains(generator.request.UserPrompt, "用户画像上下文") ||
+		!strings.Contains(generator.request.UserPrompt, "智活AI") ||
+		!strings.Contains(generator.request.UserPrompt, "验证企业服务项目") {
+		t.Fatalf("prompt missing profile context: %s", generator.request.UserPrompt)
 	}
 }
 

@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
 )
 
@@ -22,14 +24,31 @@ type JSONGenerator interface {
 	GenerateJSON(ctx context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error)
 }
 
+type ProfileContextProvider interface {
+	GetProfileContext(ctx context.Context, userID int64) (account.ProfileContext, error)
+}
+
+type Option func(*Service)
+
 type Service struct {
 	repository Repository
 	generator  JSONGenerator
+	profile    ProfileContextProvider
 	now        func() time.Time
 }
 
-func NewService(repository Repository, generator JSONGenerator) *Service {
-	return &Service{repository: repository, generator: generator, now: time.Now}
+func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
+	service := &Service{repository: repository, generator: generator, now: time.Now}
+	for _, option := range options {
+		option(service)
+	}
+	return service
+}
+
+func WithProfileContextProvider(provider ProfileContextProvider) Option {
+	return func(service *Service) {
+		service.profile = provider
+	}
 }
 
 func (s *Service) CreateMatch(ctx context.Context, input MatchInput) (MatchResult, error) {
@@ -98,12 +117,16 @@ func (s *Service) FavoriteMatch(ctx context.Context, userID, id int64) (Favorite
 }
 
 func (s *Service) generateMatch(ctx context.Context, input MatchInput) (MatchResult, error) {
+	profilePrompt, err := s.profilePrompt(ctx, input.UserID)
+	if err != nil {
+		return MatchResult{}, err
+	}
 	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID:         input.UserID,
 		Feature:        "projects.match",
 		PromptVersion:  "project_match_v1",
 		SystemPrompt:   "你是项目超市 AI 匹配助手。必须只返回 JSON，字段严格匹配 project_match_result。",
-		UserPrompt:     matchUserPrompt(input),
+		UserPrompt:     appendPromptSection(matchUserPrompt(input), profilePrompt),
 		SchemaName:     "project_match_result",
 		Validate:       validateMatchResultJSON,
 		RepairAttempts: 1,
@@ -122,11 +145,59 @@ func (s *Service) generateMatch(ctx context.Context, input MatchInput) (MatchRes
 	return result, nil
 }
 
+func (s *Service) profilePrompt(ctx context.Context, userID int64) (string, error) {
+	if s.profile == nil {
+		return "", nil
+	}
+	profile, err := s.profile.GetProfileContext(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	return formatProfileContext(profile), nil
+}
+
 func matchUserPrompt(input MatchInput) string {
 	if len(input.Answers) == 0 {
 		return input.Intent
 	}
 	return input.Intent + "\n补充回答：" + answerText(input.Answers)
+}
+
+func appendPromptSection(base string, section string) string {
+	section = strings.TrimSpace(section)
+	if section == "" {
+		return base
+	}
+	return base + "\n\n" + section
+}
+
+func formatProfileContext(profile account.ProfileContext) string {
+	if len(profile.Groups) == 0 {
+		return ""
+	}
+	lines := []string{"用户画像上下文："}
+	for _, group := range profile.Groups {
+		if len(group.Fields) == 0 {
+			continue
+		}
+		fields := make([]string, 0, len(group.Fields))
+		for key, value := range group.Fields {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			fields = append(fields, key+"="+value)
+		}
+		if len(fields) == 0 {
+			continue
+		}
+		sort.Strings(fields)
+		lines = append(lines, "- "+group.Title+"："+strings.Join(fields, "；"))
+	}
+	if len(lines) == 1 {
+		return ""
+	}
+	return strings.Join(lines, "\n")
 }
 
 func validateMatchResultJSON(data []byte) error {

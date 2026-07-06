@@ -116,7 +116,7 @@ func main() {
 	analysisService := analysis.NewService(analysisRepository, aiService)
 	analysisHTTP := analysis.NewHTTPHandler(analysisService)
 	projectsRepository := projects.NewPostgresRepository(db)
-	projectsService := projects.NewService(projectsRepository, aiService)
+	projectsService := projects.NewService(projectsRepository, aiService, projects.WithProfileContextProvider(accountService))
 	projectsHTTP := projects.NewHTTPHandler(projectsService)
 	leadsRepository := leads.NewPostgresRepository(db)
 	leadProvider, err := newLeadProvider(cfg)
@@ -141,7 +141,12 @@ func main() {
 	supportService := support.NewService(supportRepository)
 	supportHTTP := support.NewHTTPHandler(supportService)
 	sandboxRepository := sandbox.NewPostgresRepository(db)
-	sandboxService := sandbox.NewService(sandboxRepository, aiService, sandbox.WithQuotaConsumer(membershipService))
+	sandboxService := sandbox.NewService(
+		sandboxRepository,
+		aiService,
+		sandbox.WithQuotaConsumer(membershipService),
+		sandbox.WithProfileContextProvider(accountService),
+	)
 	sandboxHTTP := sandbox.NewHTTPHandler(sandboxService)
 	tasksRepository := tasks.NewPostgresRepository(db)
 	tasksService := tasks.NewService(tasksRepository)

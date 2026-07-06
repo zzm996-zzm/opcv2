@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/membership"
 )
@@ -95,6 +97,15 @@ func (c *fakeQuotaConsumer) CheckAndConsume(_ context.Context, input membership.
 	return membership.UsageItem{Key: input.FeatureKey, Used: 1, Limit: 20}, nil
 }
 
+type fakeProfileContextProvider struct {
+	context account.ProfileContext
+	err     error
+}
+
+func (p *fakeProfileContextProvider) GetProfileContext(context.Context, int64) (account.ProfileContext, error) {
+	return p.context, p.err
+}
+
 func TestServiceCreatesDraftSession(t *testing.T) {
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
 	repository := &fakeRepository{}
@@ -117,6 +128,47 @@ func TestServiceCreatesDraftSession(t *testing.T) {
 	}
 	if repository.created.UserID != 42 || repository.created.Goal == "" || len(repository.created.Roles) != 3 {
 		t.Fatalf("created = %+v", repository.created)
+	}
+}
+
+func TestServiceRunSessionAddsProfileContextToPrompt(t *testing.T) {
+	report := Report{
+		Score:         83,
+		Summary:       "可以先做小范围验证",
+		Metrics:       []Metric{{Label: "市场吸引力", Value: "8.4"}},
+		RoleSummaries: []RoleSummary{{Role: "用户", View: "关注响应效率和数据安全"}},
+		Risks:         []string{"客户教育成本高"},
+		NextActions:   []string{"访谈 10 个目标客户"},
+	}
+	payload, _ := json.Marshal(report)
+	generator := &fakeGenerator{content: payload}
+	profile := &fakeProfileContextProvider{context: account.ProfileContext{
+		UserID:    42,
+		Completed: true,
+		Groups: []account.ProfileGroup{
+			{Key: account.ProfileGroupBusiness, Title: "我的业务/公司", Fields: map[string]string{"company": "智活AI", "stage": "启动"}},
+			{Key: account.ProfileGroupResources, Title: "能力与资源", Fields: map[string]string{"budget": "3万以内"}},
+		},
+	}}
+	service := NewService(&fakeRepository{session: Session{
+		ID:          99,
+		UserID:      42,
+		Status:      StatusDraft,
+		Goal:        "验证企业服务项目",
+		TargetUsers: "中小企业老板",
+		Product:     "AI 顾问服务",
+		Roles:       []string{"用户"},
+	}}, generator, WithProfileContextProvider(profile))
+
+	_, err := service.RunSession(context.Background(), 42, 99)
+
+	if err != nil {
+		t.Fatalf("RunSession() error = %v", err)
+	}
+	if !strings.Contains(generator.request.UserPrompt, "用户画像上下文") ||
+		!strings.Contains(generator.request.UserPrompt, "智活AI") ||
+		!strings.Contains(generator.request.UserPrompt, "3万以内") {
+		t.Fatalf("prompt missing profile context: %s", generator.request.UserPrompt)
 	}
 }
 
