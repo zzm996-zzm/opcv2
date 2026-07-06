@@ -100,6 +100,7 @@ function CompetitorDataPage() {
   ] as const : emptyDataStats;
   const visibleCompetitors = latestScan?.competitors ?? [];
   const visibleConclusions = latestScan?.conclusions.map((item) => [item.title, item.detail] as const) ?? [];
+  const visibleEvidenceSources = latestScan?.evidence_sources ?? [];
 
   async function startScan() {
     if (isScanning) return;
@@ -248,6 +249,21 @@ function CompetitorDataPage() {
                 </article>
               ))}
             </div>
+            {visibleEvidenceSources.length > 0 ? (
+              <div className="competitor-evidence-list">
+                <h2>证据来源</h2>
+                {visibleEvidenceSources.slice(0, 4).map((source) => (
+                  <article key={`${source.source_type}-${source.url}-${source.title}`}>
+                    <span>
+                      <strong>{source.title}</strong>
+                      <small>{source.source_type}</small>
+                    </span>
+                    <p>{source.summary}</p>
+                    <a href={source.url} rel="noreferrer" target="_blank">打开来源</a>
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <aside className="competitor-action-card" aria-label="建议动作">

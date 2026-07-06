@@ -9857,6 +9857,52 @@ a {
   font-weight: 900;
 }
 
+.competitor-evidence-list {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(31, 68, 140, 0.08);
+}
+
+.competitor-evidence-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(31, 68, 140, 0.08);
+  border-radius: 12px;
+}
+
+.competitor-evidence-list span {
+  display: grid;
+  gap: 4px;
+}
+
+.competitor-evidence-list strong {
+  color: #10265f;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.competitor-evidence-list small {
+  color: #1557ff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.competitor-evidence-list p {
+  grid-column: 1 / -1;
+}
+
+.competitor-evidence-list a {
+  align-self: start;
+  color: #1557ff;
+  font-size: 13px;
+  font-weight: 880;
+  white-space: nowrap;
+}
+
 .competitor-action-card {
   align-content: start;
 }

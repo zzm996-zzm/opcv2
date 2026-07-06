@@ -96,6 +96,7 @@ func (s *Service) CreateScan(ctx context.Context, input CreateScanInput) (Scan, 
 		CurrentStep:     StatusQueued,
 		Competitors:     []Competitor{},
 		Conclusions:     []Conclusion{},
+		EvidenceSources: []EvidenceSource{},
 		CreatedAt:       now,
 	})
 	if err != nil {
@@ -184,6 +185,9 @@ func (s *Service) ProcessScan(ctx context.Context, id int64) error {
 	}
 	if result.Conclusions == nil {
 		result.Conclusions = []Conclusion{}
+	}
+	if result.EvidenceSources == nil {
+		result.EvidenceSources = []EvidenceSource{}
 	}
 	if err := s.repository.StoreScanResults(ctx, id, result); err != nil {
 		return err

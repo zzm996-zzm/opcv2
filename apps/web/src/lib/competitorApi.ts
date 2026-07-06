@@ -14,6 +14,14 @@ export type CompetitorConclusion = {
   detail: string;
 };
 
+export type CompetitorEvidenceSource = {
+  source_type: string;
+  title: string;
+  url: string;
+  summary: string;
+  captured_at: string;
+};
+
 export type CompetitorScan = {
   id: number;
   user_id: number;
@@ -25,6 +33,7 @@ export type CompetitorScan = {
   error_message?: string;
   competitors: CompetitorCard[];
   conclusions: CompetitorConclusion[];
+  evidence_sources?: CompetitorEvidenceSource[];
   created_at: string;
   updated_at: string;
 };

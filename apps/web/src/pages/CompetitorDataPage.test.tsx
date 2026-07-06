@@ -74,6 +74,15 @@ describe("CompetitorDataPage", () => {
             conclusions: [
               { title: "自动化增强", detail: "竞品正在把监测结果直接转成销售动作。" }
             ],
+            evidence_sources: [
+              {
+                source_type: "official_site",
+                title: "增长雷达产品更新页",
+                url: "https://example.com/release",
+                summary: "新增自动化竞品预警和任务派发能力",
+                captured_at: "2026-06-30T08:20:00Z"
+              }
+            ],
             created_at: "2026-06-30T08:00:00Z",
             updated_at: "2026-06-30T08:30:00Z"
           }
@@ -84,8 +93,11 @@ describe("CompetitorDataPage", () => {
     renderCompetitorDataPage();
 
     expect(await screen.findByRole("heading", { name: "增长雷达" })).toBeInTheDocument();
-    expect(screen.getByText("新增自动化竞品预警和任务派发能力")).toBeInTheDocument();
+    expect(screen.getAllByText("新增自动化竞品预警和任务派发能力")).toHaveLength(2);
     expect(screen.getByText("自动化增强")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "证据来源" })).toBeInTheDocument();
+    expect(screen.getByText("增长雷达产品更新页")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开来源" })).toHaveAttribute("href", "https://example.com/release");
   });
 
   it("shows backend load errors without rendering fallback competitor data", async () => {

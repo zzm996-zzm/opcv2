@@ -803,6 +803,7 @@ Response `200`: `CompetitorScan`
   "current_step": "queued",
   "competitors": [],
   "conclusions": [],
+  "evidence_sources": [],
   "created_at": "2026-07-06T10:00:00Z",
   "updated_at": "2026-07-06T10:00:00Z"
 }
@@ -815,7 +816,8 @@ Notes:
 
 - Creating a scan creates a queued script task and enqueues a `competitor.scan` background job. It must not fabricate competitor cards or AI conclusions.
 - The worker marks scans `running` while processing, then writes scanner results and marks `succeeded`, or marks `failed` with `error_message`.
-- Evidence capture and real script account execution are separate provider implementation steps.
+- Successful scanner results can include `evidence_sources` with `source_type`, `title`, `url`, `summary`, and `captured_at`.
+- Real script account execution remains a separate provider implementation step.
 
 Errors:
 

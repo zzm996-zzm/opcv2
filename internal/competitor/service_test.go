@@ -57,6 +57,13 @@ func (s *fakeScanner) Scan(_ context.Context, scan Scan) (ScanResult, error) {
 	return ScanResult{
 		Competitors: []Competitor{{Name: "小鹅通", Category: "知识付费", Score: 91, Risk: "high"}},
 		Conclusions: []Conclusion{{Title: "定位变化", Detail: "竞品正在强化 AI 私域能力。"}},
+		EvidenceSources: []EvidenceSource{{
+			SourceType: "official_site",
+			Title:      "小鹅通价格页",
+			URL:        "https://example.com/pricing",
+			Summary:    "套餐页新增 AI 助教权益",
+			CapturedAt: time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC),
+		}},
 	}, nil
 }
 
@@ -242,7 +249,7 @@ func TestServiceProcessScanStoresResultsAndMarksSucceeded(t *testing.T) {
 	if scanner.scan.ID != 99 || scanner.scan.Status != StatusRunning {
 		t.Fatalf("scanner scan = %+v", scanner.scan)
 	}
-	if len(repository.results.Competitors) != 1 || len(repository.results.Conclusions) != 1 {
+	if len(repository.results.Competitors) != 1 || len(repository.results.Conclusions) != 1 || len(repository.results.EvidenceSources) != 1 {
 		t.Fatalf("results = %+v", repository.results)
 	}
 	if len(repository.updates) != 2 {

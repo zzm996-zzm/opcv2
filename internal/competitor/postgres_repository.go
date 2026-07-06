@@ -36,17 +36,21 @@ func (r *PostgresRepository) CreateScan(ctx context.Context, scan Scan) (Scan, e
 	if err != nil {
 		return Scan{}, err
 	}
+	evidenceSources, err := json.Marshal(scan.EvidenceSources)
+	if err != nil {
+		return Scan{}, err
+	}
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO competitor_scans (user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+		INSERT INTO competitor_scans (user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, evidence_sources, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 		RETURNING id
-	`, scan.UserID, targets, scan.Focus, scan.Status, scan.ProgressPercent, scan.CurrentStep, scan.ErrorMessage, competitors, conclusions, scan.CreatedAt).Scan(&scan.ID)
+	`, scan.UserID, targets, scan.Focus, scan.Status, scan.ProgressPercent, scan.CurrentStep, scan.ErrorMessage, competitors, conclusions, evidenceSources, scan.CreatedAt).Scan(&scan.ID)
 	return scan, err
 }
 
 func (r *PostgresRepository) ListScans(ctx context.Context, userID int64, limit int) ([]Scan, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
+		SELECT id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, evidence_sources, created_at, updated_at
 		FROM competitor_scans
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -73,7 +77,7 @@ func (r *PostgresRepository) ListScans(ctx context.Context, userID int64, limit 
 
 func (r *PostgresRepository) GetScan(ctx context.Context, userID, id int64) (Scan, error) {
 	scan, err := scanScan(r.db.QueryRow(ctx, `
-		SELECT id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
+		SELECT id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, evidence_sources, created_at, updated_at
 		FROM competitor_scans
 		WHERE user_id = $1 AND id = $2
 	`, userID, id))
@@ -88,7 +92,7 @@ func (r *PostgresRepository) UpdateScanStatus(ctx context.Context, id int64, sta
 		UPDATE competitor_scans
 		SET status = $2, progress_percent = $3, current_step = $4, error_message = $5, updated_at = NOW()
 		WHERE id = $1
-		RETURNING id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
+		RETURNING id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, evidence_sources, created_at, updated_at
 	`, id, status, progressPercent, currentStep, errorMessage))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Scan{}, ErrScanNotFound
@@ -105,11 +109,15 @@ func (r *PostgresRepository) StoreScanResults(ctx context.Context, id int64, res
 	if err != nil {
 		return err
 	}
+	evidenceSources, err := json.Marshal(result.EvidenceSources)
+	if err != nil {
+		return err
+	}
 	tag, err := r.db.Exec(ctx, `
 		UPDATE competitor_scans
-		SET competitors = $2, conclusions = $3, updated_at = NOW()
+		SET competitors = $2, conclusions = $3, evidence_sources = $4, updated_at = NOW()
 		WHERE id = $1
-	`, id, competitors, conclusions)
+	`, id, competitors, conclusions, evidenceSources)
 	if err != nil {
 		return err
 	}
@@ -186,6 +194,7 @@ func scanScan(scanner scanScanner) (Scan, error) {
 	var targets []byte
 	var competitors []byte
 	var conclusions []byte
+	var evidenceSources []byte
 	if err := scanner.Scan(
 		&scan.ID,
 		&scan.UserID,
@@ -197,6 +206,7 @@ func scanScan(scanner scanScanner) (Scan, error) {
 		&scan.ErrorMessage,
 		&competitors,
 		&conclusions,
+		&evidenceSources,
 		&scan.CreatedAt,
 		&scan.UpdatedAt,
 	); err != nil {
@@ -209,6 +219,9 @@ func scanScan(scanner scanScanner) (Scan, error) {
 		return Scan{}, err
 	}
 	if err := json.Unmarshal(conclusions, &scan.Conclusions); err != nil {
+		return Scan{}, err
+	}
+	if err := json.Unmarshal(evidenceSources, &scan.EvidenceSources); err != nil {
 		return Scan{}, err
 	}
 	return scan, nil

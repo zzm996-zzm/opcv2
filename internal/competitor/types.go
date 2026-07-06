@@ -25,23 +25,25 @@ type CreateScanInput struct {
 }
 
 type ScanResult struct {
-	Competitors []Competitor
-	Conclusions []Conclusion
+	Competitors     []Competitor
+	Conclusions     []Conclusion
+	EvidenceSources []EvidenceSource
 }
 
 type Scan struct {
-	ID              int64        `json:"id"`
-	UserID          int64        `json:"user_id"`
-	Targets         []string     `json:"targets"`
-	Focus           string       `json:"focus"`
-	Status          string       `json:"status"`
-	ProgressPercent int          `json:"progress_percent"`
-	CurrentStep     string       `json:"current_step"`
-	ErrorMessage    string       `json:"error_message,omitempty"`
-	Competitors     []Competitor `json:"competitors"`
-	Conclusions     []Conclusion `json:"conclusions"`
-	CreatedAt       time.Time    `json:"created_at"`
-	UpdatedAt       time.Time    `json:"updated_at"`
+	ID              int64            `json:"id"`
+	UserID          int64            `json:"user_id"`
+	Targets         []string         `json:"targets"`
+	Focus           string           `json:"focus"`
+	Status          string           `json:"status"`
+	ProgressPercent int              `json:"progress_percent"`
+	CurrentStep     string           `json:"current_step"`
+	ErrorMessage    string           `json:"error_message,omitempty"`
+	Competitors     []Competitor     `json:"competitors"`
+	Conclusions     []Conclusion     `json:"conclusions"`
+	EvidenceSources []EvidenceSource `json:"evidence_sources"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
 }
 
 type Competitor struct {
@@ -56,6 +58,14 @@ type Competitor struct {
 type Conclusion struct {
 	Title  string `json:"title"`
 	Detail string `json:"detail"`
+}
+
+type EvidenceSource struct {
+	SourceType string    `json:"source_type"`
+	Title      string    `json:"title"`
+	URL        string    `json:"url"`
+	Summary    string    `json:"summary"`
+	CapturedAt time.Time `json:"captured_at"`
 }
 
 type WatchItem struct {

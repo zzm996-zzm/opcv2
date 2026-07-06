@@ -18,8 +18,8 @@ func TestPostgresRepositoryCreatesScan(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO competitor_scans (user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+		INSERT INTO competitor_scans (user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, evidence_sources, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 		RETURNING id
 	`)).
 		WithArgs(
@@ -30,6 +30,7 @@ func TestPostgresRepositoryCreatesScan(t *testing.T) {
 			0,
 			"queued",
 			"",
+			pgxmock.AnyArg(),
 			pgxmock.AnyArg(),
 			pgxmock.AnyArg(),
 			now,
@@ -45,7 +46,14 @@ func TestPostgresRepositoryCreatesScan(t *testing.T) {
 		CurrentStep: "queued",
 		Competitors: []Competitor{{Name: "小鹅通", Score: 91}},
 		Conclusions: []Conclusion{{Title: "定位变化", Detail: "AI 私域增长"}},
-		CreatedAt:   now,
+		EvidenceSources: []EvidenceSource{{
+			SourceType: "official_site",
+			Title:      "小鹅通价格页",
+			URL:        "https://example.com/pricing",
+			Summary:    "套餐页新增 AI 助教权益",
+			CapturedAt: now,
+		}},
+		CreatedAt: now,
 	})
 	if err != nil {
 		t.Fatalf("CreateScan() error = %v", err)
@@ -67,13 +75,13 @@ func TestPostgresRepositoryGetsOwnedScan(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
+		SELECT id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, evidence_sources, created_at, updated_at
 		FROM competitor_scans
 		WHERE user_id = $1 AND id = $2
 	`)).
 		WithArgs(int64(42), int64(99)).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "targets", "focus", "status", "progress_percent", "current_step", "error_message", "competitors", "conclusions", "created_at", "updated_at",
+			"id", "user_id", "targets", "focus", "status", "progress_percent", "current_step", "error_message", "competitors", "conclusions", "evidence_sources", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -85,6 +93,7 @@ func TestPostgresRepositoryGetsOwnedScan(t *testing.T) {
 			"",
 			[]byte(`[{"name":"小鹅通","category":"知识付费","score":91,"signal":"新增 AI 助教","risk":"high","tags":["价格页更新"]}]`),
 			[]byte(`[{"title":"定位变化","detail":"AI 私域增长"}]`),
+			[]byte(`[{"source_type":"official_site","title":"小鹅通价格页","url":"https://example.com/pricing","summary":"套餐页新增 AI 助教权益","captured_at":"2026-06-30T14:00:00Z"}]`),
 			now,
 			now,
 		))
@@ -94,7 +103,7 @@ func TestPostgresRepositoryGetsOwnedScan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetScan() error = %v", err)
 	}
-	if scan.ID != 99 || scan.Status != StatusRunning || scan.ProgressPercent != 45 || scan.CurrentStep != "collecting_sources" || scan.Competitors[0].Name != "小鹅通" {
+	if scan.ID != 99 || scan.Status != StatusRunning || scan.ProgressPercent != 45 || scan.CurrentStep != "collecting_sources" || scan.Competitors[0].Name != "小鹅通" || scan.EvidenceSources[0].Title != "小鹅通价格页" {
 		t.Fatalf("scan = %+v", scan)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
@@ -114,11 +123,11 @@ func TestPostgresRepositoryUpdatesScanStatus(t *testing.T) {
 		UPDATE competitor_scans
 		SET status = $2, progress_percent = $3, current_step = $4, error_message = $5, updated_at = NOW()
 		WHERE id = $1
-		RETURNING id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, created_at, updated_at
+		RETURNING id, user_id, targets, focus, status, progress_percent, current_step, error_message, competitors, conclusions, evidence_sources, created_at, updated_at
 	`)).
 		WithArgs(int64(99), StatusRunning, 30, "collecting_sources", "").
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "targets", "focus", "status", "progress_percent", "current_step", "error_message", "competitors", "conclusions", "created_at", "updated_at",
+			"id", "user_id", "targets", "focus", "status", "progress_percent", "current_step", "error_message", "competitors", "conclusions", "evidence_sources", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -128,6 +137,7 @@ func TestPostgresRepositoryUpdatesScanStatus(t *testing.T) {
 			30,
 			"collecting_sources",
 			"",
+			[]byte(`[]`),
 			[]byte(`[]`),
 			[]byte(`[]`),
 			now,
@@ -156,11 +166,12 @@ func TestPostgresRepositoryStoresScanResults(t *testing.T) {
 
 	db.ExpectExec(regexp.QuoteMeta(`
 		UPDATE competitor_scans
-		SET competitors = $2, conclusions = $3, updated_at = NOW()
+		SET competitors = $2, conclusions = $3, evidence_sources = $4, updated_at = NOW()
 		WHERE id = $1
 	`)).
 		WithArgs(
 			int64(99),
+			pgxmock.AnyArg(),
 			pgxmock.AnyArg(),
 			pgxmock.AnyArg(),
 		).
@@ -170,6 +181,13 @@ func TestPostgresRepositoryStoresScanResults(t *testing.T) {
 	err = repository.StoreScanResults(context.Background(), 99, ScanResult{
 		Competitors: []Competitor{{Name: "小鹅通", Category: "知识付费", Score: 91, Risk: "high"}},
 		Conclusions: []Conclusion{{Title: "定位变化", Detail: "竞品正在强化 AI 私域能力。"}},
+		EvidenceSources: []EvidenceSource{{
+			SourceType: "official_site",
+			Title:      "小鹅通价格页",
+			URL:        "https://example.com/pricing",
+			Summary:    "套餐页新增 AI 助教权益",
+			CapturedAt: time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC),
+		}},
 	})
 	if err != nil {
 		t.Fatalf("StoreScanResults() error = %v", err)
