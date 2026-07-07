@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { enterpriseApi, type EnterpriseOverview } from "../lib/enterpriseApi";
 
 function EnterprisePage() {
+  const enterpriseNeedRef = useRef<HTMLTextAreaElement | null>(null);
   const [overview, setOverview] = useState<EnterpriseOverview | null>(null);
   const [loadError, setLoadError] = useState("");
 
@@ -34,6 +35,13 @@ function EnterprisePage() {
   const cases = overview?.cases ?? [];
   const hasOverviewData = stats.length > 0 || plans.length > 0 || deliveryBoard.length > 0 || milestones.length > 0 || cases.length > 0;
 
+  const focusEnterpriseNeed = () => {
+    if (typeof enterpriseNeedRef.current?.scrollIntoView === "function") {
+      enterpriseNeedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    enterpriseNeedRef.current?.focus();
+  };
+
   return (
     <V4PageShell className="enterprise-shell">
       <section className="module-page enterprise-page" aria-label="企业定制化陪跑">
@@ -42,7 +50,7 @@ function EnterprisePage() {
             <h1>企业定制化陪跑</h1>
             <p>面向企业团队提供诊断、方案、系统搭建、训练和复盘的一体化增长陪跑</p>
           </div>
-          <button className="module-primary-action" type="button">预约企业诊断</button>
+          <button className="module-primary-action" onClick={focusEnterpriseNeed} type="button">预约企业诊断</button>
         </div>
 
         <section className="module-overview-card enterprise-hero">
@@ -51,7 +59,9 @@ function EnterprisePage() {
             <h2>从业务问题到团队上线，陪企业把 AI 增长流程真正跑起来</h2>
             <p>通过企业诊断、工具配置、实战陪跑和交付验收，把项目超市、GEO 获客、AI 线索开发和 CRM 组合成企业自己的增长系统。</p>
             {loadError && <p className="form-error" role="alert">{loadError}</p>}
-            {!loadError && !hasOverviewData && <p className="form-error" role="status">企业陪跑后端接口未接入</p>}
+            {!loadError && !hasOverviewData && (
+              <p className="form-success" role="status">暂无企业陪跑概览数据，提交一次诊断需求后将逐步沉淀方案、交付和案例数据。</p>
+            )}
             <div className="module-stat-strip">
               {stats.length === 0 ? (
                 <>
@@ -85,6 +95,7 @@ function EnterprisePage() {
             <label htmlFor="enterprise-need">描述企业需求</label>
             <textarea
               id="enterprise-need"
+              ref={enterpriseNeedRef}
               aria-label="描述企业需求"
               placeholder="例如：30人销售团队，希望用 AI 提升线索开发、客户跟进和经营复盘效率..."
             />

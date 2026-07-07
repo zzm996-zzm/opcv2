@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -11,7 +11,7 @@ describe("EnterprisePage", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders transparent empty states while enterprise APIs are not connected", async () => {
+  it("renders backend-connected enterprise empty states", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
         stats: [],
@@ -44,7 +44,8 @@ describe("EnterprisePage", () => {
     expect(screen.getByRole("button", { name: "预约企业诊断" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "陪跑方案" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "交付看板" })).toBeInTheDocument();
-    expect(screen.getByText("企业陪跑后端接口未接入")).toBeInTheDocument();
+    expect(screen.getByText("暂无企业陪跑概览数据，提交一次诊断需求后将逐步沉淀方案、交付和案例数据。")).toBeInTheDocument();
+    expect(screen.queryByText("企业陪跑后端接口未接入")).not.toBeInTheDocument();
     expect(screen.getByText("暂无陪跑方案")).toBeInTheDocument();
     expect(screen.getByText("暂无交付看板数据")).toBeInTheDocument();
     expect(screen.getByText("暂无陪跑里程碑")).toBeInTheDocument();
@@ -54,6 +55,34 @@ describe("EnterprisePage", () => {
     expect(screen.queryByText("服务企业")).not.toBeInTheDocument();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/overview", expect.any(Object)));
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
+  });
+
+  it("focuses the enterprise need input from the primary action", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        stats: [],
+        plans: [],
+        delivery_board: [],
+        milestones: [],
+        cases: []
+      }), { status: 200 })
+    );
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-23T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张婧", phone: "", account: "zhangjing", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/enterprise"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "预约企业诊断" }));
+
+    expect(screen.getByLabelText("描述企业需求")).toHaveFocus();
   });
 
   it("renders enterprise overview records from the backend API", async () => {
