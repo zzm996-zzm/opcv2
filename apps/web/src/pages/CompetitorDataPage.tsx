@@ -139,8 +139,8 @@ function CompetitorDataPage() {
         focus: defaultScanFocus
       });
       setLatestScan(scan);
-    } catch {
-      // Preserve current competitor snapshot; centralized error UI can be added later.
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法启动采集任务"));
     } finally {
       setIsScanning(false);
     }

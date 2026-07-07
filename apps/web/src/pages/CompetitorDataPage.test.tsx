@@ -286,6 +286,25 @@ describe("CompetitorDataPage", () => {
     expect(screen.getByText("销售自动化提速")).toBeInTheDocument();
   });
 
+  it("shows errors when starting a competitor scan fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/scans?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({ scans: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/scans" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ error: "request_failed" }), { status: 500 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderCompetitorDataPage();
+    fireEvent.click(screen.getByRole("button", { name: "启动采集任务" }));
+
+    expect(await screen.findByText("请求失败，请稍后重试")).toBeInTheDocument();
+    expect(screen.getByText("暂无竞品画像")).toBeInTheDocument();
+  });
+
   it("creates a competitor scan from the custom plan input", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
