@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -262,6 +262,9 @@ describe("CompetitorMonitoringPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "生成反击任务" }));
 
     expect(await screen.findByText("已生成反击任务：预警反击：增长雷达 自动任务派发上线")).toBeInTheDocument();
+    const generatedTaskStat = screen.getByText("已生成任务").closest("article");
+    expect(generatedTaskStat).not.toBeNull();
+    expect(within(generatedTaskStat as HTMLElement).getByText("1")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/tasks",
       expect.objectContaining({

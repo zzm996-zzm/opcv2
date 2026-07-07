@@ -71,6 +71,7 @@ function CompetitorMonitoringPage() {
   const [scanLaunchMessage, setScanLaunchMessage] = useState("");
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [taskMessage, setTaskMessage] = useState("");
+  const [generatedTaskCount, setGeneratedTaskCount] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -100,7 +101,7 @@ function CompetitorMonitoringPage() {
     ["监测中竞品", String(watchlist.length)],
     ["今日新增动态", String(events.length)],
     ["高风险预警", String(highRiskCount)],
-    ["已生成任务", "0"]
+    ["已生成任务", String(generatedTaskCount)]
   ] as const : emptyMonitoringStats;
   const firstAlert = visibleTimeline.find(([, , , , level]) => level === "强") ?? visibleTimeline[0] ?? null;
 
@@ -167,6 +168,7 @@ function CompetitorMonitoringPage() {
         learning: firstAlert[3]
       });
       setLoadError("");
+      setGeneratedTaskCount((count) => count + 1);
       setTaskMessage(`已生成反击任务：${task.title}`);
     } catch (error) {
       setLoadError(apiErrorMessage(error, "暂时无法生成反击任务"));
