@@ -21,6 +21,7 @@ type DisplayTool = {
   category: string;
   url?: string;
   favorited?: boolean;
+  curated?: boolean;
 };
 
 const categories = ["精选", "最新", "热门", "收藏"] as const;
@@ -32,6 +33,108 @@ const hotScenarios = [
   ["数据洞察分析", "发现增长机会", "pie"],
   ["自动化省时神器", "解放重复性工作", "robot"]
 ] as const;
+
+const defaultTools: DisplayTool[] = [
+  {
+    slug: "notion-ai",
+    name: "Notion AI",
+    desc: "智能写作助手，帮助你快速总结、起草文档和管理知识。",
+    tags: ["写作", "办公", "知识管理"],
+    price: "免费试用",
+    platform: "Web",
+    accent: "notion",
+    category: "内容生产",
+    curated: true
+  },
+  {
+    slug: "midjourney",
+    name: "Midjourney",
+    desc: "根据文本生成高质量图像，适合创意构思和营销视觉。",
+    tags: ["绘图", "设计", "创意"],
+    price: "付费",
+    platform: "Web",
+    accent: "midjourney",
+    category: "图片设计",
+    curated: true
+  },
+  {
+    slug: "runway",
+    name: "Runway",
+    desc: "AI 视频创作平台，轻松生成、编辑和特效处理视频。",
+    tags: ["视频", "创作", "剪辑"],
+    price: "免费试用",
+    platform: "Web",
+    accent: "runway",
+    category: "视频剪辑",
+    curated: true
+  },
+  {
+    slug: "perplexity",
+    name: "Perplexity",
+    desc: "基于 AI 的智能搜索引擎，提供精准可靠的答案与来源。",
+    tags: ["搜索", "研究", "信息检索"],
+    price: "免费",
+    platform: "Web / iOS / Android",
+    accent: "perplexity",
+    category: "数据分析",
+    curated: true
+  },
+  {
+    slug: "gamma",
+    name: "Gamma",
+    desc: "AI 生成演示文稿和文档，快速将想法变成精美内容。",
+    tags: ["办公", "演示", "文档"],
+    price: "免费试用",
+    platform: "Web",
+    accent: "gamma",
+    category: "内容生产",
+    curated: true
+  },
+  {
+    slug: "zapier-ai",
+    name: "Zapier AI",
+    desc: "自动化连接数千款应用，让 AI 帮你构建智能工作流。",
+    tags: ["自动化", "集成", "效率提升"],
+    price: "免费试用",
+    platform: "Web",
+    accent: "zapier",
+    category: "客户管理",
+    curated: true
+  },
+  {
+    slug: "canva-ai",
+    name: "Canva AI",
+    desc: "适合海报、社媒图和品牌物料的 AI 设计套件。",
+    tags: ["设计", "海报", "营销"],
+    price: "免费试用",
+    platform: "Web",
+    accent: "canva",
+    category: "创业获客",
+    curated: true
+  },
+  {
+    slug: "apollo-ai",
+    name: "Apollo AI",
+    desc: "面向 B2B 获客的线索搜索、触达和销售协同工具。",
+    tags: ["获客", "销售", "CRM"],
+    price: "付费",
+    platform: "Web",
+    accent: "apollo",
+    category: "创业获客",
+    curated: true
+  },
+  {
+    slug: "similarweb",
+    name: "Similarweb",
+    desc: "查看网站流量、竞品来源和行业趋势，辅助增长决策。",
+    tags: ["竞品", "流量", "洞察"],
+    price: "免费试用",
+    platform: "Web",
+    accent: "similarweb",
+    category: "跨境外贸",
+    curated: true
+  }
+];
 
 function toDisplayTool(tool: ContentTool): DisplayTool {
   return {
@@ -97,7 +200,17 @@ function ToolLibrary({ full }: { full: boolean }) {
     };
   }, [full, search, selectedCategory, selectedTab]);
 
-  const visibleTools = full ? apiTools : apiTools.slice(0, 9);
+  const normalizedSearch = search.trim().toLowerCase();
+  const hasDefaultFilter = selectedCategory !== "全部工具" || Boolean(normalizedSearch);
+  const defaultMatches = defaultTools.filter((tool) => {
+    const matchesCategory = selectedCategory === "全部工具" || tool.category === selectedCategory;
+    const matchesSearch = !normalizedSearch || [tool.name, tool.desc, ...tool.tags, tool.category]
+      .some((item) => item.toLowerCase().includes(normalizedSearch));
+    return matchesCategory && matchesSearch;
+  });
+  const toolSource = apiTools.length > 0 ? apiTools : hasDefaultFilter ? defaultMatches : defaultTools;
+  const showingDefaultTools = apiTools.length === 0;
+  const visibleTools = full ? toolSource : toolSource.slice(0, 6);
   const visibleScenarios = full ? hotScenarios : hotScenarios.slice(0, 3);
 
   return (
@@ -177,9 +290,9 @@ function ToolLibrary({ full }: { full: boolean }) {
         </aside>
 
         <div className={`toolhub-grid ${full ? "full" : ""}`} aria-label="工具列表">
-          {error && <p className="form-error" role="alert">{error}</p>}
+          {error && !showingDefaultTools && <p className="form-error" role="alert">{error}</p>}
           {visibleTools.length === 0 ? (
-            <div className="module-empty-state" role="status">暂无工具数据</div>
+            <div className="cdk-toolhub-empty" role="status">没有匹配的工具，换个关键词或分类试试</div>
           ) : visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
         </div>
       </section>
@@ -196,6 +309,10 @@ function ToolCard({ tool }: { tool: DisplayTool }) {
 
   async function toggleFavorite() {
     if (!tool.slug || pending) return;
+    if (tool.curated) {
+      setFavorited((current) => !current);
+      return;
+    }
     setPending(true);
     setError("");
     try {

@@ -21521,6 +21521,7 @@ a {
 }
 
 .toolhub-logo {
+  position: relative;
   display: grid;
   width: 58px;
   height: 58px;
@@ -21531,6 +21532,8 @@ a {
   box-shadow: 0 14px 28px rgba(47,91,176,0.1);
   font-size: 24px;
   font-weight: 950;
+  isolation: isolate;
+  overflow: hidden;
   place-items: center;
 }
 
@@ -21542,15 +21545,118 @@ a {
 
 .toolhub-logo::before {
   content: "AI";
+  position: relative;
+  z-index: 1;
 }
 
-.toolhub-logo.notion::before { content: "N"; }
-.toolhub-logo.midjourney::before { content: "◿"; }
-.toolhub-logo.runway::before { content: "R"; }
+.toolhub-logo::after {
+  position: absolute;
+  content: "";
+  inset: 10px;
+  z-index: 0;
+  border-radius: 10px;
+  opacity: 0;
+}
+
+.toolhub-logo.notion {
+  color: #111827;
+  background: linear-gradient(145deg, #ffffff, #f5f7fb);
+}
+
+.toolhub-logo.notion::before {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  content: "N";
+  background: #ffffff;
+  border: 3px solid #111827;
+  border-radius: 3px;
+  box-shadow: 4px 4px 0 #111827;
+  font-family: Georgia, serif;
+  font-size: 23px;
+  line-height: 1;
+  place-items: center;
+}
+
+.toolhub-logo.midjourney {
+  background: linear-gradient(145deg, #ffffff, #f8fbff);
+}
+
+.toolhub-logo.midjourney::before {
+  width: 34px;
+  height: 24px;
+  content: "";
+  background:
+    linear-gradient(18deg, transparent 0 52%, #111827 53% 60%, transparent 61%),
+    linear-gradient(132deg, transparent 0 45%, #111827 46% 54%, transparent 55%),
+    radial-gradient(ellipse at 45% 100%, transparent 0 48%, #111827 49% 56%, transparent 57%);
+  border-bottom: 3px solid #111827;
+  transform: skewX(-8deg);
+}
+
+.toolhub-logo.runway {
+  color: #111827;
+  background: linear-gradient(145deg, #ffffff, #eef5ff);
+}
+
+.toolhub-logo.runway::before {
+  content: "R";
+  font-size: 34px;
+  letter-spacing: 0;
+}
+
+.toolhub-logo.runway::after {
+  inset: 14px 12px 14px 28px;
+  background: #111827;
+  border-radius: 999px;
+  opacity: 1;
+}
+
 .toolhub-logo.jasper::before { content: "J"; }
-.toolhub-logo.perplexity::before { content: "✳"; color: #0084a8; }
-.toolhub-logo.gamma::before { content: "G"; color: #8a3ffc; }
-.toolhub-logo.zapier::before { content: "✱"; color: #ff4f14; }
+.toolhub-logo.perplexity {
+  background: linear-gradient(145deg, #f2fbff, #ffffff);
+}
+
+.toolhub-logo.perplexity::before {
+  width: 34px;
+  height: 34px;
+  content: "";
+  background:
+    linear-gradient(90deg, transparent 0 45%, #0084a8 46% 54%, transparent 55%),
+    linear-gradient(0deg, transparent 0 45%, #0084a8 46% 54%, transparent 55%),
+    linear-gradient(45deg, transparent 0 46%, #0084a8 47% 53%, transparent 54%),
+    linear-gradient(135deg, transparent 0 46%, #0084a8 47% 53%, transparent 54%);
+  clip-path: polygon(50% 0, 61% 28%, 100% 14%, 72% 50%, 100% 86%, 61% 72%, 50% 100%, 39% 72%, 0 86%, 28% 50%, 0 14%, 39% 28%);
+}
+
+.toolhub-logo.gamma {
+  color: white;
+  background: linear-gradient(145deg, #7b2cff, #ff4fd8 52%, #ffb347);
+}
+
+.toolhub-logo.gamma::before {
+  content: "G";
+  font-size: 31px;
+}
+
+.toolhub-logo.gamma::after {
+  inset: 12px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.28), transparent 60%);
+  border-radius: 8px;
+  opacity: 1;
+  transform: rotate(45deg);
+}
+
+.toolhub-logo.zapier {
+  background: linear-gradient(145deg, #fff4ed, #ffffff);
+}
+
+.toolhub-logo.zapier::before {
+  content: "✱";
+  color: #ff4f14;
+  font-size: 38px;
+}
+
 .toolhub-logo.claude::before { content: "AI"; color: #2c1706; }
 .toolhub-logo.chatgpt::before { content: "◎"; color: white; }
 .toolhub-logo.canva::before { content: "C"; color: white; }
@@ -21571,6 +21677,13 @@ a {
 
 .toolhub-logo.canva {
   background: linear-gradient(145deg, #19d5ff, #7d56ff);
+}
+
+.toolhub-logo.canva::after {
+  inset: 7px;
+  border: 2px solid rgba(255,255,255,0.44);
+  border-radius: 50%;
+  opacity: 1;
 }
 
 .toolhub-logo.deepseek {
@@ -33513,17 +33626,22 @@ a {
   min-width: 0;
 }
 
+.cdk-tools-page .toolhub-page.with-copilot .toolhub-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .cdk-tools-page .toolhub-card {
   position: relative;
   display: grid;
   grid-template-columns: 70px minmax(0, 1fr) 28px;
   gap: 14px;
   align-items: start;
-  min-height: 150px;
+  min-height: 178px;
   min-width: 0;
-  padding: 24px 22px;
+  padding: 22px 20px 16px;
   overflow: hidden;
   border-radius: 14px;
+  box-shadow: 0 16px 42px rgba(39,82,166,0.07);
 }
 
 .cdk-tools-page .toolhub-card-copy {
@@ -33562,6 +33680,7 @@ a {
   width: 58px;
   height: 58px;
   border-radius: 16px;
+  box-shadow: 0 12px 24px rgba(47,91,176,0.12);
 }
 
 .cdk-tools-page .toolhub-favorite {
@@ -33575,11 +33694,32 @@ a {
   cursor: pointer;
 }
 
+.cdk-tools-page .toolhub-card footer {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 34px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(31,68,140,0.08);
+}
+
 .cdk-tools-page .toolhub-card footer span,
 .cdk-tools-page .toolhub-card footer small,
-.cdk-tools-page .toolhub-card footer a,
-.cdk-tools-page .toolhub-card footer {
-  display: none;
+.cdk-tools-page .toolhub-card footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.cdk-tools-page .toolhub-card footer a {
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.cdk-tools-page .toolhub-card footer small {
+  white-space: nowrap;
 }
 
 .cdk-tools-page .toolhub-tag-row {
