@@ -18,6 +18,15 @@ function EnterprisePage() {
   const [taskStatusByRequestId, setTaskStatusByRequestId] = useState<Record<number, string>>({});
   const [taskErrorByRequestId, setTaskErrorByRequestId] = useState<Record<number, string>>({});
   const [taskPendingRequestId, setTaskPendingRequestId] = useState<number | null>(null);
+  const [deliveryStatusByRequestId, setDeliveryStatusByRequestId] = useState<Record<number, string>>({});
+  const [deliveryErrorByRequestId, setDeliveryErrorByRequestId] = useState<Record<number, string>>({});
+  const [deliveryPendingRequestId, setDeliveryPendingRequestId] = useState<number | null>(null);
+
+  const refreshOverview = async () => {
+    const payload = await enterpriseApi.overview();
+    setOverview(payload);
+    setLoadError("");
+  };
 
   useEffect(() => {
     let active = true;
@@ -100,6 +109,7 @@ function EnterprisePage() {
       });
       const updatedRequest = await enterpriseApi.updateDiagnosisRequest(request.id, { status: "follow_up_created" });
       setDiagnosisRequests((current) => current.map((item) => (item.id === updatedRequest.id ? updatedRequest : item)));
+      await refreshOverview();
       setTaskStatusByRequestId((current) => ({ ...current, [request.id]: "跟进任务已生成" }));
     } catch (error) {
       setTaskErrorByRequestId((current) => ({
@@ -108,6 +118,25 @@ function EnterprisePage() {
       }));
     } finally {
       setTaskPendingRequestId(null);
+    }
+  };
+
+  const startDelivery = async (request: EnterpriseDiagnosisRequest) => {
+    setDeliveryPendingRequestId(request.id);
+    setDeliveryStatusByRequestId((current) => ({ ...current, [request.id]: "" }));
+    setDeliveryErrorByRequestId((current) => ({ ...current, [request.id]: "" }));
+    try {
+      const updatedRequest = await enterpriseApi.updateDiagnosisRequest(request.id, { status: "in_delivery" });
+      setDiagnosisRequests((current) => current.map((item) => (item.id === updatedRequest.id ? updatedRequest : item)));
+      await refreshOverview();
+      setDeliveryStatusByRequestId((current) => ({ ...current, [request.id]: "已进入交付" }));
+    } catch (error) {
+      setDeliveryErrorByRequestId((current) => ({
+        ...current,
+        [request.id]: apiErrorMessage(error, "暂时无法进入交付")
+      }));
+    } finally {
+      setDeliveryPendingRequestId(null);
     }
   };
 
@@ -268,9 +297,17 @@ function EnterprisePage() {
                 <small>{request.status} · {request.created_at ? new Date(request.created_at).toLocaleString("zh-CN") : "暂无提交时间"}</small>
                 {taskStatusByRequestId[request.id] && <small className="form-success">{taskStatusByRequestId[request.id]}</small>}
                 {taskErrorByRequestId[request.id] && <small className="form-error">{taskErrorByRequestId[request.id]}</small>}
-                <button type="button" onClick={() => createFollowUpTask(request)} disabled={taskPendingRequestId === request.id}>
-                  {taskPendingRequestId === request.id ? "生成中..." : "生成跟进任务"}
-                </button>
+                {deliveryStatusByRequestId[request.id] && <small className="form-success">{deliveryStatusByRequestId[request.id]}</small>}
+                {deliveryErrorByRequestId[request.id] && <small className="form-error">{deliveryErrorByRequestId[request.id]}</small>}
+                {request.status === "follow_up_created" ? (
+                  <button type="button" onClick={() => startDelivery(request)} disabled={deliveryPendingRequestId === request.id}>
+                    {deliveryPendingRequestId === request.id ? "进入中..." : "进入交付"}
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => createFollowUpTask(request)} disabled={taskPendingRequestId === request.id || request.status === "in_delivery"}>
+                    {taskPendingRequestId === request.id ? "生成中..." : "生成跟进任务"}
+                  </button>
+                )}
               </article>
             ))}
           </aside>

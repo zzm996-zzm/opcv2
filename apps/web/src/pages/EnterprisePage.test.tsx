@@ -210,6 +210,13 @@ describe("EnterprisePage", () => {
         status: "follow_up_created",
         created_at: "2026-07-07T10:30:00Z",
         updated_at: "2026-07-07T11:30:00Z"
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        stats: [],
+        plans: [],
+        delivery_board: [{ stage: "已生成跟进", count: 1, detail: "已生成任务，等待进入交付" }],
+        milestones: [],
+        cases: []
       }), { status: 200 }));
     authSession.set({
       access_token: "access-token",
@@ -243,5 +250,65 @@ describe("EnterprisePage", () => {
     })));
     expect(await screen.findByText("跟进任务已生成")).toBeInTheDocument();
     expect(screen.getByText(/follow_up_created/)).toBeInTheDocument();
+    expect(screen.getByText("已生成任务，等待进入交付")).toBeInTheDocument();
+  });
+
+  it("moves a followed-up enterprise diagnosis request into delivery", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        stats: [],
+        plans: [],
+        delivery_board: [{ stage: "已生成跟进", count: 1, detail: "已生成任务，等待进入交付" }],
+        milestones: [],
+        cases: []
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requests: [{
+          id: 8,
+          user_id: 42,
+          need: "30人销售团队需要AI获客陪跑",
+          status: "follow_up_created",
+          created_at: "2026-07-07T10:30:00Z",
+          updated_at: "2026-07-07T11:30:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 8,
+        user_id: 42,
+        need: "30人销售团队需要AI获客陪跑",
+        status: "in_delivery",
+        created_at: "2026-07-07T10:30:00Z",
+        updated_at: "2026-07-07T12:30:00Z"
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        stats: [],
+        plans: [],
+        delivery_board: [{ stage: "交付中预约", count: 1, detail: "已进入企业陪跑交付" }],
+        milestones: [],
+        cases: []
+      }), { status: 200 }));
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-23T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张婧", phone: "", account: "zhangjing", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/enterprise"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("30人销售团队需要AI获客陪跑")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "进入交付" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests/8", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ status: "in_delivery" })
+    })));
+    expect(await screen.findByText("已进入交付")).toBeInTheDocument();
+    expect(screen.getByText(/in_delivery/)).toBeInTheDocument();
+    expect(screen.getByText("已进入企业陪跑交付")).toBeInTheDocument();
   });
 });
