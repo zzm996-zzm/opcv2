@@ -56,4 +56,16 @@ describe("competitorApi", () => {
       })
     );
   });
+
+  it("deletes competitor monitoring watch items", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ deleted: true }), { status: 200 }));
+
+    await competitorApi.deleteWatchItem(77);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/monitoring/watchlist/77",
+      expect.objectContaining({ method: "DELETE" })
+    );
+  });
 });

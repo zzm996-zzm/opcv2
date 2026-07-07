@@ -19,6 +19,7 @@ type Repository interface {
 	UpdateScanStatus(ctx context.Context, id int64, status string, progressPercent int, currentStep string, errorMessage string) (Scan, error)
 	StoreScanResults(ctx context.Context, id int64, result ScanResult) error
 	CreateWatchItem(ctx context.Context, item WatchItem) (WatchItem, error)
+	DeleteWatchItem(ctx context.Context, userID, id int64) error
 	ListWatchlist(ctx context.Context, userID int64, limit int) ([]WatchItem, error)
 	ListEvents(ctx context.Context, userID int64, limit int) ([]Event, error)
 }
@@ -213,6 +214,16 @@ func (s *Service) CreateWatchItem(ctx context.Context, input CreateWatchItemInpu
 		Channels:   channels,
 		Signal:     "已创建监测规则，等待首次巡检。",
 	})
+}
+
+func (s *Service) DeleteWatchItem(ctx context.Context, userID, id int64) error {
+	if s.repository == nil {
+		return ErrServiceNotReady
+	}
+	if id <= 0 {
+		return ErrInvalidWatchItem
+	}
+	return s.repository.DeleteWatchItem(ctx, userID, id)
 }
 
 func (s *Service) ProcessScan(ctx context.Context, id int64) error {

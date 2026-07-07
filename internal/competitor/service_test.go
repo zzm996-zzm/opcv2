@@ -11,15 +11,17 @@ import (
 )
 
 type fakeRepository struct {
-	createdScan  Scan
-	createdWatch WatchItem
-	scan         Scan
-	scans        []Scan
-	watchlist    []WatchItem
-	events       []Event
-	updates      []scanStatusUpdate
-	results      ScanResult
-	err          error
+	createdScan        Scan
+	createdWatch       WatchItem
+	deletedWatchUserID int64
+	deletedWatchID     int64
+	scan               Scan
+	scans              []Scan
+	watchlist          []WatchItem
+	events             []Event
+	updates            []scanStatusUpdate
+	results            ScanResult
+	err                error
 }
 
 type scanStatusUpdate struct {
@@ -132,9 +134,26 @@ func (r *fakeRepository) StoreScanResults(_ context.Context, id int64, result Sc
 
 func (r *fakeRepository) CreateWatchItem(_ context.Context, item WatchItem) (WatchItem, error) {
 	r.createdWatch = item
+	item.ID = 77
 	item.LastSeenAt = item.LastSeenAt.UTC()
 	r.watchlist = append([]WatchItem{item}, r.watchlist...)
 	return item, r.err
+}
+
+func (r *fakeRepository) DeleteWatchItem(_ context.Context, userID, id int64) error {
+	r.deletedWatchUserID = userID
+	r.deletedWatchID = id
+	if r.err != nil {
+		return r.err
+	}
+	next := r.watchlist[:0]
+	for _, item := range r.watchlist {
+		if item.ID != id {
+			next = append(next, item)
+		}
+	}
+	r.watchlist = next
+	return nil
 }
 
 func (r *fakeRepository) ListWatchlist(_ context.Context, userID int64, limit int) ([]WatchItem, error) {
@@ -404,6 +423,33 @@ func TestServiceCreateWatchItemRejectsBlankName(t *testing.T) {
 		Name:     " ",
 		Channels: []string{"价格页"},
 	})
+
+	if !errors.Is(err, ErrInvalidWatchItem) {
+		t.Fatalf("err = %v, want ErrInvalidWatchItem", err)
+	}
+}
+
+func TestServiceDeleteWatchItemUsesAuthenticatedUser(t *testing.T) {
+	repository := &fakeRepository{watchlist: []WatchItem{{ID: 77, UserID: 42, Name: "增长雷达"}}}
+	service := NewService(repository)
+
+	err := service.DeleteWatchItem(context.Background(), 42, 77)
+
+	if err != nil {
+		t.Fatalf("DeleteWatchItem() error = %v", err)
+	}
+	if repository.deletedWatchUserID != 42 || repository.deletedWatchID != 77 {
+		t.Fatalf("deleted user/id = %d/%d", repository.deletedWatchUserID, repository.deletedWatchID)
+	}
+	if len(repository.watchlist) != 0 {
+		t.Fatalf("watchlist = %+v, want deleted item removed", repository.watchlist)
+	}
+}
+
+func TestServiceDeleteWatchItemRejectsInvalidID(t *testing.T) {
+	service := NewService(&fakeRepository{})
+
+	err := service.DeleteWatchItem(context.Background(), 42, 0)
 
 	if !errors.Is(err, ErrInvalidWatchItem) {
 		t.Fatalf("err = %v, want ErrInvalidWatchItem", err)

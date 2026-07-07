@@ -48,6 +48,7 @@ function formatLastSeen(value: string) {
 
 function toTrackedCompetitor(item: CompetitorWatchItem) {
   return {
+    id: item.id,
     name: item.name,
     category: item.category,
     status: item.status,
@@ -71,6 +72,7 @@ function CompetitorMonitoringPage() {
   const [watchCategory, setWatchCategory] = useState("");
   const [formError, setFormError] = useState("");
   const [isSavingWatchItem, setIsSavingWatchItem] = useState(false);
+  const [deletingWatchItemId, setDeletingWatchItemId] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -123,6 +125,19 @@ function CompetitorMonitoringPage() {
       setFormError(apiErrorMessage(error, "暂时无法新增监测对象"));
     } finally {
       setIsSavingWatchItem(false);
+    }
+  }
+
+  async function deleteWatchItem(item: CompetitorWatchItem) {
+    if (!item.id || deletingWatchItemId) return;
+    setDeletingWatchItemId(item.id);
+    try {
+      await competitorApi.deleteWatchItem(item.id);
+      setWatchlist((current) => current.filter((watchItem) => watchItem.id !== item.id));
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法移除监测对象"));
+    } finally {
+      setDeletingWatchItemId(null);
     }
   }
 
@@ -209,6 +224,17 @@ function CompetitorMonitoringPage() {
                   </div>
                   <em className={item.threat === "强" ? "hot" : ""}>威胁 {item.threat}</em>
                   <span className="monitoring-state">{item.status}</span>
+                  {item.id ? (
+                    <button
+                      aria-label={`移除 ${item.name}`}
+                      className="monitoring-remove-button"
+                      disabled={deletingWatchItemId === item.id}
+                      onClick={() => void deleteWatchItem(item)}
+                      type="button"
+                    >
+                      {deletingWatchItemId === item.id ? "移除中" : "移除"}
+                    </button>
+                  ) : null}
                   <p>{item.signal}</p>
                   <div className="tool-tags">
                     {item.channels.map((channel) => <span key={channel}>{channel}</span>)}

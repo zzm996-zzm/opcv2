@@ -19,6 +19,7 @@ type Application interface {
 	GetScan(ctx context.Context, userID, id int64) (Scan, error)
 	RetryScan(ctx context.Context, userID, id int64) (Scan, error)
 	CreateWatchItem(ctx context.Context, input CreateWatchItemInput) (WatchItem, error)
+	DeleteWatchItem(ctx context.Context, userID, id int64) error
 	GetMonitoring(ctx context.Context, userID int64, limit int) (MonitoringSnapshot, error)
 }
 
@@ -36,6 +37,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/competitor/scans/:id", h.getScan)
 	router.POST("/competitor/scans/:id/retry", h.retryScan)
 	router.POST("/competitor/monitoring/watchlist", h.createWatchItem)
+	router.DELETE("/competitor/monitoring/watchlist/:id", h.deleteWatchItem)
 	router.GET("/competitor/monitoring", h.monitoring)
 }
 
@@ -137,6 +139,19 @@ func (h *HTTPHandler) createWatchItem(c *gin.Context) {
 	c.JSON(http.StatusOK, item)
 }
 
+func (h *HTTPHandler) deleteWatchItem(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		httpapi.BadRequest(c, "invalid_watch_item")
+		return
+	}
+	if err := h.app.DeleteWatchItem(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": true})
+}
+
 func queryLimit(c *gin.Context) int {
 	limit, ok := httpapi.QueryLimit(c, 20, 100)
 	if !ok {
@@ -153,6 +168,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	case errors.Is(err, ErrInvalidWatchItem):
 		httpapi.BadRequest(c, "invalid_watch_item")
+	case errors.Is(err, ErrWatchItemNotFound):
+		httpapi.Error(c, http.StatusNotFound, "watch_item_not_found")
 	case errors.Is(err, membership.ErrQuotaExceeded):
 		httpapi.Error(c, http.StatusPaymentRequired, "quota_exceeded")
 	case errors.Is(err, membership.ErrQuotaNotFound):

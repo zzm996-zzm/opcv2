@@ -2,6 +2,7 @@ package competitor
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -206,15 +207,15 @@ func TestPostgresRepositoryListsMonitoringRows(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT name, category, status, threat, last_seen_at, channels, signal
+		SELECT id, name, category, status, threat, last_seen_at, channels, signal
 		FROM competitor_watchlist
 		WHERE user_id = $1
 		ORDER BY last_seen_at DESC
 		LIMIT $2
 	`)).
 		WithArgs(int64(42), 20).
-		WillReturnRows(pgxmock.NewRows([]string{"name", "category", "status", "threat", "last_seen_at", "channels", "signal"}).
-			AddRow("小鹅通", "知识付费", "高频变化", "high", now, []byte(`["价格页"]`), "新增 AI 助教"))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "name", "category", "status", "threat", "last_seen_at", "channels", "signal"}).
+			AddRow(int64(77), "小鹅通", "知识付费", "高频变化", "high", now, []byte(`["价格页"]`), "新增 AI 助教"))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT occurred_at, company, title, detail, level
 		FROM competitor_events
@@ -235,7 +236,7 @@ func TestPostgresRepositoryListsMonitoringRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListEvents() error = %v", err)
 	}
-	if len(watchlist) != 1 || watchlist[0].Name != "小鹅通" || len(events) != 1 || events[0].Title == "" {
+	if len(watchlist) != 1 || watchlist[0].ID != 77 || watchlist[0].Name != "小鹅通" || len(events) != 1 || events[0].Title == "" {
 		t.Fatalf("watchlist/events = %+v/%+v", watchlist, events)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
@@ -254,7 +255,7 @@ func TestPostgresRepositoryCreatesWatchItem(t *testing.T) {
 	db.ExpectQuery(regexp.QuoteMeta(`
 		INSERT INTO competitor_watchlist (user_id, name, category, status, threat, last_seen_at, channels, signal, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
-		RETURNING name, category, status, threat, last_seen_at, channels, signal
+		RETURNING id, name, category, status, threat, last_seen_at, channels, signal
 	`)).
 		WithArgs(
 			int64(42),
@@ -267,8 +268,8 @@ func TestPostgresRepositoryCreatesWatchItem(t *testing.T) {
 			"已创建监测规则，等待首次巡检。",
 			now,
 		).
-		WillReturnRows(pgxmock.NewRows([]string{"name", "category", "status", "threat", "last_seen_at", "channels", "signal"}).
-			AddRow("增长雷达", "商业情报", "监测中", "中", now, []byte(`["价格页","招聘动态"]`), "已创建监测规则，等待首次巡检。"))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "name", "category", "status", "threat", "last_seen_at", "channels", "signal"}).
+			AddRow(int64(77), "增长雷达", "商业情报", "监测中", "中", now, []byte(`["价格页","招聘动态"]`), "已创建监测规则，等待首次巡检。"))
 
 	repository := NewPostgresRepository(db)
 	item, err := repository.CreateWatchItem(context.Background(), WatchItem{
@@ -284,8 +285,55 @@ func TestPostgresRepositoryCreatesWatchItem(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateWatchItem() error = %v", err)
 	}
-	if item.Name != "增长雷达" || len(item.Channels) != 2 {
+	if item.ID != 77 || item.Name != "增长雷达" || len(item.Channels) != 2 {
 		t.Fatalf("item = %+v", item)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryDeletesWatchItemForUser(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec(regexp.QuoteMeta(`
+		DELETE FROM competitor_watchlist
+		WHERE user_id = $1 AND id = $2
+	`)).
+		WithArgs(int64(42), int64(77)).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+	repository := NewPostgresRepository(db)
+	if err := repository.DeleteWatchItem(context.Background(), 42, 77); err != nil {
+		t.Fatalf("DeleteWatchItem() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryDeleteWatchItemReturnsNotFoundWhenNoRows(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec(regexp.QuoteMeta(`
+		DELETE FROM competitor_watchlist
+		WHERE user_id = $1 AND id = $2
+	`)).
+		WithArgs(int64(42), int64(77)).
+		WillReturnResult(pgxmock.NewResult("DELETE", 0))
+
+	repository := NewPostgresRepository(db)
+	err = repository.DeleteWatchItem(context.Background(), 42, 77)
+	if !errors.Is(err, ErrWatchItemNotFound) {
+		t.Fatalf("err = %v, want ErrWatchItemNotFound", err)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

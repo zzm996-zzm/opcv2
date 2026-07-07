@@ -895,10 +895,32 @@ Request:
 
 Response `200`: `CompetitorWatchItem`
 
+`CompetitorWatchItem` includes `id`, `name`, `category`, `status`, `threat`,
+`last_seen_at`, `channels`, and `signal`.
+
 Errors:
 
 - `400 invalid_watch_item`
 - `500 service_not_ready`
+
+### Delete Monitoring Watch Item
+
+`DELETE /api/v1/competitor/monitoring/watchlist/{id}`
+
+Deletes a monitored competitor entry owned by the authenticated user.
+
+Response:
+
+```json
+{
+  "deleted": true
+}
+```
+
+Errors:
+
+- `400 invalid_watch_item`
+- `404 watch_item_not_found`
 
 ## Learning
 

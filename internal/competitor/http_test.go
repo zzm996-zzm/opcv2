@@ -16,6 +16,7 @@ type fakeApplication struct {
 	watchInput CreateWatchItemInput
 	userID     int64
 	scanID     int64
+	watchID    int64
 	limit      int
 	scan       Scan
 	watchItem  WatchItem
@@ -50,6 +51,12 @@ func (a *fakeApplication) RetryScan(_ context.Context, userID, id int64) (Scan, 
 func (a *fakeApplication) CreateWatchItem(_ context.Context, input CreateWatchItemInput) (WatchItem, error) {
 	a.watchInput = input
 	return a.watchItem, a.err
+}
+
+func (a *fakeApplication) DeleteWatchItem(_ context.Context, userID, id int64) error {
+	a.userID = userID
+	a.watchID = id
+	return a.err
 }
 
 func (a *fakeApplication) GetMonitoring(_ context.Context, userID int64, limit int) (MonitoringSnapshot, error) {
@@ -257,5 +264,40 @@ func TestCreateWatchItemEndpointRejectsBlankName(t *testing.T) {
 	}
 	if app.watchInput.UserID != 0 {
 		t.Fatalf("CreateWatchItem should not be called, input = %+v", app.watchInput)
+	}
+}
+
+func TestDeleteWatchItemEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodDelete, "/api/v1/competitor/monitoring/watchlist/77", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.watchID != 77 {
+		t.Fatalf("user/watch = %d/%d", app.userID, app.watchID)
+	}
+	if !strings.Contains(recorder.Body.String(), `"deleted":true`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestDeleteWatchItemEndpointRejectsInvalidID(t *testing.T) {
+	app := &fakeApplication{}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodDelete, "/api/v1/competitor/monitoring/watchlist/0", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.watchID != 0 {
+		t.Fatalf("DeleteWatchItem should not be called, watchID = %d", app.watchID)
 	}
 }

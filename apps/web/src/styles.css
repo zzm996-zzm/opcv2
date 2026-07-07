@@ -10204,7 +10204,7 @@ a {
 
 .monitoring-competitor-list article {
   display: grid;
-  grid-template-columns: 12px minmax(190px, 1fr) auto auto;
+  grid-template-columns: 12px minmax(190px, 1fr) auto auto auto;
   align-items: center;
   gap: 12px;
   min-height: 116px;
@@ -10261,6 +10261,24 @@ a {
 .monitoring-state {
   color: #1557ff;
   background: #edf4ff;
+}
+
+.monitoring-remove-button {
+  justify-self: end;
+  min-height: 30px;
+  padding: 0 10px;
+  color: #6075a4;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.monitoring-remove-button:disabled {
+  color: #9aa8c4;
+  cursor: not-allowed;
 }
 
 .monitoring-competitor-list article > p,

@@ -135,13 +135,27 @@ func (r *PostgresRepository) CreateWatchItem(ctx context.Context, item WatchItem
 	return scanWatchItem(r.db.QueryRow(ctx, `
 		INSERT INTO competitor_watchlist (user_id, name, category, status, threat, last_seen_at, channels, signal, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
-		RETURNING name, category, status, threat, last_seen_at, channels, signal
+		RETURNING id, name, category, status, threat, last_seen_at, channels, signal
 	`, item.UserID, item.Name, item.Category, item.Status, item.Threat, item.LastSeenAt, channels, item.Signal, item.LastSeenAt))
+}
+
+func (r *PostgresRepository) DeleteWatchItem(ctx context.Context, userID, id int64) error {
+	tag, err := r.db.Exec(ctx, `
+		DELETE FROM competitor_watchlist
+		WHERE user_id = $1 AND id = $2
+	`, userID, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrWatchItemNotFound
+	}
+	return nil
 }
 
 func (r *PostgresRepository) ListWatchlist(ctx context.Context, userID int64, limit int) ([]WatchItem, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT name, category, status, threat, last_seen_at, channels, signal
+		SELECT id, name, category, status, threat, last_seen_at, channels, signal
 		FROM competitor_watchlist
 		WHERE user_id = $1
 		ORDER BY last_seen_at DESC
@@ -200,7 +214,7 @@ type scanScanner interface {
 func scanWatchItem(scanner scanScanner) (WatchItem, error) {
 	var item WatchItem
 	var channels []byte
-	if err := scanner.Scan(&item.Name, &item.Category, &item.Status, &item.Threat, &item.LastSeenAt, &channels, &item.Signal); err != nil {
+	if err := scanner.Scan(&item.ID, &item.Name, &item.Category, &item.Status, &item.Threat, &item.LastSeenAt, &channels, &item.Signal); err != nil {
 		return WatchItem{}, err
 	}
 	if err := json.Unmarshal(channels, &item.Channels); err != nil {

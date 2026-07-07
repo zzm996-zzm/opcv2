@@ -39,6 +39,7 @@ export type CompetitorScan = {
 };
 
 export type CompetitorWatchItem = {
+  id?: number;
   name: string;
   category: string;
   status: string;
@@ -98,6 +99,12 @@ export const competitorApi = {
     return apiRequest<CompetitorWatchItem>("/api/v1/competitor/monitoring/watchlist", {
       method: "POST",
       body: JSON.stringify(input)
+    });
+  },
+
+  deleteWatchItem(id: number) {
+    return apiRequest<{ deleted: boolean }>(`/api/v1/competitor/monitoring/watchlist/${id}`, {
+      method: "DELETE"
     });
   }
 };

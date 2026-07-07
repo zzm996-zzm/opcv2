@@ -56,6 +56,7 @@ describe("CompetitorMonitoringPage", () => {
       new Response(JSON.stringify({
         watchlist: [
           {
+            id: 77,
             name: "增长雷达",
             category: "商业情报 / 自动化",
             status: "高频变化",
@@ -105,6 +106,7 @@ describe("CompetitorMonitoringPage", () => {
       if (url === "/api/v1/competitor/monitoring/watchlist" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
           name: "增长雷达",
+          id: 77,
           category: "商业情报",
           status: "监测中",
           threat: "中",
@@ -131,6 +133,43 @@ describe("CompetitorMonitoringPage", () => {
         method: "POST",
         body: JSON.stringify({ name: "增长雷达", category: "商业情报", channels: ["官网 / 价格页", "招聘动态"] })
       })
+    );
+  });
+
+  it("removes monitoring watch items from the page", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/monitoring?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          watchlist: [{
+            id: 77,
+            name: "增长雷达",
+            category: "商业情报",
+            status: "监测中",
+            threat: "中",
+            last_seen_at: "2026-07-07T09:30:00Z",
+            channels: ["价格页"],
+            signal: "已创建监测规则，等待首次巡检。"
+          }],
+          events: []
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/monitoring/watchlist/77" && init?.method === "DELETE") {
+        return Promise.resolve(new Response(JSON.stringify({ deleted: true }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderMonitoringRoute();
+
+    expect(await screen.findByRole("heading", { name: "增长雷达" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "移除 增长雷达" }));
+
+    expect(await screen.findByText("暂无监测对象")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "增长雷达" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/monitoring/watchlist/77",
+      expect.objectContaining({ method: "DELETE" })
     );
   });
 });
