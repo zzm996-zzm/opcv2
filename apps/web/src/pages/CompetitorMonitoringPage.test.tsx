@@ -221,4 +221,59 @@ describe("CompetitorMonitoringPage", () => {
       expect.objectContaining({ method: "POST" })
     );
   });
+
+  it("creates a counter task from the first monitoring alert", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/monitoring?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          watchlist: [],
+          events: [
+            {
+              occurred_at: "2026-06-30T08:30:00Z",
+              company: "增长雷达",
+              title: "自动任务派发上线",
+              detail: "竞品开始把监测事件直接转成执行清单。",
+              level: "强"
+            }
+          ]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 88,
+          user_id: 7,
+          title: "预警反击：增长雷达 自动任务派发上线",
+          project: "竞品动态监测",
+          status: "todo",
+          priority: "high",
+          tools: ["竞品动态监测", "任务中心"],
+          learning: "竞品开始把监测事件直接转成执行清单。",
+          created_at: "2026-07-07T10:00:00Z",
+          updated_at: "2026-07-07T10:00:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderMonitoringRoute();
+
+    expect(await screen.findByRole("heading", { name: "自动任务派发上线" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "生成反击任务" }));
+
+    expect(await screen.findByText("已生成反击任务：预警反击：增长雷达 自动任务派发上线")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          title: "预警反击：增长雷达 自动任务派发上线",
+          project: "竞品动态监测",
+          priority: "high",
+          tools: ["竞品动态监测", "任务中心"],
+          learning: "竞品开始把监测事件直接转成执行清单。"
+        })
+      })
+    );
+  });
 });

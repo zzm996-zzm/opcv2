@@ -10438,7 +10438,8 @@ a {
   font-weight: 820;
 }
 
-.monitoring-action-card a {
+.monitoring-action-card a,
+.monitoring-action-card button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10448,9 +10449,16 @@ a {
   padding: 0 16px;
   color: white;
   background: #1557ff;
+  border: 0;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 850;
+  cursor: pointer;
+}
+
+.monitoring-action-card button:disabled {
+  background: #93a5ca;
+  cursor: not-allowed;
 }
 
 .monitoring-rule-grid {

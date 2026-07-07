@@ -1,9 +1,9 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { competitorApi, type CompetitorEvent, type CompetitorWatchItem } from "../lib/competitorApi";
+import { tasksApi } from "../lib/tasksApi";
 
 const emptyMonitoringStats = [
   ["监测中竞品", "0"],
@@ -49,7 +49,7 @@ function formatLastSeen(value: string) {
 function toTrackedCompetitor(item: CompetitorWatchItem) {
   return {
     ...item,
-    lastSeen: formatLastSeen(item.last_seen_at),
+    lastSeen: formatLastSeen(item.last_seen_at)
   };
 }
 
@@ -69,6 +69,8 @@ function CompetitorMonitoringPage() {
   const [deletingWatchItemId, setDeletingWatchItemId] = useState<number | null>(null);
   const [startingScanItemId, setStartingScanItemId] = useState<number | null>(null);
   const [scanLaunchMessage, setScanLaunchMessage] = useState("");
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [taskMessage, setTaskMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -152,6 +154,27 @@ function CompetitorMonitoringPage() {
     }
   }
 
+  async function createAlertTask() {
+    if (!firstAlert || isCreatingTask) return;
+    setIsCreatingTask(true);
+    setTaskMessage("");
+    try {
+      const task = await tasksApi.createTask({
+        title: `预警反击：${firstAlert[1]} ${firstAlert[2]}`,
+        project: "竞品动态监测",
+        priority: firstAlert[4] === "强" ? "high" : "medium",
+        tools: ["竞品动态监测", "任务中心"],
+        learning: firstAlert[3]
+      });
+      setLoadError("");
+      setTaskMessage(`已生成反击任务：${task.title}`);
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法生成反击任务"));
+    } finally {
+      setIsCreatingTask(false);
+    }
+  }
+
   return (
     <V4PageShell className="competitor-monitoring-shell">
       <section className="module-page competitor-monitoring-page" aria-label="竞品动态监测">
@@ -164,6 +187,7 @@ function CompetitorMonitoringPage() {
         </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
         {scanLaunchMessage ? <p className="form-success" role="status">{scanLaunchMessage}</p> : null}
+        {taskMessage ? <p className="form-success" role="status">{taskMessage}</p> : null}
         {showWatchForm ? (
           <form className="monitoring-watch-form" onSubmit={(event) => void createWatchItem(event)}>
             <label>
@@ -313,7 +337,9 @@ function CompetitorMonitoringPage() {
             <div>
               {firstAlert ? <span>{firstAlert[2]}</span> : <span>暂无反击任务</span>}
             </div>
-            <Link to="/tasks">生成反击任务</Link>
+            <button disabled={!firstAlert || isCreatingTask} onClick={() => void createAlertTask()} type="button">
+              {isCreatingTask ? "生成中..." : "生成反击任务"}
+            </button>
           </aside>
         </section>
 
