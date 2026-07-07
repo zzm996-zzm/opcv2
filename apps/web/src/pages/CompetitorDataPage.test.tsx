@@ -286,6 +286,63 @@ describe("CompetitorDataPage", () => {
     expect(screen.getByText("销售自动化提速")).toBeInTheDocument();
   });
 
+  it("creates a competitor scan from the custom plan input", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/scans?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({ scans: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/scans" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 14,
+          user_id: 7,
+          targets: ["增长雷达", "线索火花"],
+          focus: "获客链路、价格页和AI销售能力",
+          status: "completed",
+          competitors: [
+            {
+              name: "线索火花",
+              category: "AI 销售 / 线索开发",
+              score: 86,
+              signal: "新增从竞品信号生成跟进任务的能力",
+              risk: "强",
+              tags: ["AI销售", "任务派发"]
+            }
+          ],
+          conclusions: [
+            { title: "获客动作前置", detail: "竞品正在把公开信号提前转成销售跟进动作。" }
+          ],
+          evidence_sources: [],
+          created_at: "2026-06-30T08:00:00Z",
+          updated_at: "2026-06-30T08:05:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderCompetitorDataPage();
+
+    fireEvent.change(screen.getByLabelText("输入竞品或关键词"), {
+      target: { value: "增长雷达、线索火花；重点关注获客链路、价格页和AI销售能力" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成采集计划" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/competitor/scans",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            targets: ["增长雷达", "线索火花"],
+            focus: "获客链路、价格页和AI销售能力"
+          })
+        })
+      );
+    });
+    expect(await screen.findByRole("heading", { name: "线索火花" })).toBeInTheDocument();
+    expect(screen.getByText("获客动作前置")).toBeInTheDocument();
+  });
+
   it("shows queued scan progress after creating a competitor scan", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);

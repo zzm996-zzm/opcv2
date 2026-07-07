@@ -26,6 +26,25 @@ const taskFlow = [
   ["4", "生成结论", "输出威胁等级和应对动作"]
 ] as const;
 
+const defaultScanTargets = ["小鹅通", "有赞教育", "企微管家"];
+const defaultScanFocus = "价格、案例、招聘和 AI 功能";
+
+function parseScanPlanInput(rawInput: string) {
+  const [targetPart = "", ...focusParts] = rawInput.trim().split(/[；;]/);
+  const targets = targetPart
+    .split(/[,\uFF0C、/|\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const focus = focusParts
+    .join("；")
+    .replace(/^(重点)?关注[:：]?/, "")
+    .trim();
+  return {
+    targets,
+    focus: focus || defaultScanFocus
+  };
+}
+
 function scanStatusCopy(scan: CompetitorScan | null) {
   if (!scan) {
     return { label: "未开始", detail: "启动一次采集任务后，这里会显示脚本队列与处理进度。", progress: 0 };
@@ -55,6 +74,8 @@ function CompetitorDataPage() {
   const [addingWatchCompetitor, setAddingWatchCompetitor] = useState("");
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [taskMessage, setTaskMessage] = useState("");
+  const [scanPlanInput, setScanPlanInput] = useState("");
+  const [scanPlanError, setScanPlanError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -76,11 +97,12 @@ function CompetitorDataPage() {
   }, []);
 
   useEffect(() => {
-    if (!shouldPollScan(latestScan)) return;
+    if (!latestScan || !shouldPollScan(latestScan)) return;
+    const scanToPoll = latestScan;
     let active = true;
     const timer = window.setInterval(() => {
       void competitorApi
-        .getScan(latestScan.id)
+        .getScan(scanToPoll.id)
         .then((scan) => {
           if (active) {
             setLatestScan(scan);
@@ -113,8 +135,8 @@ function CompetitorDataPage() {
     setIsScanning(true);
     try {
       const scan = await competitorApi.createScan({
-        targets: ["小鹅通", "有赞教育", "企微管家"],
-        focus: "价格、案例、招聘和 AI 功能"
+        targets: defaultScanTargets,
+        focus: defaultScanFocus
       });
       setLatestScan(scan);
     } catch {
@@ -173,6 +195,26 @@ function CompetitorDataPage() {
     }
   }
 
+  async function submitScanPlan() {
+    if (isScanning) return;
+    const input = parseScanPlanInput(scanPlanInput);
+    if (input.targets.length === 0) {
+      setScanPlanError("请输入至少一个竞品或关键词");
+      return;
+    }
+    setIsScanning(true);
+    setScanPlanError("");
+    try {
+      const scan = await competitorApi.createScan(input);
+      setLatestScan(scan);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法生成采集计划"));
+    } finally {
+      setIsScanning(false);
+    }
+  }
+
   return (
     <V4PageShell className="competitor-data-shell">
       <section className="module-page competitor-data-page" aria-label="竞品全盘数据破解">
@@ -212,14 +254,20 @@ function CompetitorDataPage() {
               ))}
             </div>
           </div>
-          <form className="module-ai-box compact competitor-data-input">
+          <form className="module-ai-box compact competitor-data-input" onSubmit={(event) => {
+            event.preventDefault();
+            void submitScanPlan();
+          }}>
             <label htmlFor="competitor-target">输入竞品或关键词</label>
             <textarea
               id="competitor-target"
               aria-label="输入竞品或关键词"
+              onChange={(event) => setScanPlanInput(event.target.value)}
               placeholder="例如：小鹅通、有赞教育、企微管家；重点关注价格、案例、招聘和 AI 功能..."
+              value={scanPlanInput}
             />
-            <button type="button">生成采集计划</button>
+            {scanPlanError ? <small className="form-error" role="alert">{scanPlanError}</small> : null}
+            <button disabled={isScanning} type="submit">{isScanning ? "生成中..." : "生成采集计划"}</button>
           </form>
         </section>
 

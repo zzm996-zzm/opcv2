@@ -48,14 +48,8 @@ function formatLastSeen(value: string) {
 
 function toTrackedCompetitor(item: CompetitorWatchItem) {
   return {
-    id: item.id,
-    name: item.name,
-    category: item.category,
-    status: item.status,
-    threat: item.threat,
+    ...item,
     lastSeen: formatLastSeen(item.last_seen_at),
-    channels: item.channels,
-    signal: item.signal
   };
 }
 
