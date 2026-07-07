@@ -78,6 +78,7 @@ function InsightList({ compact }: { compact: boolean }) {
   }, []);
 
   const visibleArticles = apiArticles;
+  const focusArticles = visibleArticles.slice(0, 3);
 
   return (
     <>
@@ -109,14 +110,35 @@ function InsightList({ compact }: { compact: boolean }) {
           <h2>今日关注</h2>
           <small>更新 {visibleArticles.length} 条</small>
         </div>
-        <div className="module-empty-state" role="status">暂无今日关注</div>
+        {focusArticles.length === 0 ? (
+          <div className="insights-focus-empty" role="status">
+            <strong>暂无今日关注</strong>
+            <span>内容入库后会自动展示最新关注主题。</span>
+          </div>
+        ) : focusArticles.map((article) => (
+            <article key={article.slug}>
+              <span className={`focus-art ${article.visual === "map" ? "globe" : article.visual === "target" ? "cube" : "chart"}`} aria-hidden="true" />
+              <strong>{article.title}</strong>
+              <p>{article.summary}</p>
+            </article>
+          ))}
         <Link to="/insights/file-analysis">查看全部专题 ›</Link>
       </section>
 
       <section className={`insight-list-card ${compact ? "compact" : ""}`} aria-label="资讯列表">
         {error && <p className="form-error" role="alert">{error}</p>}
         {visibleArticles.length === 0 ? (
-          <div className="module-empty-state" role="status">暂无资讯数据</div>
+          <div className="insights-empty-state" role="status">
+            <span className="insights-empty-visual" aria-hidden="true" />
+            <div>
+              <h2>暂无资讯数据</h2>
+              <p>接口当前没有返回资讯内容。你可以先使用右侧 AI 助手检索方向，或等内容入库后在这里查看文章列表。</p>
+            </div>
+            <div className="insights-empty-actions">
+              <Link to="/insights/file-analysis">让 AI 总结重点</Link>
+              <Link to="/tools">查看相关工具</Link>
+            </div>
+          </div>
         ) : visibleArticles.map((article) => (
             <article className="insight-row" key={article.title}>
               <span className={`insight-thumb ${article.visual}`} aria-hidden="true" />
@@ -135,16 +157,18 @@ function InsightList({ compact }: { compact: boolean }) {
           ))}
       </section>
 
-      <footer className="insights-pagination" aria-label="资讯分页">
-        <button type="button">‹</button>
-        {[1, 2, 3, 4, 5].map((page) => (
-          <button className={page === 1 ? "active" : ""} key={page} type="button">{page}</button>
-        ))}
-        <span>…</span>
-        <button type="button">20</button>
-        <button type="button">›</button>
-        <small>每页显示 12 条⌄</small>
-      </footer>
+      {visibleArticles.length > 0 && (
+        <footer className="insights-pagination" aria-label="资讯分页">
+          <button type="button">‹</button>
+          {[1, 2, 3, 4, 5].map((page) => (
+            <button className={page === 1 ? "active" : ""} key={page} type="button">{page}</button>
+          ))}
+          <span>…</span>
+          <button type="button">20</button>
+          <button type="button">›</button>
+          <small>每页显示 12 条⌄</small>
+        </footer>
+      )}
     </>
   );
 }

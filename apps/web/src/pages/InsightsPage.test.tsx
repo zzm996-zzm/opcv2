@@ -36,8 +36,12 @@ describe("InsightsPage", () => {
     expect(screen.getByLabelText("搜索资讯")).toBeInTheDocument();
     expect(screen.getByText("今日关注")).toBeInTheDocument();
     expect(await screen.findByText("暂无资讯数据")).toBeInTheDocument();
+    expect(screen.getByText("接口当前没有返回资讯内容。你可以先使用右侧 AI 助手检索方向，或等内容入库后在这里查看文章列表。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "让 AI 总结重点" })).toHaveAttribute("href", "/insights/file-analysis");
+    expect(screen.getByRole("link", { name: "查看相关工具" })).toHaveAttribute("href", "/tools");
     expect(screen.queryByText("企业智能客服落地实践：从成本中心到增长引擎")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /查看详情/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "20" })).not.toBeInTheDocument();
     expect(screen.getByText("今日 AI 客服行业资讯摘要")).toBeInTheDocument();
   });
 
@@ -80,8 +84,8 @@ describe("InsightsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("AI获客增长手册")).toBeInTheDocument();
-    expect(screen.getByText("整理低成本获客动作。")).toBeInTheDocument();
+    expect(await screen.findAllByText("AI获客增长手册")).toHaveLength(2);
+    expect(screen.getAllByText("整理低成本获客动作。")).toHaveLength(2);
     expect(screen.getByRole("link", { name: "查看详情" })).toHaveAttribute("href", "/insights/detail?article=ai-growth-playbook");
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/content/articles", expect.any(Object));
   });
