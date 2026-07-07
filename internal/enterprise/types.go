@@ -37,6 +37,10 @@ type DiagnosisRequestInput struct {
 	Need string `json:"need"`
 }
 
+type DiagnosisRequestUpdateInput struct {
+	Status string `json:"status"`
+}
+
 type DiagnosisRequest struct {
 	ID        int64  `json:"id"`
 	UserID    int64  `json:"user_id"`

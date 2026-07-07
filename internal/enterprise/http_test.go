@@ -14,9 +14,11 @@ import (
 type fakeApplication struct {
 	overview       Overview
 	diagnosisInput DiagnosisRequestInput
+	updateInput    DiagnosisRequestUpdateInput
 	diagnosis      DiagnosisRequest
 	diagnoses      []DiagnosisRequest
 	userID         int64
+	requestID      int64
 	limit          int
 	err            error
 }
@@ -36,6 +38,13 @@ func (a *fakeApplication) ListDiagnosisRequests(_ context.Context, userID int64,
 	a.userID = userID
 	a.limit = limit
 	return DiagnosisRequestsResponse{Requests: a.diagnoses}, a.err
+}
+
+func (a *fakeApplication) UpdateDiagnosisRequest(_ context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error) {
+	a.userID = userID
+	a.requestID = requestID
+	a.updateInput = input
+	return a.diagnosis, a.err
 }
 
 func enterpriseTestRouter(app Application) *gin.Engine {
@@ -96,5 +105,22 @@ func TestListDiagnosisRequestsEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if app.userID != 42 || app.limit != 5 || !strings.Contains(recorder.Body.String(), `"requests":[`) {
 		t.Fatalf("user/limit/body = %d/%d/%s", app.userID, app.limit, recorder.Body.String())
+	}
+}
+
+func TestUpdateDiagnosisRequestEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{diagnosis: DiagnosisRequest{ID: 11, UserID: 42, Need: "30人销售团队需要AI获客陪跑", Status: "follow_up_created"}}
+	router := enterpriseTestRouter(app)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/enterprise/diagnosis-requests/11", strings.NewReader(`{"status":"follow_up_created"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.requestID != 11 || app.updateInput.Status != "follow_up_created" || !strings.Contains(recorder.Body.String(), `"status":"follow_up_created"`) {
+		t.Fatalf("user/request/input/body = %d/%d/%+v/%s", app.userID, app.requestID, app.updateInput, recorder.Body.String())
 	}
 }

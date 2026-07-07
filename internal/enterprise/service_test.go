@@ -9,9 +9,11 @@ import (
 type fakeRepository struct {
 	overview       Overview
 	diagnosisInput DiagnosisRequestInput
+	updateInput    DiagnosisRequestUpdateInput
 	diagnosis      DiagnosisRequest
 	diagnoses      []DiagnosisRequest
 	userID         int64
+	requestID      int64
 	limit          int
 	err            error
 }
@@ -31,6 +33,13 @@ func (r *fakeRepository) ListDiagnosisRequests(_ context.Context, userID int64, 
 	r.userID = userID
 	r.limit = limit
 	return r.diagnoses, r.err
+}
+
+func (r *fakeRepository) UpdateDiagnosisRequest(_ context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error) {
+	r.userID = userID
+	r.requestID = requestID
+	r.updateInput = input
+	return r.diagnosis, r.err
 }
 
 func TestServiceReturnsSafeEmptyOverviewWithoutRepository(t *testing.T) {
@@ -119,5 +128,29 @@ func TestServiceDefaultsInvalidDiagnosisRequestLimit(t *testing.T) {
 	}
 	if repository.limit != 10 {
 		t.Fatalf("limit = %d, want 10", repository.limit)
+	}
+}
+
+func TestServiceUpdatesDiagnosisRequestStatus(t *testing.T) {
+	repository := &fakeRepository{diagnosis: DiagnosisRequest{ID: 7, Status: "follow_up_created"}}
+	service := NewService(repository)
+
+	request, err := service.UpdateDiagnosisRequest(context.Background(), 42, 7, DiagnosisRequestUpdateInput{Status: " follow_up_created "})
+
+	if err != nil {
+		t.Fatalf("UpdateDiagnosisRequest() error = %v", err)
+	}
+	if request.Status != "follow_up_created" || repository.userID != 42 || repository.requestID != 7 || repository.updateInput.Status != "follow_up_created" {
+		t.Fatalf("request/repository = %+v/%+v", request, repository)
+	}
+}
+
+func TestServiceRejectsInvalidDiagnosisRequestStatus(t *testing.T) {
+	service := NewService(&fakeRepository{})
+
+	_, err := service.UpdateDiagnosisRequest(context.Background(), 42, 7, DiagnosisRequestUpdateInput{Status: "submitted"})
+
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("err = %v, want ErrInvalidInput", err)
 	}
 }

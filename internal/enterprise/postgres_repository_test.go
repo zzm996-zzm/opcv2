@@ -219,3 +219,36 @@ func TestPostgresRepositoryListsDiagnosisRequests(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryUpdatesDiagnosisRequest(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	createdAt := time.Date(2026, 7, 7, 10, 30, 0, 0, time.UTC)
+	updatedAt := time.Date(2026, 7, 7, 11, 30, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE enterprise_diagnosis_requests
+		SET status = $3, updated_at = now()
+		WHERE id = $1 AND user_id = $2
+		RETURNING id, user_id, need, status, created_at, updated_at
+	`)).
+		WithArgs(int64(7), int64(42), "follow_up_created").
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "need", "status", "created_at", "updated_at"}).
+			AddRow(int64(7), int64(42), "30人销售团队需要AI获客陪跑", "follow_up_created", createdAt, updatedAt))
+
+	repository := NewPostgresRepository(db)
+	request, err := repository.UpdateDiagnosisRequest(context.Background(), 42, 7, DiagnosisRequestUpdateInput{Status: "follow_up_created"})
+
+	if err != nil {
+		t.Fatalf("UpdateDiagnosisRequest() error = %v", err)
+	}
+	if request.ID != 7 || request.Status != "follow_up_created" || request.UpdatedAt != "2026-07-07T11:30:00Z" {
+		t.Fatalf("request = %+v", request)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

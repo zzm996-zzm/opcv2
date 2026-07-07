@@ -13,6 +13,7 @@ type Repository interface {
 	Overview(ctx context.Context, userID int64) (Overview, error)
 	CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error)
 	ListDiagnosisRequests(ctx context.Context, userID int64, limit int) ([]DiagnosisRequest, error)
+	UpdateDiagnosisRequest(ctx context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error)
 }
 
 type Service struct {
@@ -69,6 +70,20 @@ func (s *Service) ListDiagnosisRequests(ctx context.Context, userID int64, limit
 		requests = []DiagnosisRequest{}
 	}
 	return DiagnosisRequestsResponse{Requests: requests}, nil
+}
+
+func (s *Service) UpdateDiagnosisRequest(ctx context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error) {
+	if userID <= 0 {
+		return DiagnosisRequest{}, ErrUserIDRequired
+	}
+	if s.repository == nil || requestID <= 0 {
+		return DiagnosisRequest{}, ErrInvalidInput
+	}
+	input.Status = strings.TrimSpace(input.Status)
+	if input.Status != "follow_up_created" && input.Status != "in_delivery" {
+		return DiagnosisRequest{}, ErrInvalidInput
+	}
+	return s.repository.UpdateDiagnosisRequest(ctx, userID, requestID, input)
 }
 
 func emptyOverview() Overview {

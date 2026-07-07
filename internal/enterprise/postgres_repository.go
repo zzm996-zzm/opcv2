@@ -102,6 +102,31 @@ func (r *PostgresRepository) ListDiagnosisRequests(ctx context.Context, userID i
 	return requests, rows.Err()
 }
 
+func (r *PostgresRepository) UpdateDiagnosisRequest(ctx context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error) {
+	var request DiagnosisRequest
+	var createdAt time.Time
+	var updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		UPDATE enterprise_diagnosis_requests
+		SET status = $3, updated_at = now()
+		WHERE id = $1 AND user_id = $2
+		RETURNING id, user_id, need, status, created_at, updated_at
+	`, requestID, userID, input.Status).Scan(
+		&request.ID,
+		&request.UserID,
+		&request.Need,
+		&request.Status,
+		&createdAt,
+		&updatedAt,
+	)
+	if err != nil {
+		return DiagnosisRequest{}, err
+	}
+	request.CreatedAt = createdAt.Format(time.RFC3339)
+	request.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return request, nil
+}
+
 func (r *PostgresRepository) metrics(ctx context.Context, userID int64) ([]Metric, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT key, label, value
