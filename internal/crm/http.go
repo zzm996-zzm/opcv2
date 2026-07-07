@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/platform/httpapi"
 )
 
 type Application interface {
@@ -76,7 +77,7 @@ func (h *HTTPHandler) listCustomers(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"customers": customers})
+	c.JSON(http.StatusOK, gin.H{"customers": httpapi.EnsureSlice(customers)})
 }
 
 func (h *HTTPHandler) getCustomer(c *gin.Context) {
@@ -126,7 +127,7 @@ func (h *HTTPHandler) listActivities(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"activities": activities})
+	c.JSON(http.StatusOK, gin.H{"activities": httpapi.EnsureSlice(activities)})
 }
 
 func (h *HTTPHandler) updateStage(c *gin.Context) {
@@ -192,7 +193,7 @@ func (h *HTTPHandler) listFollowUps(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"follow_ups": followUps})
+	c.JSON(http.StatusOK, gin.H{"follow_ups": httpapi.EnsureSlice(followUps)})
 }
 
 func (h *HTTPHandler) generateFollowUpCopy(c *gin.Context) {
@@ -228,7 +229,7 @@ func (h *HTTPHandler) listDueCustomers(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"customers": customers})
+	c.JSON(http.StatusOK, gin.H{"customers": httpapi.EnsureSlice(customers)})
 }
 
 func (h *HTTPHandler) pipelineStats(c *gin.Context) {

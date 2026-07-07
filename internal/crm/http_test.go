@@ -111,6 +111,22 @@ func TestListCustomersEndpointUsesAuthenticatedUserAndFilters(t *testing.T) {
 	}
 }
 
+func TestListCustomersEndpointReturnsEmptyArray(t *testing.T) {
+	app := &fakeApplication{}
+	router := crmTestRouter(app)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/crm/customers", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"customers":[]`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
 func TestGetCustomerEndpointUsesAuthenticatedUser(t *testing.T) {
 	app := &fakeApplication{customer: Customer{ID: 100, UserID: 42, Name: "成都启明星教育"}}
 	router := crmTestRouter(app)
@@ -160,6 +176,22 @@ func TestListActivitiesEndpointUsesAuthenticatedUserAndCustomer(t *testing.T) {
 		t.Fatalf("user/customer/limit = %d/%d/%d", app.getUserID, app.getCustomerID, app.dueInput.Limit)
 	}
 	if !strings.Contains(recorder.Body.String(), `"activities"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestListActivitiesEndpointReturnsEmptyArray(t *testing.T) {
+	app := &fakeApplication{}
+	router := crmTestRouter(app)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/crm/customers/100/activities", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"activities":[]`) {
 		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }
@@ -215,6 +247,22 @@ func TestDueCustomersEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 }
 
+func TestDueCustomersEndpointReturnsEmptyArray(t *testing.T) {
+	app := &fakeApplication{}
+	router := crmTestRouter(app)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/crm/customers/due", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"customers":[]`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
 func TestListFollowUpsEndpointUsesAuthenticatedUserAndFilters(t *testing.T) {
 	now := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
 	app := &fakeApplication{followUps: []FollowUp{{ID: 1, UserID: 42, CustomerID: 100, Note: "发送方案", NextFollowUpAt: now}}}
@@ -231,6 +279,22 @@ func TestListFollowUpsEndpointUsesAuthenticatedUserAndFilters(t *testing.T) {
 		t.Fatalf("input = %+v", app.followUpsInput)
 	}
 	if !strings.Contains(recorder.Body.String(), `"follow_ups"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestListFollowUpsEndpointReturnsEmptyArray(t *testing.T) {
+	app := &fakeApplication{}
+	router := crmTestRouter(app)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/crm/follow-ups", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"follow_ups":[]`) {
 		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }
