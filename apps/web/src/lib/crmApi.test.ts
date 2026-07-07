@@ -20,10 +20,10 @@ describe("crmApi", () => {
       new Response(JSON.stringify({ customers: [] }), { status: 200 })
     );
 
-    await crmApi.listCustomers({ stage: "contacted", q: "启明星", limit: 10 });
+    await crmApi.listCustomers({ stage: "contacted", source: "enterprise", q: "启明星", limit: 10 });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/crm/customers?stage=contacted&q=%E5%90%AF%E6%98%8E%E6%98%9F&limit=10",
+      "/api/v1/crm/customers?stage=contacted&source=enterprise&q=%E5%90%AF%E6%98%8E%E6%98%9F&limit=10",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({ Authorization: "Bearer access-token" })

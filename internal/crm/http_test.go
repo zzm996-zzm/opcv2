@@ -97,13 +97,13 @@ func TestListCustomersEndpointUsesAuthenticatedUserAndFilters(t *testing.T) {
 	router := crmTestRouter(app)
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/crm/customers?stage=contacted&q=%E5%90%AF%E6%98%8E%E6%98%9F&limit=10", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/crm/customers?stage=contacted&source=enterprise&q=%E5%90%AF%E6%98%8E%E6%98%9F&limit=10", nil)
 	router.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
-	if app.listInput.UserID != 42 || app.listInput.Stage != StageContacted || app.listInput.Q != "启明星" || app.listInput.Limit != 10 {
+	if app.listInput.UserID != 42 || app.listInput.Stage != StageContacted || app.listInput.Source != SourceEnterprise || app.listInput.Q != "启明星" || app.listInput.Limit != 10 {
 		t.Fatalf("input = %+v", app.listInput)
 	}
 	if !strings.Contains(recorder.Body.String(), `"customers"`) {

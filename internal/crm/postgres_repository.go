@@ -68,16 +68,17 @@ func (r *PostgresRepository) ListCustomers(ctx context.Context, input ListCustom
 		FROM crm_customers
 		WHERE user_id = $1
 			AND ($2 = '' OR stage = $2)
+			AND ($3 = '' OR source = $3)
 			AND (
-				$3 = ''
-				OR name ILIKE '%' || $3 || '%'
-				OR phone ILIKE '%' || $3 || '%'
-				OR email ILIKE '%' || $3 || '%'
-				OR website ILIKE '%' || $3 || '%'
+				$4 = ''
+				OR name ILIKE '%' || $4 || '%'
+				OR phone ILIKE '%' || $4 || '%'
+				OR email ILIKE '%' || $4 || '%'
+				OR website ILIKE '%' || $4 || '%'
 			)
 		ORDER BY updated_at DESC, id DESC
-		LIMIT $4
-	`, input.UserID, input.Stage, input.Q, input.Limit)
+		LIMIT $5
+	`, input.UserID, input.Stage, input.Source, input.Q, input.Limit)
 	if err != nil {
 		return nil, err
 	}

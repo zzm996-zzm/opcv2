@@ -54,6 +54,7 @@ export type CrmPipelineStats = {
 
 export type CrmCustomerFilters = {
   stage?: CrmStage;
+  source?: "lead" | "enterprise";
   q?: string;
   limit?: number;
 };
@@ -66,6 +67,7 @@ export type CrmFollowUpFilters = {
 function customerQuery(filters: CrmCustomerFilters = {}) {
   const params = new URLSearchParams();
   if (filters.stage) params.set("stage", filters.stage);
+  if (filters.source) params.set("source", filters.source);
   if (filters.q) params.set("q", filters.q);
   if (filters.limit) params.set("limit", String(filters.limit));
   const query = params.toString();

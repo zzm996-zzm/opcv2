@@ -70,6 +70,7 @@ func (h *HTTPHandler) listCustomers(c *gin.Context) {
 	customers, err := h.app.ListCustomers(c.Request.Context(), ListCustomersInput{
 		UserID: c.GetInt64(auth.UserIDContextKey),
 		Stage:  c.Query("stage"),
+		Source: c.Query("source"),
 		Q:      c.Query("q"),
 		Limit:  limit,
 	})

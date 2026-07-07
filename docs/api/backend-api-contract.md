@@ -337,11 +337,12 @@ Customer stages:
 
 ### List Customers
 
-`GET /api/v1/crm/customers?stage=contacted&q=启明星&limit=20`
+`GET /api/v1/crm/customers?stage=contacted&source=enterprise&q=启明星&limit=20`
 
 Query:
 
 - `stage` optional customer stage.
+- `source` optional customer source, currently `lead` or `enterprise`.
 - `q` optional keyword matched against name, phone, email and website.
 - `limit` optional, capped at 100 by service defaults.
 

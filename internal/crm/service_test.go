@@ -55,6 +55,9 @@ func (r *memoryRepository) ListCustomers(_ context.Context, input ListCustomersI
 		if input.Stage != "" && customer.Stage != input.Stage {
 			continue
 		}
+		if input.Source != "" && customer.Source != input.Source {
+			continue
+		}
 		if input.Q != "" && !strings.Contains(customer.Name, input.Q) && !strings.Contains(customer.Phone, input.Q) && !strings.Contains(customer.Email, input.Q) && !strings.Contains(customer.Website, input.Q) {
 			continue
 		}
@@ -271,11 +274,11 @@ func TestServiceStageUpdateCreatesActivity(t *testing.T) {
 func TestServiceListsCustomersWithFilters(t *testing.T) {
 	repository := &memoryRepository{}
 	service := NewService(repository)
-	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "a", Name: "成都启明星教育", Phone: "028-12345678", Stage: StageContacted})
-	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "b", Name: "星桥教育集团", Stage: StageQualified})
-	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 7, ImportKey: "c", Name: "其他用户客户", Stage: StageContacted})
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "a", Name: "成都启明星教育", Phone: "028-12345678", Stage: StageContacted, Source: SourceEnterprise})
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "b", Name: "星桥教育集团", Stage: StageQualified, Source: SourceLead})
+	_, _, _ = repository.ImportCustomer(context.Background(), Customer{UserID: 7, ImportKey: "c", Name: "其他用户客户", Stage: StageContacted, Source: SourceEnterprise})
 
-	customers, err := service.ListCustomers(context.Background(), ListCustomersInput{UserID: 42, Stage: StageContacted, Q: "启明星"})
+	customers, err := service.ListCustomers(context.Background(), ListCustomersInput{UserID: 42, Stage: StageContacted, Source: SourceEnterprise, Q: "启明星"})
 	if err != nil {
 		t.Fatalf("ListCustomers() error = %v", err)
 	}

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -105,6 +105,52 @@ describe("CrmPage", () => {
     expect(within(stats).getByText("总客户")).toBeInTheDocument();
     expect(within(stats).getByText("3")).toBeInTheDocument();
     expect(await screen.findByText("客户资料已更新")).toBeInTheDocument();
+  });
+
+  it("filters CRM customers by enterprise delivery source", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ customers: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 0,
+        qualified: 0,
+        proposal: 0,
+        won: 1,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        customers: [{
+          id: 101,
+          user_id: 7,
+          import_key: "enterprise_diagnosis_request:8",
+          name: "30人销售团队需要AI获客陪跑",
+          stage: "won",
+          source: "enterprise",
+          created_at: "2026-07-07T13:30:00Z",
+          updated_at: "2026-07-07T13:30:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 0,
+        qualified: 0,
+        proposal: 0,
+        won: 1,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activities: [] }), { status: 200 }));
+    renderCrmRoute();
+
+    expect(await screen.findByText("暂无CRM客户")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "企业交付" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers?source=enterprise&limit=20", expect.any(Object)));
+    expect(await screen.findByRole("heading", { name: "30人销售团队需要AI获客陪跑" })).toBeInTheDocument();
+    expect(screen.getAllByText("企业交付").length).toBeGreaterThan(0);
   });
 
   it("renders an empty follow-up list instead of static sample records", async () => {

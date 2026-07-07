@@ -76,6 +76,7 @@ type ListDueInput struct {
 type ListCustomersInput struct {
 	UserID int64
 	Stage  string
+	Source string
 	Q      string
 	Limit  int
 }

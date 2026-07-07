@@ -26,6 +26,7 @@ type StatCard = readonly [string, string, string];
 
 type FollowRow = readonly [string, string, string, string, string, string, string, string];
 type TimelineRow = readonly [string, string];
+type CustomerSourceFilter = "all" | "lead" | "enterprise";
 
 const stageLabels: Record<CrmStage, string> = {
   new: "新线索",
@@ -34,6 +35,11 @@ const stageLabels: Record<CrmStage, string> = {
   proposal: "报价谈判",
   won: "已成交",
   lost: "已流失"
+};
+
+const sourceLabels: Record<string, string> = {
+  lead: "AI线索",
+  enterprise: "企业交付"
 };
 
 function toCustomerCard(customer: CrmCustomer): CustomerCard {
@@ -47,10 +53,10 @@ function toCustomerCard(customer: CrmCustomer): CustomerCard {
     stage: stageLabels[customer.stage],
     health: customer.stage === "proposal" || customer.stage === "qualified" ? "高意向" : "可推进",
     next: `${nextDate} 跟进客户进展`,
-    location: customer.source === "lead" ? "AI线索 · 待补地区" : customer.source,
+    location: `${sourceLabels[customer.source] ?? customer.source} · 待补地区`,
     contact: customer.phone || "待补充",
     email: customer.email || "待补充",
-    tags: [customer.source === "lead" ? "AI线索" : customer.source, customer.phone ? "电话可触达" : "待补联系方式"]
+    tags: [sourceLabels[customer.source] ?? customer.source, customer.phone ? "电话可触达" : "待补联系方式"]
   };
 }
 
@@ -119,10 +125,15 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [activities, setActivities] = useState<CrmActivity[]>([]);
   const [stats, setStats] = useState<CrmPipelineStats | null>(null);
   const [error, setError] = useState("");
+  const [sourceFilter, setSourceFilter] = useState<CustomerSourceFilter>("all");
 
   useEffect(() => {
     let active = true;
-    Promise.all([crmApi.listCustomers({ limit: 20 }), crmApi.pipelineStats()])
+    setError("");
+    Promise.all([
+      crmApi.listCustomers({ limit: 20, source: sourceFilter === "all" ? undefined : sourceFilter }),
+      crmApi.pipelineStats()
+    ])
       .then(([customersPayload, statsPayload]) => {
         if (active) {
           setApiCustomers(customersPayload.customers);
@@ -135,7 +146,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [sourceFilter]);
 
   useEffect(() => {
     const customer = apiCustomers[0];
@@ -196,9 +207,9 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
         <div className="cdk-crm-table-card">
           <header>
             <div className="cdk-crm-tabs">
-              {["全部客户", "高意向", "跟进中", "已成交"].map((item, index) => (
-                <button className={index === 0 ? "active" : ""} key={item} type="button">{item}</button>
-              ))}
+              <button className={sourceFilter === "all" ? "active" : ""} type="button" onClick={() => setSourceFilter("all")}>全部客户</button>
+              <button className={sourceFilter === "lead" ? "active" : ""} type="button" onClick={() => setSourceFilter("lead")}>AI线索</button>
+              <button className={sourceFilter === "enterprise" ? "active" : ""} type="button" onClick={() => setSourceFilter("enterprise")}>企业交付</button>
             </div>
             <label>
               <span aria-hidden="true">⌕</span>

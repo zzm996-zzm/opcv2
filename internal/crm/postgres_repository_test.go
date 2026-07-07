@@ -108,22 +108,23 @@ func TestPostgresRepositoryListsCustomersWithFilters(t *testing.T) {
 		FROM crm_customers
 		WHERE user_id = $1
 			AND ($2 = '' OR stage = $2)
+			AND ($3 = '' OR source = $3)
 			AND (
-				$3 = ''
-				OR name ILIKE '%' || $3 || '%'
-				OR phone ILIKE '%' || $3 || '%'
-				OR email ILIKE '%' || $3 || '%'
-				OR website ILIKE '%' || $3 || '%'
+				$4 = ''
+				OR name ILIKE '%' || $4 || '%'
+				OR phone ILIKE '%' || $4 || '%'
+				OR email ILIKE '%' || $4 || '%'
+				OR website ILIKE '%' || $4 || '%'
 			)
 		ORDER BY updated_at DESC, id DESC
-		LIMIT $4
+		LIMIT $5
 	`)).
-		WithArgs(int64(42), StageContacted, "启明星", 20).
+		WithArgs(int64(42), StageContacted, SourceEnterprise, "启明星", 20).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "import_key", "name", "phone", "email", "website", "stage", "source", "next_follow_up_at", "created_at", "updated_at"}).
-			AddRow(int64(100), int64(42), "lead_result:99", "成都启明星教育", "028-12345678", "", "", StageContacted, SourceLead, nil, now, now))
+			AddRow(int64(100), int64(42), "enterprise_diagnosis_request:8", "成都启明星教育", "028-12345678", "", "", StageContacted, SourceEnterprise, nil, now, now))
 
 	repository := NewPostgresRepository(db)
-	customers, err := repository.ListCustomers(context.Background(), ListCustomersInput{UserID: 42, Stage: StageContacted, Q: "启明星", Limit: 20})
+	customers, err := repository.ListCustomers(context.Background(), ListCustomersInput{UserID: 42, Stage: StageContacted, Source: SourceEnterprise, Q: "启明星", Limit: 20})
 	if err != nil {
 		t.Fatalf("ListCustomers() error = %v", err)
 	}

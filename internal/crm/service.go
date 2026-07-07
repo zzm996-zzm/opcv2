@@ -112,6 +112,10 @@ func (s *Service) ListCustomers(ctx context.Context, input ListCustomersInput) (
 	if input.Stage != "" && !validStage(input.Stage) {
 		return nil, ErrInvalidInput
 	}
+	input.Source = strings.TrimSpace(input.Source)
+	if input.Source != "" && input.Source != SourceLead && input.Source != SourceEnterprise {
+		return nil, ErrInvalidInput
+	}
 	input.Q = strings.TrimSpace(input.Q)
 	if input.Limit <= 0 || input.Limit > 100 {
 		input.Limit = defaultListLimit
