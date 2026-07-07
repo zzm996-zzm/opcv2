@@ -99,7 +99,10 @@ describe("EnterprisePage", () => {
           focus: ["后端重点"],
           result: "后端返回的交付结果"
         }],
-        delivery_board: [{ stage: "诊断中", count: 1, detail: "后端交付阶段" }],
+        delivery_board: [
+          { stage: "诊断中", count: 1, detail: "后端交付阶段" },
+          { stage: "已生成跟进", count: 2, detail: "已生成任务，等待进入交付" }
+        ],
         milestones: [{ time_label: "第1周", title: "后端里程碑", detail: "后端里程碑详情" }],
         cases: [{ id: 7, company: "后端企业案例", result: "后端案例结果" }]
       }), { status: 200 }))
@@ -127,6 +130,7 @@ describe("EnterprisePage", () => {
 
     expect(await screen.findByRole("heading", { name: "后端陪跑方案" })).toBeInTheDocument();
     expect(screen.getByText("后端交付阶段")).toBeInTheDocument();
+    expect(screen.getByText("已生成任务，等待进入交付")).toBeInTheDocument();
     expect(screen.getByText("后端里程碑")).toBeInTheDocument();
     expect(screen.getByText("后端企业案例")).toBeInTheDocument();
     expect(screen.getByText("后端返回的诊断预约")).toBeInTheDocument();

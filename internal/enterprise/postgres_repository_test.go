@@ -37,13 +37,42 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 			AddRow(int64(7), "后端陪跑方案", "增长团队", "待报价", []string{"诊断", "训练"}, "完成系统上线"))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT stage, count, detail
-		FROM enterprise_delivery_board
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, stage, count, detail
+			FROM enterprise_delivery_board
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 + CASE status
+					WHEN 'submitted' THEN 1
+					WHEN 'follow_up_created' THEN 2
+					WHEN 'in_delivery' THEN 3
+					ELSE 9
+				END AS sort_order,
+				0 AS id,
+				CASE status
+					WHEN 'submitted' THEN '待承接预约'
+					WHEN 'follow_up_created' THEN '已生成跟进'
+					WHEN 'in_delivery' THEN '交付中预约'
+					ELSE '其他预约'
+				END AS stage,
+				COUNT(*)::int AS count,
+				CASE status
+					WHEN 'submitted' THEN '等待生成跟进任务'
+					WHEN 'follow_up_created' THEN '已生成任务，等待进入交付'
+					WHEN 'in_delivery' THEN '已进入企业陪跑交付'
+					ELSE '其他诊断预约状态'
+				END AS detail
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1
+			GROUP BY status
+		) board
 		ORDER BY sort_order ASC, id ASC
 	`)).
 		WithArgs(int64(42)).
 		WillReturnRows(pgxmock.NewRows([]string{"stage", "count", "detail"}).
-			AddRow("诊断中", 2, "后端交付阶段"))
+			AddRow("诊断中", 2, "后端交付阶段").
+			AddRow("待承接预约", 1, "等待生成跟进任务"))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT time_label, title, detail
 		FROM enterprise_milestones
@@ -77,7 +106,7 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 	if len(overview.Plans) != 1 || overview.Plans[0].Title != "后端陪跑方案" || len(overview.Plans[0].Focus) != 2 {
 		t.Fatalf("plans = %+v", overview.Plans)
 	}
-	if len(overview.DeliveryBoard) != 1 || overview.DeliveryBoard[0].Count != 2 {
+	if len(overview.DeliveryBoard) != 2 || overview.DeliveryBoard[0].Count != 2 || overview.DeliveryBoard[1].Stage != "待承接预约" {
 		t.Fatalf("delivery board = %+v", overview.DeliveryBoard)
 	}
 	if len(overview.Milestones) != 1 || overview.Milestones[0].Title != "后端里程碑" {
@@ -117,8 +146,36 @@ func TestPostgresRepositoryReturnsEmptyOverviewArrays(t *testing.T) {
 		WillReturnRows(pgxmock.NewRows([]string{"id", "title", "audience", "price_label", "focus", "result"}))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT stage, count, detail
-		FROM enterprise_delivery_board
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, stage, count, detail
+			FROM enterprise_delivery_board
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 + CASE status
+					WHEN 'submitted' THEN 1
+					WHEN 'follow_up_created' THEN 2
+					WHEN 'in_delivery' THEN 3
+					ELSE 9
+				END AS sort_order,
+				0 AS id,
+				CASE status
+					WHEN 'submitted' THEN '待承接预约'
+					WHEN 'follow_up_created' THEN '已生成跟进'
+					WHEN 'in_delivery' THEN '交付中预约'
+					ELSE '其他预约'
+				END AS stage,
+				COUNT(*)::int AS count,
+				CASE status
+					WHEN 'submitted' THEN '等待生成跟进任务'
+					WHEN 'follow_up_created' THEN '已生成任务，等待进入交付'
+					WHEN 'in_delivery' THEN '已进入企业陪跑交付'
+					ELSE '其他诊断预约状态'
+				END AS detail
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1
+			GROUP BY status
+		) board
 		ORDER BY sort_order ASC, id ASC
 	`)).
 		WithArgs(int64(42)).

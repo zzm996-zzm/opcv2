@@ -177,8 +177,36 @@ func (r *PostgresRepository) plans(ctx context.Context, userID int64) ([]Plan, e
 func (r *PostgresRepository) deliveryBoard(ctx context.Context, userID int64) ([]DeliveryItem, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT stage, count, detail
-		FROM enterprise_delivery_board
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, stage, count, detail
+			FROM enterprise_delivery_board
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 + CASE status
+					WHEN 'submitted' THEN 1
+					WHEN 'follow_up_created' THEN 2
+					WHEN 'in_delivery' THEN 3
+					ELSE 9
+				END AS sort_order,
+				0 AS id,
+				CASE status
+					WHEN 'submitted' THEN '待承接预约'
+					WHEN 'follow_up_created' THEN '已生成跟进'
+					WHEN 'in_delivery' THEN '交付中预约'
+					ELSE '其他预约'
+				END AS stage,
+				COUNT(*)::int AS count,
+				CASE status
+					WHEN 'submitted' THEN '等待生成跟进任务'
+					WHEN 'follow_up_created' THEN '已生成任务，等待进入交付'
+					WHEN 'in_delivery' THEN '已进入企业陪跑交付'
+					ELSE '其他诊断预约状态'
+				END AS detail
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1
+			GROUP BY status
+		) board
 		ORDER BY sort_order ASC, id ASC
 	`, userID)
 	if err != nil {
