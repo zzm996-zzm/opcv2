@@ -12,6 +12,7 @@ var ErrInvalidInput = errors.New("invalid input")
 type Repository interface {
 	Overview(ctx context.Context, userID int64) (Overview, error)
 	CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error)
+	ListDiagnosisRequests(ctx context.Context, userID int64, limit int) ([]DiagnosisRequest, error)
 }
 
 type Service struct {
@@ -48,6 +49,26 @@ func (s *Service) CreateDiagnosisRequest(ctx context.Context, userID int64, inpu
 		return DiagnosisRequest{}, ErrInvalidInput
 	}
 	return s.repository.CreateDiagnosisRequest(ctx, userID, input)
+}
+
+func (s *Service) ListDiagnosisRequests(ctx context.Context, userID int64, limit int) (DiagnosisRequestsResponse, error) {
+	if userID <= 0 {
+		return DiagnosisRequestsResponse{}, ErrUserIDRequired
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 10
+	}
+	if s.repository == nil {
+		return DiagnosisRequestsResponse{Requests: []DiagnosisRequest{}}, nil
+	}
+	requests, err := s.repository.ListDiagnosisRequests(ctx, userID, limit)
+	if err != nil {
+		return DiagnosisRequestsResponse{}, err
+	}
+	if requests == nil {
+		requests = []DiagnosisRequest{}
+	}
+	return DiagnosisRequestsResponse{Requests: requests}, nil
 }
 
 func emptyOverview() Overview {

@@ -74,6 +74,34 @@ func (r *PostgresRepository) CreateDiagnosisRequest(ctx context.Context, userID 
 	return request, nil
 }
 
+func (r *PostgresRepository) ListDiagnosisRequests(ctx context.Context, userID int64, limit int) ([]DiagnosisRequest, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, need, status, created_at, updated_at
+		FROM enterprise_diagnosis_requests
+		WHERE user_id = $1
+		ORDER BY created_at DESC, id DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	requests := []DiagnosisRequest{}
+	for rows.Next() {
+		var request DiagnosisRequest
+		var createdAt time.Time
+		var updatedAt time.Time
+		if err := rows.Scan(&request.ID, &request.UserID, &request.Need, &request.Status, &createdAt, &updatedAt); err != nil {
+			return nil, err
+		}
+		request.CreatedAt = createdAt.Format(time.RFC3339)
+		request.UpdatedAt = updatedAt.Format(time.RFC3339)
+		requests = append(requests, request)
+	}
+	return requests, rows.Err()
+}
+
 func (r *PostgresRepository) metrics(ctx context.Context, userID int64) ([]Metric, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT key, label, value

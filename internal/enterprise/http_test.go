@@ -15,7 +15,9 @@ type fakeApplication struct {
 	overview       Overview
 	diagnosisInput DiagnosisRequestInput
 	diagnosis      DiagnosisRequest
+	diagnoses      []DiagnosisRequest
 	userID         int64
+	limit          int
 	err            error
 }
 
@@ -28,6 +30,12 @@ func (a *fakeApplication) CreateDiagnosisRequest(_ context.Context, userID int64
 	a.userID = userID
 	a.diagnosisInput = input
 	return a.diagnosis, a.err
+}
+
+func (a *fakeApplication) ListDiagnosisRequests(_ context.Context, userID int64, limit int) (DiagnosisRequestsResponse, error) {
+	a.userID = userID
+	a.limit = limit
+	return DiagnosisRequestsResponse{Requests: a.diagnoses}, a.err
 }
 
 func enterpriseTestRouter(app Application) *gin.Engine {
@@ -73,5 +81,20 @@ func TestCreateDiagnosisRequestEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if app.userID != 42 || app.diagnosisInput.Need != "30人销售团队需要AI获客陪跑" || !strings.Contains(recorder.Body.String(), `"status":"submitted"`) {
 		t.Fatalf("user/input/body = %d/%+v/%s", app.userID, app.diagnosisInput, recorder.Body.String())
+	}
+}
+
+func TestListDiagnosisRequestsEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{diagnoses: []DiagnosisRequest{{ID: 11, UserID: 42, Need: "30人销售团队需要AI获客陪跑", Status: "submitted"}}}
+	router := enterpriseTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/enterprise/diagnosis-requests?limit=5", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.limit != 5 || !strings.Contains(recorder.Body.String(), `"requests":[`) {
+		t.Fatalf("user/limit/body = %d/%d/%s", app.userID, app.limit, recorder.Body.String())
 	}
 }

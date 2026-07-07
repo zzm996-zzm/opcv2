@@ -10,7 +10,9 @@ type fakeRepository struct {
 	overview       Overview
 	diagnosisInput DiagnosisRequestInput
 	diagnosis      DiagnosisRequest
+	diagnoses      []DiagnosisRequest
 	userID         int64
+	limit          int
 	err            error
 }
 
@@ -23,6 +25,12 @@ func (r *fakeRepository) CreateDiagnosisRequest(_ context.Context, userID int64,
 	r.userID = userID
 	r.diagnosisInput = input
 	return r.diagnosis, r.err
+}
+
+func (r *fakeRepository) ListDiagnosisRequests(_ context.Context, userID int64, limit int) ([]DiagnosisRequest, error) {
+	r.userID = userID
+	r.limit = limit
+	return r.diagnoses, r.err
 }
 
 func TestServiceReturnsSafeEmptyOverviewWithoutRepository(t *testing.T) {
@@ -83,5 +91,33 @@ func TestServiceRejectsInvalidDiagnosisRequest(t *testing.T) {
 
 	if !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("err = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestServiceListsDiagnosisRequests(t *testing.T) {
+	repository := &fakeRepository{diagnoses: []DiagnosisRequest{{ID: 7, Status: "submitted"}}}
+	service := NewService(repository)
+
+	response, err := service.ListDiagnosisRequests(context.Background(), 42, 5)
+
+	if err != nil {
+		t.Fatalf("ListDiagnosisRequests() error = %v", err)
+	}
+	if repository.userID != 42 || repository.limit != 5 || len(response.Requests) != 1 {
+		t.Fatalf("repository/response = %+v/%+v", repository, response)
+	}
+}
+
+func TestServiceDefaultsInvalidDiagnosisRequestLimit(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository)
+
+	_, err := service.ListDiagnosisRequests(context.Background(), 42, 0)
+
+	if err != nil {
+		t.Fatalf("ListDiagnosisRequests() error = %v", err)
+	}
+	if repository.limit != 10 {
+		t.Fatalf("limit = %d, want 10", repository.limit)
 	}
 }

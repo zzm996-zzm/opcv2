@@ -46,6 +46,10 @@ type DiagnosisRequest struct {
 	UpdatedAt string `json:"updated_at,omitempty"`
 }
 
+type DiagnosisRequestsResponse struct {
+	Requests []DiagnosisRequest `json:"requests"`
+}
+
 type Overview struct {
 	Stats         []Metric       `json:"stats"`
 	Plans         []Plan         `json:"plans"`
