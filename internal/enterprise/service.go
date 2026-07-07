@@ -4,24 +4,37 @@ import (
 	"context"
 	"errors"
 	"strings"
+
+	"github.com/zzm/opcv2/internal/crm"
 )
 
 var ErrUserIDRequired = errors.New("user id required")
 var ErrInvalidInput = errors.New("invalid input")
+var ErrDiagnosisRequestNotFound = errors.New("enterprise diagnosis request not found")
 
 type Repository interface {
 	Overview(ctx context.Context, userID int64) (Overview, error)
 	CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error)
 	ListDiagnosisRequests(ctx context.Context, userID int64, limit int) ([]DiagnosisRequest, error)
+	GetDiagnosisRequest(ctx context.Context, userID int64, requestID int64) (DiagnosisRequest, error)
 	UpdateDiagnosisRequest(ctx context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error)
+}
+
+type CRMImporter interface {
+	ImportEnterpriseDelivery(ctx context.Context, input crm.ImportEnterpriseInput) (crm.Customer, error)
 }
 
 type Service struct {
 	repository Repository
+	crm        CRMImporter
 }
 
-func NewService(repository Repository) *Service {
-	return &Service{repository: repository}
+func NewService(repository Repository, crmImporters ...CRMImporter) *Service {
+	var crmImporter CRMImporter
+	if len(crmImporters) > 0 {
+		crmImporter = crmImporters[0]
+	}
+	return &Service{repository: repository, crm: crmImporter}
 }
 
 func (s *Service) Overview(ctx context.Context, userID int64) (Overview, error) {
@@ -84,6 +97,27 @@ func (s *Service) UpdateDiagnosisRequest(ctx context.Context, userID int64, requ
 		return DiagnosisRequest{}, ErrInvalidInput
 	}
 	return s.repository.UpdateDiagnosisRequest(ctx, userID, requestID, input)
+}
+
+func (s *Service) ImportDiagnosisRequestCustomer(ctx context.Context, userID int64, requestID int64) (crm.Customer, error) {
+	if userID <= 0 {
+		return crm.Customer{}, ErrUserIDRequired
+	}
+	if s.repository == nil || s.crm == nil || requestID <= 0 {
+		return crm.Customer{}, ErrInvalidInput
+	}
+	request, err := s.repository.GetDiagnosisRequest(ctx, userID, requestID)
+	if err != nil {
+		return crm.Customer{}, err
+	}
+	if request.Status != "completed" {
+		return crm.Customer{}, ErrInvalidInput
+	}
+	return s.crm.ImportEnterpriseDelivery(ctx, crm.ImportEnterpriseInput{
+		UserID:             userID,
+		DiagnosisRequestID: request.ID,
+		Need:               request.Need,
+	})
 }
 
 func emptyOverview() Overview {

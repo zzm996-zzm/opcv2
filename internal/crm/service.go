@@ -64,6 +64,25 @@ func (s *Service) ImportLead(ctx context.Context, input ImportLeadInput) (Custom
 	return customer, err
 }
 
+func (s *Service) ImportEnterpriseDelivery(ctx context.Context, input ImportEnterpriseInput) (Customer, error) {
+	if s.repository == nil {
+		return Customer{}, ErrServiceNotReady
+	}
+	input.Need = strings.TrimSpace(input.Need)
+	if input.UserID <= 0 || input.DiagnosisRequestID <= 0 || input.Need == "" {
+		return Customer{}, ErrInvalidInput
+	}
+	customer, _, err := s.repository.ImportCustomer(ctx, Customer{
+		UserID:    input.UserID,
+		ImportKey: fmt.Sprintf("enterprise_diagnosis_request:%d", input.DiagnosisRequestID),
+		Name:      enterpriseCustomerName(input.Need),
+		Stage:     StageWon,
+		Source:    SourceEnterprise,
+		CreatedAt: s.now(),
+	})
+	return customer, err
+}
+
 func (s *Service) UpdateStage(ctx context.Context, input UpdateStageInput) (Customer, error) {
 	if s.repository == nil {
 		return Customer{}, ErrServiceNotReady
@@ -291,6 +310,14 @@ func followUpCopyPrompt(customer Customer, goal string) string {
 		parts = append(parts, "网站："+customer.Website)
 	}
 	return strings.Join(parts, "\n")
+}
+
+func enterpriseCustomerName(need string) string {
+	runes := []rune(need)
+	if len(runes) <= 32 {
+		return need
+	}
+	return string(runes[:32])
 }
 
 func validateFollowUpCopyJSON(data []byte) error {

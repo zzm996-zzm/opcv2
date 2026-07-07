@@ -76,4 +76,26 @@ describe("enterpriseApi", () => {
       body: JSON.stringify({ status: "completed" })
     }));
   });
+
+  it("imports a completed enterprise diagnosis request into CRM", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        id: 100,
+        user_id: 42,
+        import_key: "enterprise_diagnosis_request:7",
+        name: "30人销售团队需要AI获客陪跑",
+        stage: "won",
+        source: "enterprise",
+        created_at: "2026-07-07T13:30:00Z",
+        updated_at: "2026-07-07T13:30:00Z"
+      }), { status: 200 })
+    );
+
+    const customer = await enterpriseApi.importDiagnosisRequestCustomer(7);
+
+    expect(customer.source).toBe("enterprise");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests/7/crm-customer", expect.objectContaining({
+      method: "POST"
+    }));
+  });
 });

@@ -223,6 +223,32 @@ func TestServiceImportLeadIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestServiceImportEnterpriseDeliveryIsIdempotent(t *testing.T) {
+	repository := &memoryRepository{}
+	service := NewService(repository)
+	service.now = func() time.Time { return time.Date(2026, 7, 7, 9, 0, 0, 0, time.UTC) }
+
+	input := ImportEnterpriseInput{
+		UserID:             42,
+		DiagnosisRequestID: 8,
+		Need:               "30人销售团队需要AI获客陪跑",
+	}
+	first, err := service.ImportEnterpriseDelivery(context.Background(), input)
+	if err != nil {
+		t.Fatalf("ImportEnterpriseDelivery() first error = %v", err)
+	}
+	second, err := service.ImportEnterpriseDelivery(context.Background(), input)
+	if err != nil {
+		t.Fatalf("ImportEnterpriseDelivery() second error = %v", err)
+	}
+	if first.ID != second.ID || len(repository.customers) != 1 {
+		t.Fatalf("first=%+v second=%+v customers=%+v", first, second, repository.customers)
+	}
+	if first.ImportKey != "enterprise_diagnosis_request:8" || first.Stage != StageWon || first.Source != SourceEnterprise {
+		t.Fatalf("customer = %+v", first)
+	}
+}
+
 func TestServiceStageUpdateCreatesActivity(t *testing.T) {
 	repository := &memoryRepository{}
 	service := NewService(repository)

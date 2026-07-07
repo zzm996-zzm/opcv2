@@ -2495,10 +2495,11 @@ Errors:
 
 ## Enterprise Companion
 
-Status: Implemented as a read-only Postgres-backed overview endpoint. It reads
-user-scoped metrics, plans, delivery board items, milestones, and cases. Full
-enterprise inquiry, delivery workflow, milestone write/admin APIs, and payment
-handoff are still missing.
+Status: Implemented as a Postgres-backed overview plus diagnosis request
+workflow. It supports user-scoped metrics, plans, delivery board items,
+milestones, cases, diagnosis request creation/listing/status updates, and CRM
+handoff for completed delivery. Milestone write/admin APIs and payment handoff
+are still missing.
 
 All enterprise endpoints are protected.
 
@@ -2515,6 +2516,72 @@ Response `200`:
   "delivery_board": [],
   "milestones": [],
   "cases": []
+}
+```
+
+### Diagnosis Requests
+
+`GET /api/v1/enterprise/diagnosis-requests?limit=5`
+
+Response `200`:
+
+```json
+{
+  "requests": [{
+    "id": 8,
+    "user_id": 42,
+    "need": "30人销售团队需要AI获客陪跑",
+    "status": "submitted",
+    "created_at": "2026-07-07T10:30:00Z",
+    "updated_at": "2026-07-07T10:30:00Z"
+  }]
+}
+```
+
+`POST /api/v1/enterprise/diagnosis-requests`
+
+Request:
+
+```json
+{
+  "need": "30人销售团队需要AI获客陪跑"
+}
+```
+
+`PATCH /api/v1/enterprise/diagnosis-requests/{id}`
+
+Request:
+
+```json
+{
+  "status": "completed"
+}
+```
+
+Allowed `status` values:
+
+- `follow_up_created`
+- `in_delivery`
+- `completed`
+
+### CRM Handoff
+
+`POST /api/v1/enterprise/diagnosis-requests/{id}/crm-customer`
+
+Protected. Only completed diagnosis requests can be handed off. The endpoint is
+idempotent by `enterprise_diagnosis_request:{id}` and creates or returns a CRM
+customer with `source = enterprise` and `stage = won`.
+
+Response `200`:
+
+```json
+{
+  "id": 100,
+  "user_id": 42,
+  "import_key": "enterprise_diagnosis_request:8",
+  "name": "30人销售团队需要AI获客陪跑",
+  "stage": "won",
+  "source": "enterprise"
 }
 ```
 

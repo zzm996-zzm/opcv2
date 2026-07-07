@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/crm"
 )
 
 type fakeApplication struct {
@@ -17,6 +18,7 @@ type fakeApplication struct {
 	updateInput    DiagnosisRequestUpdateInput
 	diagnosis      DiagnosisRequest
 	diagnoses      []DiagnosisRequest
+	customer       crm.Customer
 	userID         int64
 	requestID      int64
 	limit          int
@@ -45,6 +47,12 @@ func (a *fakeApplication) UpdateDiagnosisRequest(_ context.Context, userID int64
 	a.requestID = requestID
 	a.updateInput = input
 	return a.diagnosis, a.err
+}
+
+func (a *fakeApplication) ImportDiagnosisRequestCustomer(_ context.Context, userID int64, requestID int64) (crm.Customer, error) {
+	a.userID = userID
+	a.requestID = requestID
+	return a.customer, a.err
 }
 
 func enterpriseTestRouter(app Application) *gin.Engine {
@@ -122,5 +130,20 @@ func TestUpdateDiagnosisRequestEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if app.userID != 42 || app.requestID != 11 || app.updateInput.Status != "follow_up_created" || !strings.Contains(recorder.Body.String(), `"status":"follow_up_created"`) {
 		t.Fatalf("user/request/input/body = %d/%d/%+v/%s", app.userID, app.requestID, app.updateInput, recorder.Body.String())
+	}
+}
+
+func TestImportDiagnosisRequestCustomerEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{customer: crm.Customer{ID: 100, UserID: 42, ImportKey: "enterprise_diagnosis_request:11", Name: "30人销售团队需要AI获客陪跑", Stage: crm.StageWon, Source: crm.SourceEnterprise}}
+	router := enterpriseTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/enterprise/diagnosis-requests/11/crm-customer", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.requestID != 11 || !strings.Contains(recorder.Body.String(), `"source":"enterprise"`) {
+		t.Fatalf("user/request/body = %d/%d/%s", app.userID, app.requestID, recorder.Body.String())
 	}
 }

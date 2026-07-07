@@ -164,7 +164,7 @@ func main() {
 	geoService := geo.NewService(geoRepository, geo.WithQueue(taskqueue.NewClient(cfg.RedisAddr)))
 	geoHTTP := geo.NewHTTPHandler(geoService)
 	enterpriseRepository := enterprise.NewPostgresRepository(db)
-	enterpriseService := enterprise.NewService(enterpriseRepository)
+	enterpriseService := enterprise.NewService(enterpriseRepository, crmService)
 	enterpriseHTTP := enterprise.NewHTTPHandler(enterpriseService)
 	growthRepository := growth.NewPostgresRepository(db)
 	growthService := growth.NewService(growthRepository)

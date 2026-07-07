@@ -2,6 +2,7 @@ package enterprise
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -102,6 +103,33 @@ func (r *PostgresRepository) ListDiagnosisRequests(ctx context.Context, userID i
 	return requests, rows.Err()
 }
 
+func (r *PostgresRepository) GetDiagnosisRequest(ctx context.Context, userID int64, requestID int64) (DiagnosisRequest, error) {
+	var request DiagnosisRequest
+	var createdAt time.Time
+	var updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT id, user_id, need, status, created_at, updated_at
+		FROM enterprise_diagnosis_requests
+		WHERE id = $1 AND user_id = $2
+	`, requestID, userID).Scan(
+		&request.ID,
+		&request.UserID,
+		&request.Need,
+		&request.Status,
+		&createdAt,
+		&updatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DiagnosisRequest{}, ErrDiagnosisRequestNotFound
+		}
+		return DiagnosisRequest{}, err
+	}
+	request.CreatedAt = createdAt.Format(time.RFC3339)
+	request.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return request, nil
+}
+
 func (r *PostgresRepository) UpdateDiagnosisRequest(ctx context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error) {
 	var request DiagnosisRequest
 	var createdAt time.Time
@@ -120,6 +148,9 @@ func (r *PostgresRepository) UpdateDiagnosisRequest(ctx context.Context, userID 
 		&updatedAt,
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DiagnosisRequest{}, ErrDiagnosisRequestNotFound
+		}
 		return DiagnosisRequest{}, err
 	}
 	request.CreatedAt = createdAt.Format(time.RFC3339)

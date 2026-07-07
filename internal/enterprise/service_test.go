@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/zzm/opcv2/internal/crm"
 )
 
 type fakeRepository struct {
@@ -35,11 +37,28 @@ func (r *fakeRepository) ListDiagnosisRequests(_ context.Context, userID int64, 
 	return r.diagnoses, r.err
 }
 
+func (r *fakeRepository) GetDiagnosisRequest(_ context.Context, userID int64, requestID int64) (DiagnosisRequest, error) {
+	r.userID = userID
+	r.requestID = requestID
+	return r.diagnosis, r.err
+}
+
 func (r *fakeRepository) UpdateDiagnosisRequest(_ context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error) {
 	r.userID = userID
 	r.requestID = requestID
 	r.updateInput = input
 	return r.diagnosis, r.err
+}
+
+type fakeCRMImporter struct {
+	input    crm.ImportEnterpriseInput
+	customer crm.Customer
+	err      error
+}
+
+func (i *fakeCRMImporter) ImportEnterpriseDelivery(_ context.Context, input crm.ImportEnterpriseInput) (crm.Customer, error) {
+	i.input = input
+	return i.customer, i.err
 }
 
 func TestServiceReturnsSafeEmptyOverviewWithoutRepository(t *testing.T) {
@@ -166,5 +185,38 @@ func TestServiceRejectsInvalidDiagnosisRequestStatus(t *testing.T) {
 
 	if !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("err = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestServiceImportsCompletedDiagnosisRequestToCRM(t *testing.T) {
+	repository := &fakeRepository{diagnosis: DiagnosisRequest{ID: 7, UserID: 42, Need: "30人销售团队需要AI获客陪跑", Status: "completed"}}
+	importer := &fakeCRMImporter{customer: crm.Customer{ID: 100, Name: "30人销售团队需要AI获客陪跑", Stage: crm.StageWon, Source: crm.SourceEnterprise}}
+	service := NewService(repository, importer)
+
+	customer, err := service.ImportDiagnosisRequestCustomer(context.Background(), 42, 7)
+
+	if err != nil {
+		t.Fatalf("ImportDiagnosisRequestCustomer() error = %v", err)
+	}
+	if customer.ID != 100 || repository.userID != 42 || repository.requestID != 7 {
+		t.Fatalf("customer/repository = %+v/%+v", customer, repository)
+	}
+	if importer.input.UserID != 42 || importer.input.DiagnosisRequestID != 7 || importer.input.Need != "30人销售团队需要AI获客陪跑" {
+		t.Fatalf("import input = %+v", importer.input)
+	}
+}
+
+func TestServiceRejectsUncompletedDiagnosisRequestCRMImport(t *testing.T) {
+	repository := &fakeRepository{diagnosis: DiagnosisRequest{ID: 7, UserID: 42, Need: "30人销售团队需要AI获客陪跑", Status: "in_delivery"}}
+	importer := &fakeCRMImporter{}
+	service := NewService(repository, importer)
+
+	_, err := service.ImportDiagnosisRequestCustomer(context.Background(), 42, 7)
+
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("err = %v, want ErrInvalidInput", err)
+	}
+	if importer.input.UserID != 0 {
+		t.Fatalf("importer should not be called: %+v", importer.input)
 	}
 }

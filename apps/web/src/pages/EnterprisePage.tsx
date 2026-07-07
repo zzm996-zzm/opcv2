@@ -24,6 +24,9 @@ function EnterprisePage() {
   const [completionStatusByRequestId, setCompletionStatusByRequestId] = useState<Record<number, string>>({});
   const [completionErrorByRequestId, setCompletionErrorByRequestId] = useState<Record<number, string>>({});
   const [completionPendingRequestId, setCompletionPendingRequestId] = useState<number | null>(null);
+  const [crmStatusByRequestId, setCrmStatusByRequestId] = useState<Record<number, string>>({});
+  const [crmErrorByRequestId, setCrmErrorByRequestId] = useState<Record<number, string>>({});
+  const [crmPendingRequestId, setCrmPendingRequestId] = useState<number | null>(null);
 
   const refreshOverview = async () => {
     const payload = await enterpriseApi.overview();
@@ -159,6 +162,23 @@ function EnterprisePage() {
       }));
     } finally {
       setCompletionPendingRequestId(null);
+    }
+  };
+
+  const importToCRM = async (request: EnterpriseDiagnosisRequest) => {
+    setCrmPendingRequestId(request.id);
+    setCrmStatusByRequestId((current) => ({ ...current, [request.id]: "" }));
+    setCrmErrorByRequestId((current) => ({ ...current, [request.id]: "" }));
+    try {
+      const customer = await enterpriseApi.importDiagnosisRequestCustomer(request.id);
+      setCrmStatusByRequestId((current) => ({ ...current, [request.id]: `已同步CRM客户：${customer.name}` }));
+    } catch (error) {
+      setCrmErrorByRequestId((current) => ({
+        ...current,
+        [request.id]: apiErrorMessage(error, "暂时无法同步CRM客户")
+      }));
+    } finally {
+      setCrmPendingRequestId(null);
     }
   };
 
@@ -323,6 +343,8 @@ function EnterprisePage() {
                 {deliveryErrorByRequestId[request.id] && <small className="form-error">{deliveryErrorByRequestId[request.id]}</small>}
                 {completionStatusByRequestId[request.id] && <small className="form-success">{completionStatusByRequestId[request.id]}</small>}
                 {completionErrorByRequestId[request.id] && <small className="form-error">{completionErrorByRequestId[request.id]}</small>}
+                {crmStatusByRequestId[request.id] && <small className="form-success">{crmStatusByRequestId[request.id]}</small>}
+                {crmErrorByRequestId[request.id] && <small className="form-error">{crmErrorByRequestId[request.id]}</small>}
                 {request.status === "follow_up_created" ? (
                   <button type="button" onClick={() => startDelivery(request)} disabled={deliveryPendingRequestId === request.id}>
                     {deliveryPendingRequestId === request.id ? "进入中..." : "进入交付"}
@@ -331,8 +353,12 @@ function EnterprisePage() {
                   <button type="button" onClick={() => completeDelivery(request)} disabled={completionPendingRequestId === request.id}>
                     {completionPendingRequestId === request.id ? "完成中..." : "完成交付"}
                   </button>
+                ) : request.status === "completed" ? (
+                  <button type="button" onClick={() => importToCRM(request)} disabled={crmPendingRequestId === request.id}>
+                    {crmPendingRequestId === request.id ? "同步中..." : "同步CRM"}
+                  </button>
                 ) : (
-                  <button type="button" onClick={() => createFollowUpTask(request)} disabled={taskPendingRequestId === request.id || request.status === "completed"}>
+                  <button type="button" onClick={() => createFollowUpTask(request)} disabled={taskPendingRequestId === request.id}>
                     {taskPendingRequestId === request.id ? "生成中..." : "生成跟进任务"}
                   </button>
                 )}

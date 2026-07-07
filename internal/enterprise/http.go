@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/platform/httpapi"
 )
 
@@ -16,6 +17,7 @@ type Application interface {
 	CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error)
 	ListDiagnosisRequests(ctx context.Context, userID int64, limit int) (DiagnosisRequestsResponse, error)
 	UpdateDiagnosisRequest(ctx context.Context, userID int64, requestID int64, input DiagnosisRequestUpdateInput) (DiagnosisRequest, error)
+	ImportDiagnosisRequestCustomer(ctx context.Context, userID int64, requestID int64) (crm.Customer, error)
 }
 
 type HTTPHandler struct {
@@ -31,6 +33,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/enterprise/diagnosis-requests", h.listDiagnosisRequests)
 	router.POST("/enterprise/diagnosis-requests", h.createDiagnosisRequest)
 	router.PATCH("/enterprise/diagnosis-requests/:id", h.updateDiagnosisRequest)
+	router.POST("/enterprise/diagnosis-requests/:id/crm-customer", h.importDiagnosisRequestCustomer)
 }
 
 func (h *HTTPHandler) overview(c *gin.Context) {
@@ -93,12 +96,30 @@ func (h *HTTPHandler) updateDiagnosisRequest(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func (h *HTTPHandler) importDiagnosisRequestCustomer(c *gin.Context) {
+	requestID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		httpapi.Error(c, http.StatusBadRequest, "invalid_request_id")
+		return
+	}
+	result, err := h.app.ImportDiagnosisRequestCustomer(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), requestID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrUserIDRequired):
 		httpapi.Error(c, http.StatusUnauthorized, "unauthorized")
-	case errors.Is(err, ErrInvalidInput):
+	case errors.Is(err, ErrInvalidInput), errors.Is(err, crm.ErrInvalidInput):
 		httpapi.Error(c, http.StatusBadRequest, "invalid_input")
+	case errors.Is(err, ErrDiagnosisRequestNotFound):
+		httpapi.Error(c, http.StatusNotFound, "diagnosis_request_not_found")
+	case errors.Is(err, crm.ErrServiceNotReady):
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:
 		httpapi.Error(c, http.StatusInternalServerError, "internal_error")
 	}

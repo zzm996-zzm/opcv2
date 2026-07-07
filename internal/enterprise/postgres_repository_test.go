@@ -331,6 +331,38 @@ func TestPostgresRepositoryListsDiagnosisRequests(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryGetsDiagnosisRequest(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	createdAt := time.Date(2026, 7, 7, 10, 30, 0, 0, time.UTC)
+	updatedAt := time.Date(2026, 7, 7, 13, 30, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, need, status, created_at, updated_at
+		FROM enterprise_diagnosis_requests
+		WHERE id = $1 AND user_id = $2
+	`)).
+		WithArgs(int64(7), int64(42)).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "need", "status", "created_at", "updated_at"}).
+			AddRow(int64(7), int64(42), "30人销售团队需要AI获客陪跑", "completed", createdAt, updatedAt))
+
+	repository := NewPostgresRepository(db)
+	request, err := repository.GetDiagnosisRequest(context.Background(), 42, 7)
+
+	if err != nil {
+		t.Fatalf("GetDiagnosisRequest() error = %v", err)
+	}
+	if request.ID != 7 || request.Status != "completed" || request.UpdatedAt != "2026-07-07T13:30:00Z" {
+		t.Fatalf("request = %+v", request)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryUpdatesDiagnosisRequest(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

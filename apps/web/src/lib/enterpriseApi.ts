@@ -1,4 +1,5 @@
 import { apiRequest } from "./apiRequest";
+import type { CrmCustomer } from "./crmApi";
 
 export type EnterpriseMetric = {
   key: string;
@@ -82,6 +83,12 @@ export const enterpriseApi = {
     return apiRequest<EnterpriseDiagnosisRequest>(`/api/v1/enterprise/diagnosis-requests/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input)
+    });
+  },
+
+  importDiagnosisRequestCustomer(id: number) {
+    return apiRequest<CrmCustomer>(`/api/v1/enterprise/diagnosis-requests/${id}/crm-customer`, {
+      method: "POST"
     });
   }
 };

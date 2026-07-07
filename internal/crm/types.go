@@ -13,6 +13,7 @@ const (
 	StageWon         = "won"
 	StageLost        = "lost"
 	SourceLead       = "lead"
+	SourceEnterprise = "enterprise"
 	defaultListLimit = 20
 )
 
@@ -36,6 +37,12 @@ type ImportLeadInput struct {
 	Phone        string `json:"phone,omitempty"`
 	Email        string `json:"email,omitempty"`
 	Website      string `json:"website,omitempty"`
+}
+
+type ImportEnterpriseInput struct {
+	UserID             int64  `json:"-"`
+	DiagnosisRequestID int64  `json:"diagnosis_request_id"`
+	Need               string `json:"need"`
 }
 
 type UpdateStageInput struct {
