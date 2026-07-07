@@ -159,6 +159,7 @@ function TasksPage() {
     try {
       const updated = await tasksApi.updateTask(taskID, { status: "completed" });
       setApiTasks((current) => current.map((task) => task.id === taskID ? updated : task));
+      setApiStats(null);
     } catch {
       // Keep the current row unchanged; a global toast system can surface this later.
     } finally {

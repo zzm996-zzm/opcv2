@@ -193,6 +193,9 @@ describe("TasksPage", () => {
       );
     });
     expect(within(taskRow).getByRole("button", { name: "已完成" })).toBeDisabled();
+    const completedStat = screen.getAllByText("已完成").find((node) => node.tagName.toLowerCase() === "small")?.closest("article");
+    expect(completedStat).not.toBeNull();
+    expect(within(completedStat as HTMLElement).getByText("1")).toBeInTheDocument();
   });
 
   it("creates a task from the goal input", async () => {
