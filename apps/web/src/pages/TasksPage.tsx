@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
@@ -103,6 +103,7 @@ function statsFromApi(stats: TaskStats) {
 }
 
 function TasksPage() {
+  const taskGoalRef = useRef<HTMLTextAreaElement | null>(null);
   const [apiTasks, setApiTasks] = useState<Task[]>([]);
   const [apiStats, setApiStats] = useState<TaskStats | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>();
@@ -197,6 +198,13 @@ function TasksPage() {
     }
   }
 
+  function focusTaskGoal() {
+    if (typeof taskGoalRef.current?.scrollIntoView === "function") {
+      taskGoalRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    taskGoalRef.current?.focus();
+  }
+
   return (
     <V4PageShell>
       <section className="module-page tasks-page" aria-label="任务中心">
@@ -205,7 +213,7 @@ function TasksPage() {
             <h1>任务中心</h1>
             <p>把当前情况和目标拆成可执行任务，并联动工具箱与 AI 教学</p>
           </div>
-          <button className="module-primary-action" type="button">新建任务</button>
+          <button className="module-primary-action" onClick={focusTaskGoal} type="button">新建任务</button>
         </div>
         {listError ? <p className="form-error" role="alert">{listError}</p> : null}
         {createMessage ? <p className="form-success" role="status">{createMessage}</p> : null}
@@ -234,6 +242,7 @@ function TasksPage() {
               aria-label="描述任务目标"
               onChange={(event) => setTaskGoal(event.target.value)}
               placeholder="输入当前情况 + 目标..."
+              ref={taskGoalRef}
               value={taskGoal}
             />
             {createError ? <small className="form-error" role="alert">{createError}</small> : null}

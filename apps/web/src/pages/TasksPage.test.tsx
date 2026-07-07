@@ -49,6 +49,26 @@ describe("TasksPage", () => {
     expect(screen.queryByText("完成智能客服系统项目商业画布")).not.toBeInTheDocument();
   });
 
+  it("focuses the task goal input from the primary new task action", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 0, todo: 0, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
+
+    expect(screen.getByLabelText("描述任务目标")).toHaveFocus();
+    expect(await screen.findByText("暂无任务数据")).toBeInTheDocument();
+  });
+
   it("loads tasks from API", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
