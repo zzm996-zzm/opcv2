@@ -41,8 +41,28 @@ export type EnterpriseOverview = {
   cases: EnterpriseCase[];
 };
 
+export type EnterpriseDiagnosisRequestInput = {
+  need: string;
+};
+
+export type EnterpriseDiagnosisRequest = {
+  id: number;
+  user_id: number;
+  need: string;
+  status: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export const enterpriseApi = {
   overview() {
     return apiRequest<EnterpriseOverview>("/api/v1/enterprise/overview");
+  },
+
+  createDiagnosisRequest(input: EnterpriseDiagnosisRequestInput) {
+    return apiRequest<EnterpriseDiagnosisRequest>("/api/v1/enterprise/diagnosis-requests", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
   }
 };

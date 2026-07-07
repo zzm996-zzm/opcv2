@@ -8,6 +8,10 @@ function EnterprisePage() {
   const enterpriseNeedRef = useRef<HTMLTextAreaElement | null>(null);
   const [overview, setOverview] = useState<EnterpriseOverview | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [need, setNeed] = useState("");
+  const [submitStatus, setSubmitStatus] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -40,6 +44,27 @@ function EnterprisePage() {
       enterpriseNeedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     enterpriseNeedRef.current?.focus();
+  };
+
+  const submitDiagnosisRequest = async () => {
+    const normalizedNeed = need.trim();
+    if (!normalizedNeed) {
+      setSubmitStatus("");
+      setSubmitError("请输入企业诊断需求");
+      return;
+    }
+    setSubmitting(true);
+    setSubmitStatus("");
+    setSubmitError("");
+    try {
+      await enterpriseApi.createDiagnosisRequest({ need: normalizedNeed });
+      setSubmitStatus("企业诊断预约已提交");
+      setNeed("");
+    } catch (error) {
+      setSubmitError(apiErrorMessage(error, "暂时无法提交企业诊断预约"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -98,8 +123,14 @@ function EnterprisePage() {
               ref={enterpriseNeedRef}
               aria-label="描述企业需求"
               placeholder="例如：30人销售团队，希望用 AI 提升线索开发、客户跟进和经营复盘效率..."
+              value={need}
+              onChange={(event) => setNeed(event.target.value)}
             />
-            <button type="button">生成诊断提纲</button>
+            {submitStatus && <p className="form-success" role="status">{submitStatus}</p>}
+            {submitError && <p className="form-error" role="alert">{submitError}</p>}
+            <button type="button" onClick={submitDiagnosisRequest} disabled={submitting}>
+              {submitting ? "提交中..." : "提交诊断预约"}
+            </button>
           </form>
         </section>
 

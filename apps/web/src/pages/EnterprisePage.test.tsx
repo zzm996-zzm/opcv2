@@ -120,4 +120,45 @@ describe("EnterprisePage", () => {
     expect(screen.getByText("后端里程碑")).toBeInTheDocument();
     expect(screen.getByText("后端企业案例")).toBeInTheDocument();
   });
+
+  it("submits an enterprise diagnosis request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        stats: [],
+        plans: [],
+        delivery_board: [],
+        milestones: [],
+        cases: []
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 7,
+        user_id: 42,
+        need: "30人销售团队需要AI获客陪跑",
+        status: "submitted"
+      }), { status: 200 }));
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-23T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张婧", phone: "", account: "zhangjing", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/enterprise"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText("描述企业需求"), {
+      target: { value: "30人销售团队需要AI获客陪跑" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "提交诊断预约" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ need: "30人销售团队需要AI获客陪跑" })
+    })));
+    expect(await screen.findByText("企业诊断预约已提交")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "生成诊断提纲" })).not.toBeInTheDocument();
+  });
 });
