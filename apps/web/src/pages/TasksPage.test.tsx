@@ -284,4 +284,48 @@ describe("TasksPage", () => {
       })
     );
   });
+
+  it("keeps created tasks out of the list when they do not match the active status filter", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks?status=completed&limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 0, todo: 0, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 88,
+          user_id: 7,
+          title: "梳理竞品反击动作",
+          project: "任务中心",
+          status: "todo",
+          priority: "medium",
+          tools: ["任务中心"],
+          learning: "梳理竞品反击动作",
+          created_at: "2026-07-07T10:00:00Z",
+          updated_at: "2026-07-07T10:00:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "筛选已完成" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks?status=completed&limit=20",
+      expect.objectContaining({ method: "GET" })
+    ));
+    fireEvent.change(screen.getByLabelText("描述任务目标"), { target: { value: "梳理竞品反击动作" } });
+    fireEvent.click(screen.getByRole("button", { name: "生成任务表" }));
+
+    expect(await screen.findByText("已生成任务：梳理竞品反击动作")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "梳理竞品反击动作" })).not.toBeInTheDocument();
+    expect(screen.getByText("暂无任务数据")).toBeInTheDocument();
+  });
 });

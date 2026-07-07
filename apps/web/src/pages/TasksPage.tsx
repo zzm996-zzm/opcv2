@@ -185,7 +185,7 @@ function TasksPage() {
         tools: ["任务中心"],
         learning: title
       });
-      setApiTasks((current) => [task, ...current]);
+      setApiTasks((current) => selectedStatus && task.status !== selectedStatus ? current : [task, ...current]);
       setApiStats(null);
       setTaskGoal("");
       setListError("");
