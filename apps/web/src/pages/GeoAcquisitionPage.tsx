@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
@@ -12,6 +12,7 @@ const roadmap = [
 ] as const;
 
 function GeoAcquisitionPage() {
+  const geoTargetRef = useRef<HTMLTextAreaElement | null>(null);
   const [overview, setOverview] = useState<GeoOverview | null>(null);
   const [analysisRequests, setAnalysisRequests] = useState<GeoAnalysisRequest[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -59,6 +60,13 @@ function GeoAcquisitionPage() {
   const contentTasks = overview?.content_tasks ?? [];
   const hasOverviewData = stats.length > 0 || engines.length > 0 || leadSignals.length > 0 || keywords.length > 0 || contentTasks.length > 0;
 
+  const focusGeoTarget = () => {
+    if (typeof geoTargetRef.current?.scrollIntoView === "function") {
+      geoTargetRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    geoTargetRef.current?.focus();
+  };
+
   const submitAnalysisRequest = async () => {
     const normalizedTarget = target.trim();
     if (!normalizedTarget) {
@@ -89,16 +97,18 @@ function GeoAcquisitionPage() {
             <h1>GEO获客</h1>
             <p>围绕 AI 搜索、答案引用和高意向问题建立内容阵地，让客户在提问时更容易看到你</p>
           </div>
-          <button className="module-primary-action" type="button">生成GEO方案</button>
+          <button className="module-primary-action" onClick={focusGeoTarget} type="button">生成GEO方案</button>
         </div>
 
         <section className="module-overview-card geo-hero">
           <div className="module-overview-copy">
-            <span className="module-kicker">GEO 模块 · 接口待接入</span>
+            <span className="module-kicker">GEO 模块 · 后端已接入</span>
             <h2>把高意向问题变成持续获客入口</h2>
             <p>系统会拆解客户在 AI 搜索里会问什么、哪些答案已经引用你、哪里还缺可信内容，并生成可执行的内容和线索承接任务。</p>
             {loadError && <p className="form-error" role="alert">{loadError}</p>}
-            {!loadError && !hasOverviewData && <p className="form-error" role="status">GEO 后端接口未接入</p>}
+            {!loadError && !hasOverviewData && (
+              <p className="form-success" role="status">暂无GEO概览数据，提交一次分析请求后将逐步沉淀覆盖、关键词和内容任务。</p>
+            )}
             <div className="module-stat-strip">
               {stats.length === 0 ? (
                 <>
@@ -132,6 +142,7 @@ function GeoAcquisitionPage() {
             <label htmlFor="geo-target">输入产品 / 客群 / 场景</label>
             <textarea
               id="geo-target"
+              ref={geoTargetRef}
               aria-label="输入GEO获客目标"
               placeholder="例如：面向教育培训机构的智能客服系统，希望覆盖选型、价格、企微联动和私域转化问题..."
               value={target}

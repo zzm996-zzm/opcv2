@@ -11,7 +11,7 @@ describe("GeoAcquisitionPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders transparent empty states while GEO APIs are not connected", async () => {
+  it("renders backend-connected GEO empty states", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({
         stats: [],
@@ -44,7 +44,8 @@ describe("GeoAcquisitionPage", () => {
     expect(screen.getByRole("button", { name: "生成GEO方案" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "AI 搜索覆盖" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "内容阵地任务" })).toBeInTheDocument();
-    expect(screen.getByText("GEO 后端接口未接入")).toBeInTheDocument();
+    expect(screen.getByText("暂无GEO概览数据，提交一次分析请求后将逐步沉淀覆盖、关键词和内容任务。")).toBeInTheDocument();
+    expect(screen.queryByText("GEO 后端接口未接入")).not.toBeInTheDocument();
     expect(screen.getByText("暂无 AI 搜索覆盖数据")).toBeInTheDocument();
     expect(screen.getByText("暂无线索机会")).toBeInTheDocument();
     expect(screen.getByText("暂无关键词机会")).toBeInTheDocument();
@@ -56,6 +57,35 @@ describe("GeoAcquisitionPage", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/geo/overview", expect.any(Object)));
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/geo/analysis-requests?limit=5", expect.any(Object));
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
+  });
+
+  it("focuses the GEO target input from the primary action", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        stats: [],
+        engines: [],
+        lead_signals: [],
+        keywords: [],
+        content_tasks: []
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ requests: [] }), { status: 200 }));
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-23T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张婧", phone: "", account: "zhangjing", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/geo"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "生成GEO方案" }));
+
+    expect(screen.getByLabelText("输入GEO获客目标")).toHaveFocus();
+    expect(await screen.findByText("暂无 GEO 分析请求")).toBeInTheDocument();
   });
 
   it("renders GEO overview records from the backend API", async () => {
