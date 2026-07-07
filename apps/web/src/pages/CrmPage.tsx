@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import { apiErrorMessage } from "../lib/apiErrors";
 import { crmApi, type CrmActivity, type CrmCustomer, type CrmFollowUp, type CrmPipelineStats, type CrmStage } from "../lib/crmApi";
@@ -189,6 +189,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const selectedCustomer = visibleCustomers[0];
   const selectedApiCustomer = apiCustomers[0];
   const visibleTimelineRows = activities.map(toTimelineRow);
+  const selectedFollowUpsPath = selectedApiCustomer ? `/crm/follow-ups?customer_id=${selectedApiCustomer.id}` : "/crm/follow-ups";
 
   const recordSelectedFollowUp = async () => {
     if (!selectedApiCustomer) return;
@@ -329,7 +330,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                       <p>{detail}</p>
                     </article>
                   ))}
-                <Link to="/crm/follow-ups">查看全部跟进记录 ›</Link>
+                <Link to={selectedFollowUpsPath}>查看全部跟进记录 ›</Link>
               </section>
               <section className="cdk-crm-followup-form" aria-label="记录客户跟进">
                 <label>
@@ -349,7 +350,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
               <footer>
                 <button type="button">拨打电话</button>
                 <button type="button">发消息</button>
-                <Link to="/crm/follow-ups">记录跟进</Link>
+                <Link to={selectedFollowUpsPath}>记录跟进</Link>
               </footer>
             </>
           ) : (
@@ -362,13 +363,15 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
 }
 
 function FollowUpsPage() {
+  const location = useLocation();
   const [apiFollowUps, setApiFollowUps] = useState<CrmFollowUp[]>([]);
   const [error, setError] = useState("");
+  const customerID = Number(new URLSearchParams(location.search).get("customer_id") ?? 0);
 
   useEffect(() => {
     let active = true;
     crmApi
-      .listFollowUps({ limit: 20 })
+      .listFollowUps({ customerId: customerID > 0 ? customerID : undefined, limit: 20 })
       .then((payload) => {
         if (active) setApiFollowUps(payload.follow_ups);
       })
@@ -378,7 +381,7 @@ function FollowUpsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [customerID]);
 
   const visibleFollowRows = apiFollowUps.map(toFollowRow);
   const now = Date.now();

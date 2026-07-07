@@ -105,6 +105,7 @@ describe("CrmPage", () => {
     expect(within(stats).getByText("总客户")).toBeInTheDocument();
     expect(within(stats).getByText("3")).toBeInTheDocument();
     expect(await screen.findByText("客户资料已更新")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看全部跟进记录 ›" })).toHaveAttribute("href", "/crm/follow-ups?customer_id=100");
   });
 
   it("filters CRM customers by enterprise delivery source", async () => {
@@ -254,5 +255,30 @@ describe("CrmPage", () => {
     const table = screen.getByRole("table", { name: "全部跟进列表" });
     expect(await within(table).findByText("客户 #100")).toBeInTheDocument();
     expect(within(table).getByText("已发送企业AI运营方案，等待客户确认演示时间")).toBeInTheDocument();
+  });
+
+  it("loads follow-up records for a specific customer from query string", async () => {
+    signIn();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        follow_ups: [{
+          id: 2,
+          user_id: 7,
+          customer_id: 100,
+          note: "企业交付客户复盘下一步",
+          next_follow_up_at: "2026-07-08T10:00:00Z",
+          created_at: "2026-07-07T12:00:00Z"
+        }]
+      }), { status: 200 })
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/crm/follow-ups?customer_id=100"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?customer_id=100&limit=20", expect.any(Object)));
+    await waitFor(() => expect(screen.getAllByText("企业交付客户复盘下一步").length).toBeGreaterThan(0));
   });
 });
