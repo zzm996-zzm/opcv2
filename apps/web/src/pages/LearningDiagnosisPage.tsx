@@ -57,7 +57,7 @@ function LearningDiagnosisPage() {
 
   return (
     <V4PageShell>
-      <section className="learning-page diagnosis-page" aria-label="能力诊断">
+      <section className="learning-page diagnosis-page learning-diagnosis-entry" aria-label="能力诊断">
         <div className="diagnosis-main">
           <section className="diagnosis-hero">
             <div className="diagnosis-breadcrumb">
@@ -69,7 +69,11 @@ function LearningDiagnosisPage() {
               <h1>能力诊断</h1>
               <p>基于你的项目、任务与工具使用情况，精准发现能力差距</p>
             </div>
-            <div className="diagnosis-target-art" aria-hidden="true" />
+            <div className="diagnosis-target-art" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
           </section>
 
           <section className="diagnosis-card diagnosis-steps" aria-label="诊断流程">

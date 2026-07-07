@@ -14840,6 +14840,11 @@ a {
   align-items: start;
 }
 
+.learning-diagnosis-entry {
+  grid-template-columns: minmax(0, 1fr) 362px;
+  gap: 28px;
+}
+
 .diagnosis-main {
   display: grid;
   gap: 14px;
@@ -14848,8 +14853,8 @@ a {
 
 .diagnosis-hero {
   position: relative;
-  min-height: 184px;
-  padding: 20px 8px 22px;
+  min-height: 176px;
+  padding: 18px 8px 18px;
   overflow: hidden;
 }
 
@@ -14886,7 +14891,7 @@ a {
 .diagnosis-hero-copy {
   position: relative;
   z-index: 1;
-  margin-top: 32px;
+  margin-top: 30px;
 }
 
 .diagnosis-hero h1 {
@@ -14908,10 +14913,10 @@ a {
 .diagnosis-target-art {
   position: absolute;
   z-index: 1;
-  top: 6px;
-  right: 260px;
-  width: 244px;
-  height: 180px;
+  top: -2px;
+  right: 238px;
+  width: 274px;
+  height: 184px;
   filter: drop-shadow(0 24px 30px rgba(39, 84, 205, 0.2));
 }
 
@@ -14922,25 +14927,68 @@ a {
 }
 
 .diagnosis-target-art::before {
-  inset: 20px 46px 18px 42px;
+  inset: 26px 66px 30px 56px;
   background:
     radial-gradient(circle at center, #215eff 0 10%, #ffffff 11% 21%, #3a72ff 22% 33%, #ffffff 34% 46%, #6f8fff 47% 58%, transparent 59%),
     conic-gradient(from 120deg, rgba(44, 103, 255, 0.24), rgba(255, 255, 255, 0.9), rgba(38, 207, 255, 0.28), rgba(44, 103, 255, 0.24));
+  border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 7px rgba(255, 255, 255, 0.36),
+    0 22px 42px rgba(53, 99, 211, 0.16);
 }
 
 .diagnosis-target-art::after {
   top: 48px;
-  right: 12px;
-  width: 160px;
-  height: 10px;
+  right: 20px;
+  width: 170px;
+  height: 9px;
   background: linear-gradient(90deg, #1f6fff, #1ed4ff);
   border-radius: 999px;
-  box-shadow: 60px -16px 0 -3px rgba(55, 103, 255, 0.82);
+  box-shadow: 62px -17px 0 -3px rgba(55, 103, 255, 0.82);
   transform: rotate(-28deg);
 }
 
+.diagnosis-target-art span {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.diagnosis-target-art span:first-child {
+  right: 54px;
+  bottom: 2px;
+  width: 176px;
+  height: 54px;
+  background:
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.92) 0 34%, rgba(91, 134, 255, 0.2) 35% 48%, transparent 49%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(100, 143, 255, 0.16));
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 50%;
+}
+
+.diagnosis-target-art span:nth-child(2),
+.diagnosis-target-art span:nth-child(3) {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(100, 140, 255, 0.5));
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  clip-path: polygon(50% 0, 94% 24%, 94% 75%, 50% 100%, 6% 75%, 6% 24%);
+}
+
+.diagnosis-target-art span:nth-child(2) {
+  right: 30px;
+  bottom: 54px;
+}
+
+.diagnosis-target-art span:nth-child(3) {
+  left: 30px;
+  bottom: 46px;
+  transform: scale(0.76);
+}
+
 .diagnosis-card {
+  min-width: 0;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(31, 68, 140, 0.08);
   border-radius: 14px;
@@ -14952,8 +15000,8 @@ a {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0;
-  min-height: 78px;
-  padding: 14px 32px;
+  min-height: 76px;
+  padding: 13px 30px;
 }
 
 .diagnosis-steps article {
@@ -15067,10 +15115,15 @@ a {
   grid-template-columns: 56px 1fr;
   gap: 14px;
   min-height: 112px;
+  min-width: 0;
   padding: 16px 18px 14px;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(31, 68, 140, 0.1);
   border-radius: 12px;
+}
+
+.data-source-grid article > div {
+  min-width: 0;
 }
 
 .source-icon {
@@ -15189,11 +15242,13 @@ a {
 .data-source-grid time {
   grid-column: 1 / -1;
   align-self: end;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .diagnosis-workbench {
   display: grid;
-  grid-template-columns: minmax(430px, 0.9fr) minmax(520px, 1.1fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   gap: 14px;
 }
 
@@ -15213,6 +15268,7 @@ a {
   grid-template-columns: 104px 1fr;
   gap: 14px;
   align-items: center;
+  min-width: 0;
 }
 
 .goal-row > span,
@@ -15226,6 +15282,7 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
 .goal-chips button {
@@ -15306,10 +15363,15 @@ a {
   grid-template-columns: 54px 1fr;
   gap: 12px;
   min-height: 88px;
+  min-width: 0;
   padding: 12px;
   background: rgba(255, 255, 255, 0.74);
   border: 1px solid rgba(31, 68, 140, 0.1);
   border-radius: 10px;
+}
+
+.analysis-grid article > div {
+  min-width: 0;
 }
 
 .analysis-icon {
