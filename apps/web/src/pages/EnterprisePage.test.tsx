@@ -315,4 +315,64 @@ describe("EnterprisePage", () => {
     expect(screen.getByText(/in_delivery/)).toBeInTheDocument();
     expect(screen.getByText("已进入企业陪跑交付")).toBeInTheDocument();
   });
+
+  it("completes an in-delivery diagnosis request and refreshes enterprise cases", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        stats: [],
+        plans: [],
+        delivery_board: [{ stage: "交付中预约", count: 1, detail: "已进入企业陪跑交付" }],
+        milestones: [{ time_label: "07-07", title: "交付启动", detail: "30人销售团队需要AI获客陪跑" }],
+        cases: []
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requests: [{
+          id: 8,
+          user_id: 42,
+          need: "30人销售团队需要AI获客陪跑",
+          status: "in_delivery",
+          created_at: "2026-07-07T10:30:00Z",
+          updated_at: "2026-07-07T12:30:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 8,
+        user_id: 42,
+        need: "30人销售团队需要AI获客陪跑",
+        status: "completed",
+        created_at: "2026-07-07T10:30:00Z",
+        updated_at: "2026-07-07T13:30:00Z"
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        stats: [],
+        plans: [],
+        delivery_board: [{ stage: "已完成交付", count: 1, detail: "已完成交付并沉淀案例" }],
+        milestones: [],
+        cases: [{ id: -8, company: "企业诊断交付", result: "30人销售团队需要AI获客陪跑" }]
+      }), { status: 200 }));
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-23T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张婧", phone: "", account: "zhangjing", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/enterprise"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    const completeButton = await screen.findByRole("button", { name: "完成交付" });
+    fireEvent.click(completeButton);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests/8", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ status: "completed" })
+    })));
+    await waitFor(() => expect(screen.getAllByText("已完成交付").length).toBeGreaterThan(0));
+    expect(screen.getByText(/completed/)).toBeInTheDocument();
+    expect(screen.getByText("已完成交付并沉淀案例")).toBeInTheDocument();
+    expect(screen.getByText("企业诊断交付")).toBeInTheDocument();
+  });
 });

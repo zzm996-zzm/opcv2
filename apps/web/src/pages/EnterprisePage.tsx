@@ -21,6 +21,9 @@ function EnterprisePage() {
   const [deliveryStatusByRequestId, setDeliveryStatusByRequestId] = useState<Record<number, string>>({});
   const [deliveryErrorByRequestId, setDeliveryErrorByRequestId] = useState<Record<number, string>>({});
   const [deliveryPendingRequestId, setDeliveryPendingRequestId] = useState<number | null>(null);
+  const [completionStatusByRequestId, setCompletionStatusByRequestId] = useState<Record<number, string>>({});
+  const [completionErrorByRequestId, setCompletionErrorByRequestId] = useState<Record<number, string>>({});
+  const [completionPendingRequestId, setCompletionPendingRequestId] = useState<number | null>(null);
 
   const refreshOverview = async () => {
     const payload = await enterpriseApi.overview();
@@ -137,6 +140,25 @@ function EnterprisePage() {
       }));
     } finally {
       setDeliveryPendingRequestId(null);
+    }
+  };
+
+  const completeDelivery = async (request: EnterpriseDiagnosisRequest) => {
+    setCompletionPendingRequestId(request.id);
+    setCompletionStatusByRequestId((current) => ({ ...current, [request.id]: "" }));
+    setCompletionErrorByRequestId((current) => ({ ...current, [request.id]: "" }));
+    try {
+      const updatedRequest = await enterpriseApi.updateDiagnosisRequest(request.id, { status: "completed" });
+      setDiagnosisRequests((current) => current.map((item) => (item.id === updatedRequest.id ? updatedRequest : item)));
+      await refreshOverview();
+      setCompletionStatusByRequestId((current) => ({ ...current, [request.id]: "已完成交付" }));
+    } catch (error) {
+      setCompletionErrorByRequestId((current) => ({
+        ...current,
+        [request.id]: apiErrorMessage(error, "暂时无法完成交付")
+      }));
+    } finally {
+      setCompletionPendingRequestId(null);
     }
   };
 
@@ -299,12 +321,18 @@ function EnterprisePage() {
                 {taskErrorByRequestId[request.id] && <small className="form-error">{taskErrorByRequestId[request.id]}</small>}
                 {deliveryStatusByRequestId[request.id] && <small className="form-success">{deliveryStatusByRequestId[request.id]}</small>}
                 {deliveryErrorByRequestId[request.id] && <small className="form-error">{deliveryErrorByRequestId[request.id]}</small>}
+                {completionStatusByRequestId[request.id] && <small className="form-success">{completionStatusByRequestId[request.id]}</small>}
+                {completionErrorByRequestId[request.id] && <small className="form-error">{completionErrorByRequestId[request.id]}</small>}
                 {request.status === "follow_up_created" ? (
                   <button type="button" onClick={() => startDelivery(request)} disabled={deliveryPendingRequestId === request.id}>
                     {deliveryPendingRequestId === request.id ? "进入中..." : "进入交付"}
                   </button>
+                ) : request.status === "in_delivery" ? (
+                  <button type="button" onClick={() => completeDelivery(request)} disabled={completionPendingRequestId === request.id}>
+                    {completionPendingRequestId === request.id ? "完成中..." : "完成交付"}
+                  </button>
                 ) : (
-                  <button type="button" onClick={() => createFollowUpTask(request)} disabled={taskPendingRequestId === request.id || request.status === "in_delivery"}>
+                  <button type="button" onClick={() => createFollowUpTask(request)} disabled={taskPendingRequestId === request.id || request.status === "completed"}>
                     {taskPendingRequestId === request.id ? "生成中..." : "生成跟进任务"}
                   </button>
                 )}

@@ -62,4 +62,18 @@ describe("enterpriseApi", () => {
       body: JSON.stringify({ status: "follow_up_created" })
     }));
   });
+
+  it("completes an enterprise diagnosis request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 7, user_id: 42, need: "30人销售团队需要AI获客陪跑", status: "completed" }), { status: 200 })
+    );
+
+    const request = await enterpriseApi.updateDiagnosisRequest(7, { status: "completed" });
+
+    expect(request.status).toBe("completed");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests/7", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ status: "completed" })
+    }));
+  });
 });

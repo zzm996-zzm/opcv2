@@ -46,7 +46,7 @@ export type EnterpriseDiagnosisRequestInput = {
 };
 
 export type EnterpriseDiagnosisRequestUpdateInput = {
-  status: "follow_up_created" | "in_delivery";
+  status: "follow_up_created" | "in_delivery" | "completed";
 };
 
 export type EnterpriseDiagnosisRequest = {
