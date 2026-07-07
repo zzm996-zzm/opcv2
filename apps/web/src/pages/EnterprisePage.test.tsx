@@ -175,4 +175,56 @@ describe("EnterprisePage", () => {
     expect(screen.getByText("30人销售团队需要AI获客陪跑")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "生成诊断提纲" })).not.toBeInTheDocument();
   });
+
+  it("creates a follow-up task from an enterprise diagnosis request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        stats: [],
+        plans: [],
+        delivery_board: [],
+        milestones: [],
+        cases: []
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requests: [{
+          id: 8,
+          user_id: 42,
+          need: "30人销售团队需要AI获客陪跑",
+          status: "submitted",
+          created_at: "2026-07-07T10:30:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 99,
+        title: "跟进企业诊断：30人销售团队需要AI获客陪跑",
+        status: "todo"
+      }), { status: 200 }));
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-23T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张婧", phone: "", account: "zhangjing", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/enterprise"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("30人销售团队需要AI获客陪跑")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "生成跟进任务" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        title: "跟进企业诊断：30人销售团队需要AI获客陪跑",
+        project: "企业定制化陪跑",
+        priority: "high",
+        tools: ["企业诊断", "CRM"],
+        learning: "围绕企业需求制定陪跑方案：30人销售团队需要AI获客陪跑"
+      })
+    })));
+    expect(await screen.findByText("跟进任务已生成")).toBeInTheDocument();
+  });
 });

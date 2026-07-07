@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { enterpriseApi, type EnterpriseDiagnosisRequest, type EnterpriseOverview } from "../lib/enterpriseApi";
+import { tasksApi } from "../lib/tasksApi";
 
 function EnterprisePage() {
   const enterpriseNeedRef = useRef<HTMLTextAreaElement | null>(null);
@@ -14,6 +15,9 @@ function EnterprisePage() {
   const [submitStatus, setSubmitStatus] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [taskStatusByRequestId, setTaskStatusByRequestId] = useState<Record<number, string>>({});
+  const [taskErrorByRequestId, setTaskErrorByRequestId] = useState<Record<number, string>>({});
+  const [taskPendingRequestId, setTaskPendingRequestId] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -79,6 +83,29 @@ function EnterprisePage() {
       setSubmitError(apiErrorMessage(error, "暂时无法提交企业诊断预约"));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const createFollowUpTask = async (request: EnterpriseDiagnosisRequest) => {
+    setTaskPendingRequestId(request.id);
+    setTaskStatusByRequestId((current) => ({ ...current, [request.id]: "" }));
+    setTaskErrorByRequestId((current) => ({ ...current, [request.id]: "" }));
+    try {
+      await tasksApi.createTask({
+        title: `跟进企业诊断：${request.need.slice(0, 24)}`,
+        project: "企业定制化陪跑",
+        priority: "high",
+        tools: ["企业诊断", "CRM"],
+        learning: `围绕企业需求制定陪跑方案：${request.need}`
+      });
+      setTaskStatusByRequestId((current) => ({ ...current, [request.id]: "跟进任务已生成" }));
+    } catch (error) {
+      setTaskErrorByRequestId((current) => ({
+        ...current,
+        [request.id]: apiErrorMessage(error, "暂时无法生成跟进任务")
+      }));
+    } finally {
+      setTaskPendingRequestId(null);
     }
   };
 
@@ -237,6 +264,11 @@ function EnterprisePage() {
               <article key={request.id}>
                 <strong>{request.need}</strong>
                 <small>{request.status} · {request.created_at ? new Date(request.created_at).toLocaleString("zh-CN") : "暂无提交时间"}</small>
+                {taskStatusByRequestId[request.id] && <small className="form-success">{taskStatusByRequestId[request.id]}</small>}
+                {taskErrorByRequestId[request.id] && <small className="form-error">{taskErrorByRequestId[request.id]}</small>}
+                <button type="button" onClick={() => createFollowUpTask(request)} disabled={taskPendingRequestId === request.id}>
+                  {taskPendingRequestId === request.id ? "生成中..." : "生成跟进任务"}
+                </button>
               </article>
             ))}
           </aside>
