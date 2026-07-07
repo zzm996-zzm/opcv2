@@ -57,6 +57,7 @@ function toCatalogCourse(course: LearningCourse) {
 
 function LearningCoursesPage() {
   const [apiCourses, setApiCourses] = useState<LearningCourse[]>([]);
+  const [copilotOpen, setCopilotOpen] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -73,11 +74,17 @@ function LearningCoursesPage() {
     };
   }, []);
 
-  const visibleCourses = apiCourses.length > 0 ? apiCourses.map(toCatalogCourse) : courses;
+  const apiCatalogCourses = apiCourses.map(toCatalogCourse);
+  const visibleCourses = apiCatalogCourses.length > 0
+    ? [
+        ...apiCatalogCourses,
+        ...courses.filter((course) => !apiCatalogCourses.some((apiCourse) => apiCourse[1] === course[1]))
+      ].slice(0, courses.length)
+    : courses;
 
   return (
-    <V4PageShell>
-      <section className="learning-page courses-page" aria-label="全部课程">
+    <V4PageShell showCopilotMini={false}>
+      <section className={`learning-page courses-page ${copilotOpen ? "" : "copilot-collapsed"}`} aria-label="全部课程">
         <div className="courses-main">
           <header className="courses-header">
             <div>
@@ -166,54 +173,65 @@ function LearningCoursesPage() {
           </nav>
         </div>
 
-        <aside className="learning-copilot courses-copilot" aria-label="智活 Copilot 课程助手">
+        <aside className={`learning-copilot courses-copilot ${copilotOpen ? "" : "collapsed"}`} aria-label="智活 Copilot 课程助手">
           <header>
             <div>
               <strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong>
               <p>你的全球 AI 助手，随时为你提供帮助</p>
             </div>
-            <div className="learning-copilot-tools" aria-hidden="true">
-              <span>⚙</span>
-              <span>⌃</span>
+            <div className="learning-copilot-tools">
+              <button aria-label="课程助手设置" type="button">⚙</button>
+              <button
+                aria-expanded={copilotOpen}
+                aria-label={copilotOpen ? "收起课程助手" : "展开课程助手"}
+                onClick={() => setCopilotOpen((open) => !open)}
+                type="button"
+              >
+                {copilotOpen ? "⌃" : "⌄"}
+              </button>
             </div>
           </header>
 
-          <div className="learning-chat courses-chat">
-            <article>
-              <span className="ai-avatar">A</span>
-              <p>嗨，张婧！<br />基于你的项目“智能客服升级”与近期任务，我为你推荐以下课程，助力目标达成。</p>
-            </article>
-          </div>
+          {copilotOpen && (
+            <>
+              <div className="learning-chat courses-chat">
+                <article>
+                  <span className="ai-avatar">A</span>
+                  <p>嗨，张婧！<br />基于你的项目“智能客服升级”与近期任务，我为你推荐以下课程，助力目标达成。</p>
+                </article>
+              </div>
 
-          <section className="courses-recommend-panel" aria-label="为你推荐的课程">
-            <h2>为你推荐的课程</h2>
-            {recommendedCourses.map(([title, hours, learners, tag], index) => (
-              <Link key={title} to={index === 0 ? "/learning/courses/intro" : "/learning/courses/detail"}>
-                <i className={`course-mini-thumb thumb-${index + 1}`} aria-hidden="true" />
-                <div>
-                  <strong>{title}</strong>
-                  <small>{hours} ｜ {learners}</small>
-                </div>
-                <span>{tag}</span>
-              </Link>
-            ))}
-          </section>
+              <section className="courses-recommend-panel" aria-label="为你推荐的课程">
+                <h2>为你推荐的课程</h2>
+                {recommendedCourses.map(([title, hours, learners, tag], index) => (
+                  <Link key={title} to={index === 0 ? "/learning/courses/intro" : "/learning/courses/detail"}>
+                    <i className={`course-mini-thumb thumb-${index + 1}`} aria-hidden="true" />
+                    <div>
+                      <strong>{title}</strong>
+                      <small>{hours} ｜ {learners}</small>
+                    </div>
+                    <span>{tag}</span>
+                  </Link>
+                ))}
+              </section>
 
-          <section className="courses-suggestion-panel" aria-label="更多学习建议">
-            <h2>更多学习建议</h2>
-            <ul>
-              <li>强化：提示词工程、数据分析能力</li>
-              <li>拓展：RAG知识库构建、自动化工具</li>
-              <li>进阶：用户画像与精准营销</li>
-            </ul>
-          </section>
+              <section className="courses-suggestion-panel" aria-label="更多学习建议">
+                <h2>更多学习建议</h2>
+                <ul>
+                  <li>强化：提示词工程、数据分析能力</li>
+                  <li>拓展：RAG知识库构建、自动化工具</li>
+                  <li>进阶：用户画像与精准营销</li>
+                </ul>
+              </section>
 
-          <nav className="learning-copilot-actions" aria-label="课程助手快捷入口">
-            <Link to="/learning/recommendation">推荐适合我的课程 <span aria-hidden="true">›</span></Link>
-            <Link to="/learning/plan">为我制定学习计划 <span aria-hidden="true">›</span></Link>
-            <Link to="/learning/history">查看学习进度 <span aria-hidden="true">›</span></Link>
-          </nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+              <nav className="learning-copilot-actions" aria-label="课程助手快捷入口">
+                <Link to="/learning/recommended-courses">推荐适合我的课程 <span aria-hidden="true">›</span></Link>
+                <Link to="/learning/plan">为我制定学习计划 <span aria-hidden="true">›</span></Link>
+                <Link to="/learning/history">查看学习进度 <span aria-hidden="true">›</span></Link>
+              </nav>
+              <MiniCopilotForm className="learning-copilot-input" />
+            </>
+          )}
         </aside>
       </section>
     </V4PageShell>

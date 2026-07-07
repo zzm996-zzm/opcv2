@@ -14643,6 +14643,68 @@ a {
   font-weight: 900;
 }
 
+.learning-copilot-tools button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  place-items: center;
+}
+
+.learning-page.copilot-collapsed {
+  grid-template-columns: minmax(0, 1fr) 64px;
+}
+
+.learning-copilot.collapsed {
+  align-content: start;
+  justify-items: center;
+  min-height: 72px;
+  padding: 18px 14px;
+}
+
+.learning-copilot.collapsed header {
+  display: grid;
+  justify-items: center;
+}
+
+.learning-copilot.collapsed header > div:first-child {
+  display: grid;
+  justify-items: center;
+}
+
+.learning-copilot.collapsed header strong {
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  color: transparent;
+}
+
+.learning-copilot.collapsed header strong span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  color: #2a77ff;
+  background: #eef4ff;
+  border-radius: 10px;
+  place-items: center;
+}
+
+.learning-copilot.collapsed header p,
+.learning-copilot.collapsed header b,
+.learning-copilot.collapsed .learning-copilot-tools button:first-child {
+  display: none;
+}
+
+.learning-copilot.collapsed .learning-copilot-tools {
+  gap: 0;
+}
+
 .learning-chat {
   display: grid;
   gap: 14px;
@@ -18138,6 +18200,8 @@ a {
 
 .courses-page {
   align-items: start;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
 }
 
 .courses-main {
@@ -18385,6 +18449,32 @@ a {
     linear-gradient(135deg, #7358ff, #315dff);
 }
 
+.course-catalog-card .course-cover::before,
+.course-catalog-card .course-cover::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.course-catalog-card .course-cover::before {
+  inset: 0;
+  background:
+    radial-gradient(circle at 28% 72%, rgba(255,255,255,0.18), transparent 18%),
+    linear-gradient(150deg, transparent 0 44%, rgba(255,255,255,0.12) 45% 46%, transparent 47%),
+    linear-gradient(30deg, transparent 0 58%, rgba(255,255,255,0.1) 59% 60%, transparent 61%);
+}
+
+.course-catalog-card .course-cover::after {
+  right: 12px;
+  top: 14px;
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.82), rgba(151,179,255,0.36));
+  border: 1px solid rgba(255,255,255,0.5);
+  clip-path: polygon(50% 0, 94% 24%, 94% 75%, 50% 100%, 6% 75%, 6% 24%);
+  filter: drop-shadow(0 12px 16px rgba(22, 47, 145, 0.18));
+}
+
 .course-cover.chat,
 .course-cover.rocket,
 .course-cover.pie,
@@ -18422,14 +18512,86 @@ a {
 
 .course-cover i {
   position: absolute;
-  right: 34px;
-  bottom: 14px;
-  width: 88px;
-  height: 62px;
+  right: 28px;
+  bottom: 12px;
+  width: 94px;
+  height: 64px;
   background: linear-gradient(145deg, rgba(255,255,255,0.9), rgba(122, 154, 255, 0.38));
   border: 1px solid rgba(255,255,255,0.5);
   border-radius: 18px;
   box-shadow: 0 20px 32px rgba(12, 44, 154, 0.18);
+}
+
+.course-catalog-card .course-cover i::before,
+.course-catalog-card .course-cover i::after {
+  position: absolute;
+  content: "";
+}
+
+.course-catalog-card .course-cover i::before {
+  right: 18px;
+  bottom: -16px;
+  width: 92px;
+  height: 34px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.34), rgba(255,255,255,0.04));
+  border: 1px solid rgba(255,255,255,0.34);
+  border-radius: 50%;
+  transform: skewX(-12deg);
+}
+
+.course-catalog-card .course-cover i::after {
+  left: -54px;
+  bottom: 4px;
+  width: 42px;
+  height: 26px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.78), rgba(135,168,255,0.36));
+  border: 1px solid rgba(255,255,255,0.48);
+  clip-path: polygon(50% 0, 94% 24%, 94% 75%, 50% 100%, 6% 75%, 6% 24%);
+}
+
+.course-catalog-card .course-cover.ai i::after {
+  content: "AI";
+  display: grid;
+  left: 22px;
+  bottom: 19px;
+  width: 46px;
+  height: 34px;
+  color: white;
+  background: linear-gradient(145deg, #7d6cff, #275dff);
+  border-radius: 9px;
+  clip-path: none;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 950;
+  place-items: center;
+}
+
+.course-catalog-card .course-cover.chat i {
+  border-radius: 22px;
+}
+
+.course-catalog-card .course-cover.chat i::after {
+  left: 22px;
+  bottom: 20px;
+  width: 42px;
+  height: 26px;
+  background: linear-gradient(145deg, #dffcff, #69dce4);
+  border-radius: 12px;
+  clip-path: none;
+}
+
+.course-catalog-card .course-cover.headset i {
+  border-radius: 50%;
+}
+
+.course-catalog-card .course-cover.bars i,
+.course-catalog-card .course-cover.cart i,
+.course-catalog-card .course-cover.bank i,
+.course-catalog-card .course-cover.globe i {
+  background:
+    linear-gradient(90deg, transparent 0 34%, rgba(255,255,255,0.62) 35% 42%, transparent 43%),
+    linear-gradient(180deg, transparent 0 50%, rgba(255,255,255,0.56) 51% 58%, transparent 59%),
+    linear-gradient(145deg, rgba(255,255,255,0.86), rgba(122,154,255,0.38));
 }
 
 .course-card-copy {
@@ -23490,6 +23652,8 @@ a {
 
 .recommended-page {
   align-items: start;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 28px;
 }
 
 .recommended-main {
@@ -23670,6 +23834,32 @@ a {
     linear-gradient(135deg, #7358ff, #315dff);
 }
 
+.recommended-course-card .recommended-cover::before,
+.recommended-course-card .recommended-cover::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.recommended-course-card .recommended-cover::before {
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 72%, rgba(255,255,255,0.18), transparent 18%),
+    linear-gradient(150deg, transparent 0 44%, rgba(255,255,255,0.12) 45% 46%, transparent 47%),
+    linear-gradient(30deg, transparent 0 58%, rgba(255,255,255,0.1) 59% 60%, transparent 61%);
+}
+
+.recommended-course-card .recommended-cover::after {
+  right: 24px;
+  top: 38px;
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.82), rgba(151,179,255,0.36));
+  border: 1px solid rgba(255,255,255,0.5);
+  clip-path: polygon(50% 0, 94% 24%, 94% 75%, 50% 100%, 6% 75%, 6% 24%);
+  filter: drop-shadow(0 14px 18px rgba(22, 47, 145, 0.18));
+}
+
 .recommended-cover.chat,
 .recommended-cover.search,
 .recommended-cover.columns {
@@ -23724,6 +23914,50 @@ a {
   border: 1px solid rgba(255,255,255,0.5);
   border-radius: 20px;
   box-shadow: 0 20px 32px rgba(12,44,154,0.18);
+}
+
+.recommended-course-card .recommended-cover i::before,
+.recommended-course-card .recommended-cover i::after {
+  position: absolute;
+  content: "";
+}
+
+.recommended-course-card .recommended-cover i::before {
+  right: 16px;
+  bottom: -22px;
+  width: 116px;
+  height: 42px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.34), rgba(255,255,255,0.04));
+  border: 1px solid rgba(255,255,255,0.34);
+  border-radius: 50%;
+  transform: skewX(-12deg);
+}
+
+.recommended-course-card .recommended-cover i::after {
+  left: -66px;
+  bottom: 7px;
+  width: 48px;
+  height: 30px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.78), rgba(135,168,255,0.36));
+  border: 1px solid rgba(255,255,255,0.48);
+  clip-path: polygon(50% 0, 94% 24%, 94% 75%, 50% 100%, 6% 75%, 6% 24%);
+}
+
+.recommended-course-card .recommended-cover.headset i {
+  border-radius: 50%;
+}
+
+.recommended-course-card .recommended-cover.chat i {
+  border-radius: 24px;
+}
+
+.recommended-course-card .recommended-cover.bars i,
+.recommended-course-card .recommended-cover.search i,
+.recommended-course-card .recommended-cover.columns i {
+  background:
+    linear-gradient(90deg, transparent 0 34%, rgba(255,255,255,0.62) 35% 42%, transparent 43%),
+    linear-gradient(180deg, transparent 0 50%, rgba(255,255,255,0.56) 51% 58%, transparent 59%),
+    linear-gradient(145deg, rgba(255,255,255,0.86), rgba(122,154,255,0.38));
 }
 
 .recommended-card-copy {

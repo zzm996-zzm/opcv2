@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -40,6 +40,17 @@ describe("LearningRecommendedCoursesPage", () => {
     expect(screen.getByText("推荐逻辑说明")).toBeInTheDocument();
     expect(screen.getByText("能力诊断报告.pdf")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /智能客服核心能力全景解析/ })).toHaveAttribute("href", "/learning/courses/intro");
+    expect(screen.queryByLabelText("打开智活 Copilot")).not.toBeInTheDocument();
+  });
+
+  it("collapses the side recommended-courses copilot", () => {
+    renderRecommendedCoursesPage();
+
+    expect(screen.getByText("推荐逻辑说明")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "收起推荐课程助手" }));
+
+    expect(screen.queryByText("推荐逻辑说明")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开推荐课程助手" })).toBeInTheDocument();
   });
 
   it("loads recommended courses from API", async () => {
@@ -70,5 +81,6 @@ describe("LearningRecommendedCoursesPage", () => {
     expect(await screen.findByRole("heading", { name: "AI自动化运营实战" })).toBeInTheDocument();
     expect(screen.getByText("把诊断、任务和内容工作流串成自动化运营闭环")).toBeInTheDocument();
     expect(screen.getByText("7.8k人学习")).toBeInTheDocument();
+    expect(screen.getByText("智能客服核心能力全景解析")).toBeInTheDocument();
   });
 });
