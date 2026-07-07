@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"testing"
+	"time"
 
 	pgxmock "github.com/pashagolub/pgxmock/v4"
 )
@@ -149,6 +150,37 @@ func TestPostgresRepositoryReturnsEmptyOverviewArrays(t *testing.T) {
 	}
 	if overview.Stats == nil || overview.Plans == nil || overview.DeliveryBoard == nil || overview.Milestones == nil || overview.Cases == nil {
 		t.Fatalf("overview should contain safe empty arrays: %+v", overview)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryCreatesDiagnosisRequest(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 7, 9, 30, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO enterprise_diagnosis_requests (user_id, need)
+		VALUES ($1, $2)
+		RETURNING id, user_id, need, status, created_at, updated_at
+	`)).
+		WithArgs(int64(42), "30人销售团队需要AI获客陪跑").
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "need", "status", "created_at", "updated_at"}).
+			AddRow(int64(7), int64(42), "30人销售团队需要AI获客陪跑", "submitted", now, now))
+
+	repository := NewPostgresRepository(db)
+	request, err := repository.CreateDiagnosisRequest(context.Background(), 42, DiagnosisRequestInput{Need: "30人销售团队需要AI获客陪跑"})
+
+	if err != nil {
+		t.Fatalf("CreateDiagnosisRequest() error = %v", err)
+	}
+	if request.ID != 7 || request.UserID != 42 || request.Status != "submitted" || request.CreatedAt != "2026-07-07T09:30:00Z" {
+		t.Fatalf("request = %+v", request)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

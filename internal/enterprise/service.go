@@ -3,12 +3,15 @@ package enterprise
 import (
 	"context"
 	"errors"
+	"strings"
 )
 
 var ErrUserIDRequired = errors.New("user id required")
+var ErrInvalidInput = errors.New("invalid input")
 
 type Repository interface {
 	Overview(ctx context.Context, userID int64) (Overview, error)
+	CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error)
 }
 
 type Service struct {
@@ -31,6 +34,20 @@ func (s *Service) Overview(ctx context.Context, userID int64) (Overview, error) 
 		return Overview{}, err
 	}
 	return ensureOverviewSlices(overview), nil
+}
+
+func (s *Service) CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error) {
+	if userID <= 0 {
+		return DiagnosisRequest{}, ErrUserIDRequired
+	}
+	if s.repository == nil {
+		return DiagnosisRequest{}, ErrInvalidInput
+	}
+	input.Need = strings.TrimSpace(input.Need)
+	if input.Need == "" {
+		return DiagnosisRequest{}, ErrInvalidInput
+	}
+	return s.repository.CreateDiagnosisRequest(ctx, userID, input)
 }
 
 func emptyOverview() Overview {

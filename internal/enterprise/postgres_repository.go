@@ -2,12 +2,14 @@ package enterprise
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
 
 type postgresDB interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
 type PostgresRepository struct {
@@ -46,6 +48,30 @@ func (r *PostgresRepository) Overview(ctx context.Context, userID int64) (Overvi
 		Milestones:    milestones,
 		Cases:         cases,
 	}), nil
+}
+
+func (r *PostgresRepository) CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error) {
+	var request DiagnosisRequest
+	var createdAt time.Time
+	var updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO enterprise_diagnosis_requests (user_id, need)
+		VALUES ($1, $2)
+		RETURNING id, user_id, need, status, created_at, updated_at
+	`, userID, input.Need).Scan(
+		&request.ID,
+		&request.UserID,
+		&request.Need,
+		&request.Status,
+		&createdAt,
+		&updatedAt,
+	)
+	if err != nil {
+		return DiagnosisRequest{}, err
+	}
+	request.CreatedAt = createdAt.Format(time.RFC3339)
+	request.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return request, nil
 }
 
 func (r *PostgresRepository) metrics(ctx context.Context, userID int64) ([]Metric, error) {

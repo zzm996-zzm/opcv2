@@ -33,6 +33,19 @@ type Case struct {
 	Result  string `json:"result,omitempty"`
 }
 
+type DiagnosisRequestInput struct {
+	Need string `json:"need"`
+}
+
+type DiagnosisRequest struct {
+	ID        int64  `json:"id"`
+	UserID    int64  `json:"user_id"`
+	Need      string `json:"need"`
+	Status    string `json:"status"`
+	CreatedAt string `json:"created_at,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+}
+
 type Overview struct {
 	Stats         []Metric       `json:"stats"`
 	Plans         []Plan         `json:"plans"`

@@ -7,14 +7,22 @@ import (
 )
 
 type fakeRepository struct {
-	overview Overview
-	userID   int64
-	err      error
+	overview       Overview
+	diagnosisInput DiagnosisRequestInput
+	diagnosis      DiagnosisRequest
+	userID         int64
+	err            error
 }
 
 func (r *fakeRepository) Overview(_ context.Context, userID int64) (Overview, error) {
 	r.userID = userID
 	return r.overview, r.err
+}
+
+func (r *fakeRepository) CreateDiagnosisRequest(_ context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error) {
+	r.userID = userID
+	r.diagnosisInput = input
+	return r.diagnosis, r.err
 }
 
 func TestServiceReturnsSafeEmptyOverviewWithoutRepository(t *testing.T) {
@@ -51,5 +59,29 @@ func TestServiceRejectsMissingUserID(t *testing.T) {
 
 	if !errors.Is(err, ErrUserIDRequired) {
 		t.Fatalf("err = %v, want ErrUserIDRequired", err)
+	}
+}
+
+func TestServiceCreatesDiagnosisRequest(t *testing.T) {
+	repository := &fakeRepository{diagnosis: DiagnosisRequest{ID: 8, Status: "submitted"}}
+	service := NewService(repository)
+
+	request, err := service.CreateDiagnosisRequest(context.Background(), 42, DiagnosisRequestInput{Need: "  30人销售团队需要AI获客陪跑  "})
+
+	if err != nil {
+		t.Fatalf("CreateDiagnosisRequest() error = %v", err)
+	}
+	if request.ID != 8 || repository.userID != 42 || repository.diagnosisInput.Need != "30人销售团队需要AI获客陪跑" {
+		t.Fatalf("request/repository = %+v/%+v", request, repository)
+	}
+}
+
+func TestServiceRejectsInvalidDiagnosisRequest(t *testing.T) {
+	service := NewService(&fakeRepository{})
+
+	_, err := service.CreateDiagnosisRequest(context.Background(), 42, DiagnosisRequestInput{Need: "   "})
+
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("err = %v, want ErrInvalidInput", err)
 	}
 }

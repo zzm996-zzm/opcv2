@@ -12,6 +12,7 @@ import (
 
 type Application interface {
 	Overview(ctx context.Context, userID int64) (Overview, error)
+	CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error)
 }
 
 type HTTPHandler struct {
@@ -24,6 +25,7 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/enterprise/overview", h.overview)
+	router.POST("/enterprise/diagnosis-requests", h.createDiagnosisRequest)
 }
 
 func (h *HTTPHandler) overview(c *gin.Context) {
@@ -35,10 +37,26 @@ func (h *HTTPHandler) overview(c *gin.Context) {
 	c.JSON(http.StatusOK, overview)
 }
 
+func (h *HTTPHandler) createDiagnosisRequest(c *gin.Context) {
+	var request DiagnosisRequestInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.Error(c, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	result, err := h.app.CreateDiagnosisRequest(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrUserIDRequired):
 		httpapi.Error(c, http.StatusUnauthorized, "unauthorized")
+	case errors.Is(err, ErrInvalidInput):
+		httpapi.Error(c, http.StatusBadRequest, "invalid_input")
 	default:
 		httpapi.Error(c, http.StatusInternalServerError, "internal_error")
 	}
