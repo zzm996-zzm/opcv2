@@ -65,6 +65,24 @@ const heroCards = [
   }
 ];
 
+const emptyWorkbenchActions = [
+  {
+    title: "浏览项目超市",
+    desc: "先选择一个想验证的项目方向",
+    href: "/projects"
+  },
+  {
+    title: "打开商业沙盘",
+    desc: "拆解商业模式、成本和落地路径",
+    href: "/sandbox"
+  },
+  {
+    title: "咨询 Copilot",
+    desc: "让 AI 帮你生成第一版行动计划",
+    href: "/copilot"
+  }
+];
+
 const assistantReplies = [
   {
     from: "assistant",
@@ -105,18 +123,17 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   const [summary, setSummary] = useState<HomeSummary | null>(null);
   const [accountOpen, setAccountOpen] = useState(menuState === "account");
   const [noticeOpen, setNoticeOpen] = useState(menuState === "notice");
-  const [assistantOpen, setAssistantOpen] = useState(assistantState !== "collapsed" && Boolean(session.user));
-  const [assistantDismissed, setAssistantDismissed] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState((assistantState === "settings" || assistantState === "files") && Boolean(session.user));
   const [assistantMode, setAssistantMode] = useState<"chat" | "settings">(assistantState === "settings" ? "settings" : "chat");
   const [filesOpen, setFilesOpen] = useState(assistantState === "files");
   const signedIn = Boolean(session.user);
   const nickname = session.user?.nickname || "张婧";
-  const visibleHeroCards = summary ? summary.hero_cards.map((card, index) => ({
+  const visibleHeroCards = summary?.hero_cards.length ? summary.hero_cards.map((card, index) => ({
     title: card.title,
-    desc: card.summary ?? "",
+    desc: card.summary ?? heroCards[index % heroCards.length].desc,
     href: card.url || heroCards[index % heroCards.length].href,
     art: heroCards[index % heroCards.length].art
-  })) : signedIn ? [] : heroCards;
+  })) : heroCards;
   const visibleRecommendations = summary ? summary.recommendations.map((card, index) => ({
     title: card.title,
     desc: card.summary ?? "",
@@ -161,16 +178,10 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
 
   useEffect(() => {
     if (!assistantState) return;
-    setAssistantOpen(assistantState !== "collapsed" && Boolean(session.user));
-    setAssistantDismissed(assistantState === "collapsed");
+    setAssistantOpen((assistantState === "settings" || assistantState === "files") && Boolean(session.user));
     setAssistantMode(assistantState === "settings" ? "settings" : "chat");
     setFilesOpen(assistantState === "files");
   }, [assistantState, session.user]);
-
-  useEffect(() => {
-    if (assistantState || assistantDismissed || !session.user) return;
-    setAssistantOpen(true);
-  }, [assistantDismissed, assistantState, session.user]);
 
   useEffect(() => {
     setNoticeOpen(menuState === "notice");
@@ -253,7 +264,6 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   onClick={() => {
                     setNoticeOpen((open) => !open);
                     setAccountOpen(false);
-                    setAssistantDismissed(true);
                     setAssistantOpen(false);
                   }}
                   type="button"
@@ -302,7 +312,6 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   onClick={() => {
                     setAccountOpen((open) => !open);
                     setNoticeOpen(false);
-                    setAssistantDismissed(true);
                     setAssistantOpen(false);
                   }}
                   type="button"
@@ -380,23 +389,21 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               <div className="stat-strip" aria-label="工作台统计">
                 <MetricCard label="进行中项目" value={signedIn ? String(visibleTasks.length) : "-"} icon="folder" />
                 <MetricCard label="待办事项" value={signedIn ? String(visibleTasks.length) : "-"} icon="inbox" />
-                <MetricCard label="本周新增线索" value={signedIn ? String(accountSummary?.credit_balance ?? 0) : "-"} icon="trend" />
+                <MetricCard label="本周新增线索" value="-" icon="trend" />
               </div>
             </div>
 
             <div className="feature-grid">
-              {visibleHeroCards.length === 0 ? (
-                <div className="module-empty-state" role="status">暂无工作台入口</div>
-              ) : visibleHeroCards.map((card) => (
-                  <Link key={card.title} className="feature-card" to={card.href}>
-                    <div>
-                      <h2>{card.title}</h2>
-                      <p>{card.desc}</p>
-                    </div>
-                    <span className="round-arrow" aria-hidden="true">→</span>
-                    <span className={`glass-art ${card.art}`} aria-hidden="true" />
-                  </Link>
-                ))}
+              {visibleHeroCards.map((card) => (
+                <Link key={card.title} className="feature-card" to={card.href}>
+                  <div>
+                    <h2>{card.title}</h2>
+                    <p>{card.desc}</p>
+                  </div>
+                  <span className="round-arrow" aria-hidden="true">→</span>
+                  <span className={`glass-art ${card.art}`} aria-hidden="true" />
+                </Link>
+              ))}
             </div>
 
             <section className="recommend-panel" aria-label="为你推荐">
@@ -406,7 +413,14 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               </div>
               <div className="recommend-grid">
                 {visibleRecommendations.length === 0 ? (
-                  <div className="module-empty-state" role="status">暂无推荐内容</div>
+                  <div className="recommend-empty-state" role="status">
+                    <span className="recommend-empty-icon" aria-hidden="true" />
+                    <div>
+                      <h3>暂无个性化推荐</h3>
+                      <p>当你浏览项目、使用工具或创建任务后，这里会展示接口返回的推荐内容。</p>
+                    </div>
+                    <Link to="/projects">先去项目超市 <span aria-hidden="true">›</span></Link>
+                  </div>
                 ) : visibleRecommendations.map((card) => (
                     <Link key={card.title} className="recommend-card" to={card.href}>
                       <span className={`recommend-icon ${card.accent}`} aria-hidden="true" />
@@ -433,7 +447,21 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               </div>
               <div className="task-list">
                 {visibleTasks.length === 0 ? (
-                  <div className="module-empty-state" role="status">暂无待办任务</div>
+                  <div className="empty-workbench-actions" role="status">
+                    <div className="empty-workbench-copy">
+                      <h3>暂无待办任务</h3>
+                      <p>完成项目浏览、沙盘拆解或 Copilot 咨询后，接口返回的待办会出现在这里。</p>
+                    </div>
+                    <div className="empty-action-grid">
+                      {emptyWorkbenchActions.map((action) => (
+                        <Link key={action.href} className="empty-action-card" to={action.href}>
+                          <span>{action.title}</span>
+                          <small>{action.desc}</small>
+                          <b aria-hidden="true">›</b>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 ) : visibleTasks.map(([title, tag, time]) => (
                     <Link key={title} className="task-row" to="/tasks">
                       <span className="task-check" aria-hidden="true" />
@@ -467,7 +495,6 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     <button
                       aria-label="收起智活 Copilot"
                       onClick={() => {
-                        setAssistantDismissed(true);
                         setAssistantOpen(false);
                       }}
                       type="button"
@@ -546,7 +573,6 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               <button
                 className="copilot-mini"
                 onClick={() => {
-                  setAssistantDismissed(false);
                   setAssistantOpen(true);
                   setAssistantMode("chat");
                 }}
@@ -567,7 +593,6 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
           <button
             className="floating-orb"
             onClick={() => {
-              setAssistantDismissed(false);
               setAssistantOpen(true);
             }}
             type="button"

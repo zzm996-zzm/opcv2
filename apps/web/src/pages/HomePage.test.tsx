@@ -77,7 +77,7 @@ describe("HomePage", () => {
     expect(homeApi.summary).toHaveBeenCalled();
   });
 
-  it("renders empty home summary sections instead of static dashboard records", async () => {
+  it("renders designed empty states instead of static dashboard records", async () => {
     signIn();
     vi.mocked(homeApi.summary).mockResolvedValue({
       hero_cards: [],
@@ -100,11 +100,13 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("暂无推荐内容")).toBeInTheDocument();
+    expect(await screen.findByText("暂无个性化推荐")).toBeInTheDocument();
     expect(screen.getByText("暂无待办任务")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /先去项目超市/ })).toHaveAttribute("href", "/projects");
+    expect(screen.getByRole("link", { name: /咨询 Copilot/ })).toHaveAttribute("href", "/copilot");
     expect(screen.getByText("暂无通知")).toBeInTheDocument();
     expect(screen.queryByText("完成【AI 智能硬件】项目商业画布")).not.toBeInTheDocument();
-    expect(screen.queryByText("项目推荐")).not.toBeInTheDocument();
+    expect(screen.queryByText("智能匹配")).not.toBeInTheDocument();
     expect(screen.queryByText("竞品价格监测数据已更新完成")).not.toBeInTheDocument();
   });
 
