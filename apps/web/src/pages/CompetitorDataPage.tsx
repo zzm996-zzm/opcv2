@@ -152,8 +152,8 @@ function CompetitorDataPage() {
     try {
       const scan = await competitorApi.retryScan(latestScan.id);
       setLatestScan(scan);
-    } catch {
-      // Preserve the failed state so the user can retry again.
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法重新采集"));
     } finally {
       setIsRetrying(false);
     }

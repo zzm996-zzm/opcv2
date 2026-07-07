@@ -492,4 +492,41 @@ describe("CompetitorDataPage", () => {
     expect(await screen.findByText("排队中")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/competitor/scans/13/retry", expect.objectContaining({ method: "POST" }));
   });
+
+  it("shows errors when retrying failed competitor scans fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/scans?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          scans: [{
+            id: 13,
+            user_id: 7,
+            targets: ["小鹅通"],
+            focus: "价格变化",
+            status: "failed",
+            progress_percent: 100,
+            current_step: "failed",
+            error_message: "scanner_not_configured",
+            competitors: [],
+            conclusions: [],
+            evidence_sources: [],
+            created_at: "2026-06-30T08:00:00Z",
+            updated_at: "2026-06-30T08:01:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/scans/13/retry" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ error: "request_failed" }), { status: 500 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderCompetitorDataPage();
+
+    expect(await screen.findByText("scanner_not_configured")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新采集" }));
+
+    expect(await screen.findByText("请求失败，请稍后重试")).toBeInTheDocument();
+    expect(screen.getByText("采集失败")).toBeInTheDocument();
+  });
 });
