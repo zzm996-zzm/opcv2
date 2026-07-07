@@ -498,3 +498,44 @@ func TestServiceStartWatchItemScanRejectsOtherUsersItem(t *testing.T) {
 		t.Fatalf("err = %v, want ErrWatchItemNotFound", err)
 	}
 }
+
+func TestServiceAddScanCompetitorToWatchlistCreatesWatchItem(t *testing.T) {
+	now := time.Date(2026, 7, 7, 10, 30, 0, 0, time.UTC)
+	repository := &fakeRepository{scan: Scan{
+		ID:     99,
+		UserID: 42,
+		Competitors: []Competitor{{
+			Name:     "增长雷达",
+			Category: "商业情报",
+			Signal:   "新增自动化竞品预警和任务派发能力",
+			Risk:     "强",
+		}},
+	}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	item, err := service.AddScanCompetitorToWatchlist(context.Background(), 42, 99, "增长雷达")
+
+	if err != nil {
+		t.Fatalf("AddScanCompetitorToWatchlist() error = %v", err)
+	}
+	if item.Name != "增长雷达" || item.Category != "商业情报" || item.Threat != "强" || item.Signal != "新增自动化竞品预警和任务派发能力" {
+		t.Fatalf("item = %+v", item)
+	}
+	if repository.createdWatch.UserID != 42 || repository.createdWatch.LastSeenAt != now {
+		t.Fatalf("created watch = %+v item=%+v", repository.createdWatch, item)
+	}
+	if len(repository.createdWatch.Channels) != 3 {
+		t.Fatalf("channels = %+v", repository.createdWatch.Channels)
+	}
+}
+
+func TestServiceAddScanCompetitorToWatchlistRejectsMissingCompetitor(t *testing.T) {
+	service := NewService(&fakeRepository{scan: Scan{ID: 99, UserID: 42, Competitors: []Competitor{{Name: "增长雷达"}}}})
+
+	_, err := service.AddScanCompetitorToWatchlist(context.Background(), 42, 99, "不存在")
+
+	if !errors.Is(err, ErrInvalidWatchItem) {
+		t.Fatalf("err = %v, want ErrInvalidWatchItem", err)
+	}
+}

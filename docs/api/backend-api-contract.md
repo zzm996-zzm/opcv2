@@ -862,6 +862,28 @@ Errors:
 - `404 scan_not_found`
 - `500 service_not_ready`
 
+### Add Scan Competitor To Watchlist
+
+`POST /api/v1/competitor/scans/{id}/watchlist`
+
+Adds one competitor from an owned scan result into dynamic monitoring.
+
+Request:
+
+```json
+{
+  "competitor_name": "增长雷达"
+}
+```
+
+Response `200`: `CompetitorWatchItem`
+
+Errors:
+
+- `400 invalid_scan_id`
+- `400 invalid_watch_item`
+- `404 scan_not_found`
+
 ### Monitoring
 
 `GET /api/v1/competitor/monitoring?limit=20`

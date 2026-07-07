@@ -33,6 +33,10 @@ type CreateWatchItemInput struct {
 	Channels []string `json:"channels"`
 }
 
+type AddScanCompetitorToWatchlistInput struct {
+	CompetitorName string `json:"competitor_name"`
+}
+
 type ScanResult struct {
 	Competitors     []Competitor
 	Conclusions     []Conclusion

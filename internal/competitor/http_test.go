@@ -65,6 +65,13 @@ func (a *fakeApplication) StartWatchItemScan(_ context.Context, userID, id int64
 	return a.scan, a.err
 }
 
+func (a *fakeApplication) AddScanCompetitorToWatchlist(_ context.Context, userID, scanID int64, competitorName string) (WatchItem, error) {
+	a.userID = userID
+	a.scanID = scanID
+	a.watchInput.Name = competitorName
+	return a.watchItem, a.err
+}
+
 func (a *fakeApplication) GetMonitoring(_ context.Context, userID int64, limit int) (MonitoringSnapshot, error) {
 	a.userID = userID
 	a.limit = limit
@@ -340,5 +347,46 @@ func TestStartWatchItemScanEndpointRejectsInvalidID(t *testing.T) {
 	}
 	if app.watchID != 0 {
 		t.Fatalf("StartWatchItemScan should not be called, watchID = %d", app.watchID)
+	}
+}
+
+func TestAddScanCompetitorToWatchlistEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{watchItem: WatchItem{ID: 77, Name: "增长雷达", Category: "商业情报", Status: "监测中"}}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/competitor/scans/99/watchlist", strings.NewReader(`{
+		"competitor_name":"增长雷达"
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.scanID != 99 || app.watchInput.Name != "增长雷达" {
+		t.Fatalf("user/scan/name = %d/%d/%s", app.userID, app.scanID, app.watchInput.Name)
+	}
+	if !strings.Contains(recorder.Body.String(), `"name":"增长雷达"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestAddScanCompetitorToWatchlistEndpointRejectsBlankName(t *testing.T) {
+	app := &fakeApplication{}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/competitor/scans/99/watchlist", strings.NewReader(`{
+		"competitor_name":" "
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.scanID != 0 {
+		t.Fatalf("AddScanCompetitorToWatchlist should not be called, scanID = %d", app.scanID)
 	}
 }

@@ -9847,10 +9847,19 @@ a {
   background: #fff0ed;
 }
 
-.competitor-card-grid footer a {
+.competitor-card-grid footer a,
+.competitor-card-grid footer button {
   color: #1557ff;
+  background: transparent;
+  border: 0;
   font-size: 13px;
   font-weight: 880;
+  cursor: pointer;
+}
+
+.competitor-card-grid footer button:disabled {
+  color: #8fa0c2;
+  cursor: not-allowed;
 }
 
 .competitor-conclusion-list {

@@ -245,6 +245,48 @@ func (s *Service) StartWatchItemScan(ctx context.Context, userID, id int64) (Sca
 	})
 }
 
+func (s *Service) AddScanCompetitorToWatchlist(ctx context.Context, userID, scanID int64, competitorName string) (WatchItem, error) {
+	if s.repository == nil {
+		return WatchItem{}, ErrServiceNotReady
+	}
+	name := strings.TrimSpace(competitorName)
+	if name == "" {
+		return WatchItem{}, ErrInvalidWatchItem
+	}
+	scan, err := s.repository.GetScan(ctx, userID, scanID)
+	if err != nil {
+		return WatchItem{}, err
+	}
+	for _, competitor := range scan.Competitors {
+		if competitor.Name != name {
+			continue
+		}
+		category := strings.TrimSpace(competitor.Category)
+		if category == "" {
+			category = "未分类竞品"
+		}
+		threat := strings.TrimSpace(competitor.Risk)
+		if threat == "" {
+			threat = "中"
+		}
+		signal := strings.TrimSpace(competitor.Signal)
+		if signal == "" {
+			signal = "已从全盘破解结果加入动态监测。"
+		}
+		return s.repository.CreateWatchItem(ctx, WatchItem{
+			UserID:     userID,
+			Name:       competitor.Name,
+			Category:   category,
+			Status:     "监测中",
+			Threat:     threat,
+			LastSeenAt: s.now(),
+			Channels:   []string{"产品页", "价格页", "内容矩阵"},
+			Signal:     signal,
+		})
+	}
+	return WatchItem{}, ErrInvalidWatchItem
+}
+
 func (s *Service) ProcessScan(ctx context.Context, id int64) error {
 	if s.repository == nil {
 		return ErrServiceNotReady

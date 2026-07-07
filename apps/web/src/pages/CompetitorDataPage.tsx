@@ -51,6 +51,8 @@ function CompetitorDataPage() {
   const [loadError, setLoadError] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [watchlistMessage, setWatchlistMessage] = useState("");
+  const [addingWatchCompetitor, setAddingWatchCompetitor] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -132,6 +134,21 @@ function CompetitorDataPage() {
     }
   }
 
+  async function addCompetitorToWatchlist(name: string) {
+    if (!latestScan || addingWatchCompetitor) return;
+    setAddingWatchCompetitor(name);
+    setWatchlistMessage("");
+    try {
+      const item = await competitorApi.addScanCompetitorToWatchlist(latestScan.id, name);
+      setLoadError("");
+      setWatchlistMessage(`已将${item.name}加入动态监测。`);
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法加入动态监测"));
+    } finally {
+      setAddingWatchCompetitor("");
+    }
+  }
+
   return (
     <V4PageShell className="competitor-data-shell">
       <section className="module-page competitor-data-page" aria-label="竞品全盘数据破解">
@@ -145,6 +162,7 @@ function CompetitorDataPage() {
           </button>
         </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
+        {watchlistMessage ? <p className="form-success" role="status">{watchlistMessage}</p> : null}
 
         <section className="module-overview-card competitor-data-hero">
           <div className="module-overview-copy">
@@ -243,7 +261,14 @@ function CompetitorDataPage() {
                 </div>
                 <footer>
                   <span className={item.risk === "强" ? "high" : ""}>威胁 {item.risk}</span>
-                  <Link to="/competitor-monitoring">加入监测</Link>
+                  <button
+                    aria-label={`加入监测 ${item.name}`}
+                    disabled={addingWatchCompetitor === item.name}
+                    onClick={() => void addCompetitorToWatchlist(item.name)}
+                    type="button"
+                  >
+                    {addingWatchCompetitor === item.name ? "加入中" : "加入监测"}
+                  </button>
                 </footer>
               </article>
             ))}

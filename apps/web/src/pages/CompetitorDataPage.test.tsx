@@ -100,6 +100,62 @@ describe("CompetitorDataPage", () => {
     expect(screen.getByRole("link", { name: "打开来源" })).toHaveAttribute("href", "https://example.com/release");
   });
 
+  it("adds scan competitors to monitoring from the card", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/scans?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          scans: [{
+            id: 11,
+            user_id: 7,
+            targets: ["商业沙盘竞品"],
+            focus: "价格和产品变化",
+            status: "completed",
+            competitors: [{
+              name: "增长雷达",
+              category: "竞品监测 / 商业情报",
+              score: 88,
+              signal: "新增自动化竞品预警和任务派发能力",
+              risk: "强",
+              tags: ["产品更新", "自动化"]
+            }],
+            conclusions: [],
+            evidence_sources: [],
+            created_at: "2026-06-30T08:00:00Z",
+            updated_at: "2026-06-30T08:30:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/scans/11/watchlist" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 77,
+          name: "增长雷达",
+          category: "竞品监测 / 商业情报",
+          status: "监测中",
+          threat: "强",
+          last_seen_at: "2026-07-07T10:30:00Z",
+          channels: ["产品页", "价格页", "内容矩阵"],
+          signal: "新增自动化竞品预警和任务派发能力"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderCompetitorDataPage();
+
+    expect(await screen.findByRole("heading", { name: "增长雷达" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "加入监测 增长雷达" }));
+
+    expect(await screen.findByText("已将增长雷达加入动态监测。")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/scans/11/watchlist",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ competitor_name: "增长雷达" })
+      })
+    );
+  });
+
   it("shows backend load errors without rendering fallback competitor data", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "invalid_request" }), { status: 400 })

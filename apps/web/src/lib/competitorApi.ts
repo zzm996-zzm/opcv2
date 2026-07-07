@@ -112,5 +112,12 @@ export const competitorApi = {
     return apiRequest<CompetitorScan>(`/api/v1/competitor/monitoring/watchlist/${id}/scan`, {
       method: "POST"
     });
+  },
+
+  addScanCompetitorToWatchlist(scanId: number, competitorName: string) {
+    return apiRequest<CompetitorWatchItem>(`/api/v1/competitor/scans/${scanId}/watchlist`, {
+      method: "POST",
+      body: JSON.stringify({ competitor_name: competitorName })
+    });
   }
 };

@@ -81,4 +81,20 @@ describe("competitorApi", () => {
       expect.objectContaining({ method: "POST" })
     );
   });
+
+  it("adds scan competitors to monitoring watchlist", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 77, name: "增长雷达", status: "监测中" }), { status: 200 }));
+
+    const item = await competitorApi.addScanCompetitorToWatchlist(99, "增长雷达");
+
+    expect(item.name).toBe("增长雷达");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/scans/99/watchlist",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ competitor_name: "增长雷达" })
+      })
+    );
+  });
 });
