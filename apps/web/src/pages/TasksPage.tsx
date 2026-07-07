@@ -108,6 +108,10 @@ function TasksPage() {
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>();
   const [listError, setListError] = useState("");
   const [savingTaskID, setSavingTaskID] = useState<number | null>(null);
+  const [taskGoal, setTaskGoal] = useState("");
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [createMessage, setCreateMessage] = useState("");
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -162,6 +166,36 @@ function TasksPage() {
     }
   }
 
+  async function createTaskFromGoal() {
+    if (isCreatingTask) return;
+    const title = taskGoal.trim();
+    if (!title) {
+      setCreateError("请输入任务目标");
+      return;
+    }
+    setIsCreatingTask(true);
+    setCreateError("");
+    setCreateMessage("");
+    try {
+      const task = await tasksApi.createTask({
+        title,
+        project: "任务中心",
+        priority: "medium",
+        tools: ["任务中心"],
+        learning: title
+      });
+      setApiTasks((current) => [task, ...current]);
+      setApiStats(null);
+      setTaskGoal("");
+      setListError("");
+      setCreateMessage(`已生成任务：${task.title}`);
+    } catch (error) {
+      setCreateError(apiErrorMessage(error, "暂时无法生成任务"));
+    } finally {
+      setIsCreatingTask(false);
+    }
+  }
+
   return (
     <V4PageShell>
       <section className="module-page tasks-page" aria-label="任务中心">
@@ -173,6 +207,7 @@ function TasksPage() {
           <button className="module-primary-action" type="button">新建任务</button>
         </div>
         {listError ? <p className="form-error" role="alert">{listError}</p> : null}
+        {createMessage ? <p className="form-success" role="status">{createMessage}</p> : null}
 
         <section className="module-overview-card tasks-hero">
           <div className="module-overview-copy">
@@ -188,10 +223,20 @@ function TasksPage() {
               ))}
             </div>
           </div>
-          <form className="module-ai-box compact">
+          <form className="module-ai-box compact" onSubmit={(event) => {
+            event.preventDefault();
+            void createTaskFromGoal();
+          }}>
             <label htmlFor="task-goal">AI 生成任务</label>
-            <textarea id="task-goal" aria-label="描述任务目标" placeholder="输入当前情况 + 目标..." />
-            <button type="button">生成任务表</button>
+            <textarea
+              id="task-goal"
+              aria-label="描述任务目标"
+              onChange={(event) => setTaskGoal(event.target.value)}
+              placeholder="输入当前情况 + 目标..."
+              value={taskGoal}
+            />
+            {createError ? <small className="form-error" role="alert">{createError}</small> : null}
+            <button disabled={isCreatingTask} type="submit">{isCreatingTask ? "生成中..." : "生成任务表"}</button>
           </form>
         </section>
 
