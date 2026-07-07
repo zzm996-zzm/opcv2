@@ -37,4 +37,15 @@ describe("enterpriseApi", () => {
       body: JSON.stringify({ need: "30人销售团队需要AI获客陪跑" })
     }));
   });
+
+  it("lists enterprise diagnosis requests", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ requests: [{ id: 7, user_id: 42, need: "30人销售团队需要AI获客陪跑", status: "submitted" }] }), { status: 200 })
+    );
+
+    const response = await enterpriseApi.listDiagnosisRequests(5);
+
+    expect(response.requests).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests?limit=5", expect.any(Object));
+  });
 });

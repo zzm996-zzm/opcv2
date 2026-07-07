@@ -54,9 +54,17 @@ export type EnterpriseDiagnosisRequest = {
   updated_at?: string;
 };
 
+export type EnterpriseDiagnosisRequestsResponse = {
+  requests: EnterpriseDiagnosisRequest[];
+};
+
 export const enterpriseApi = {
   overview() {
     return apiRequest<EnterpriseOverview>("/api/v1/enterprise/overview");
+  },
+
+  listDiagnosisRequests(limit = 10) {
+    return apiRequest<EnterpriseDiagnosisRequestsResponse>(`/api/v1/enterprise/diagnosis-requests?limit=${limit}`);
   },
 
   createDiagnosisRequest(input: EnterpriseDiagnosisRequestInput) {

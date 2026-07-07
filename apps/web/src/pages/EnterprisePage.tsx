@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { enterpriseApi, type EnterpriseOverview } from "../lib/enterpriseApi";
+import { enterpriseApi, type EnterpriseDiagnosisRequest, type EnterpriseOverview } from "../lib/enterpriseApi";
 
 function EnterprisePage() {
   const enterpriseNeedRef = useRef<HTMLTextAreaElement | null>(null);
   const [overview, setOverview] = useState<EnterpriseOverview | null>(null);
+  const [diagnosisRequests, setDiagnosisRequests] = useState<EnterpriseDiagnosisRequest[]>([]);
   const [loadError, setLoadError] = useState("");
+  const [requestLoadError, setRequestLoadError] = useState("");
   const [need, setNeed] = useState("");
   const [submitStatus, setSubmitStatus] = useState("");
   const [submitError, setSubmitError] = useState("");
@@ -26,6 +28,18 @@ function EnterprisePage() {
         if (!active) return;
         setOverview(null);
         setLoadError(apiErrorMessage(error, "暂时无法读取企业陪跑数据"));
+      });
+    enterpriseApi
+      .listDiagnosisRequests(5)
+      .then((payload) => {
+        if (!active) return;
+        setDiagnosisRequests(payload.requests ?? []);
+        setRequestLoadError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setDiagnosisRequests([]);
+        setRequestLoadError(apiErrorMessage(error, "暂时无法读取企业诊断预约"));
       });
     return () => {
       active = false;
@@ -57,7 +71,8 @@ function EnterprisePage() {
     setSubmitStatus("");
     setSubmitError("");
     try {
-      await enterpriseApi.createDiagnosisRequest({ need: normalizedNeed });
+      const request = await enterpriseApi.createDiagnosisRequest({ need: normalizedNeed });
+      setDiagnosisRequests((current) => [request, ...current.filter((item) => item.id !== request.id)].slice(0, 5));
       setSubmitStatus("企业诊断预约已提交");
       setNeed("");
     } catch (error) {
@@ -210,6 +225,18 @@ function EnterprisePage() {
               <article key={item.id}>
                 <strong>{item.company}</strong>
                 <small>{item.result || "暂无案例结果"}</small>
+              </article>
+            ))}
+          </aside>
+
+          <aside className="enterprise-case-card" aria-label="企业诊断预约">
+            <h2>最近诊断预约</h2>
+            {requestLoadError && <p className="form-error" role="alert">{requestLoadError}</p>}
+            {!requestLoadError && diagnosisRequests.length === 0 && <p>暂无企业诊断预约</p>}
+            {diagnosisRequests.map((request) => (
+              <article key={request.id}>
+                <strong>{request.need}</strong>
+                <small>{request.status} · {request.created_at ? new Date(request.created_at).toLocaleString("zh-CN") : "暂无提交时间"}</small>
               </article>
             ))}
           </aside>

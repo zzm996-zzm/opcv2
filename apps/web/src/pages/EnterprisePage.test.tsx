@@ -12,15 +12,15 @@ describe("EnterprisePage", () => {
   });
 
   it("renders backend-connected enterprise empty states", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
         stats: [],
         plans: [],
         delivery_board: [],
         milestones: [],
         cases: []
-      }), { status: 200 })
-    );
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ requests: [] }), { status: 200 }));
     authSession.set({
       access_token: "access-token",
       access_token_expires_at: "2026-06-23T12:00:00Z",
@@ -50,23 +50,25 @@ describe("EnterprisePage", () => {
     expect(screen.getByText("暂无交付看板数据")).toBeInTheDocument();
     expect(screen.getByText("暂无陪跑里程碑")).toBeInTheDocument();
     expect(screen.getByText("暂无企业案例")).toBeInTheDocument();
+    expect(await screen.findByText("暂无企业诊断预约")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "增长团队训练营" })).not.toBeInTheDocument();
     expect(screen.queryByText("连锁教育集团")).not.toBeInTheDocument();
     expect(screen.queryByText("服务企业")).not.toBeInTheDocument();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/overview", expect.any(Object)));
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests?limit=5", expect.any(Object));
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
   });
 
   it("focuses the enterprise need input from the primary action", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
         stats: [],
         plans: [],
         delivery_board: [],
         milestones: [],
         cases: []
-      }), { status: 200 })
-    );
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ requests: [] }), { status: 200 }));
     authSession.set({
       access_token: "access-token",
       access_token_expires_at: "2026-06-23T12:00:00Z",
@@ -86,8 +88,8 @@ describe("EnterprisePage", () => {
   });
 
   it("renders enterprise overview records from the backend API", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
         stats: [{ key: "companies", label: "服务企业数", value: "3" }],
         plans: [{
           id: 1,
@@ -100,8 +102,16 @@ describe("EnterprisePage", () => {
         delivery_board: [{ stage: "诊断中", count: 1, detail: "后端交付阶段" }],
         milestones: [{ time_label: "第1周", title: "后端里程碑", detail: "后端里程碑详情" }],
         cases: [{ id: 7, company: "后端企业案例", result: "后端案例结果" }]
-      }), { status: 200 })
-    );
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        requests: [{
+          id: 8,
+          user_id: 42,
+          need: "后端返回的诊断预约",
+          status: "submitted",
+          created_at: "2026-07-07T10:30:00Z"
+        }]
+      }), { status: 200 }));
     authSession.set({
       access_token: "access-token",
       access_token_expires_at: "2026-06-23T12:00:00Z",
@@ -119,6 +129,7 @@ describe("EnterprisePage", () => {
     expect(screen.getByText("后端交付阶段")).toBeInTheDocument();
     expect(screen.getByText("后端里程碑")).toBeInTheDocument();
     expect(screen.getByText("后端企业案例")).toBeInTheDocument();
+    expect(screen.getByText("后端返回的诊断预约")).toBeInTheDocument();
   });
 
   it("submits an enterprise diagnosis request", async () => {
@@ -130,11 +141,13 @@ describe("EnterprisePage", () => {
         milestones: [],
         cases: []
       }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ requests: [] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         id: 7,
         user_id: 42,
         need: "30人销售团队需要AI获客陪跑",
-        status: "submitted"
+        status: "submitted",
+        created_at: "2026-07-07T10:30:00Z"
       }), { status: 200 }));
     authSession.set({
       access_token: "access-token",
@@ -159,6 +172,7 @@ describe("EnterprisePage", () => {
       body: JSON.stringify({ need: "30人销售团队需要AI获客陪跑" })
     })));
     expect(await screen.findByText("企业诊断预约已提交")).toBeInTheDocument();
+    expect(screen.getByText("30人销售团队需要AI获客陪跑")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "生成诊断提纲" })).not.toBeInTheDocument();
   });
 });
