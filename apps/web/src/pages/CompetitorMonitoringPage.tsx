@@ -73,6 +73,8 @@ function CompetitorMonitoringPage() {
   const [formError, setFormError] = useState("");
   const [isSavingWatchItem, setIsSavingWatchItem] = useState(false);
   const [deletingWatchItemId, setDeletingWatchItemId] = useState<number | null>(null);
+  const [startingScanItemId, setStartingScanItemId] = useState<number | null>(null);
+  const [scanLaunchMessage, setScanLaunchMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -141,6 +143,21 @@ function CompetitorMonitoringPage() {
     }
   }
 
+  async function startWatchItemScan(item: CompetitorWatchItem) {
+    if (!item.id || startingScanItemId) return;
+    setStartingScanItemId(item.id);
+    setScanLaunchMessage("");
+    try {
+      await competitorApi.startWatchItemScan(item.id);
+      setLoadError("");
+      setScanLaunchMessage(`已发起${item.name}全盘破解，任务排队中。`);
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法发起全盘破解"));
+    } finally {
+      setStartingScanItemId(null);
+    }
+  }
+
   return (
     <V4PageShell className="competitor-monitoring-shell">
       <section className="module-page competitor-monitoring-page" aria-label="竞品动态监测">
@@ -152,6 +169,7 @@ function CompetitorMonitoringPage() {
           <button className="module-primary-action" onClick={() => setShowWatchForm((visible) => !visible)} type="button">新增监测对象</button>
         </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
+        {scanLaunchMessage ? <p className="form-success" role="status">{scanLaunchMessage}</p> : null}
         {showWatchForm ? (
           <form className="monitoring-watch-form" onSubmit={(event) => void createWatchItem(event)}>
             <label>
@@ -225,15 +243,26 @@ function CompetitorMonitoringPage() {
                   <em className={item.threat === "强" ? "hot" : ""}>威胁 {item.threat}</em>
                   <span className="monitoring-state">{item.status}</span>
                   {item.id ? (
-                    <button
-                      aria-label={`移除 ${item.name}`}
-                      className="monitoring-remove-button"
-                      disabled={deletingWatchItemId === item.id}
-                      onClick={() => void deleteWatchItem(item)}
-                      type="button"
-                    >
-                      {deletingWatchItemId === item.id ? "移除中" : "移除"}
-                    </button>
+                    <div className="monitoring-row-actions">
+                      <button
+                        aria-label={`全盘破解 ${item.name}`}
+                        className="monitoring-scan-button"
+                        disabled={startingScanItemId === item.id}
+                        onClick={() => void startWatchItemScan(item)}
+                        type="button"
+                      >
+                        {startingScanItemId === item.id ? "发起中" : "全盘破解"}
+                      </button>
+                      <button
+                        aria-label={`移除 ${item.name}`}
+                        className="monitoring-remove-button"
+                        disabled={deletingWatchItemId === item.id}
+                        onClick={() => void deleteWatchItem(item)}
+                        type="button"
+                      >
+                        {deletingWatchItemId === item.id ? "移除中" : "移除"}
+                      </button>
+                    </div>
                   ) : null}
                   <p>{item.signal}</p>
                   <div className="tool-tags">

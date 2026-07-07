@@ -316,6 +316,36 @@ func TestPostgresRepositoryDeletesWatchItemForUser(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryGetsWatchItemForUser(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 7, 9, 30, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, name, category, status, threat, last_seen_at, channels, signal
+		FROM competitor_watchlist
+		WHERE user_id = $1 AND id = $2
+	`)).
+		WithArgs(int64(42), int64(77)).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "name", "category", "status", "threat", "last_seen_at", "channels", "signal"}).
+			AddRow(int64(77), "增长雷达", "商业情报", "监测中", "中", now, []byte(`["价格页"]`), "等待首次巡检"))
+
+	repository := NewPostgresRepository(db)
+	item, err := repository.GetWatchItem(context.Background(), 42, 77)
+	if err != nil {
+		t.Fatalf("GetWatchItem() error = %v", err)
+	}
+	if item.ID != 77 || item.Name != "增长雷达" {
+		t.Fatalf("item = %+v", item)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryDeleteWatchItemReturnsNotFoundWhenNoRows(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

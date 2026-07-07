@@ -922,6 +922,23 @@ Errors:
 - `400 invalid_watch_item`
 - `404 watch_item_not_found`
 
+### Start Watch Item Scan
+
+`POST /api/v1/competitor/monitoring/watchlist/{id}/scan`
+
+Creates a queued full-data scan from a monitored competitor entry owned by the
+authenticated user. The scan target is the watch item name, and the default
+focus is `价格、招聘、内容和产品变化`.
+
+Response `200`: `CompetitorScan`
+
+Errors:
+
+- `400 invalid_watch_item`
+- `402 quota_exceeded`
+- `404 watch_item_not_found`
+- `500 service_not_ready`
+
 ## Learning
 
 Course endpoints are public. Progress and diagnosis endpoints are protected.

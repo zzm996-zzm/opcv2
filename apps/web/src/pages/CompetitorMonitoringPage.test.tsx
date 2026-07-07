@@ -172,4 +172,53 @@ describe("CompetitorMonitoringPage", () => {
       expect.objectContaining({ method: "DELETE" })
     );
   });
+
+  it("starts full scans from monitoring watch items", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/monitoring?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          watchlist: [{
+            id: 77,
+            name: "增长雷达",
+            category: "商业情报",
+            status: "监测中",
+            threat: "中",
+            last_seen_at: "2026-07-07T09:30:00Z",
+            channels: ["价格页"],
+            signal: "已创建监测规则，等待首次巡检。"
+          }],
+          events: []
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/monitoring/watchlist/77/scan" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 99,
+          user_id: 7,
+          targets: ["增长雷达"],
+          focus: "价格、招聘、内容和产品变化",
+          status: "queued",
+          progress_percent: 0,
+          current_step: "queued",
+          competitors: [],
+          conclusions: [],
+          evidence_sources: [],
+          created_at: "2026-07-07T09:31:00Z",
+          updated_at: "2026-07-07T09:31:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderMonitoringRoute();
+
+    expect(await screen.findByRole("heading", { name: "增长雷达" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "全盘破解 增长雷达" }));
+
+    expect(await screen.findByText("已发起增长雷达全盘破解，任务排队中。")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/monitoring/watchlist/77/scan",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
 });

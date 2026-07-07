@@ -10263,6 +10263,13 @@ a {
   background: #edf4ff;
 }
 
+.monitoring-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.monitoring-scan-button,
 .monitoring-remove-button {
   justify-self: end;
   min-height: 30px;
@@ -10276,6 +10283,13 @@ a {
   cursor: pointer;
 }
 
+.monitoring-scan-button {
+  color: #1557ff;
+  background: rgba(21, 87, 255, 0.08);
+  border-color: rgba(21, 87, 255, 0.18);
+}
+
+.monitoring-scan-button:disabled,
 .monitoring-remove-button:disabled {
   color: #9aa8c4;
   cursor: not-allowed;

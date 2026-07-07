@@ -68,4 +68,17 @@ describe("competitorApi", () => {
       expect.objectContaining({ method: "DELETE" })
     );
   });
+
+  it("starts scans from competitor monitoring watch items", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, status: "queued", targets: ["增长雷达"] }), { status: 200 }));
+
+    const scan = await competitorApi.startWatchItemScan(77);
+
+    expect(scan.status).toBe("queued");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/monitoring/watchlist/77/scan",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
 });

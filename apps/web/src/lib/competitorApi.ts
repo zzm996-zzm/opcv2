@@ -106,5 +106,11 @@ export const competitorApi = {
     return apiRequest<{ deleted: boolean }>(`/api/v1/competitor/monitoring/watchlist/${id}`, {
       method: "DELETE"
     });
+  },
+
+  startWatchItemScan(id: number) {
+    return apiRequest<CompetitorScan>(`/api/v1/competitor/monitoring/watchlist/${id}/scan`, {
+      method: "POST"
+    });
   }
 };

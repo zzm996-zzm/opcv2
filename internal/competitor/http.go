@@ -20,6 +20,7 @@ type Application interface {
 	RetryScan(ctx context.Context, userID, id int64) (Scan, error)
 	CreateWatchItem(ctx context.Context, input CreateWatchItemInput) (WatchItem, error)
 	DeleteWatchItem(ctx context.Context, userID, id int64) error
+	StartWatchItemScan(ctx context.Context, userID, id int64) (Scan, error)
 	GetMonitoring(ctx context.Context, userID int64, limit int) (MonitoringSnapshot, error)
 }
 
@@ -38,6 +39,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/competitor/scans/:id/retry", h.retryScan)
 	router.POST("/competitor/monitoring/watchlist", h.createWatchItem)
 	router.DELETE("/competitor/monitoring/watchlist/:id", h.deleteWatchItem)
+	router.POST("/competitor/monitoring/watchlist/:id/scan", h.startWatchItemScan)
 	router.GET("/competitor/monitoring", h.monitoring)
 }
 
@@ -150,6 +152,20 @@ func (h *HTTPHandler) deleteWatchItem(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"deleted": true})
+}
+
+func (h *HTTPHandler) startWatchItemScan(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		httpapi.BadRequest(c, "invalid_watch_item")
+		return
+	}
+	scan, err := h.app.StartWatchItemScan(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, scan)
 }
 
 func queryLimit(c *gin.Context) int {

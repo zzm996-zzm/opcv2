@@ -571,6 +571,9 @@ func (fakeCompetitorApp) CreateWatchItem(context.Context, competitor.CreateWatch
 func (fakeCompetitorApp) DeleteWatchItem(context.Context, int64, int64) error {
 	return nil
 }
+func (fakeCompetitorApp) StartWatchItemScan(context.Context, int64, int64) (competitor.Scan, error) {
+	return competitor.Scan{ID: 99, Status: competitor.StatusQueued}, nil
+}
 func (fakeCompetitorApp) GetMonitoring(context.Context, int64, int) (competitor.MonitoringSnapshot, error) {
 	return competitor.MonitoringSnapshot{Watchlist: []competitor.WatchItem{{Name: "小鹅通", Threat: "high"}}}, nil
 }

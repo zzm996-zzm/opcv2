@@ -19,6 +19,7 @@ type Repository interface {
 	UpdateScanStatus(ctx context.Context, id int64, status string, progressPercent int, currentStep string, errorMessage string) (Scan, error)
 	StoreScanResults(ctx context.Context, id int64, result ScanResult) error
 	CreateWatchItem(ctx context.Context, item WatchItem) (WatchItem, error)
+	GetWatchItem(ctx context.Context, userID, id int64) (WatchItem, error)
 	DeleteWatchItem(ctx context.Context, userID, id int64) error
 	ListWatchlist(ctx context.Context, userID int64, limit int) ([]WatchItem, error)
 	ListEvents(ctx context.Context, userID int64, limit int) ([]Event, error)
@@ -224,6 +225,24 @@ func (s *Service) DeleteWatchItem(ctx context.Context, userID, id int64) error {
 		return ErrInvalidWatchItem
 	}
 	return s.repository.DeleteWatchItem(ctx, userID, id)
+}
+
+func (s *Service) StartWatchItemScan(ctx context.Context, userID, id int64) (Scan, error) {
+	if s.repository == nil {
+		return Scan{}, ErrServiceNotReady
+	}
+	if id <= 0 {
+		return Scan{}, ErrInvalidWatchItem
+	}
+	item, err := s.repository.GetWatchItem(ctx, userID, id)
+	if err != nil {
+		return Scan{}, err
+	}
+	return s.CreateScan(ctx, CreateScanInput{
+		UserID:  userID,
+		Targets: []string{item.Name},
+		Focus:   "价格、招聘、内容和产品变化",
+	})
 }
 
 func (s *Service) ProcessScan(ctx context.Context, id int64) error {

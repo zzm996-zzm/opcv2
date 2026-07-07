@@ -59,6 +59,12 @@ func (a *fakeApplication) DeleteWatchItem(_ context.Context, userID, id int64) e
 	return a.err
 }
 
+func (a *fakeApplication) StartWatchItemScan(_ context.Context, userID, id int64) (Scan, error) {
+	a.userID = userID
+	a.watchID = id
+	return a.scan, a.err
+}
+
 func (a *fakeApplication) GetMonitoring(_ context.Context, userID int64, limit int) (MonitoringSnapshot, error) {
 	a.userID = userID
 	a.limit = limit
@@ -299,5 +305,40 @@ func TestDeleteWatchItemEndpointRejectsInvalidID(t *testing.T) {
 	}
 	if app.watchID != 0 {
 		t.Fatalf("DeleteWatchItem should not be called, watchID = %d", app.watchID)
+	}
+}
+
+func TestStartWatchItemScanEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{scan: Scan{ID: 99, UserID: 42, Status: StatusQueued, Targets: []string{"增长雷达"}}}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/competitor/monitoring/watchlist/77/scan", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.watchID != 77 {
+		t.Fatalf("user/watch = %d/%d", app.userID, app.watchID)
+	}
+	if !strings.Contains(recorder.Body.String(), `"status":"queued"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestStartWatchItemScanEndpointRejectsInvalidID(t *testing.T) {
+	app := &fakeApplication{}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/competitor/monitoring/watchlist/0/scan", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.watchID != 0 {
+		t.Fatalf("StartWatchItemScan should not be called, watchID = %d", app.watchID)
 	}
 }

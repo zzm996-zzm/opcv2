@@ -140,6 +140,18 @@ func (r *fakeRepository) CreateWatchItem(_ context.Context, item WatchItem) (Wat
 	return item, r.err
 }
 
+func (r *fakeRepository) GetWatchItem(_ context.Context, userID, id int64) (WatchItem, error) {
+	if r.err != nil {
+		return WatchItem{}, r.err
+	}
+	for _, item := range r.watchlist {
+		if item.UserID == userID && item.ID == id {
+			return item, nil
+		}
+	}
+	return WatchItem{}, ErrWatchItemNotFound
+}
+
 func (r *fakeRepository) DeleteWatchItem(_ context.Context, userID, id int64) error {
 	r.deletedWatchUserID = userID
 	r.deletedWatchID = id
@@ -453,5 +465,36 @@ func TestServiceDeleteWatchItemRejectsInvalidID(t *testing.T) {
 
 	if !errors.Is(err, ErrInvalidWatchItem) {
 		t.Fatalf("err = %v, want ErrInvalidWatchItem", err)
+	}
+}
+
+func TestServiceStartWatchItemScanCreatesQueuedScan(t *testing.T) {
+	repository := &fakeRepository{watchlist: []WatchItem{{ID: 77, UserID: 42, Name: "增长雷达"}}}
+	queue := &fakeQueue{}
+	service := NewService(repository, WithQueue(queue))
+
+	scan, err := service.StartWatchItemScan(context.Background(), 42, 77)
+
+	if err != nil {
+		t.Fatalf("StartWatchItemScan() error = %v", err)
+	}
+	if scan.Status != StatusQueued || len(scan.Targets) != 1 || scan.Targets[0] != "增长雷达" {
+		t.Fatalf("scan = %+v", scan)
+	}
+	if repository.createdScan.UserID != 42 || repository.createdScan.Focus != "价格、招聘、内容和产品变化" {
+		t.Fatalf("created scan = %+v", repository.createdScan)
+	}
+	if len(queue.jobs) != 1 || queue.jobs[0].Type != jobs.TypeCompetitorScan {
+		t.Fatalf("jobs = %+v, want one competitor scan job", queue.jobs)
+	}
+}
+
+func TestServiceStartWatchItemScanRejectsOtherUsersItem(t *testing.T) {
+	service := NewService(&fakeRepository{watchlist: []WatchItem{{ID: 77, UserID: 7, Name: "增长雷达"}}})
+
+	_, err := service.StartWatchItemScan(context.Background(), 42, 77)
+
+	if !errors.Is(err, ErrWatchItemNotFound) {
+		t.Fatalf("err = %v, want ErrWatchItemNotFound", err)
 	}
 }

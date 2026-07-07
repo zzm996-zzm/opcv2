@@ -139,6 +139,18 @@ func (r *PostgresRepository) CreateWatchItem(ctx context.Context, item WatchItem
 	`, item.UserID, item.Name, item.Category, item.Status, item.Threat, item.LastSeenAt, channels, item.Signal, item.LastSeenAt))
 }
 
+func (r *PostgresRepository) GetWatchItem(ctx context.Context, userID, id int64) (WatchItem, error) {
+	item, err := scanWatchItem(r.db.QueryRow(ctx, `
+		SELECT id, name, category, status, threat, last_seen_at, channels, signal
+		FROM competitor_watchlist
+		WHERE user_id = $1 AND id = $2
+	`, userID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return WatchItem{}, ErrWatchItemNotFound
+	}
+	return item, err
+}
+
 func (r *PostgresRepository) DeleteWatchItem(ctx context.Context, userID, id int64) error {
 	tag, err := r.db.Exec(ctx, `
 		DELETE FROM competitor_watchlist
