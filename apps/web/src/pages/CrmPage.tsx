@@ -120,12 +120,23 @@ function toTimelineRow(activity: CrmActivity): TimelineRow {
   return [`${time} 张婧`, activity.note || activityTitle(activity)] as const;
 }
 
+function defaultFollowUpDateTime() {
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return offsetDate.toISOString().slice(0, 16);
+}
+
 function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [apiCustomers, setApiCustomers] = useState<CrmCustomer[]>([]);
   const [activities, setActivities] = useState<CrmActivity[]>([]);
   const [stats, setStats] = useState<CrmPipelineStats | null>(null);
   const [error, setError] = useState("");
   const [sourceFilter, setSourceFilter] = useState<CustomerSourceFilter>("all");
+  const [followUpNote, setFollowUpNote] = useState("");
+  const [followUpNextAt, setFollowUpNextAt] = useState(defaultFollowUpDateTime);
+  const [followUpSaving, setFollowUpSaving] = useState(false);
+  const [followUpStatus, setFollowUpStatus] = useState("");
+  const [followUpError, setFollowUpError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -176,7 +187,37 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   }
 
   const selectedCustomer = visibleCustomers[0];
+  const selectedApiCustomer = apiCustomers[0];
   const visibleTimelineRows = activities.map(toTimelineRow);
+
+  const recordSelectedFollowUp = async () => {
+    if (!selectedApiCustomer) return;
+    const normalizedNote = followUpNote.trim();
+    if (!normalizedNote) {
+      setFollowUpStatus("");
+      setFollowUpError("请输入跟进内容");
+      return;
+    }
+    setFollowUpSaving(true);
+    setFollowUpStatus("");
+    setFollowUpError("");
+    try {
+      const followUp = await crmApi.recordFollowUp(selectedApiCustomer.id, {
+        note: normalizedNote,
+        nextFollowUpAt: new Date(followUpNextAt).toISOString()
+      });
+      setApiCustomers((current) => current.map((customer) => (
+        customer.id === followUp.customer_id ? { ...customer, next_follow_up_at: followUp.next_follow_up_at } : customer
+      )));
+      setFollowUpNote("");
+      setFollowUpNextAt(defaultFollowUpDateTime());
+      setFollowUpStatus("跟进已记录");
+    } catch (error) {
+      setFollowUpError(apiErrorMessage(error, "暂时无法记录跟进"));
+    } finally {
+      setFollowUpSaving(false);
+    }
+  };
 
   return (
     <main className="cdk-analysis-page cdk-crm-page">
@@ -289,6 +330,21 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                     </article>
                   ))}
                 <Link to="/crm/follow-ups">查看全部跟进记录 ›</Link>
+              </section>
+              <section className="cdk-crm-followup-form" aria-label="记录客户跟进">
+                <label>
+                  <span>跟进内容</span>
+                  <textarea value={followUpNote} onChange={(event) => setFollowUpNote(event.target.value)} />
+                </label>
+                <label>
+                  <span>下次跟进时间</span>
+                  <input type="datetime-local" value={followUpNextAt} onChange={(event) => setFollowUpNextAt(event.target.value)} />
+                </label>
+                {followUpStatus && <p className="form-success" role="status">{followUpStatus}</p>}
+                {followUpError && <p className="form-error" role="alert">{followUpError}</p>}
+                <button type="button" onClick={recordSelectedFollowUp} disabled={followUpSaving}>
+                  {followUpSaving ? "保存中..." : "保存跟进"}
+                </button>
               </section>
               <footer>
                 <button type="button">拨打电话</button>

@@ -153,6 +153,63 @@ describe("CrmPage", () => {
     expect(screen.getAllByText("企业交付").length).toBeGreaterThan(0);
   });
 
+  it("records a follow-up from the selected CRM customer detail", async () => {
+    const nextInputValue = "2026-06-26T10:00";
+    const expectedNextAt = new Date(nextInputValue).toISOString();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        customers: [{
+          id: 100,
+          user_id: 7,
+          import_key: "lead_result:99",
+          name: "成都启明星教育",
+          phone: "028-12345678",
+          stage: "contacted",
+          source: "lead",
+          created_at: "2026-06-24T12:00:00Z",
+          updated_at: "2026-06-25T12:00:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 1,
+        qualified: 0,
+        proposal: 0,
+        won: 0,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activities: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 7,
+        user_id: 7,
+        customer_id: 100,
+        note: "已发送企业AI运营方案",
+        next_follow_up_at: expectedNextAt,
+        created_at: "2026-06-25T12:00:00Z"
+      }), { status: 200 }));
+    renderCrmRoute();
+
+    expect(await screen.findByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("跟进内容"), {
+      target: { value: "已发送企业AI运营方案" }
+    });
+    fireEvent.change(screen.getByLabelText("下次跟进时间"), {
+      target: { value: nextInputValue }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存跟进" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers/100/follow-ups", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        note: "已发送企业AI运营方案",
+        next_follow_up_at: expectedNextAt
+      })
+    })));
+    expect(await screen.findByText("跟进已记录")).toBeInTheDocument();
+  });
+
   it("renders an empty follow-up list instead of static sample records", async () => {
     signIn();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

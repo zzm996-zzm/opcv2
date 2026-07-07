@@ -34745,6 +34745,54 @@ a {
   font-weight: 900;
 }
 
+.cdk-crm-followup-form {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  background: #f7faff;
+  border: 1px solid #dfe8f6;
+  border-radius: 8px;
+}
+
+.cdk-crm-followup-form label {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  color: #52658d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.cdk-crm-followup-form textarea,
+.cdk-crm-followup-form input {
+  width: 100%;
+  min-height: 40px;
+  color: #13213c;
+  background: white;
+  border: 1px solid #dfe8f6;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.cdk-crm-followup-form textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.cdk-crm-followup-form button {
+  min-height: 42px;
+  color: white;
+  background: #0758ff;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.cdk-crm-followup-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .cdk-crm-detail-card footer {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
