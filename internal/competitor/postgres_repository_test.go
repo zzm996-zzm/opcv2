@@ -242,3 +242,52 @@ func TestPostgresRepositoryListsMonitoringRows(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryCreatesWatchItem(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 7, 9, 30, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO competitor_watchlist (user_id, name, category, status, threat, last_seen_at, channels, signal, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+		RETURNING name, category, status, threat, last_seen_at, channels, signal
+	`)).
+		WithArgs(
+			int64(42),
+			"增长雷达",
+			"商业情报",
+			"监测中",
+			"中",
+			now,
+			[]byte(`["价格页","招聘动态"]`),
+			"已创建监测规则，等待首次巡检。",
+			now,
+		).
+		WillReturnRows(pgxmock.NewRows([]string{"name", "category", "status", "threat", "last_seen_at", "channels", "signal"}).
+			AddRow("增长雷达", "商业情报", "监测中", "中", now, []byte(`["价格页","招聘动态"]`), "已创建监测规则，等待首次巡检。"))
+
+	repository := NewPostgresRepository(db)
+	item, err := repository.CreateWatchItem(context.Background(), WatchItem{
+		UserID:     42,
+		Name:       "增长雷达",
+		Category:   "商业情报",
+		Status:     "监测中",
+		Threat:     "中",
+		LastSeenAt: now,
+		Channels:   []string{"价格页", "招聘动态"},
+		Signal:     "已创建监测规则，等待首次巡检。",
+	})
+	if err != nil {
+		t.Fatalf("CreateWatchItem() error = %v", err)
+	}
+	if item.Name != "增长雷达" || len(item.Channels) != 2 {
+		t.Fatalf("item = %+v", item)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

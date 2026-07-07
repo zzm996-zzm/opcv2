@@ -875,6 +875,31 @@ Response:
 }
 ```
 
+### Create Monitoring Watch Item
+
+`POST /api/v1/competitor/monitoring/watchlist`
+
+Creates a monitored competitor entry for the authenticated user. This first
+slice stores the object in `competitor_watchlist`; script scheduling and event
+generation remain worker/provider follow-up work.
+
+Request:
+
+```json
+{
+  "name": "增长雷达",
+  "category": "商业情报",
+  "channels": ["官网 / 价格页", "招聘动态"]
+}
+```
+
+Response `200`: `CompetitorWatchItem`
+
+Errors:
+
+- `400 invalid_watch_item`
+- `500 service_not_ready`
+
 ## Learning
 
 Course endpoints are public. Progress and diagnosis endpoints are protected.

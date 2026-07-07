@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -94,5 +94,43 @@ describe("CompetitorMonitoringPage", () => {
     expect(await screen.findByText("请求参数有误，请检查后重试")).toBeInTheDocument();
     expect(screen.getByText("暂无监测对象")).toBeInTheDocument();
     expect(screen.queryByText("小鹅通")).not.toBeInTheDocument();
+  });
+
+  it("creates monitoring watch items from the page", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/monitoring?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({ watchlist: [], events: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/competitor/monitoring/watchlist" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          name: "增长雷达",
+          category: "商业情报",
+          status: "监测中",
+          threat: "中",
+          last_seen_at: "2026-07-07T09:30:00Z",
+          channels: ["价格页", "招聘动态"],
+          signal: "已创建监测规则，等待首次巡检。"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderMonitoringRoute();
+
+    fireEvent.click(screen.getByRole("button", { name: "新增监测对象" }));
+    fireEvent.change(screen.getByLabelText("监测对象名称"), { target: { value: "增长雷达" } });
+    fireEvent.change(screen.getByLabelText("对象分类"), { target: { value: "商业情报" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存监测对象" }));
+
+    expect(await screen.findByRole("heading", { name: "增长雷达" })).toBeInTheDocument();
+    expect(screen.getByText("已创建监测规则，等待首次巡检。")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/monitoring/watchlist",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "增长雷达", category: "商业情报", channels: ["官网 / 价格页", "招聘动态"] })
+      })
+    );
   });
 });

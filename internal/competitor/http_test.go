@@ -13,10 +13,12 @@ import (
 
 type fakeApplication struct {
 	input      CreateScanInput
+	watchInput CreateWatchItemInput
 	userID     int64
 	scanID     int64
 	limit      int
 	scan       Scan
+	watchItem  WatchItem
 	scans      []Scan
 	monitoring MonitoringSnapshot
 	err        error
@@ -43,6 +45,11 @@ func (a *fakeApplication) RetryScan(_ context.Context, userID, id int64) (Scan, 
 	a.userID = userID
 	a.scanID = id
 	return a.scan, a.err
+}
+
+func (a *fakeApplication) CreateWatchItem(_ context.Context, input CreateWatchItemInput) (WatchItem, error) {
+	a.watchInput = input
+	return a.watchItem, a.err
 }
 
 func (a *fakeApplication) GetMonitoring(_ context.Context, userID int64, limit int) (MonitoringSnapshot, error) {
@@ -206,5 +213,49 @@ func TestMonitoringEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if app.userID != 42 || !strings.Contains(recorder.Body.String(), `"watchlist"`) {
 		t.Fatalf("user/body = %d/%s", app.userID, recorder.Body.String())
+	}
+}
+
+func TestCreateWatchItemEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{watchItem: WatchItem{Name: "增长雷达", Category: "商业情报", Status: "监测中", Threat: "中", Channels: []string{"价格页"}}}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/competitor/monitoring/watchlist", strings.NewReader(`{
+		"name":"增长雷达",
+		"category":"商业情报",
+		"channels":["价格页","招聘动态"]
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.watchInput.UserID != 42 || app.watchInput.Name != "增长雷达" || len(app.watchInput.Channels) != 2 {
+		t.Fatalf("watch input = %+v", app.watchInput)
+	}
+	if !strings.Contains(recorder.Body.String(), `"name":"增长雷达"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestCreateWatchItemEndpointRejectsBlankName(t *testing.T) {
+	app := &fakeApplication{}
+	router := competitorTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/competitor/monitoring/watchlist", strings.NewReader(`{
+		"name":" ",
+		"channels":["价格页"]
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.watchInput.UserID != 0 {
+		t.Fatalf("CreateWatchItem should not be called, input = %+v", app.watchInput)
 	}
 }

@@ -18,6 +18,7 @@ type Repository interface {
 	GetScan(ctx context.Context, userID, id int64) (Scan, error)
 	UpdateScanStatus(ctx context.Context, id int64, status string, progressPercent int, currentStep string, errorMessage string) (Scan, error)
 	StoreScanResults(ctx context.Context, id int64, result ScanResult) error
+	CreateWatchItem(ctx context.Context, item WatchItem) (WatchItem, error)
 	ListWatchlist(ctx context.Context, userID int64, limit int) ([]WatchItem, error)
 	ListEvents(ctx context.Context, userID int64, limit int) ([]Event, error)
 }
@@ -184,6 +185,34 @@ func (s *Service) GetMonitoring(ctx context.Context, userID int64, limit int) (M
 		events = []Event{}
 	}
 	return MonitoringSnapshot{Watchlist: watchlist, Events: events}, nil
+}
+
+func (s *Service) CreateWatchItem(ctx context.Context, input CreateWatchItemInput) (WatchItem, error) {
+	if s.repository == nil {
+		return WatchItem{}, ErrServiceNotReady
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		return WatchItem{}, ErrInvalidWatchItem
+	}
+	category := strings.TrimSpace(input.Category)
+	if category == "" {
+		category = "未分类竞品"
+	}
+	channels := normalizeStrings(input.Channels)
+	if len(channels) == 0 {
+		channels = []string{"官网 / 价格页"}
+	}
+	return s.repository.CreateWatchItem(ctx, WatchItem{
+		UserID:     input.UserID,
+		Name:       name,
+		Category:   category,
+		Status:     "监测中",
+		Threat:     "中",
+		LastSeenAt: s.now(),
+		Channels:   channels,
+		Signal:     "已创建监测规则，等待首次巡检。",
+	})
 }
 
 func (s *Service) ProcessScan(ctx context.Context, id int64) error {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
@@ -25,6 +25,8 @@ const alertRules = [
   ["内容爆发", "监测公众号、视频号、SEO 页面标题变化"],
   ["产品转向", "从产品页和案例页判断定位、场景和客群变化"]
 ] as const;
+
+const defaultWatchChannels = ["官网 / 价格页", "招聘动态"] as const;
 
 function formatEventTime(value: string) {
   return new Date(value).toLocaleTimeString("zh-CN", {
@@ -64,6 +66,11 @@ function CompetitorMonitoringPage() {
   const [watchlist, setWatchlist] = useState<CompetitorWatchItem[]>([]);
   const [events, setEvents] = useState<CompetitorEvent[]>([]);
   const [loadError, setLoadError] = useState("");
+  const [showWatchForm, setShowWatchForm] = useState(false);
+  const [watchName, setWatchName] = useState("");
+  const [watchCategory, setWatchCategory] = useState("");
+  const [formError, setFormError] = useState("");
+  const [isSavingWatchItem, setIsSavingWatchItem] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -97,6 +104,28 @@ function CompetitorMonitoringPage() {
   ] as const : emptyMonitoringStats;
   const firstAlert = visibleTimeline.find(([, , , , level]) => level === "强") ?? visibleTimeline[0] ?? null;
 
+  async function createWatchItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (isSavingWatchItem) return;
+    setIsSavingWatchItem(true);
+    setFormError("");
+    try {
+      const item = await competitorApi.createWatchItem({
+        name: watchName,
+        category: watchCategory,
+        channels: [...defaultWatchChannels]
+      });
+      setWatchlist((current) => [item, ...current]);
+      setWatchName("");
+      setWatchCategory("");
+      setShowWatchForm(false);
+    } catch (error) {
+      setFormError(apiErrorMessage(error, "暂时无法新增监测对象"));
+    } finally {
+      setIsSavingWatchItem(false);
+    }
+  }
+
   return (
     <V4PageShell className="competitor-monitoring-shell">
       <section className="module-page competitor-monitoring-page" aria-label="竞品动态监测">
@@ -105,9 +134,26 @@ function CompetitorMonitoringPage() {
             <h1>竞品动态监测</h1>
             <p>持续盯住竞品的价格、招聘、内容、投放和产品页变化，把异常信号自动沉淀成反击动作</p>
           </div>
-          <button className="module-primary-action" type="button">新增监测对象</button>
+          <button className="module-primary-action" onClick={() => setShowWatchForm((visible) => !visible)} type="button">新增监测对象</button>
         </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
+        {showWatchForm ? (
+          <form className="monitoring-watch-form" onSubmit={(event) => void createWatchItem(event)}>
+            <label>
+              <span>监测对象名称</span>
+              <input aria-label="监测对象名称" onChange={(event) => setWatchName(event.target.value)} placeholder="例如：增长雷达" value={watchName} />
+            </label>
+            <label>
+              <span>对象分类</span>
+              <input aria-label="对象分类" onChange={(event) => setWatchCategory(event.target.value)} placeholder="例如：商业情报" value={watchCategory} />
+            </label>
+            <div className="monitoring-watch-channels" aria-label="默认监测渠道">
+              {defaultWatchChannels.map((channel) => <span key={channel}>{channel}</span>)}
+            </div>
+            <button disabled={isSavingWatchItem} type="submit">{isSavingWatchItem ? "保存中..." : "保存监测对象"}</button>
+            {formError ? <p className="form-error" role="alert">{formError}</p> : null}
+          </form>
+        ) : null}
 
         <section className="module-overview-card competitor-monitoring-hero">
           <div className="module-overview-copy">

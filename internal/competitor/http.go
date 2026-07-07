@@ -18,6 +18,7 @@ type Application interface {
 	ListScans(ctx context.Context, userID int64, limit int) ([]Scan, error)
 	GetScan(ctx context.Context, userID, id int64) (Scan, error)
 	RetryScan(ctx context.Context, userID, id int64) (Scan, error)
+	CreateWatchItem(ctx context.Context, input CreateWatchItemInput) (WatchItem, error)
 	GetMonitoring(ctx context.Context, userID int64, limit int) (MonitoringSnapshot, error)
 }
 
@@ -34,6 +35,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/competitor/scans", h.listScans)
 	router.GET("/competitor/scans/:id", h.getScan)
 	router.POST("/competitor/scans/:id/retry", h.retryScan)
+	router.POST("/competitor/monitoring/watchlist", h.createWatchItem)
 	router.GET("/competitor/monitoring", h.monitoring)
 }
 
@@ -116,6 +118,25 @@ func (h *HTTPHandler) monitoring(c *gin.Context) {
 	c.JSON(http.StatusOK, snapshot)
 }
 
+func (h *HTTPHandler) createWatchItem(c *gin.Context) {
+	var request CreateWatchItemInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	if strings.TrimSpace(request.Name) == "" {
+		httpapi.BadRequest(c, "invalid_watch_item")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	item, err := h.app.CreateWatchItem(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
 func queryLimit(c *gin.Context) int {
 	limit, ok := httpapi.QueryLimit(c, 20, 100)
 	if !ok {
@@ -130,6 +151,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusNotFound, "scan_not_found")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+	case errors.Is(err, ErrInvalidWatchItem):
+		httpapi.BadRequest(c, "invalid_watch_item")
 	case errors.Is(err, membership.ErrQuotaExceeded):
 		httpapi.Error(c, http.StatusPaymentRequired, "quota_exceeded")
 	case errors.Is(err, membership.ErrQuotaNotFound):

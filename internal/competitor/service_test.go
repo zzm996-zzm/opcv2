@@ -11,14 +11,15 @@ import (
 )
 
 type fakeRepository struct {
-	createdScan Scan
-	scan        Scan
-	scans       []Scan
-	watchlist   []WatchItem
-	events      []Event
-	updates     []scanStatusUpdate
-	results     ScanResult
-	err         error
+	createdScan  Scan
+	createdWatch WatchItem
+	scan         Scan
+	scans        []Scan
+	watchlist    []WatchItem
+	events       []Event
+	updates      []scanStatusUpdate
+	results      ScanResult
+	err          error
 }
 
 type scanStatusUpdate struct {
@@ -127,6 +128,13 @@ func (r *fakeRepository) StoreScanResults(_ context.Context, id int64, result Sc
 	r.scan.Competitors = result.Competitors
 	r.scan.Conclusions = result.Conclusions
 	return r.err
+}
+
+func (r *fakeRepository) CreateWatchItem(_ context.Context, item WatchItem) (WatchItem, error) {
+	r.createdWatch = item
+	item.LastSeenAt = item.LastSeenAt.UTC()
+	r.watchlist = append([]WatchItem{item}, r.watchlist...)
+	return item, r.err
 }
 
 func (r *fakeRepository) ListWatchlist(_ context.Context, userID int64, limit int) ([]WatchItem, error) {
@@ -358,5 +366,46 @@ func TestServiceReturnsMonitoringSnapshot(t *testing.T) {
 	}
 	if len(snapshot.Watchlist) != 1 || len(snapshot.Events) != 1 {
 		t.Fatalf("snapshot = %+v", snapshot)
+	}
+}
+
+func TestServiceCreateWatchItemNormalizesInput(t *testing.T) {
+	now := time.Date(2026, 7, 7, 9, 30, 0, 0, time.UTC)
+	repository := &fakeRepository{}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	item, err := service.CreateWatchItem(context.Background(), CreateWatchItemInput{
+		UserID:   42,
+		Name:     " 增长雷达 ",
+		Category: " 商业情报 ",
+		Channels: []string{" 价格页 ", "", "招聘动态"},
+	})
+
+	if err != nil {
+		t.Fatalf("CreateWatchItem() error = %v", err)
+	}
+	if item.Name != "增长雷达" || item.Category != "商业情报" || item.Status != "监测中" || item.Threat != "中" {
+		t.Fatalf("item = %+v", item)
+	}
+	if item.LastSeenAt != now || len(item.Channels) != 2 || item.Channels[0] != "价格页" || item.Signal != "已创建监测规则，等待首次巡检。" {
+		t.Fatalf("item = %+v", item)
+	}
+	if repository.createdWatch.UserID != 42 {
+		t.Fatalf("created watch = %+v", repository.createdWatch)
+	}
+}
+
+func TestServiceCreateWatchItemRejectsBlankName(t *testing.T) {
+	service := NewService(&fakeRepository{})
+
+	_, err := service.CreateWatchItem(context.Background(), CreateWatchItemInput{
+		UserID:   42,
+		Name:     " ",
+		Channels: []string{"价格页"},
+	})
+
+	if !errors.Is(err, ErrInvalidWatchItem) {
+		t.Fatalf("err = %v, want ErrInvalidWatchItem", err)
 	}
 }

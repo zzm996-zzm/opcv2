@@ -48,6 +48,12 @@ export type CompetitorWatchItem = {
   signal: string;
 };
 
+export type CreateCompetitorWatchItemInput = {
+  name: string;
+  category: string;
+  channels: string[];
+};
+
 export type CompetitorEvent = {
   occurred_at: string;
   company: string;
@@ -85,6 +91,13 @@ export const competitorApi = {
   getMonitoring(limit = 20) {
     return apiRequest<{ watchlist: CompetitorWatchItem[]; events: CompetitorEvent[] }>(`/api/v1/competitor/monitoring?limit=${limit}`, {
       method: "GET"
+    });
+  },
+
+  createWatchItem(input: CreateCompetitorWatchItemInput) {
+    return apiRequest<CompetitorWatchItem>("/api/v1/competitor/monitoring/watchlist", {
+      method: "POST",
+      body: JSON.stringify(input)
     });
   }
 };

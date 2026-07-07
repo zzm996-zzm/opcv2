@@ -40,4 +40,20 @@ describe("competitorApi", () => {
       expect.objectContaining({ method: "POST" })
     );
   });
+
+  it("creates competitor monitoring watch items", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ name: "增长雷达", status: "监测中", channels: ["价格页"] }), { status: 200 }));
+
+    const item = await competitorApi.createWatchItem({ name: "增长雷达", category: "商业情报", channels: ["价格页"] });
+
+    expect(item.name).toBe("增长雷达");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/competitor/monitoring/watchlist",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ name: "增长雷达", category: "商业情报", channels: ["价格页"] })
+      })
+    );
+  });
 });

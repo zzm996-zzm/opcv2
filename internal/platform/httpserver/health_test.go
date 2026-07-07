@@ -565,6 +565,9 @@ func (fakeCompetitorApp) GetScan(context.Context, int64, int64) (competitor.Scan
 func (fakeCompetitorApp) RetryScan(context.Context, int64, int64) (competitor.Scan, error) {
 	return competitor.Scan{ID: 99, UserID: 42, Status: competitor.StatusQueued}, nil
 }
+func (fakeCompetitorApp) CreateWatchItem(context.Context, competitor.CreateWatchItemInput) (competitor.WatchItem, error) {
+	return competitor.WatchItem{Name: "小鹅通", Status: "监测中"}, nil
+}
 func (fakeCompetitorApp) GetMonitoring(context.Context, int64, int) (competitor.MonitoringSnapshot, error) {
 	return competitor.MonitoringSnapshot{Watchlist: []competitor.WatchItem{{Name: "小鹅通", Threat: "high"}}}, nil
 }

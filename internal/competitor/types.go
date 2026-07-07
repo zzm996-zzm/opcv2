@@ -14,14 +14,22 @@ const (
 )
 
 var (
-	ErrServiceNotReady = errors.New("competitor service is not configured")
-	ErrScanNotFound    = errors.New("competitor scan not found")
+	ErrServiceNotReady  = errors.New("competitor service is not configured")
+	ErrScanNotFound     = errors.New("competitor scan not found")
+	ErrInvalidWatchItem = errors.New("invalid competitor watch item")
 )
 
 type CreateScanInput struct {
 	UserID  int64    `json:"-"`
 	Targets []string `json:"targets"`
 	Focus   string   `json:"focus"`
+}
+
+type CreateWatchItemInput struct {
+	UserID   int64    `json:"-"`
+	Name     string   `json:"name"`
+	Category string   `json:"category"`
+	Channels []string `json:"channels"`
 }
 
 type ScanResult struct {
@@ -69,6 +77,7 @@ type EvidenceSource struct {
 }
 
 type WatchItem struct {
+	UserID     int64     `json:"-"`
 	Name       string    `json:"name"`
 	Category   string    `json:"category"`
 	Status     string    `json:"status"`

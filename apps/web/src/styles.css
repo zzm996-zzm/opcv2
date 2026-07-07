@@ -9955,6 +9955,79 @@ a {
   grid-template-columns: minmax(440px, 1fr) 390px;
 }
 
+.monitoring-watch-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.8fr) auto auto;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(31, 68, 140, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 18px 54px rgba(47, 91, 176, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.monitoring-watch-form label {
+  display: grid;
+  gap: 7px;
+  color: #425b91;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.monitoring-watch-form input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #071637;
+  background: rgba(248, 251, 255, 0.96);
+  border: 1px solid rgba(31, 68, 140, 0.13);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 760;
+  outline: 0;
+}
+
+.monitoring-watch-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 180px;
+}
+
+.monitoring-watch-channels span {
+  padding: 8px 10px;
+  color: #3156a4;
+  background: rgba(21, 87, 255, 0.08);
+  border: 1px solid rgba(21, 87, 255, 0.12);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.monitoring-watch-form button {
+  min-height: 38px;
+  padding: 0 16px;
+  color: white;
+  background: #1557ff;
+  border: 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 880;
+  cursor: pointer;
+}
+
+.monitoring-watch-form button:disabled {
+  background: #94a4c5;
+  cursor: not-allowed;
+}
+
+.monitoring-watch-form .form-error {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .monitoring-radar-card {
   display: grid;
   grid-template-columns: 154px minmax(0, 1fr);
@@ -26339,6 +26412,7 @@ a {
   .competitor-data-hero,
   .competitor-data-grid,
   .competitor-monitoring-hero,
+  .monitoring-watch-form,
   .growth-hero,
   .geo-hero,
   .leads-hero,

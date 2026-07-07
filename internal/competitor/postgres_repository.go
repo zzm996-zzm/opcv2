@@ -127,6 +127,18 @@ func (r *PostgresRepository) StoreScanResults(ctx context.Context, id int64, res
 	return nil
 }
 
+func (r *PostgresRepository) CreateWatchItem(ctx context.Context, item WatchItem) (WatchItem, error) {
+	channels, err := json.Marshal(item.Channels)
+	if err != nil {
+		return WatchItem{}, err
+	}
+	return scanWatchItem(r.db.QueryRow(ctx, `
+		INSERT INTO competitor_watchlist (user_id, name, category, status, threat, last_seen_at, channels, signal, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+		RETURNING name, category, status, threat, last_seen_at, channels, signal
+	`, item.UserID, item.Name, item.Category, item.Status, item.Threat, item.LastSeenAt, channels, item.Signal, item.LastSeenAt))
+}
+
 func (r *PostgresRepository) ListWatchlist(ctx context.Context, userID int64, limit int) ([]WatchItem, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT name, category, status, threat, last_seen_at, channels, signal
@@ -142,12 +154,8 @@ func (r *PostgresRepository) ListWatchlist(ctx context.Context, userID int64, li
 
 	var items []WatchItem
 	for rows.Next() {
-		var item WatchItem
-		var channels []byte
-		if err := rows.Scan(&item.Name, &item.Category, &item.Status, &item.Threat, &item.LastSeenAt, &channels, &item.Signal); err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(channels, &item.Channels); err != nil {
+		item, err := scanWatchItem(rows)
+		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -187,6 +195,18 @@ func (r *PostgresRepository) ListEvents(ctx context.Context, userID int64, limit
 
 type scanScanner interface {
 	Scan(dest ...any) error
+}
+
+func scanWatchItem(scanner scanScanner) (WatchItem, error) {
+	var item WatchItem
+	var channels []byte
+	if err := scanner.Scan(&item.Name, &item.Category, &item.Status, &item.Threat, &item.LastSeenAt, &channels, &item.Signal); err != nil {
+		return WatchItem{}, err
+	}
+	if err := json.Unmarshal(channels, &item.Channels); err != nil {
+		return WatchItem{}, err
+	}
+	return item, nil
 }
 
 func scanScan(scanner scanScanner) (Scan, error) {
