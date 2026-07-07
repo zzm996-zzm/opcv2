@@ -156,6 +156,72 @@ describe("CompetitorDataPage", () => {
     );
   });
 
+  it("creates a counter task from the latest competitor conclusion", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/scans?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          scans: [{
+            id: 11,
+            user_id: 7,
+            targets: ["商业沙盘竞品"],
+            focus: "价格和产品变化",
+            status: "completed",
+            competitors: [{
+              name: "增长雷达",
+              category: "竞品监测 / 商业情报",
+              score: 88,
+              signal: "新增自动化竞品预警和任务派发能力",
+              risk: "强",
+              tags: ["产品更新", "自动化"]
+            }],
+            conclusions: [
+              { title: "销售自动化提速", detail: "竞品正在把AI能力嵌入销售跟进链路。" }
+            ],
+            evidence_sources: [],
+            created_at: "2026-06-30T08:00:00Z",
+            updated_at: "2026-06-30T08:30:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 88,
+          user_id: 7,
+          title: "反击：销售自动化提速",
+          project: "竞品动态监测",
+          status: "todo",
+          priority: "high",
+          tools: ["竞品全盘数据破解", "任务中心"],
+          learning: "竞品正在把AI能力嵌入销售跟进链路。",
+          created_at: "2026-07-07T10:00:00Z",
+          updated_at: "2026-07-07T10:00:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderCompetitorDataPage();
+
+    expect(await screen.findByText("销售自动化提速")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "生成反击任务" }));
+
+    expect(await screen.findByText("已生成反击任务：反击：销售自动化提速")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          title: "反击：销售自动化提速",
+          project: "竞品动态监测",
+          priority: "high",
+          tools: ["竞品全盘数据破解", "任务中心"],
+          learning: "竞品正在把AI能力嵌入销售跟进链路。"
+        })
+      })
+    );
+  });
+
   it("shows backend load errors without rendering fallback competitor data", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "invalid_request" }), { status: 400 })

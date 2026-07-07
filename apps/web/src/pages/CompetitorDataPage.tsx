@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { competitorApi, type CompetitorScan } from "../lib/competitorApi";
+import { tasksApi } from "../lib/tasksApi";
 
 const emptyDataStats = [
   ["采集完成", "0%"],
@@ -53,6 +53,8 @@ function CompetitorDataPage() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [watchlistMessage, setWatchlistMessage] = useState("");
   const [addingWatchCompetitor, setAddingWatchCompetitor] = useState("");
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [taskMessage, setTaskMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -104,6 +106,7 @@ function CompetitorDataPage() {
   const visibleCompetitors = latestScan?.competitors ?? [];
   const visibleConclusions = latestScan?.conclusions.map((item) => [item.title, item.detail] as const) ?? [];
   const visibleEvidenceSources = latestScan?.evidence_sources ?? [];
+  const primaryConclusion = latestScan?.conclusions[0];
 
   async function startScan() {
     if (isScanning) return;
@@ -149,6 +152,27 @@ function CompetitorDataPage() {
     }
   }
 
+  async function createCounterTask() {
+    if (isCreatingTask || !primaryConclusion) return;
+    setIsCreatingTask(true);
+    setTaskMessage("");
+    try {
+      const task = await tasksApi.createTask({
+        title: `反击：${primaryConclusion.title}`,
+        project: "竞品动态监测",
+        priority: "high",
+        tools: ["竞品全盘数据破解", "任务中心"],
+        learning: primaryConclusion.detail
+      });
+      setLoadError("");
+      setTaskMessage(`已生成反击任务：${task.title}`);
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法生成反击任务"));
+    } finally {
+      setIsCreatingTask(false);
+    }
+  }
+
   return (
     <V4PageShell className="competitor-data-shell">
       <section className="module-page competitor-data-page" aria-label="竞品全盘数据破解">
@@ -163,6 +187,7 @@ function CompetitorDataPage() {
         </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
         {watchlistMessage ? <p className="form-success" role="status">{watchlistMessage}</p> : null}
+        {taskMessage ? <p className="form-success" role="status">{taskMessage}</p> : null}
 
         <section className="module-overview-card competitor-data-hero">
           <div className="module-overview-copy">
@@ -314,7 +339,9 @@ function CompetitorDataPage() {
             <h2>建议动作</h2>
             <strong>{visibleConclusions.length > 0 ? "根据破解结论生成反击任务" : "暂无建议动作"}</strong>
             <p>{visibleConclusions[0]?.[1] ?? "完成一次竞品采集后，这里会显示后端生成的反击建议。"}</p>
-            <Link to="/tasks">生成反击任务</Link>
+            <button disabled={!primaryConclusion || isCreatingTask} onClick={() => void createCounterTask()} type="button">
+              {isCreatingTask ? "生成中..." : "生成反击任务"}
+            </button>
           </aside>
         </section>
       </section>

@@ -9941,7 +9941,8 @@ a {
   font-weight: 900;
 }
 
-.competitor-action-card a {
+.competitor-action-card a,
+.competitor-action-card button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -9951,9 +9952,16 @@ a {
   padding: 0 16px;
   color: white;
   background: #1557ff;
+  border: 0;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 850;
+  cursor: pointer;
+}
+
+.competitor-action-card button:disabled {
+  background: #93a5ca;
+  cursor: not-allowed;
 }
 
 .competitor-monitoring-page {
