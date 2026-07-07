@@ -198,6 +198,14 @@ describe("EnterprisePage", () => {
         id: 99,
         title: "跟进企业诊断：30人销售团队需要AI获客陪跑",
         status: "todo"
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 8,
+        user_id: 42,
+        need: "30人销售团队需要AI获客陪跑",
+        status: "follow_up_created",
+        created_at: "2026-07-07T10:30:00Z",
+        updated_at: "2026-07-07T11:30:00Z"
       }), { status: 200 }));
     authSession.set({
       access_token: "access-token",
@@ -225,6 +233,11 @@ describe("EnterprisePage", () => {
         learning: "围绕企业需求制定陪跑方案：30人销售团队需要AI获客陪跑"
       })
     })));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests/8", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ status: "follow_up_created" })
+    })));
     expect(await screen.findByText("跟进任务已生成")).toBeInTheDocument();
+    expect(screen.getByText(/follow_up_created/)).toBeInTheDocument();
   });
 });

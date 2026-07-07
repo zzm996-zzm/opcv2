@@ -45,6 +45,10 @@ export type EnterpriseDiagnosisRequestInput = {
   need: string;
 };
 
+export type EnterpriseDiagnosisRequestUpdateInput = {
+  status: "follow_up_created" | "in_delivery";
+};
+
 export type EnterpriseDiagnosisRequest = {
   id: number;
   user_id: number;
@@ -70,6 +74,13 @@ export const enterpriseApi = {
   createDiagnosisRequest(input: EnterpriseDiagnosisRequestInput) {
     return apiRequest<EnterpriseDiagnosisRequest>("/api/v1/enterprise/diagnosis-requests", {
       method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+
+  updateDiagnosisRequest(id: number, input: EnterpriseDiagnosisRequestUpdateInput) {
+    return apiRequest<EnterpriseDiagnosisRequest>(`/api/v1/enterprise/diagnosis-requests/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(input)
     });
   }

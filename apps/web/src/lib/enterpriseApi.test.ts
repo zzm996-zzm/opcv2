@@ -48,4 +48,18 @@ describe("enterpriseApi", () => {
     expect(response.requests).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests?limit=5", expect.any(Object));
   });
+
+  it("updates an enterprise diagnosis request", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 7, user_id: 42, need: "30人销售团队需要AI获客陪跑", status: "follow_up_created" }), { status: 200 })
+    );
+
+    const request = await enterpriseApi.updateDiagnosisRequest(7, { status: "follow_up_created" });
+
+    expect(request.status).toBe("follow_up_created");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests/7", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ status: "follow_up_created" })
+    }));
+  });
 });

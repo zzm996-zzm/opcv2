@@ -98,6 +98,8 @@ function EnterprisePage() {
         tools: ["企业诊断", "CRM"],
         learning: `围绕企业需求制定陪跑方案：${request.need}`
       });
+      const updatedRequest = await enterpriseApi.updateDiagnosisRequest(request.id, { status: "follow_up_created" });
+      setDiagnosisRequests((current) => current.map((item) => (item.id === updatedRequest.id ? updatedRequest : item)));
       setTaskStatusByRequestId((current) => ({ ...current, [request.id]: "跟进任务已生成" }));
     } catch (error) {
       setTaskErrorByRequestId((current) => ({
