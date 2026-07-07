@@ -47,6 +47,7 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 					WHEN 'submitted' THEN 1
 					WHEN 'follow_up_created' THEN 2
 					WHEN 'in_delivery' THEN 3
+					WHEN 'completed' THEN 4
 					ELSE 9
 				END AS sort_order,
 				0 AS id,
@@ -54,6 +55,7 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 					WHEN 'submitted' THEN '待承接预约'
 					WHEN 'follow_up_created' THEN '已生成跟进'
 					WHEN 'in_delivery' THEN '交付中预约'
+					WHEN 'completed' THEN '已完成交付'
 					ELSE '其他预约'
 				END AS stage,
 				COUNT(*)::int AS count,
@@ -61,6 +63,7 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 					WHEN 'submitted' THEN '等待生成跟进任务'
 					WHEN 'follow_up_created' THEN '已生成任务，等待进入交付'
 					WHEN 'in_delivery' THEN '已进入企业陪跑交付'
+					WHEN 'completed' THEN '已完成交付并沉淀案例'
 					ELSE '其他诊断预约状态'
 				END AS detail
 			FROM enterprise_diagnosis_requests
@@ -98,14 +101,26 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 			AddRow("07-07", "交付启动", "30人销售团队需要AI获客陪跑"))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT id, company, result
-		FROM enterprise_cases
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, company, result
+			FROM enterprise_cases
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 AS sort_order,
+				-id AS id,
+				'企业诊断交付' AS company,
+				need AS result
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1 AND status = 'completed'
+		) cases
 		ORDER BY sort_order ASC, id ASC
 		LIMIT 50
 	`)).
 		WithArgs(int64(42)).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "company", "result"}).
-			AddRow(int64(9), "后端企业案例", "完成落地复盘"))
+			AddRow(int64(9), "后端企业案例", "完成落地复盘").
+			AddRow(int64(-7), "企业诊断交付", "30人销售团队需要AI获客陪跑"))
 
 	repository := NewPostgresRepository(db)
 	overview, err := repository.Overview(context.Background(), 42)
@@ -125,7 +140,7 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 	if len(overview.Milestones) != 2 || overview.Milestones[0].Title != "后端里程碑" || overview.Milestones[1].Title != "交付启动" {
 		t.Fatalf("milestones = %+v", overview.Milestones)
 	}
-	if len(overview.Cases) != 1 || overview.Cases[0].Company != "后端企业案例" {
+	if len(overview.Cases) != 2 || overview.Cases[0].Company != "后端企业案例" || overview.Cases[1].Company != "企业诊断交付" {
 		t.Fatalf("cases = %+v", overview.Cases)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
@@ -169,6 +184,7 @@ func TestPostgresRepositoryReturnsEmptyOverviewArrays(t *testing.T) {
 					WHEN 'submitted' THEN 1
 					WHEN 'follow_up_created' THEN 2
 					WHEN 'in_delivery' THEN 3
+					WHEN 'completed' THEN 4
 					ELSE 9
 				END AS sort_order,
 				0 AS id,
@@ -176,6 +192,7 @@ func TestPostgresRepositoryReturnsEmptyOverviewArrays(t *testing.T) {
 					WHEN 'submitted' THEN '待承接预约'
 					WHEN 'follow_up_created' THEN '已生成跟进'
 					WHEN 'in_delivery' THEN '交付中预约'
+					WHEN 'completed' THEN '已完成交付'
 					ELSE '其他预约'
 				END AS stage,
 				COUNT(*)::int AS count,
@@ -183,6 +200,7 @@ func TestPostgresRepositoryReturnsEmptyOverviewArrays(t *testing.T) {
 					WHEN 'submitted' THEN '等待生成跟进任务'
 					WHEN 'follow_up_created' THEN '已生成任务，等待进入交付'
 					WHEN 'in_delivery' THEN '已进入企业陪跑交付'
+					WHEN 'completed' THEN '已完成交付并沉淀案例'
 					ELSE '其他诊断预约状态'
 				END AS detail
 			FROM enterprise_diagnosis_requests
@@ -216,8 +234,19 @@ func TestPostgresRepositoryReturnsEmptyOverviewArrays(t *testing.T) {
 		WillReturnRows(pgxmock.NewRows([]string{"time_label", "title", "detail"}))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT id, company, result
-		FROM enterprise_cases
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, company, result
+			FROM enterprise_cases
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 AS sort_order,
+				-id AS id,
+				'企业诊断交付' AS company,
+				need AS result
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1 AND status = 'completed'
+		) cases
 		ORDER BY sort_order ASC, id ASC
 		LIMIT 50
 	`)).

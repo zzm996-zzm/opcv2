@@ -187,6 +187,7 @@ func (r *PostgresRepository) deliveryBoard(ctx context.Context, userID int64) ([
 					WHEN 'submitted' THEN 1
 					WHEN 'follow_up_created' THEN 2
 					WHEN 'in_delivery' THEN 3
+					WHEN 'completed' THEN 4
 					ELSE 9
 				END AS sort_order,
 				0 AS id,
@@ -194,6 +195,7 @@ func (r *PostgresRepository) deliveryBoard(ctx context.Context, userID int64) ([
 					WHEN 'submitted' THEN '待承接预约'
 					WHEN 'follow_up_created' THEN '已生成跟进'
 					WHEN 'in_delivery' THEN '交付中预约'
+					WHEN 'completed' THEN '已完成交付'
 					ELSE '其他预约'
 				END AS stage,
 				COUNT(*)::int AS count,
@@ -201,6 +203,7 @@ func (r *PostgresRepository) deliveryBoard(ctx context.Context, userID int64) ([
 					WHEN 'submitted' THEN '等待生成跟进任务'
 					WHEN 'follow_up_created' THEN '已生成任务，等待进入交付'
 					WHEN 'in_delivery' THEN '已进入企业陪跑交付'
+					WHEN 'completed' THEN '已完成交付并沉淀案例'
 					ELSE '其他诊断预约状态'
 				END AS detail
 			FROM enterprise_diagnosis_requests
@@ -264,8 +267,19 @@ func (r *PostgresRepository) milestones(ctx context.Context, userID int64) ([]Mi
 func (r *PostgresRepository) cases(ctx context.Context, userID int64) ([]Case, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, company, result
-		FROM enterprise_cases
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, company, result
+			FROM enterprise_cases
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 AS sort_order,
+				-id AS id,
+				'企业诊断交付' AS company,
+				need AS result
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1 AND status = 'completed'
+		) cases
 		ORDER BY sort_order ASC, id ASC
 		LIMIT 50
 	`, userID)

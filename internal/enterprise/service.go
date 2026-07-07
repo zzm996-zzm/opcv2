@@ -80,7 +80,7 @@ func (s *Service) UpdateDiagnosisRequest(ctx context.Context, userID int64, requ
 		return DiagnosisRequest{}, ErrInvalidInput
 	}
 	input.Status = strings.TrimSpace(input.Status)
-	if input.Status != "follow_up_created" && input.Status != "in_delivery" {
+	if input.Status != "follow_up_created" && input.Status != "in_delivery" && input.Status != "completed" {
 		return DiagnosisRequest{}, ErrInvalidInput
 	}
 	return s.repository.UpdateDiagnosisRequest(ctx, userID, requestID, input)

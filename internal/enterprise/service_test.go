@@ -145,6 +145,20 @@ func TestServiceUpdatesDiagnosisRequestStatus(t *testing.T) {
 	}
 }
 
+func TestServiceAllowsCompletedDiagnosisRequestStatus(t *testing.T) {
+	repository := &fakeRepository{diagnosis: DiagnosisRequest{ID: 7, Status: "completed"}}
+	service := NewService(repository)
+
+	request, err := service.UpdateDiagnosisRequest(context.Background(), 42, 7, DiagnosisRequestUpdateInput{Status: "completed"})
+
+	if err != nil {
+		t.Fatalf("UpdateDiagnosisRequest() error = %v", err)
+	}
+	if request.Status != "completed" || repository.updateInput.Status != "completed" {
+		t.Fatalf("request/repository = %+v/%+v", request, repository)
+	}
+}
+
 func TestServiceRejectsInvalidDiagnosisRequestStatus(t *testing.T) {
 	service := NewService(&fakeRepository{})
 
