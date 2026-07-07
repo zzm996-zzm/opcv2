@@ -160,8 +160,8 @@ function TasksPage() {
       const updated = await tasksApi.updateTask(taskID, { status: "completed" });
       setApiTasks((current) => current.map((task) => task.id === taskID ? updated : task));
       setApiStats(null);
-    } catch {
-      // Keep the current row unchanged; a global toast system can surface this later.
+    } catch (error) {
+      setListError(apiErrorMessage(error, "暂时无法更新任务状态"));
     } finally {
       setSavingTaskID(null);
     }

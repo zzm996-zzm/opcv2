@@ -198,6 +198,45 @@ describe("TasksPage", () => {
     expect(within(completedStat as HTMLElement).getByText("1")).toBeInTheDocument();
   });
 
+  it("shows task update errors from the row action", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [{
+            id: 41,
+            user_id: 7,
+            title: "联调商业沙盘接口",
+            project: "商业沙盘",
+            status: "in_progress",
+            priority: "high",
+            due_at: "2026-06-30T10:00:00Z",
+            tools: ["沙盘推演", "任务中心"],
+            learning: "后端接口联调",
+            created_at: "2026-06-29T10:00:00Z",
+            updated_at: "2026-06-30T09:00:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 0, in_progress: 1, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/41" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({ error: "request_failed" }), { status: 500 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    const taskHeading = await screen.findByRole("heading", { name: "联调商业沙盘接口" });
+    const taskRow = taskHeading.closest("article") as HTMLElement;
+    fireEvent.click(within(taskRow).getByRole("button", { name: "标记完成" }));
+
+    expect(await screen.findByText("请求失败，请稍后重试")).toBeInTheDocument();
+    expect(within(taskRow).getByText("进行中")).toBeInTheDocument();
+  });
+
   it("creates a task from the goal input", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
