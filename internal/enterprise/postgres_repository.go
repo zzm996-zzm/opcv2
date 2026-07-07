@@ -228,8 +228,20 @@ func (r *PostgresRepository) deliveryBoard(ctx context.Context, userID int64) ([
 func (r *PostgresRepository) milestones(ctx context.Context, userID int64) ([]Milestone, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT time_label, title, detail
-		FROM enterprise_milestones
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, time_label, title, detail
+			FROM enterprise_milestones
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 AS sort_order,
+				id,
+				to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'MM-DD') AS time_label,
+				'交付启动' AS title,
+				need AS detail
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1 AND status = 'in_delivery'
+		) milestones
 		ORDER BY sort_order ASC, id ASC
 		LIMIT 50
 	`, userID)

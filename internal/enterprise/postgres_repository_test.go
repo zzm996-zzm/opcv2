@@ -75,14 +75,27 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 			AddRow("待承接预约", 1, "等待生成跟进任务"))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT time_label, title, detail
-		FROM enterprise_milestones
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, time_label, title, detail
+			FROM enterprise_milestones
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 AS sort_order,
+				id,
+				to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'MM-DD') AS time_label,
+				'交付启动' AS title,
+				need AS detail
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1 AND status = 'in_delivery'
+		) milestones
 		ORDER BY sort_order ASC, id ASC
 		LIMIT 50
 	`)).
 		WithArgs(int64(42)).
 		WillReturnRows(pgxmock.NewRows([]string{"time_label", "title", "detail"}).
-			AddRow("第1周", "后端里程碑", "完成诊断"))
+			AddRow("第1周", "后端里程碑", "完成诊断").
+			AddRow("07-07", "交付启动", "30人销售团队需要AI获客陪跑"))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT id, company, result
 		FROM enterprise_cases
@@ -109,7 +122,7 @@ func TestPostgresRepositoryBuildsOverviewFromEnterpriseTables(t *testing.T) {
 	if len(overview.DeliveryBoard) != 2 || overview.DeliveryBoard[0].Count != 2 || overview.DeliveryBoard[1].Stage != "待承接预约" {
 		t.Fatalf("delivery board = %+v", overview.DeliveryBoard)
 	}
-	if len(overview.Milestones) != 1 || overview.Milestones[0].Title != "后端里程碑" {
+	if len(overview.Milestones) != 2 || overview.Milestones[0].Title != "后端里程碑" || overview.Milestones[1].Title != "交付启动" {
 		t.Fatalf("milestones = %+v", overview.Milestones)
 	}
 	if len(overview.Cases) != 1 || overview.Cases[0].Company != "后端企业案例" {
@@ -182,8 +195,20 @@ func TestPostgresRepositoryReturnsEmptyOverviewArrays(t *testing.T) {
 		WillReturnRows(pgxmock.NewRows([]string{"stage", "count", "detail"}))
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT time_label, title, detail
-		FROM enterprise_milestones
-		WHERE user_id = $1
+		FROM (
+			SELECT sort_order, id, time_label, title, detail
+			FROM enterprise_milestones
+			WHERE user_id = $1
+			UNION ALL
+			SELECT
+				900 AS sort_order,
+				id,
+				to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'MM-DD') AS time_label,
+				'交付启动' AS title,
+				need AS detail
+			FROM enterprise_diagnosis_requests
+			WHERE user_id = $1 AND status = 'in_delivery'
+		) milestones
 		ORDER BY sort_order ASC, id ASC
 		LIMIT 50
 	`)).
