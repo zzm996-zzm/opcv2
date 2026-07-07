@@ -377,7 +377,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   <small>从项目确定到规模增长，智活AI 助你高效决策、快速落地、持续增长。</small>
                 )}
                 {signedIn && accountSummary && (
-                  <div className="module-chip-row compact">
+                  <div className="home-account-summary" aria-label="账户权益概览">
                     <span>{accountSummary.plan_name}</span>
                     <span>{accountSummary.credit_balance} 积分</span>
                     {accountSummary.quota_warnings.map((warning) => (

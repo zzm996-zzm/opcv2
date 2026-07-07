@@ -2203,6 +2203,36 @@ a {
   font-size: 14px;
 }
 
+.home-account-summary {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 520px;
+  margin-top: 14px;
+}
+
+.home-account-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 11px;
+  color: #31518f;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(31, 55, 112, 0.07);
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.home-account-summary span:first-child {
+  color: #1f5fff;
+  background: rgba(238, 244, 255, 0.92);
+  border-color: rgba(31, 95, 255, 0.12);
+}
+
 .stat-strip {
   min-height: 78px;
   background: rgba(255, 255, 255, 0.86);
