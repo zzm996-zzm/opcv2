@@ -84,6 +84,7 @@ type ListCustomersInput struct {
 type ListFollowUpsInput struct {
 	UserID     int64
 	CustomerID int64
+	Q          string
 	Limit      int
 }
 

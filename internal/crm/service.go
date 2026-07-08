@@ -213,6 +213,7 @@ func (s *Service) ListFollowUps(ctx context.Context, input ListFollowUpsInput) (
 	if input.Limit <= 0 || input.Limit > 100 {
 		input.Limit = defaultListLimit
 	}
+	input.Q = strings.TrimSpace(input.Q)
 	return s.repository.ListFollowUps(ctx, input)
 }
 

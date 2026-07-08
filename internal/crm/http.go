@@ -188,6 +188,7 @@ func (h *HTTPHandler) listFollowUps(c *gin.Context) {
 	followUps, err := h.app.ListFollowUps(c.Request.Context(), ListFollowUpsInput{
 		UserID:     c.GetInt64(auth.UserIDContextKey),
 		CustomerID: customerID,
+		Q:          c.Query("q"),
 		Limit:      limit,
 	})
 	if err != nil {

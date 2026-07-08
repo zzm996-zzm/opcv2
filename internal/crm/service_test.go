@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -141,11 +142,15 @@ func (r *memoryRepository) ListActivities(_ context.Context, userID, customerID 
 
 func (r *memoryRepository) ListFollowUps(_ context.Context, input ListFollowUpsInput) ([]FollowUp, error) {
 	var followups []FollowUp
+	query := strings.ToLower(strings.TrimSpace(input.Q))
 	for _, followUp := range r.followups {
 		if followUp.UserID != input.UserID {
 			continue
 		}
 		if input.CustomerID > 0 && followUp.CustomerID != input.CustomerID {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(followUp.Note), query) && strconv.FormatInt(followUp.CustomerID, 10) != query {
 			continue
 		}
 		followups = append(followups, followUp)
@@ -352,6 +357,14 @@ func TestServiceListsFollowUpsForUser(t *testing.T) {
 		t.Fatalf("ListFollowUps() error = %v", err)
 	}
 	if len(followups) != 1 || followups[0].Note != "发送方案" {
+		t.Fatalf("followups = %+v", followups)
+	}
+
+	followups, err = service.ListFollowUps(context.Background(), ListFollowUpsInput{UserID: 42, Q: "预约"})
+	if err != nil {
+		t.Fatalf("ListFollowUps() with q error = %v", err)
+	}
+	if len(followups) != 1 || followups[0].CustomerID != 101 {
 		t.Fatalf("followups = %+v", followups)
 	}
 }

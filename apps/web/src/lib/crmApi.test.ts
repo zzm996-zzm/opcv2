@@ -97,13 +97,13 @@ describe("crmApi", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1 }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ subject: "跟进方案", body: "您好", channel: "wechat" }), { status: 200 }));
 
-    await crmApi.listFollowUps({ customerId: 100, limit: 10 });
+    await crmApi.listFollowUps({ customerId: 100, q: "方案", limit: 10 });
     await crmApi.recordFollowUp(100, { note: "已发资料", nextFollowUpAt: "2026-06-26T10:00:00Z" });
     await crmApi.generateFollowUpCopy(100, { goal: "推进方案会" });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/api/v1/crm/follow-ups?customer_id=100&limit=10",
+      "/api/v1/crm/follow-ups?customer_id=100&q=%E6%96%B9%E6%A1%88&limit=10",
       expect.objectContaining({ method: "GET" })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(

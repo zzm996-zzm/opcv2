@@ -253,10 +253,12 @@ func (r *PostgresRepository) ListFollowUps(ctx context.Context, input ListFollow
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, customer_id, note, next_follow_up_at, created_at
 		FROM crm_followups
-		WHERE user_id = $1 AND ($2 = 0 OR customer_id = $2)
+		WHERE user_id = $1
+			AND ($2 = 0 OR customer_id = $2)
+			AND ($4 = '' OR note ILIKE '%' || $4 || '%' OR customer_id::text = $4)
 		ORDER BY next_follow_up_at ASC, created_at DESC, id DESC
 		LIMIT $3
-	`, input.UserID, input.CustomerID, input.Limit)
+	`, input.UserID, input.CustomerID, input.Limit, input.Q)
 	if err != nil {
 		return nil, err
 	}

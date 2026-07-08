@@ -572,6 +572,64 @@ describe("CrmPage", () => {
     expect(within(table).getByRole("link", { name: "查看详情" })).toHaveAttribute("href", "/crm?customer_id=100");
   });
 
+  it("searches follow-up records through the backend API", async () => {
+    signIn();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (String(url).includes("/api/v1/crm/customers?")) {
+        return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
+      }
+      if (String(url).includes("/api/v1/crm/pipeline-stats")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 0,
+          new: 0,
+          contacted: 0,
+          qualified: 0,
+          proposal: 0,
+          won: 0,
+          lost: 0,
+          due_today: 0
+        }), { status: 200 }));
+      }
+      if (String(url).includes("q=%E6%BC%94%E7%A4%BA")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          follow_ups: [{
+            id: 2,
+            user_id: 7,
+            customer_id: 101,
+            note: "预约下周演示",
+            next_follow_up_at: "2026-06-26T10:00:00Z",
+            created_at: "2026-06-24T13:00:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({
+        follow_ups: [{
+          id: 1,
+          user_id: 7,
+          customer_id: 100,
+          note: "已发送企业AI运营方案",
+          next_follow_up_at: "2026-06-25T14:00:00Z",
+          created_at: "2026-06-24T12:00:00Z"
+        }]
+      }), { status: 200 }));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/crm/follow-ups"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect((await screen.findAllByText("已发送企业AI运营方案")).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("搜索跟进记录"), {
+      target: { value: "演示" }
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?q=%E6%BC%94%E7%A4%BA&limit=20", expect.any(Object)));
+    expect((await screen.findAllByText("预约下周演示")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("已发送企业AI运营方案")).not.toBeInTheDocument();
+  });
+
   it("loads follow-up records for a specific customer from query string", async () => {
     signIn();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(

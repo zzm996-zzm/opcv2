@@ -539,13 +539,19 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
 function FollowUpsPage() {
   const location = useLocation();
   const [apiFollowUps, setApiFollowUps] = useState<CrmFollowUp[]>([]);
+  const [followUpQuery, setFollowUpQuery] = useState("");
   const [error, setError] = useState("");
   const customerID = Number(new URLSearchParams(location.search).get("customer_id") ?? 0);
 
   useEffect(() => {
     let active = true;
+    setError("");
     crmApi
-      .listFollowUps({ customerId: customerID > 0 ? customerID : undefined, limit: 20 })
+      .listFollowUps({
+        customerId: customerID > 0 ? customerID : undefined,
+        q: followUpQuery.trim() || undefined,
+        limit: 20
+      })
       .then((payload) => {
         if (active) setApiFollowUps(payload.follow_ups);
       })
@@ -555,7 +561,7 @@ function FollowUpsPage() {
     return () => {
       active = false;
     };
-  }, [customerID]);
+  }, [customerID, followUpQuery]);
 
   const visibleFollowRows = apiFollowUps.map(toFollowRow);
   const now = Date.now();
@@ -608,7 +614,12 @@ function FollowUpsPage() {
               ))}
             </div>
             <label>
-              <input aria-label="搜索跟进记录" placeholder="搜索客户/公司/负责人" />
+              <input
+                aria-label="搜索跟进记录"
+                placeholder="搜索跟进内容/客户ID"
+                value={followUpQuery}
+                onChange={(event) => setFollowUpQuery(event.target.value)}
+              />
               <span aria-hidden="true">⌕</span>
             </label>
             <button type="button">阶段筛选⌄</button>
