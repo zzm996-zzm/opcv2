@@ -18,6 +18,7 @@ type Repository interface {
 	UpdateCustomer(ctx context.Context, input UpdateCustomerInput, activity Activity) (Customer, error)
 	UpdateStage(ctx context.Context, userID, customerID int64, stage string, activity Activity) (Customer, error)
 	RecordFollowUp(ctx context.Context, followUp FollowUp, activity Activity) (FollowUp, error)
+	RescheduleFollowUp(ctx context.Context, userID, followUpID int64, nextFollowUpAt time.Time, activity Activity) (FollowUp, error)
 	ListActivities(ctx context.Context, userID, customerID int64, limit int) ([]Activity, error)
 	ListFollowUps(ctx context.Context, input ListFollowUpsInput) ([]FollowUp, error)
 	ListDueCustomers(ctx context.Context, userID int64, dueBefore time.Time, limit int) ([]Customer, error)
@@ -224,6 +225,22 @@ func (s *Service) RecordFollowUp(ctx context.Context, input RecordFollowUpInput)
 		CreatedAt:  now,
 	}
 	return s.repository.RecordFollowUp(ctx, followUp, activity)
+}
+
+func (s *Service) RescheduleFollowUp(ctx context.Context, input RescheduleFollowUpInput) (FollowUp, error) {
+	if s.repository == nil {
+		return FollowUp{}, ErrServiceNotReady
+	}
+	if input.UserID <= 0 || input.FollowUpID <= 0 || input.NextFollowUpAt.IsZero() {
+		return FollowUp{}, ErrInvalidInput
+	}
+	now := s.now()
+	return s.repository.RescheduleFollowUp(ctx, input.UserID, input.FollowUpID, input.NextFollowUpAt, Activity{
+		UserID:    input.UserID,
+		Type:      ActivityFollowUpRescheduled,
+		Note:      "跟进时间已改期",
+		CreatedAt: now,
+	})
 }
 
 func (s *Service) ListFollowUps(ctx context.Context, input ListFollowUpsInput) ([]FollowUp, error) {

@@ -745,6 +745,68 @@ describe("CrmPage", () => {
     expect((await screen.findAllByText("本周安排方案复盘")).length).toBeGreaterThan(0);
   });
 
+  it("reschedules a follow-up record from the follow-up list", async () => {
+    signIn();
+    const nextInputValue = "2026-06-27T15:00";
+    const expectedNextAt = new Date(nextInputValue).toISOString();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
+      if (String(url).includes("/api/v1/crm/customers?")) {
+        return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
+      }
+      if (String(url).includes("/api/v1/crm/pipeline-stats")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 0,
+          new: 0,
+          contacted: 0,
+          qualified: 0,
+          proposal: 0,
+          won: 0,
+          lost: 0,
+          due_today: 0
+        }), { status: 200 }));
+      }
+      if (String(url) === "/api/v1/crm/follow-ups/1" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 1,
+          user_id: 7,
+          customer_id: 100,
+          note: "已发送企业AI运营方案",
+          next_follow_up_at: expectedNextAt,
+          created_at: "2026-06-24T12:00:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({
+        follow_ups: [{
+          id: 1,
+          user_id: 7,
+          customer_id: 100,
+          note: "已发送企业AI运营方案",
+          next_follow_up_at: "2026-06-25T14:00:00Z",
+          created_at: "2026-06-24T12:00:00Z"
+        }]
+      }), { status: 200 }));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/crm/follow-ups"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect((await screen.findAllByText("客户 #100")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "改期" }));
+    fireEvent.change(screen.getByLabelText("改期时间 #1"), {
+      target: { value: nextInputValue }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存改期" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups/1", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ next_follow_up_at: expectedNextAt })
+    })));
+    expect(await screen.findByText("跟进时间已改期")).toBeInTheDocument();
+  });
+
   it("loads follow-up records for a specific customer from query string", async () => {
     signIn();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(

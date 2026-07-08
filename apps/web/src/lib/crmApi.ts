@@ -161,6 +161,15 @@ export const crmApi = {
     });
   },
 
+  rescheduleFollowUp(followUpId: number, input: { nextFollowUpAt: string }) {
+    return apiRequest<CrmFollowUp>(`/api/v1/crm/follow-ups/${followUpId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        next_follow_up_at: input.nextFollowUpAt
+      })
+    });
+  },
+
   generateFollowUpCopy(customerId: number, input: { goal: string }) {
     return apiRequest<CrmFollowUpCopy>(`/api/v1/crm/customers/${customerId}/follow-up-copy`, {
       method: "POST",

@@ -19,9 +19,10 @@ const (
 )
 
 const (
-	ActivityStageChanged     = "stage_changed"
-	ActivityFollowUpRecorded = "follow_up_recorded"
-	ActivityCustomerUpdated  = "customer_updated"
+	ActivityStageChanged        = "stage_changed"
+	ActivityFollowUpRecorded    = "follow_up_recorded"
+	ActivityFollowUpRescheduled = "follow_up_rescheduled"
+	ActivityCustomerUpdated     = "customer_updated"
 )
 
 var (
@@ -74,6 +75,12 @@ type RecordFollowUpInput struct {
 	UserID         int64     `json:"-"`
 	CustomerID     int64     `json:"-"`
 	Note           string    `json:"note"`
+	NextFollowUpAt time.Time `json:"next_follow_up_at"`
+}
+
+type RescheduleFollowUpInput struct {
+	UserID         int64     `json:"-"`
+	FollowUpID     int64     `json:"-"`
 	NextFollowUpAt time.Time `json:"next_follow_up_at"`
 }
 

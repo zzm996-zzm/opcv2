@@ -13,26 +13,27 @@ import (
 )
 
 type fakeApplication struct {
-	createInput    CreateCustomerInput
-	importInput    ImportLeadInput
-	listInput      ListCustomersInput
-	updateInput    UpdateCustomerInput
-	stageInput     UpdateStageInput
-	followUpInput  RecordFollowUpInput
-	followUpsInput ListFollowUpsInput
-	copyInput      FollowUpCopyInput
-	dueInput       ListDueInput
-	customer       Customer
-	customers      []Customer
-	followUp       FollowUp
-	followUps      []FollowUp
-	activities     []Activity
-	copy           FollowUpCopy
-	stats          PipelineStats
-	getUserID      int64
-	getCustomerID  int64
-	statsUserID    int64
-	err            error
+	createInput     CreateCustomerInput
+	importInput     ImportLeadInput
+	listInput       ListCustomersInput
+	updateInput     UpdateCustomerInput
+	stageInput      UpdateStageInput
+	followUpInput   RecordFollowUpInput
+	rescheduleInput RescheduleFollowUpInput
+	followUpsInput  ListFollowUpsInput
+	copyInput       FollowUpCopyInput
+	dueInput        ListDueInput
+	customer        Customer
+	customers       []Customer
+	followUp        FollowUp
+	followUps       []FollowUp
+	activities      []Activity
+	copy            FollowUpCopy
+	stats           PipelineStats
+	getUserID       int64
+	getCustomerID   int64
+	statsUserID     int64
+	err             error
 }
 
 func (a *fakeApplication) CreateCustomer(_ context.Context, input CreateCustomerInput) (Customer, error) {
@@ -68,6 +69,11 @@ func (a *fakeApplication) UpdateStage(_ context.Context, input UpdateStageInput)
 
 func (a *fakeApplication) RecordFollowUp(_ context.Context, input RecordFollowUpInput) (FollowUp, error) {
 	a.followUpInput = input
+	return a.followUp, a.err
+}
+
+func (a *fakeApplication) RescheduleFollowUp(_ context.Context, input RescheduleFollowUpInput) (FollowUp, error) {
+	a.rescheduleInput = input
 	return a.followUp, a.err
 }
 
@@ -321,6 +327,27 @@ func TestListFollowUpsEndpointReturnsEmptyArray(t *testing.T) {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
 	if !strings.Contains(recorder.Body.String(), `"follow_ups":[]`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestRescheduleFollowUpEndpointMapsIDAndUser(t *testing.T) {
+	next := time.Date(2026, 6, 27, 15, 0, 0, 0, time.UTC)
+	app := &fakeApplication{followUp: FollowUp{ID: 9, UserID: 42, CustomerID: 100, Note: "发送方案", NextFollowUpAt: next}}
+	router := crmTestRouter(app)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/crm/follow-ups/9", strings.NewReader(`{"next_follow_up_at":"2026-06-27T15:00:00Z"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if app.rescheduleInput.UserID != 42 || app.rescheduleInput.FollowUpID != 9 || !app.rescheduleInput.NextFollowUpAt.Equal(next) {
+		t.Fatalf("input = %+v", app.rescheduleInput)
+	}
+	if !strings.Contains(recorder.Body.String(), `"id":9`) {
 		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { apiErrorMessage } from "../lib/apiErrors";
@@ -128,6 +128,12 @@ function toTimelineRow(activity: CrmActivity): TimelineRow {
 
 function defaultFollowUpDateTime() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return offsetDate.toISOString().slice(0, 16);
+}
+
+function toDateTimeLocal(value: string) {
+  const date = new Date(value);
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
   return offsetDate.toISOString().slice(0, 16);
 }
@@ -615,6 +621,10 @@ function FollowUpsPage() {
   const [apiFollowUps, setApiFollowUps] = useState<CrmFollowUp[]>([]);
   const [followUpQuery, setFollowUpQuery] = useState("");
   const [dueFilter, setDueFilter] = useState<FollowUpDueFilter>("all");
+  const [rescheduleID, setRescheduleID] = useState<number | null>(null);
+  const [rescheduleNextAt, setRescheduleNextAt] = useState("");
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
+  const [rescheduleStatus, setRescheduleStatus] = useState("");
   const [error, setError] = useState("");
   const customerID = Number(new URLSearchParams(location.search).get("customer_id") ?? 0);
 
@@ -639,7 +649,7 @@ function FollowUpsPage() {
     };
   }, [customerID, followUpQuery, dueFilter]);
 
-  const visibleFollowRows = apiFollowUps.map(toFollowRow);
+  const visibleFollowRows = apiFollowUps.map((followUp) => ({ followUp, row: toFollowRow(followUp) }));
   const now = Date.now();
   const today = new Date();
   const dueTodayCount = apiFollowUps.filter((followUp) => {
@@ -650,6 +660,33 @@ function FollowUpsPage() {
     const dueAt = new Date(followUp.next_follow_up_at).getTime();
     return dueAt >= now && dueAt <= now + 7 * 24 * 60 * 60 * 1000;
   }).length;
+  const startReschedule = (followUp: CrmFollowUp) => {
+    setError("");
+    setRescheduleStatus("");
+    setRescheduleID(followUp.id);
+    setRescheduleNextAt(toDateTimeLocal(followUp.next_follow_up_at));
+  };
+  const submitReschedule = async (event: FormEvent<HTMLFormElement>, followUp: CrmFollowUp) => {
+    event.preventDefault();
+    setError("");
+    setRescheduleStatus("");
+    if (!rescheduleNextAt) {
+      setError("请选择新的跟进时间");
+      return;
+    }
+    setRescheduleSaving(true);
+    try {
+      const nextFollowUpAt = new Date(rescheduleNextAt).toISOString();
+      const updated = await crmApi.rescheduleFollowUp(followUp.id, { nextFollowUpAt });
+      setApiFollowUps((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+      setRescheduleID(null);
+      setRescheduleStatus("跟进时间已改期");
+    } catch (error) {
+      setError(apiErrorMessage(error, "暂时无法改期跟进"));
+    } finally {
+      setRescheduleSaving(false);
+    }
+  };
 
   return (
     <main className="cdk-analysis-page cdk-crm-page cdk-followups-page">
@@ -671,7 +708,7 @@ function FollowUpsPage() {
           ["今日待跟进", String(dueTodayCount), "calendar"],
           ["本周待跟进", String(dueThisWeekCount), "chart"],
           ["跟进记录", String(apiFollowUps.length), "message"],
-          ["已逾期", String(visibleFollowRows.filter((row) => row[7] === "已逾期").length), "check"]
+          ["已逾期", String(visibleFollowRows.filter(({ row }) => row[7] === "已逾期").length), "check"]
         ].map(([label, value, icon]) => (
           <article key={label}>
             <i className={`crm-stat-${icon}`} aria-hidden="true" />
@@ -715,6 +752,7 @@ function FollowUpsPage() {
           </header>
           <div className="cdk-followups-table" role="table" aria-label="全部跟进列表">
             {error && <p className="form-error" role="alert">{error}</p>}
+            {rescheduleStatus && <p className="form-success" role="status">{rescheduleStatus}</p>}
             <div className="cdk-followups-row head" role="row">
               {["客户 / 公司", "当前阶段", "最近跟进内容", "负责人", "下次跟进时间", "优先级", "跟进状态", "操作"].map((item) => (
                 <span key={item} role="columnheader">{item}</span>
@@ -722,8 +760,8 @@ function FollowUpsPage() {
             </div>
             {visibleFollowRows.length === 0 ? (
               <div className="module-empty-state" role="status">暂无跟进记录</div>
-            ) : visibleFollowRows.map(([name, sub, stage, note, owner, next, priority, status, customerID]) => (
-                <article className="cdk-followups-row" key={`${name}-${next}`} role="row">
+            ) : visibleFollowRows.map(({ followUp, row: [name, sub, stage, note, owner, next, priority, status, customerID] }) => (
+                <article className={`cdk-followups-row${rescheduleID === followUp.id ? " editing" : ""}`} key={followUp.id} role="row">
                   <div><strong>{name}</strong><small>{sub}</small></div>
                   <span className={`stage ${stageTone(stage)}`}>{stage}</span>
                   <p>{note}</p>
@@ -731,7 +769,22 @@ function FollowUpsPage() {
                   <time>{next}</time>
                   <b className={`priority ${priority}`}>{priority}</b>
                   <span className="follow-status">{status}</span>
-                  <div><Link to={`/crm?customer_id=${customerID}`}>查看详情</Link><button type="button">记录跟进</button><button type="button">改期</button></div>
+                  <div><Link to={`/crm?customer_id=${customerID}`}>查看详情</Link><button type="button">记录跟进</button><button type="button" onClick={() => startReschedule(followUp)}>改期</button></div>
+                  {rescheduleID === followUp.id && (
+                    <form className="cdk-followups-reschedule" onSubmit={(event) => submitReschedule(event, followUp)}>
+                      <label>
+                        <span>新的跟进时间</span>
+                        <input
+                          aria-label={`改期时间 #${followUp.id}`}
+                          type="datetime-local"
+                          value={rescheduleNextAt}
+                          onChange={(event) => setRescheduleNextAt(event.target.value)}
+                        />
+                      </label>
+                      <button type="submit" disabled={rescheduleSaving}>{rescheduleSaving ? "保存中..." : "保存改期"}</button>
+                      <button type="button" onClick={() => setRescheduleID(null)}>取消</button>
+                    </form>
+                  )}
                 </article>
               ))}
           </div>
@@ -748,7 +801,7 @@ function FollowUpsPage() {
             <header><strong>今日待跟进（{dueTodayCount}）</strong><Link to="/crm/follow-ups">查看全部</Link></header>
             {visibleFollowRows.length === 0 ? (
               <p className="module-empty-state">暂无跟进提醒</p>
-            ) : visibleFollowRows.slice(0, 5).map(([name, sub,, , , next,, status]) => (
+            ) : visibleFollowRows.slice(0, 5).map(({ row: [name, sub,, , , next,, status] }) => (
                 <article key={`${next}-${name}`}>
                   <time>{next}</time>
                   <span><strong>{name}</strong><small>{sub}</small></span>

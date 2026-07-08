@@ -270,6 +270,59 @@ func TestPostgresRepositoryListsFollowUpsForUser(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryReschedulesFollowUp(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	createdAt := time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)
+	next := time.Date(2026, 6, 27, 15, 0, 0, 0, time.UTC)
+	activityAt := time.Date(2026, 6, 24, 13, 0, 0, 0, time.UTC)
+	db.ExpectBegin()
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE crm_followups
+		SET next_follow_up_at = $3
+		WHERE user_id = $1 AND id = $2
+		RETURNING id, user_id, customer_id, note, next_follow_up_at, created_at
+	`)).
+		WithArgs(int64(42), int64(9), next).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "customer_id", "note", "next_follow_up_at", "created_at"}).
+			AddRow(int64(9), int64(42), int64(100), "发送方案", next, createdAt))
+	db.ExpectExec(regexp.QuoteMeta(`
+		UPDATE crm_customers
+		SET next_follow_up_at = $3, updated_at = $4
+		WHERE user_id = $1 AND id = $2
+	`)).
+		WithArgs(int64(42), int64(100), next, activityAt).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	db.ExpectExec(regexp.QuoteMeta(`
+		INSERT INTO crm_activities (user_id, customer_id, type, note, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`)).
+		WithArgs(int64(42), int64(100), ActivityFollowUpRescheduled, "跟进时间已改期", activityAt).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	db.ExpectCommit()
+
+	repository := NewPostgresRepository(db)
+	followUp, err := repository.RescheduleFollowUp(context.Background(), 42, 9, next, Activity{
+		UserID:    42,
+		Type:      ActivityFollowUpRescheduled,
+		Note:      "跟进时间已改期",
+		CreatedAt: activityAt,
+	})
+	if err != nil {
+		t.Fatalf("RescheduleFollowUp() error = %v", err)
+	}
+	if followUp.ID != 9 || followUp.CustomerID != 100 || !followUp.NextFollowUpAt.Equal(next) {
+		t.Fatalf("followUp = %+v", followUp)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryListsActivitiesForCustomer(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

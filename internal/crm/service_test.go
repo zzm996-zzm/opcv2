@@ -127,6 +127,24 @@ func (r *memoryRepository) RecordFollowUp(ctx context.Context, followUp FollowUp
 	return FollowUp{}, ErrCustomerNotFound
 }
 
+func (r *memoryRepository) RescheduleFollowUp(_ context.Context, userID, followUpID int64, nextFollowUpAt time.Time, activity Activity) (FollowUp, error) {
+	for index := range r.followups {
+		if r.followups[index].UserID == userID && r.followups[index].ID == followUpID {
+			r.followups[index].NextFollowUpAt = nextFollowUpAt
+			for customerIndex := range r.customers {
+				if r.customers[customerIndex].UserID == userID && r.customers[customerIndex].ID == r.followups[index].CustomerID {
+					r.customers[customerIndex].NextFollowUpAt = nextFollowUpAt
+					activity.CustomerID = r.followups[index].CustomerID
+					r.activities = append(r.activities, activity)
+					return r.followups[index], nil
+				}
+			}
+			return FollowUp{}, ErrCustomerNotFound
+		}
+	}
+	return FollowUp{}, ErrCustomerNotFound
+}
+
 func (r *memoryRepository) ListActivities(_ context.Context, userID, customerID int64, limit int) ([]Activity, error) {
 	var activities []Activity
 	for _, activity := range r.activities {
@@ -368,6 +386,31 @@ func TestServiceFollowUpRecordUpdatesNextFollowUpDate(t *testing.T) {
 		t.Fatalf("followUp=%+v updated=%+v", followUp, updated)
 	}
 	if len(repository.activities) != 1 || repository.activities[0].Type != ActivityFollowUpRecorded {
+		t.Fatalf("activities = %+v", repository.activities)
+	}
+}
+
+func TestServiceReschedulesFollowUpAndCustomerNextDate(t *testing.T) {
+	repository := &memoryRepository{}
+	service := NewService(repository)
+	now := time.Date(2026, 6, 24, 11, 30, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+	customer, _, _ := repository.ImportCustomer(context.Background(), Customer{UserID: 42, ImportKey: "lead_result:99", Name: "成都启明星教育", Stage: StageContacted})
+	original := time.Date(2026, 6, 25, 9, 30, 0, 0, time.UTC)
+	followUp := FollowUp{ID: 1, UserID: 42, CustomerID: customer.ID, Note: "发送方案", NextFollowUpAt: original}
+	repository.followups = append(repository.followups, followUp)
+	rescheduledAt := time.Date(2026, 6, 27, 15, 0, 0, 0, time.UTC)
+
+	rescheduled, err := service.RescheduleFollowUp(context.Background(), RescheduleFollowUpInput{UserID: 42, FollowUpID: followUp.ID, NextFollowUpAt: rescheduledAt})
+	if err != nil {
+		t.Fatalf("RescheduleFollowUp() error = %v", err)
+	}
+
+	updated, _ := repository.GetCustomer(context.Background(), 42, customer.ID)
+	if rescheduled.NextFollowUpAt != rescheduledAt || updated.NextFollowUpAt != rescheduledAt {
+		t.Fatalf("rescheduled=%+v updated=%+v", rescheduled, updated)
+	}
+	if len(repository.activities) != 1 || repository.activities[0].Type != ActivityFollowUpRescheduled || repository.activities[0].CustomerID != customer.ID {
 		t.Fatalf("activities = %+v", repository.activities)
 	}
 }

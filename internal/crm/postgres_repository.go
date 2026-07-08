@@ -222,6 +222,56 @@ func (r *PostgresRepository) RecordFollowUp(ctx context.Context, followUp Follow
 	return followUp, nil
 }
 
+func (r *PostgresRepository) RescheduleFollowUp(ctx context.Context, userID, followUpID int64, nextFollowUpAt time.Time, activity Activity) (FollowUp, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return FollowUp{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var followUp FollowUp
+	err = tx.QueryRow(ctx, `
+		UPDATE crm_followups
+		SET next_follow_up_at = $3
+		WHERE user_id = $1 AND id = $2
+		RETURNING id, user_id, customer_id, note, next_follow_up_at, created_at
+	`, userID, followUpID, nextFollowUpAt).Scan(
+		&followUp.ID,
+		&followUp.UserID,
+		&followUp.CustomerID,
+		&followUp.Note,
+		&followUp.NextFollowUpAt,
+		&followUp.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return FollowUp{}, ErrCustomerNotFound
+	}
+	if err != nil {
+		return FollowUp{}, err
+	}
+	command, err := tx.Exec(ctx, `
+		UPDATE crm_customers
+		SET next_follow_up_at = $3, updated_at = $4
+		WHERE user_id = $1 AND id = $2
+	`, userID, followUp.CustomerID, nextFollowUpAt, activity.CreatedAt)
+	if err != nil {
+		return FollowUp{}, err
+	}
+	if command.RowsAffected() == 0 {
+		return FollowUp{}, ErrCustomerNotFound
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO crm_activities (user_id, customer_id, type, note, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, activity.UserID, followUp.CustomerID, activity.Type, activity.Note, activity.CreatedAt); err != nil {
+		return FollowUp{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return FollowUp{}, err
+	}
+	return followUp, nil
+}
+
 func (r *PostgresRepository) ListActivities(ctx context.Context, userID, customerID int64, limit int) ([]Activity, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, customer_id, type, note, created_at

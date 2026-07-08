@@ -116,10 +116,12 @@ describe("crmApi", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ follow_ups: [] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, next_follow_up_at: "2026-06-27T15:00:00Z" }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ subject: "跟进方案", body: "您好", channel: "wechat" }), { status: 200 }));
 
     await crmApi.listFollowUps({ customerId: 100, q: "方案", due: "week", limit: 10 });
     await crmApi.recordFollowUp(100, { note: "已发资料", nextFollowUpAt: "2026-06-26T10:00:00Z" });
+    await crmApi.rescheduleFollowUp(1, { nextFollowUpAt: "2026-06-27T15:00:00Z" });
     await crmApi.generateFollowUpCopy(100, { goal: "推进方案会" });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -137,6 +139,14 @@ describe("crmApi", () => {
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
       3,
+      "/api/v1/crm/follow-ups/1",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ next_follow_up_at: "2026-06-27T15:00:00Z" })
+      })
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
       "/api/v1/crm/customers/100/follow-up-copy",
       expect.objectContaining({
         method: "POST",

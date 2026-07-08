@@ -19,6 +19,7 @@ type Application interface {
 	UpdateCustomer(ctx context.Context, input UpdateCustomerInput) (Customer, error)
 	UpdateStage(ctx context.Context, input UpdateStageInput) (Customer, error)
 	RecordFollowUp(ctx context.Context, input RecordFollowUpInput) (FollowUp, error)
+	RescheduleFollowUp(ctx context.Context, input RescheduleFollowUpInput) (FollowUp, error)
 	ListActivities(ctx context.Context, userID, customerID int64, limit int) ([]Activity, error)
 	ListFollowUps(ctx context.Context, input ListFollowUpsInput) ([]FollowUp, error)
 	ListDueCustomers(ctx context.Context, input ListDueInput) ([]Customer, error)
@@ -46,6 +47,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/crm/customers/:id/follow-ups", h.recordFollowUp)
 	router.POST("/crm/customers/:id/follow-up-copy", h.generateFollowUpCopy)
 	router.GET("/crm/follow-ups", h.listFollowUps)
+	router.PATCH("/crm/follow-ups/:id", h.rescheduleFollowUp)
 	router.GET("/crm/pipeline-stats", h.pipelineStats)
 }
 
@@ -216,6 +218,26 @@ func (h *HTTPHandler) listFollowUps(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"follow_ups": httpapi.EnsureSlice(followUps)})
 }
 
+func (h *HTTPHandler) rescheduleFollowUp(c *gin.Context) {
+	id, ok := followUpID(c)
+	if !ok {
+		return
+	}
+	var request RescheduleFollowUpInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.FollowUpID = id
+	followUp, err := h.app.RescheduleFollowUp(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, followUp)
+}
+
 func (h *HTTPHandler) generateFollowUpCopy(c *gin.Context) {
 	id, ok := customerID(c)
 	if !ok {
@@ -278,6 +300,15 @@ func customerID(c *gin.Context) (int64, bool) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_customer_id"})
+		return 0, false
+	}
+	return id, true
+}
+
+func followUpID(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_follow_up_id"})
 		return 0, false
 	}
 	return id, true
