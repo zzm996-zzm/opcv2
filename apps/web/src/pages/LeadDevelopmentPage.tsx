@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { crmApi } from "../lib/crmApi";
 import { leadsApi, type LeadResult, type LeadTask, type LeadTaskDetail } from "../lib/leadsApi";
+import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
 import { CdkTopNav } from "./AnalysisPage";
 
 type LeadCompany = {
@@ -45,6 +46,8 @@ const statusLabels: Record<LeadTask["status"], string> = {
   cancelled: "已取消",
   refunded: "已退回"
 };
+
+const leadTaskQuotaKey = "lead_tasks";
 
 function toLeadCompany(task: LeadTask): LeadCompany {
   return {
@@ -91,9 +94,21 @@ function LeadDevelopmentPage() {
   const [crmImportError, setCrmImportError] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState("");
+  const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
+  const leadTaskUsage = usage.find((item) => item.key === leadTaskQuotaKey);
+  const leadTaskRemaining = leadTaskUsage ? Math.max(leadTaskUsage.limit - leadTaskUsage.used, 0) : null;
+  const leadTaskQuotaBlocked = leadTaskUsage ? leadTaskUsage.limit <= 0 || leadTaskUsage.used >= leadTaskUsage.limit : false;
 
   useEffect(() => {
     let active = true;
+    async function loadUsage() {
+      try {
+        const payload = await membershipApi.usage();
+        if (active) setUsage(payload.usage);
+      } catch {
+        if (active) setUsage([]);
+      }
+    }
     async function loadTasks() {
       try {
         const payload = await leadsApi.listTasks(20);
@@ -120,6 +135,7 @@ function LeadDevelopmentPage() {
       }
     }
     void loadTasks();
+    void loadUsage();
     return () => {
       active = false;
     };
@@ -128,6 +144,10 @@ function LeadDevelopmentPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!query.trim() || status === "submitting") return;
+    if (leadTaskQuotaBlocked) {
+      setError("本月 AI线索任务额度已用完，请升级套餐或等待下月重置。");
+      return;
+    }
     setStatus("submitting");
     setError("");
     try {
@@ -139,6 +159,8 @@ function LeadDevelopmentPage() {
       setTaskDetail(null);
       setResults([]);
       setQuery("");
+      const usagePayload = await membershipApi.usage().catch(() => null);
+      if (usagePayload) setUsage(usagePayload.usage);
     } catch (error) {
       setError(apiErrorMessage(error, "暂时无法创建线索任务，请稍后重试"));
     } finally {
@@ -253,9 +275,14 @@ function LeadDevelopmentPage() {
           {["行业", "关键词", "地域", "客户角色"].map((tag) => <button key={tag} type="button">{tag}</button>)}
         </div>
         <div className="cdk-leads-actions">
+          <div className={leadTaskQuotaBlocked ? "cdk-leads-quota depleted" : "cdk-leads-quota"}>
+            <small>{leadTaskUsage?.label ?? "AI线索任务"}</small>
+            <strong>{leadTaskUsage ? `${leadTaskRemaining}/${leadTaskUsage.limit}` : "读取中"}</strong>
+            {leadTaskQuotaBlocked ? <Link to="/membership">升级套餐</Link> : <span>{leadTaskUsage?.unit ?? "次/月"}</span>}
+          </div>
           <span>示例</span>
           <span>附件</span>
-          <button aria-label={status === "submitting" ? "生成中..." : "生成线索池"} disabled={!query.trim() || status === "submitting"} type="submit">
+          <button aria-label={status === "submitting" ? "生成中..." : "生成线索池"} disabled={!query.trim() || status === "submitting" || leadTaskQuotaBlocked} type="submit">
             {status === "submitting" ? "生成中..." : "开始查找线索"}
           </button>
         </div>
