@@ -151,12 +151,6 @@ func main() {
 	tasksRepository := tasks.NewPostgresRepository(db)
 	tasksService := tasks.NewService(tasksRepository)
 	tasksHTTP := tasks.NewHTTPHandler(tasksService)
-	homeService := home.NewService(home.Dependencies{
-		Notifications: notificationsService,
-		Membership:    membershipService,
-		Tasks:         tasksService,
-	})
-	homeHTTP := home.NewHTTPHandler(homeService)
 	dashboardRepository := dashboard.NewPostgresRepository(db)
 	dashboardService := dashboard.NewService(dashboardRepository)
 	dashboardHTTP := dashboard.NewHTTPHandler(dashboardService)
@@ -176,6 +170,15 @@ func main() {
 		competitor.WithQueue(taskqueue.NewClient(cfg.RedisAddr)),
 	)
 	competitorHTTP := competitor.NewHTTPHandler(competitorService)
+	homeService := home.NewService(home.Dependencies{
+		Notifications: notificationsService,
+		Membership:    membershipService,
+		Tasks:         tasksService,
+		Leads:         leadsService,
+		Sandbox:       sandboxService,
+		Competitor:    competitorService,
+	})
+	homeHTTP := home.NewHTTPHandler(homeService)
 	learningRepository := learning.NewPostgresRepository(db)
 	learningService := learning.NewService(learningRepository)
 	learningHTTP := learning.NewHTTPHandler(learningService)

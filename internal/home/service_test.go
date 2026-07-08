@@ -6,8 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zzm/opcv2/internal/competitor"
+	"github.com/zzm/opcv2/internal/leads"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/notifications"
+	"github.com/zzm/opcv2/internal/sandbox"
 	"github.com/zzm/opcv2/internal/tasks"
 )
 
@@ -52,6 +55,45 @@ func (f *fakeTasks) ListTasks(_ context.Context, userID int64, filters tasks.Lis
 	return f.rows, f.err
 }
 
+type fakeLeads struct {
+	rows   []leads.Task
+	err    error
+	userID int64
+	limit  int
+}
+
+func (f *fakeLeads) ListTasks(_ context.Context, userID int64, limit int) ([]leads.Task, error) {
+	f.userID = userID
+	f.limit = limit
+	return f.rows, f.err
+}
+
+type fakeSandbox struct {
+	rows   []sandbox.Session
+	err    error
+	userID int64
+	limit  int
+}
+
+func (f *fakeSandbox) ListSessions(_ context.Context, userID int64, limit int) ([]sandbox.Session, error) {
+	f.userID = userID
+	f.limit = limit
+	return f.rows, f.err
+}
+
+type fakeCompetitor struct {
+	rows   []competitor.Scan
+	err    error
+	userID int64
+	limit  int
+}
+
+func (f *fakeCompetitor) ListScans(_ context.Context, userID int64, limit int) ([]competitor.Scan, error) {
+	f.userID = userID
+	f.limit = limit
+	return f.rows, f.err
+}
+
 func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
 	notificationReader := &fakeNotifications{summary: notifications.Summary{
@@ -66,7 +108,17 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 		{ID: 9, Title: "整理客户名单", Project: "AI线索开发", Status: tasks.StatusTodo, CreatedAt: now},
 		{ID: 10, Title: "联调工作台", Project: "工作台", Status: tasks.StatusInProgress, CreatedAt: now},
 	}}
-	service := NewService(Dependencies{Notifications: notificationReader, Membership: membershipReader, Tasks: taskReader})
+	leadReader := &fakeLeads{rows: []leads.Task{{ID: 11, Query: "成都 教培 私域转化", Status: leads.StatusSucceeded}}}
+	sandboxReader := &fakeSandbox{rows: []sandbox.Session{{ID: 12, Goal: "验证 AI 低卡代餐奶昔", Status: sandbox.StatusCompleted}}}
+	competitorReader := &fakeCompetitor{rows: []competitor.Scan{{ID: 13, Targets: []string{"小鹅通"}, Status: competitor.StatusRunning}}}
+	service := NewService(Dependencies{
+		Notifications: notificationReader,
+		Membership:    membershipReader,
+		Tasks:         taskReader,
+		Leads:         leadReader,
+		Sandbox:       sandboxReader,
+		Competitor:    competitorReader,
+	})
 
 	summary, err := service.Summary(context.Background(), 42)
 
@@ -79,11 +131,14 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	if len(summary.Metrics) != 3 || summary.Metrics[0].Value != "1" || summary.Metrics[1].Value != "1" || summary.Metrics[2].Value != "1" {
 		t.Fatalf("metrics = %+v", summary.Metrics)
 	}
-	if len(summary.HeroCards) != 3 || len(summary.Recommendations) != 2 {
+	if len(summary.HeroCards) != 3 || len(summary.Recommendations) != 5 {
 		t.Fatalf("cards/recommendations = %+v/%+v", summary.HeroCards, summary.Recommendations)
 	}
-	if notificationReader.userID != 42 || membershipReader.userID != 42 || taskReader.userID != 42 || taskReader.filters.Limit != 5 {
-		t.Fatalf("dependency calls = %d/%d/%d/%d", notificationReader.userID, membershipReader.userID, taskReader.userID, taskReader.filters.Limit)
+	if summary.Recommendations[2].Title != "查看最新 AI 线索结果" || summary.Recommendations[3].URL != "/sandbox/sessions/12/report" || summary.Recommendations[4].Title != "查看竞品采集进度" {
+		t.Fatalf("recommendations = %+v", summary.Recommendations)
+	}
+	if notificationReader.userID != 42 || membershipReader.userID != 42 || taskReader.userID != 42 || taskReader.filters.Limit != 5 || leadReader.limit != 1 || sandboxReader.limit != 1 || competitorReader.limit != 1 {
+		t.Fatalf("dependency calls = %d/%d/%d/%d/%d/%d/%d", notificationReader.userID, membershipReader.userID, taskReader.userID, taskReader.filters.Limit, leadReader.limit, sandboxReader.limit, competitorReader.limit)
 	}
 }
 
@@ -92,6 +147,9 @@ func TestServiceDegradesPartialDependencyFailures(t *testing.T) {
 		Notifications: &fakeNotifications{err: errors.New("notifications down")},
 		Membership:    &fakeMembership{err: errors.New("membership down")},
 		Tasks:         &fakeTasks{err: errors.New("tasks down")},
+		Leads:         &fakeLeads{err: errors.New("leads down")},
+		Sandbox:       &fakeSandbox{err: errors.New("sandbox down")},
+		Competitor:    &fakeCompetitor{err: errors.New("competitor down")},
 	})
 
 	summary, err := service.Summary(context.Background(), 42)
