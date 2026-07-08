@@ -24,7 +24,7 @@ type CustomerCard = {
 
 type StatCard = readonly [string, string, string];
 
-type FollowRow = readonly [string, string, string, string, string, string, string, string];
+type FollowRow = readonly [string, string, string, string, string, string, string, string, number];
 type TimelineRow = readonly [string, string];
 type CustomerSourceFilter = "all" | "lead" | "enterprise";
 
@@ -99,7 +99,8 @@ function toFollowRow(followUp: CrmFollowUp): FollowRow {
     "张婧",
     next,
     "中",
-    followUpStatus(followUp)
+    followUpStatus(followUp),
+    followUp.customer_id
   ];
 }
 
@@ -127,6 +128,7 @@ function defaultFollowUpDateTime() {
 }
 
 function CrmPage({ variant = "customers" }: CrmPageProps) {
+  const location = useLocation();
   const [apiCustomers, setApiCustomers] = useState<CrmCustomer[]>([]);
   const [activities, setActivities] = useState<CrmActivity[]>([]);
   const [stats, setStats] = useState<CrmPipelineStats | null>(null);
@@ -137,14 +139,15 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [followUpSaving, setFollowUpSaving] = useState(false);
   const [followUpStatus, setFollowUpStatus] = useState("");
   const [followUpError, setFollowUpError] = useState("");
+  const requestedCustomerID = Number(new URLSearchParams(location.search).get("customer_id") ?? 0);
 
   useEffect(() => {
     let active = true;
     setError("");
-    Promise.all([
-      crmApi.listCustomers({ limit: 20, source: sourceFilter === "all" ? undefined : sourceFilter }),
-      crmApi.pipelineStats()
-    ])
+    const customersRequest = requestedCustomerID > 0
+      ? crmApi.getCustomer(requestedCustomerID).then((customer) => ({ customers: [customer] }))
+      : crmApi.listCustomers({ limit: 20, source: sourceFilter === "all" ? undefined : sourceFilter });
+    Promise.all([customersRequest, crmApi.pipelineStats()])
       .then(([customersPayload, statsPayload]) => {
         if (active) {
           setApiCustomers(customersPayload.customers);
@@ -157,7 +160,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     return () => {
       active = false;
     };
-  }, [sourceFilter]);
+  }, [sourceFilter, requestedCustomerID]);
 
   useEffect(() => {
     const customer = apiCustomers[0];
@@ -449,7 +452,7 @@ function FollowUpsPage() {
             </div>
             {visibleFollowRows.length === 0 ? (
               <div className="module-empty-state" role="status">暂无跟进记录</div>
-            ) : visibleFollowRows.map(([name, sub, stage, note, owner, next, priority, status]) => (
+            ) : visibleFollowRows.map(([name, sub, stage, note, owner, next, priority, status, customerID]) => (
                 <article className="cdk-followups-row" key={`${name}-${next}`} role="row">
                   <div><strong>{name}</strong><small>{sub}</small></div>
                   <span className={`stage ${stageTone(stage)}`}>{stage}</span>
@@ -458,7 +461,7 @@ function FollowUpsPage() {
                   <time>{next}</time>
                   <b className={`priority ${priority}`}>{priority}</b>
                   <span className="follow-status">{status}</span>
-                  <div><Link to="/crm">查看详情</Link><button type="button">记录跟进</button><button type="button">改期</button></div>
+                  <div><Link to={`/crm?customer_id=${customerID}`}>查看详情</Link><button type="button">记录跟进</button><button type="button">改期</button></div>
                 </article>
               ))}
           </div>

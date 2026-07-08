@@ -108,6 +108,52 @@ describe("CrmPage", () => {
     expect(screen.getByRole("link", { name: "查看全部跟进记录 ›" })).toHaveAttribute("href", "/crm/follow-ups?customer_id=100");
   });
 
+  it("loads a CRM customer detail from query string", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 100,
+        user_id: 7,
+        import_key: "enterprise_diagnosis_request:8",
+        name: "30人销售团队需要AI获客陪跑",
+        stage: "won",
+        source: "enterprise",
+        created_at: "2026-07-07T13:30:00Z",
+        updated_at: "2026-07-07T13:30:00Z"
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 0,
+        qualified: 0,
+        proposal: 0,
+        won: 1,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        activities: [{
+          id: 1,
+          user_id: 7,
+          customer_id: 100,
+          type: "follow_up_recorded",
+          note: "企业交付客户复盘下一步",
+          created_at: "2026-07-07T12:00:00Z"
+        }]
+      }), { status: 200 }));
+    signIn();
+
+    render(
+      <MemoryRouter initialEntries={["/crm?customer_id=100"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers/100", expect.any(Object)));
+    expect(await screen.findByRole("heading", { name: "30人销售团队需要AI获客陪跑" })).toBeInTheDocument();
+    expect(screen.getAllByText("企业交付").length).toBeGreaterThan(0);
+    expect(await screen.findByText("企业交付客户复盘下一步")).toBeInTheDocument();
+  });
+
   it("filters CRM customers by enterprise delivery source", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ customers: [] }), { status: 200 }))
@@ -255,6 +301,7 @@ describe("CrmPage", () => {
     const table = screen.getByRole("table", { name: "全部跟进列表" });
     expect(await within(table).findByText("客户 #100")).toBeInTheDocument();
     expect(within(table).getByText("已发送企业AI运营方案，等待客户确认演示时间")).toBeInTheDocument();
+    expect(within(table).getByRole("link", { name: "查看详情" })).toHaveAttribute("href", "/crm?customer_id=100");
   });
 
   it("loads follow-up records for a specific customer from query string", async () => {
