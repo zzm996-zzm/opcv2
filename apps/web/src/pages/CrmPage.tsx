@@ -28,6 +28,7 @@ type FollowRow = readonly [string, string, string, string, string, string, strin
 type TimelineRow = readonly [string, string];
 type CustomerSourceFilter = "all" | "lead" | "enterprise";
 type CustomerStageFilter = "all" | CrmStage;
+type FollowUpDueFilter = "all" | "today" | "week" | "overdue";
 
 const stageLabels: Record<CrmStage, string> = {
   new: "新线索",
@@ -540,6 +541,7 @@ function FollowUpsPage() {
   const location = useLocation();
   const [apiFollowUps, setApiFollowUps] = useState<CrmFollowUp[]>([]);
   const [followUpQuery, setFollowUpQuery] = useState("");
+  const [dueFilter, setDueFilter] = useState<FollowUpDueFilter>("all");
   const [error, setError] = useState("");
   const customerID = Number(new URLSearchParams(location.search).get("customer_id") ?? 0);
 
@@ -550,6 +552,7 @@ function FollowUpsPage() {
       .listFollowUps({
         customerId: customerID > 0 ? customerID : undefined,
         q: followUpQuery.trim() || undefined,
+        due: dueFilter === "all" ? undefined : dueFilter,
         limit: 20
       })
       .then((payload) => {
@@ -561,7 +564,7 @@ function FollowUpsPage() {
     return () => {
       active = false;
     };
-  }, [customerID, followUpQuery]);
+  }, [customerID, followUpQuery, dueFilter]);
 
   const visibleFollowRows = apiFollowUps.map(toFollowRow);
   const now = Date.now();
@@ -609,8 +612,20 @@ function FollowUpsPage() {
         <div className="cdk-followups-table-card">
           <header>
             <div className="cdk-crm-tabs">
-              {["全部", "今日待跟进", "本周待跟进", "已沟通", "已成交"].map((item, index) => (
-                <button className={index === 0 ? "active" : ""} key={item} type="button">{item}</button>
+              {[
+                ["all", "全部"],
+                ["today", "今日待跟进"],
+                ["week", "本周待跟进"],
+                ["overdue", "已逾期"]
+              ].map(([value, label]) => (
+                <button
+                  className={dueFilter === value ? "active" : ""}
+                  key={value}
+                  type="button"
+                  onClick={() => setDueFilter(value as FollowUpDueFilter)}
+                >
+                  {label}
+                </button>
               ))}
             </div>
             <label>

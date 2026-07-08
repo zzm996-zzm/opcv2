@@ -153,6 +153,12 @@ func (r *memoryRepository) ListFollowUps(_ context.Context, input ListFollowUpsI
 		if query != "" && !strings.Contains(strings.ToLower(followUp.Note), query) && strconv.FormatInt(followUp.CustomerID, 10) != query {
 			continue
 		}
+		if input.HasDueFrom && followUp.NextFollowUpAt.Before(input.DueFrom) {
+			continue
+		}
+		if input.HasDueBefore && !followUp.NextFollowUpAt.Before(input.DueBefore) {
+			continue
+		}
 		followups = append(followups, followUp)
 	}
 	if input.Limit > 0 && len(followups) > input.Limit {
@@ -346,9 +352,11 @@ func TestServiceListsFollowUpsForUser(t *testing.T) {
 	repository := &memoryRepository{}
 	service := NewService(repository)
 	now := time.Date(2026, 6, 24, 11, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
 	repository.followups = []FollowUp{
-		{ID: 1, UserID: 42, CustomerID: 100, Note: "发送方案", NextFollowUpAt: now},
-		{ID: 2, UserID: 42, CustomerID: 101, Note: "预约演示", NextFollowUpAt: now},
+		{ID: 1, UserID: 42, CustomerID: 100, Note: "发送方案", NextFollowUpAt: now.Add(-time.Hour)},
+		{ID: 2, UserID: 42, CustomerID: 101, Note: "预约演示", NextFollowUpAt: now.Add(2 * time.Hour)},
+		{ID: 4, UserID: 42, CustomerID: 102, Note: "下周复盘", NextFollowUpAt: now.Add(6 * 24 * time.Hour)},
 		{ID: 3, UserID: 7, CustomerID: 100, Note: "其他用户", NextFollowUpAt: now},
 	}
 
@@ -366,6 +374,22 @@ func TestServiceListsFollowUpsForUser(t *testing.T) {
 	}
 	if len(followups) != 1 || followups[0].CustomerID != 101 {
 		t.Fatalf("followups = %+v", followups)
+	}
+
+	followups, err = service.ListFollowUps(context.Background(), ListFollowUpsInput{UserID: 42, Due: "overdue"})
+	if err != nil {
+		t.Fatalf("ListFollowUps() with overdue error = %v", err)
+	}
+	if len(followups) != 1 || followups[0].CustomerID != 100 {
+		t.Fatalf("followups = %+v", followups)
+	}
+
+	followups, err = service.ListFollowUps(context.Background(), ListFollowUpsInput{UserID: 42, Due: "week"})
+	if err != nil {
+		t.Fatalf("ListFollowUps() with week error = %v", err)
+	}
+	if len(followups) != 2 {
+		t.Fatalf("followups = %+v, want two upcoming records", followups)
 	}
 }
 

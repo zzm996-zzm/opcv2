@@ -62,6 +62,7 @@ export type CrmCustomerFilters = {
 export type CrmFollowUpFilters = {
   customerId?: number;
   q?: string;
+  due?: "today" | "week" | "overdue";
   limit?: number;
 };
 
@@ -79,6 +80,7 @@ function followUpQuery(filters: CrmFollowUpFilters = {}) {
   const params = new URLSearchParams();
   if (filters.customerId) params.set("customer_id", String(filters.customerId));
   if (filters.q) params.set("q", filters.q);
+  if (filters.due) params.set("due", filters.due);
   if (filters.limit) params.set("limit", String(filters.limit));
   const query = params.toString();
   return query ? `?${query}` : "";

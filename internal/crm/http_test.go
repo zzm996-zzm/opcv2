@@ -269,13 +269,13 @@ func TestListFollowUpsEndpointUsesAuthenticatedUserAndFilters(t *testing.T) {
 	router := crmTestRouter(app)
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/crm/follow-ups?customer_id=100&q=%E6%96%B9%E6%A1%88&limit=10", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/crm/follow-ups?customer_id=100&q=%E6%96%B9%E6%A1%88&due=week&limit=10", nil)
 	router.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
 	}
-	if app.followUpsInput.UserID != 42 || app.followUpsInput.CustomerID != 100 || app.followUpsInput.Q != "方案" || app.followUpsInput.Limit != 10 {
+	if app.followUpsInput.UserID != 42 || app.followUpsInput.CustomerID != 100 || app.followUpsInput.Q != "方案" || app.followUpsInput.Due != "week" || app.followUpsInput.Limit != 10 {
 		t.Fatalf("input = %+v", app.followUpsInput)
 	}
 	if !strings.Contains(recorder.Body.String(), `"follow_ups"`) {

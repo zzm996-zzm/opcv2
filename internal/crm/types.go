@@ -82,10 +82,15 @@ type ListCustomersInput struct {
 }
 
 type ListFollowUpsInput struct {
-	UserID     int64
-	CustomerID int64
-	Q          string
-	Limit      int
+	UserID       int64
+	CustomerID   int64
+	Q            string
+	Due          string
+	HasDueFrom   bool
+	DueFrom      time.Time
+	HasDueBefore bool
+	DueBefore    time.Time
+	Limit        int
 }
 
 type FollowUpCopyInput struct {

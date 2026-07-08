@@ -256,9 +256,11 @@ func (r *PostgresRepository) ListFollowUps(ctx context.Context, input ListFollow
 		WHERE user_id = $1
 			AND ($2 = 0 OR customer_id = $2)
 			AND ($4 = '' OR note ILIKE '%' || $4 || '%' OR customer_id::text = $4)
+			AND (NOT $5 OR next_follow_up_at >= $6)
+			AND (NOT $7 OR next_follow_up_at < $8)
 		ORDER BY next_follow_up_at ASC, created_at DESC, id DESC
 		LIMIT $3
-	`, input.UserID, input.CustomerID, input.Limit, input.Q)
+	`, input.UserID, input.CustomerID, input.Limit, input.Q, input.HasDueFrom, input.DueFrom, input.HasDueBefore, input.DueBefore)
 	if err != nil {
 		return nil, err
 	}

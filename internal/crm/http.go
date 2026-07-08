@@ -189,6 +189,7 @@ func (h *HTTPHandler) listFollowUps(c *gin.Context) {
 		UserID:     c.GetInt64(auth.UserIDContextKey),
 		CustomerID: customerID,
 		Q:          c.Query("q"),
+		Due:        c.Query("due"),
 		Limit:      limit,
 	})
 	if err != nil {

@@ -214,6 +214,27 @@ func (s *Service) ListFollowUps(ctx context.Context, input ListFollowUpsInput) (
 		input.Limit = defaultListLimit
 	}
 	input.Q = strings.TrimSpace(input.Q)
+	input.Due = strings.TrimSpace(strings.ToLower(input.Due))
+	now := s.now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	switch input.Due {
+	case "":
+	case "today":
+		input.HasDueFrom = true
+		input.DueFrom = todayStart
+		input.HasDueBefore = true
+		input.DueBefore = todayStart.Add(24 * time.Hour)
+	case "week":
+		input.HasDueFrom = true
+		input.DueFrom = now
+		input.HasDueBefore = true
+		input.DueBefore = now.Add(7 * 24 * time.Hour)
+	case "overdue":
+		input.HasDueBefore = true
+		input.DueBefore = now
+	default:
+		return nil, ErrInvalidInput
+	}
 	return s.repository.ListFollowUps(ctx, input)
 }
 

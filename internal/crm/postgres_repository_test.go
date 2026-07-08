@@ -239,15 +239,26 @@ func TestPostgresRepositoryListsFollowUpsForUser(t *testing.T) {
 		WHERE user_id = $1
 			AND ($2 = 0 OR customer_id = $2)
 			AND ($4 = '' OR note ILIKE '%' || $4 || '%' OR customer_id::text = $4)
+			AND (NOT $5 OR next_follow_up_at >= $6)
+			AND (NOT $7 OR next_follow_up_at < $8)
 		ORDER BY next_follow_up_at ASC, created_at DESC, id DESC
 		LIMIT $3
 	`)).
-		WithArgs(int64(42), int64(100), 20, "方案").
+		WithArgs(int64(42), int64(100), 20, "方案", true, now.Add(-time.Hour), true, now.Add(24*time.Hour)).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "customer_id", "note", "next_follow_up_at", "created_at"}).
 			AddRow(int64(1), int64(42), int64(100), "发送方案", now, now))
 
 	repository := NewPostgresRepository(db)
-	followUps, err := repository.ListFollowUps(context.Background(), ListFollowUpsInput{UserID: 42, CustomerID: 100, Q: "方案", Limit: 20})
+	followUps, err := repository.ListFollowUps(context.Background(), ListFollowUpsInput{
+		UserID:       42,
+		CustomerID:   100,
+		Q:            "方案",
+		HasDueFrom:   true,
+		DueFrom:      now.Add(-time.Hour),
+		HasDueBefore: true,
+		DueBefore:    now.Add(24 * time.Hour),
+		Limit:        20,
+	})
 	if err != nil {
 		t.Fatalf("ListFollowUps() error = %v", err)
 	}
