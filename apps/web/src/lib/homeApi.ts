@@ -6,6 +6,12 @@ export type HomeCard = {
   url?: string;
 };
 
+export type HomeMetric = {
+  label: string;
+  value: string;
+  icon?: string;
+};
+
 export type HomeRecentTask = {
   id: number;
   title: string;
@@ -43,6 +49,7 @@ export type HomeAccountSummary = {
 };
 
 export type HomeSummary = {
+  metrics: HomeMetric[];
   hero_cards: HomeCard[];
   recommendations: HomeCard[];
   recent_tasks: HomeRecentTask[];

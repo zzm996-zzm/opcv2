@@ -34,6 +34,11 @@ describe("HomePage", () => {
 
   function mockHomeSummary() {
     vi.mocked(homeApi.summary).mockResolvedValue({
+      metrics: [
+        { label: "进行中项目", value: "1", icon: "folder" },
+        { label: "待办事项", value: "2", icon: "inbox" },
+        { label: "额度预警", value: "1", icon: "trend" }
+      ],
       hero_cards: [
         { title: "项目雷达", summary: "发现高潜力机会", url: "/projects" },
         { title: "落地任务", summary: "推进今日待办", url: "/tasks" }
@@ -80,6 +85,7 @@ describe("HomePage", () => {
   it("renders designed empty states instead of static dashboard records", async () => {
     signIn();
     vi.mocked(homeApi.summary).mockResolvedValue({
+      metrics: [],
       hero_cards: [],
       recommendations: [],
       recent_tasks: [],

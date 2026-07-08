@@ -60,9 +60,12 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	}}
 	membershipReader := &fakeMembership{
 		snapshot: membership.Snapshot{Plan: membership.Plan{Code: membership.PlanPro, Name: "会员版"}, CreditBalance: 88},
-		usage:    []membership.UsageItem{{Key: "lead_tasks", Label: "AI线索任务", Used: 8, Limit: 30}},
+		usage:    []membership.UsageItem{{Key: "lead_tasks", Label: "AI线索任务", Used: 28, Limit: 30}},
 	}
-	taskReader := &fakeTasks{rows: []tasks.Task{{ID: 9, Title: "整理客户名单", Project: "AI线索开发", Status: tasks.StatusTodo, CreatedAt: now}}}
+	taskReader := &fakeTasks{rows: []tasks.Task{
+		{ID: 9, Title: "整理客户名单", Project: "AI线索开发", Status: tasks.StatusTodo, CreatedAt: now},
+		{ID: 10, Title: "联调工作台", Project: "工作台", Status: tasks.StatusInProgress, CreatedAt: now},
+	}}
 	service := NewService(Dependencies{Notifications: notificationReader, Membership: membershipReader, Tasks: taskReader})
 
 	summary, err := service.Summary(context.Background(), 42)
@@ -70,8 +73,14 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Summary() error = %v", err)
 	}
-	if summary.NotificationSummary.Unread != 2 || summary.AccountSummary.PlanName != "会员版" || len(summary.RecentTasks) != 1 {
+	if summary.NotificationSummary.Unread != 2 || summary.AccountSummary.PlanName != "会员版" || len(summary.RecentTasks) != 2 {
 		t.Fatalf("summary = %+v", summary)
+	}
+	if len(summary.Metrics) != 3 || summary.Metrics[0].Value != "1" || summary.Metrics[1].Value != "1" || summary.Metrics[2].Value != "1" {
+		t.Fatalf("metrics = %+v", summary.Metrics)
+	}
+	if len(summary.HeroCards) != 3 || len(summary.Recommendations) != 2 {
+		t.Fatalf("cards/recommendations = %+v/%+v", summary.HeroCards, summary.Recommendations)
 	}
 	if notificationReader.userID != 42 || membershipReader.userID != 42 || taskReader.userID != 42 || taskReader.filters.Limit != 5 {
 		t.Fatalf("dependency calls = %d/%d/%d/%d", notificationReader.userID, membershipReader.userID, taskReader.userID, taskReader.filters.Limit)
@@ -90,7 +99,7 @@ func TestServiceDegradesPartialDependencyFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Summary() error = %v", err)
 	}
-	if summary.HeroCards == nil || summary.Recommendations == nil || summary.RecentTasks == nil || summary.NotificationSummary.Latest == nil || summary.AccountSummary.QuotaWarnings == nil {
+	if summary.Metrics == nil || summary.HeroCards == nil || summary.Recommendations == nil || summary.RecentTasks == nil || summary.NotificationSummary.Latest == nil || summary.AccountSummary.QuotaWarnings == nil {
 		t.Fatalf("summary should contain safe empty slices: %+v", summary)
 	}
 }

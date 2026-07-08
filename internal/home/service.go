@@ -44,7 +44,16 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 		return Summary{}, ErrUserIDRequired
 	}
 	summary := Summary{
-		HeroCards:       []Card{},
+		Metrics: []Metric{
+			{Label: "进行中项目", Value: "0", Icon: "folder"},
+			{Label: "待办事项", Value: "0", Icon: "inbox"},
+			{Label: "额度预警", Value: "0", Icon: "trend"},
+		},
+		HeroCards: []Card{
+			{Title: "项目确定及拆解", Summary: "洞察机会，精准定位，科学拆解", URL: "/projects"},
+			{Title: "落地", Summary: "工具赋能，咨询陪跑，高效执行", URL: "/tasks"},
+			{Title: "增长", Summary: "获客转化，客户运营，持续增长", URL: "/leads"},
+		},
 		Recommendations: []Card{},
 		RecentTasks:     []RecentTask{},
 		NotificationSummary: NotificationSummary{
@@ -89,12 +98,22 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 					})
 				}
 			}
+			if len(summary.AccountSummary.QuotaWarnings) > 0 {
+				warning := summary.AccountSummary.QuotaWarnings[0]
+				summary.Recommendations = append(summary.Recommendations, Card{
+					Title:   "会员额度即将用完",
+					Summary: warning.Message,
+					URL:     "/membership",
+				})
+			}
 		}
 	}
 
 	if s.deps.Tasks != nil {
 		if rows, err := s.deps.Tasks.ListTasks(ctx, userID, tasks.ListFilters{Limit: 5}); err == nil {
 			summary.RecentTasks = make([]RecentTask, 0, len(rows))
+			todoCount := 0
+			inProgressCount := 0
 			for _, task := range rows {
 				summary.RecentTasks = append(summary.RecentTasks, RecentTask{
 					ID:      task.ID,
@@ -103,10 +122,34 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 					Status:  task.Status,
 					DueAt:   task.DueAt,
 				})
+				switch task.Status {
+				case tasks.StatusTodo:
+					todoCount++
+				case tasks.StatusInProgress:
+					inProgressCount++
+				}
+			}
+			summary.Metrics[0].Value = fmt.Sprintf("%d", inProgressCount)
+			summary.Metrics[1].Value = fmt.Sprintf("%d", todoCount)
+			if len(rows) == 0 {
+				summary.Recommendations = append(summary.Recommendations,
+					Card{Title: "浏览项目超市", Summary: "先选择一个想验证的项目方向", URL: "/projects"},
+					Card{Title: "打开商业沙盘", Summary: "拆解商业模式、成本和落地路径", URL: "/sandbox"},
+				)
+			} else {
+				summary.Recommendations = append(summary.Recommendations, Card{
+					Title:   "继续推进任务",
+					Summary: fmt.Sprintf("当前有 %d 个待办、%d 个进行中任务", todoCount, inProgressCount),
+					URL:     "/tasks",
+				})
 			}
 		}
 	}
+	summary.Metrics[2].Value = fmt.Sprintf("%d", len(summary.AccountSummary.QuotaWarnings))
 
+	if summary.Metrics == nil {
+		summary.Metrics = []Metric{}
+	}
 	if summary.RecentTasks == nil {
 		summary.RecentTasks = []RecentTask{}
 	}

@@ -147,6 +147,11 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
     task.project,
     task.due_at ? formatHomeTime(task.due_at) : task.status
   ] as const) : [];
+  const visibleMetrics = summary?.metrics.length ? summary.metrics.slice(0, 3) : [
+    { label: "进行中项目", value: signedIn ? String(visibleTasks.length) : "-", icon: "folder" },
+    { label: "待办事项", value: signedIn ? String(visibleTasks.length) : "-", icon: "inbox" },
+    { label: "本周新增线索", value: "-", icon: "trend" }
+  ];
   const visibleNotifications = summary ? summary.notification_summary.latest.map((item) => [
     item.title,
     item.summary ?? "",
@@ -387,9 +392,9 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                 )}
               </div>
               <div className="stat-strip" aria-label="工作台统计">
-                <MetricCard label="进行中项目" value={signedIn ? String(visibleTasks.length) : "-"} icon="folder" />
-                <MetricCard label="待办事项" value={signedIn ? String(visibleTasks.length) : "-"} icon="inbox" />
-                <MetricCard label="本周新增线索" value="-" icon="trend" />
+                {visibleMetrics.map((metric) => (
+                  <MetricCard icon={metric.icon || "folder"} key={metric.label} label={metric.label} value={metric.value} />
+                ))}
               </div>
             </div>
 

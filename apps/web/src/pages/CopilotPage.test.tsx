@@ -762,7 +762,7 @@ function delayedResponse(response: Response, signal?: AbortSignal | null) {
     const timeout = setTimeout(() => {
       signal?.removeEventListener("abort", handleAbort);
       resolve(response);
-    }, 50);
+    }, 500);
     signal?.addEventListener("abort", handleAbort, { once: true });
   });
 }

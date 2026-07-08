@@ -8,6 +8,12 @@ type Card struct {
 	URL     string `json:"url,omitempty"`
 }
 
+type Metric struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+	Icon  string `json:"icon,omitempty"`
+}
+
 type RecentTask struct {
 	ID      int64      `json:"id"`
 	Title   string     `json:"title"`
@@ -45,6 +51,7 @@ type AccountSummary struct {
 }
 
 type Summary struct {
+	Metrics             []Metric            `json:"metrics"`
 	HeroCards           []Card              `json:"hero_cards"`
 	Recommendations     []Card              `json:"recommendations"`
 	RecentTasks         []RecentTask        `json:"recent_tasks"`
