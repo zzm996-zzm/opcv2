@@ -3,10 +3,12 @@ package leads
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/zzm/opcv2/internal/jobs"
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type Repository interface {
@@ -18,9 +20,9 @@ type Repository interface {
 	ListTasks(ctx context.Context, userID int64, limit int) ([]Task, error)
 }
 
-type CreditLedger interface {
-	Charge(ctx context.Context, userID int64, amount int, referenceType string, referenceID int64) error
-	Refund(ctx context.Context, userID int64, amount int, referenceType string, referenceID int64) error
+type QuotaLedger interface {
+	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
+	RefundUsage(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
 }
 
 type Queue interface {
@@ -33,16 +35,16 @@ type LeadProvider interface {
 
 type Service struct {
 	repository Repository
-	credits    CreditLedger
+	quota      QuotaLedger
 	queue      Queue
 	provider   LeadProvider
 	now        func() time.Time
 }
 
-func NewService(repository Repository, credits CreditLedger, queue Queue, provider LeadProvider) *Service {
+func NewService(repository Repository, quota QuotaLedger, queue Queue, provider LeadProvider) *Service {
 	return &Service{
 		repository: repository,
-		credits:    credits,
+		quota:      quota,
 		queue:      queue,
 		provider:   provider,
 		now:        time.Now,
@@ -51,11 +53,20 @@ func NewService(repository Repository, credits CreditLedger, queue Queue, provid
 
 func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput) (Task, error) {
 	input.Query = strings.TrimSpace(input.Query)
-	if s.repository == nil || s.credits == nil || s.queue == nil {
+	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
+	if s.repository == nil || s.quota == nil || s.queue == nil {
 		return Task{}, ErrServiceNotReady
 	}
 	if input.UserID <= 0 || input.Query == "" || input.IdempotencyKey == "" {
 		return Task{}, ErrInvalidTaskInput
+	}
+	if _, err := s.quota.CheckAndConsume(ctx, membership.ConsumeInput{
+		UserID:         input.UserID,
+		FeatureKey:     membership.FeatureLeadTasks,
+		Amount:         defaultCreditCost,
+		IdempotencyKey: input.IdempotencyKey,
+	}); err != nil {
+		return Task{}, err
 	}
 	task, existed, err := s.repository.CreateTask(ctx, Task{
 		UserID:         input.UserID,
@@ -66,13 +77,11 @@ func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput) (Task, 
 		CreatedAt:      s.now(),
 	})
 	if err != nil {
+		_ = s.refundTaskQuota(ctx, input.UserID, defaultCreditCost, input.IdempotencyKey, "create")
 		return Task{}, err
 	}
 	if existed {
 		return task, nil
-	}
-	if err := s.credits.Charge(ctx, task.UserID, task.CreditCost, "lead_task", task.ID); err != nil {
-		return Task{}, err
 	}
 	if err := s.queue.Enqueue(ctx, jobs.Job{
 		Type:           jobs.TypeLeadSearch,
@@ -83,13 +92,15 @@ func (s *Service) CreateTask(ctx context.Context, input CreateTaskInput) (Task, 
 		MaxRetry: 3,
 		Timeout:  5 * time.Minute,
 	}); err != nil {
+		_ = s.refundTaskQuota(ctx, task.UserID, task.CreditCost, input.IdempotencyKey, "enqueue")
+		_ = s.repository.UpdateTaskStatus(ctx, task.ID, StatusRefunded, "enqueue_failed")
 		return Task{}, err
 	}
 	return task, nil
 }
 
 func (s *Service) ProcessTask(ctx context.Context, taskID int64) error {
-	if s.repository == nil || s.credits == nil || s.provider == nil {
+	if s.repository == nil || s.quota == nil || s.provider == nil {
 		return ErrServiceNotReady
 	}
 	task, err := s.repository.GetTask(ctx, taskID)
@@ -163,7 +174,7 @@ func (s *Service) ListResults(ctx context.Context, userID, taskID int64, limit i
 func (s *Service) failTask(ctx context.Context, task Task, cause error) error {
 	code := errorCode(cause)
 	if refundable(cause) {
-		if err := s.credits.Refund(ctx, task.UserID, task.CreditCost, "lead_task", task.ID); err != nil {
+		if err := s.refundTaskQuota(ctx, task.UserID, task.CreditCost, task.IdempotencyKey, fmt.Sprintf("provider-%d", task.ID)); err != nil {
 			return err
 		}
 		_ = s.repository.UpdateTaskStatus(ctx, task.ID, StatusRefunded, code)
@@ -171,6 +182,19 @@ func (s *Service) failTask(ctx context.Context, task Task, cause error) error {
 	}
 	_ = s.repository.UpdateTaskStatus(ctx, task.ID, StatusFailed, code)
 	return cause
+}
+
+func (s *Service) refundTaskQuota(ctx context.Context, userID int64, amount int, idempotencyKey string, reason string) error {
+	if amount <= 0 {
+		amount = defaultCreditCost
+	}
+	_, err := s.quota.RefundUsage(ctx, membership.ConsumeInput{
+		UserID:         userID,
+		FeatureKey:     membership.FeatureLeadTasks,
+		Amount:         amount,
+		IdempotencyKey: fmt.Sprintf("%s-refund-%s", idempotencyKey, reason),
+	})
+	return err
 }
 
 func errorCode(err error) string {

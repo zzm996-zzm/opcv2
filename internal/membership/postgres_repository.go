@@ -228,6 +228,94 @@ func (r *PostgresRepository) CheckAndConsume(ctx context.Context, input ConsumeI
 	return usage, nil
 }
 
+func (r *PostgresRepository) RefundUsage(ctx context.Context, input ConsumeInput, now time.Time) (UsageItem, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	planCode := PlanFree
+	subscription, err := r.activeSubscription(ctx, tx, input.UserID, now)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	if subscription.PlanCode != "" {
+		planCode = subscription.PlanCode
+	}
+
+	quota, err := r.planQuota(ctx, tx, planCode, input.FeatureKey)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	resetAt := nextMonthlyReset(now)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO membership_usage (user_id, key, label, used, limit_value, unit, reset_at, updated_at)
+		VALUES ($1, $2, $3, 0, $4, $5, $6, $7)
+		ON CONFLICT (user_id, key) DO NOTHING
+	`, input.UserID, input.FeatureKey, quota.Label, quota.Limit, quota.Unit, resetAt, now); err != nil {
+		return UsageItem{}, err
+	}
+
+	usage, err := r.lockUsage(ctx, tx, input.UserID, input.FeatureKey)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	if usage.ResetAt == nil || !usage.ResetAt.After(now) {
+		usage.Used = 0
+		usage.ResetAt = &resetAt
+	}
+	usage.Key = input.FeatureKey
+	usage.Label = quota.Label
+	usage.Limit = quota.Limit
+	usage.Unit = quota.Unit
+
+	if existing, ok, err := r.existingUsageEvent(ctx, tx, input); err != nil {
+		return UsageItem{}, err
+	} else if ok {
+		usage.Used = existing.Used
+		usage.ResetAt = existing.ResetAt
+		if err := tx.Commit(ctx); err != nil {
+			return UsageItem{}, err
+		}
+		return usage, nil
+	}
+
+	refundAmount := input.Amount
+	if refundAmount > usage.Used {
+		refundAmount = usage.Used
+	}
+	if refundAmount == 0 {
+		if err := tx.Commit(ctx); err != nil {
+			return UsageItem{}, err
+		}
+		return usage, nil
+	}
+	usedAfter := usage.Used - refundAmount
+	resetAtValue := resetAt
+	if usage.ResetAt != nil {
+		resetAtValue = *usage.ResetAt
+	}
+	if err := tx.QueryRow(ctx, `
+		UPDATE membership_usage
+		SET used = $3, label = $4, limit_value = $5, unit = $6, reset_at = $7, updated_at = $8
+		WHERE user_id = $1 AND key = $2
+		RETURNING used
+	`, input.UserID, input.FeatureKey, usedAfter, quota.Label, quota.Limit, quota.Unit, resetAtValue, now).Scan(&usage.Used); err != nil {
+		return UsageItem{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO membership_usage_events (user_id, key, idempotency_key, amount, used_after, reset_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, input.UserID, input.FeatureKey, input.IdempotencyKey, -refundAmount, usage.Used, resetAtValue, now); err != nil {
+		return UsageItem{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return UsageItem{}, err
+	}
+	return usage, nil
+}
+
 func (r *PostgresRepository) ListOrders(ctx context.Context, userID int64, limit int) ([]Order, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, order_no, plan_code, amount_cents, status, created_at, paid_at

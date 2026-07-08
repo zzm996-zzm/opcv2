@@ -16,6 +16,7 @@ const (
 const (
 	FeatureSandboxRuns     = "sandbox_runs"
 	FeatureCompetitorScans = "competitor_scans"
+	FeatureLeadTasks       = "lead_tasks"
 )
 
 var (
@@ -179,6 +180,7 @@ type Repository interface {
 	ListPlans(ctx context.Context) ([]PlanOption, error)
 	CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, error)
 	CheckAndConsume(ctx context.Context, input ConsumeInput, now time.Time) (UsageItem, error)
+	RefundUsage(ctx context.Context, input ConsumeInput, now time.Time) (UsageItem, error)
 	ListOrders(ctx context.Context, userID int64, limit int) ([]Order, error)
 	CreateCheckout(ctx context.Context, input CheckoutInput, now time.Time) (CheckoutResult, error)
 }
@@ -237,8 +239,30 @@ func (s *Service) CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, 
 }
 
 func (s *Service) CheckAndConsume(ctx context.Context, input ConsumeInput) (UsageItem, error) {
+	input, err := normalizeConsumeInput(input)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	if s.repository == nil {
+		return UsageItem{}, ErrServiceNotReady
+	}
+	return s.repository.CheckAndConsume(ctx, input, s.now())
+}
+
+func (s *Service) RefundUsage(ctx context.Context, input ConsumeInput) (UsageItem, error) {
+	input, err := normalizeConsumeInput(input)
+	if err != nil {
+		return UsageItem{}, err
+	}
+	if s.repository == nil {
+		return UsageItem{}, ErrServiceNotReady
+	}
+	return s.repository.RefundUsage(ctx, input, s.now())
+}
+
+func normalizeConsumeInput(input ConsumeInput) (ConsumeInput, error) {
 	if input.UserID <= 0 {
-		return UsageItem{}, ErrUserIDRequired
+		return ConsumeInput{}, ErrUserIDRequired
 	}
 	input.FeatureKey = strings.TrimSpace(input.FeatureKey)
 	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
@@ -246,12 +270,9 @@ func (s *Service) CheckAndConsume(ctx context.Context, input ConsumeInput) (Usag
 		input.Amount = 1
 	}
 	if input.FeatureKey == "" || input.IdempotencyKey == "" {
-		return UsageItem{}, ErrInvalidConsume
+		return ConsumeInput{}, ErrInvalidConsume
 	}
-	if s.repository == nil {
-		return UsageItem{}, ErrServiceNotReady
-	}
-	return s.repository.CheckAndConsume(ctx, input, s.now())
+	return input, nil
 }
 
 func (s *Service) ListOrders(ctx context.Context, userID int64, limit int) ([]Order, error) {

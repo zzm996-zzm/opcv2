@@ -10,6 +10,7 @@ import (
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/geo"
 	"github.com/zzm/opcv2/internal/leads"
+	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/postgres"
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
@@ -30,6 +31,8 @@ func main() {
 	}
 	defer db.Close()
 
+	membershipRepository := membership.NewPostgresRepository(db)
+	membershipService := membership.NewService(membershipRepository)
 	leadsRepository := leads.NewPostgresRepository(db)
 	leadProvider, err := newLeadProvider(cfg)
 	if err != nil {
@@ -38,7 +41,7 @@ func main() {
 	}
 	leadsService := leads.NewService(
 		leadsRepository,
-		leads.NewDevelopmentCreditLedger(),
+		membershipService,
 		taskqueue.NewClient(cfg.RedisAddr),
 		leadProvider,
 	)

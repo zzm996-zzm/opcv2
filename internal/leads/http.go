@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/platform/httpapi"
 )
 
@@ -106,6 +107,10 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_task_input"})
 	case errors.Is(err, ErrTaskNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "task_not_found"})
+	case errors.Is(err, membership.ErrQuotaExceeded):
+		c.JSON(http.StatusPaymentRequired, gin.H{"error": "quota_exceeded"})
+	case errors.Is(err, membership.ErrQuotaNotFound):
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "quota_not_configured"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	default:

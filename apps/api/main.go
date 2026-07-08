@@ -126,7 +126,7 @@ func main() {
 	}
 	leadsService := leads.NewService(
 		leadsRepository,
-		leads.NewDevelopmentCreditLedger(),
+		membershipService,
 		taskqueue.NewClient(cfg.RedisAddr),
 		leadProvider,
 	)

@@ -223,6 +223,93 @@ func TestPostgresRepositoryCheckAndConsumeIncrementsUsageOnce(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryRefundUsageDecrementsUsageOnce(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC)
+	resetAt := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	input := ConsumeInput{
+		UserID:         42,
+		FeatureKey:     FeatureLeadTasks,
+		Amount:         1,
+		IdempotencyKey: "lead-task-42-refund-provider",
+	}
+
+	db.ExpectBegin()
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT plan_code, status, starts_at, ends_at
+		FROM user_subscriptions
+		WHERE user_id = $1
+		  AND status = 'active'
+		  AND (ends_at IS NULL OR ends_at > $2)
+		ORDER BY starts_at DESC
+		LIMIT 1
+	`)).
+		WithArgs(input.UserID, now).
+		WillReturnRows(pgxmock.NewRows([]string{"plan_code", "status", "starts_at", "ends_at"}).AddRow(PlanPro, "active", now.Add(-time.Hour), nil))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT label, limit_value, unit
+		FROM membership_plan_quotas
+		WHERE plan_code = $1 AND key = $2
+	`)).
+		WithArgs(PlanPro, FeatureLeadTasks).
+		WillReturnRows(pgxmock.NewRows([]string{"label", "limit_value", "unit"}).AddRow("AI线索任务", 30, "次/月"))
+	db.ExpectExec(regexp.QuoteMeta(`
+		INSERT INTO membership_usage (user_id, key, label, used, limit_value, unit, reset_at, updated_at)
+		VALUES ($1, $2, $3, 0, $4, $5, $6, $7)
+		ON CONFLICT (user_id, key) DO NOTHING
+	`)).
+		WithArgs(input.UserID, input.FeatureKey, "AI线索任务", 30, "次/月", resetAt, now).
+		WillReturnResult(pgxmock.NewResult("INSERT", 0))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT label, used, limit_value, unit, reset_at
+		FROM membership_usage
+		WHERE user_id = $1 AND key = $2
+		FOR UPDATE
+	`)).
+		WithArgs(input.UserID, input.FeatureKey).
+		WillReturnRows(pgxmock.NewRows([]string{"label", "used", "limit_value", "unit", "reset_at"}).
+			AddRow("AI线索任务", 1, 30, "次/月", resetAt))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT amount, used_after, reset_at
+		FROM membership_usage_events
+		WHERE user_id = $1 AND key = $2 AND idempotency_key = $3
+	`)).
+		WithArgs(input.UserID, input.FeatureKey, input.IdempotencyKey).
+		WillReturnRows(pgxmock.NewRows([]string{"amount", "used_after", "reset_at"}))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE membership_usage
+		SET used = $3, label = $4, limit_value = $5, unit = $6, reset_at = $7, updated_at = $8
+		WHERE user_id = $1 AND key = $2
+		RETURNING used
+	`)).
+		WithArgs(input.UserID, input.FeatureKey, 0, "AI线索任务", 30, "次/月", resetAt, now).
+		WillReturnRows(pgxmock.NewRows([]string{"used"}).AddRow(0))
+	db.ExpectExec(regexp.QuoteMeta(`
+		INSERT INTO membership_usage_events (user_id, key, idempotency_key, amount, used_after, reset_at, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`)).
+		WithArgs(input.UserID, input.FeatureKey, input.IdempotencyKey, -1, 0, resetAt, now).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	db.ExpectCommit()
+
+	repository := NewPostgresRepository(db)
+	usage, err := repository.RefundUsage(context.Background(), input, now)
+	if err != nil {
+		t.Fatalf("RefundUsage() error = %v", err)
+	}
+	if usage.Used != 0 || usage.Limit != 30 || usage.ResetAt == nil || !usage.ResetAt.Equal(resetAt) {
+		t.Fatalf("usage = %+v", usage)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryRedeemsCreditCodeInTransaction(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

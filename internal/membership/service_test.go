@@ -16,8 +16,11 @@ type memoryRepository struct {
 	plans         []PlanOption
 	usage         []UsageItem
 	consumed      []ConsumeInput
+	refunded      []ConsumeInput
 	consumeResult UsageItem
 	consumeErr    error
+	refundResult  UsageItem
+	refundErr     error
 	orders        []Order
 	checkout      CheckoutInput
 }
@@ -104,6 +107,14 @@ func (r *memoryRepository) CheckAndConsume(_ context.Context, input ConsumeInput
 		return UsageItem{}, r.consumeErr
 	}
 	return r.consumeResult, nil
+}
+
+func (r *memoryRepository) RefundUsage(_ context.Context, input ConsumeInput, _ time.Time) (UsageItem, error) {
+	r.refunded = append(r.refunded, input)
+	if r.refundErr != nil {
+		return UsageItem{}, r.refundErr
+	}
+	return r.refundResult, nil
 }
 
 func (r *memoryRepository) ListOrders(_ context.Context, _ int64, limit int) ([]Order, error) {
@@ -298,5 +309,29 @@ func TestServiceCheckAndConsumeReturnsQuotaExceeded(t *testing.T) {
 
 	if !errors.Is(err, ErrQuotaExceeded) {
 		t.Fatalf("err = %v, want ErrQuotaExceeded", err)
+	}
+}
+
+func TestServiceRefundUsageNormalizesInput(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.refundResult = UsageItem{Key: FeatureLeadTasks, Used: 0, Limit: 30, Unit: "次/月"}
+	service := NewService(repository)
+
+	usage, err := service.RefundUsage(context.Background(), ConsumeInput{
+		UserID:         42,
+		FeatureKey:     " lead_tasks ",
+		Amount:         0,
+		IdempotencyKey: " lead-task-42-refund ",
+	})
+
+	if err != nil {
+		t.Fatalf("RefundUsage() error = %v", err)
+	}
+	if usage.Used != 0 || len(repository.refunded) != 1 {
+		t.Fatalf("usage/refunded = %+v/%+v", usage, repository.refunded)
+	}
+	refunded := repository.refunded[0]
+	if refunded.FeatureKey != FeatureLeadTasks || refunded.Amount != 1 || refunded.IdempotencyKey != "lead-task-42-refund" {
+		t.Fatalf("refunded = %+v", refunded)
 	}
 }

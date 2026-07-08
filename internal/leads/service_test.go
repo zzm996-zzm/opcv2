@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/jobs"
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type memoryRepository struct {
@@ -91,19 +92,23 @@ func (r *memoryRepository) ListTasks(_ context.Context, userID int64, limit int)
 	return tasks, nil
 }
 
-type fakeCredits struct {
-	charged  []int64
-	refunded []int64
+type fakeQuota struct {
+	consumed []membership.ConsumeInput
+	refunded []membership.ConsumeInput
+	err      error
 }
 
-func (c *fakeCredits) Charge(_ context.Context, userID int64, amount int, referenceType string, referenceID int64) error {
-	c.charged = append(c.charged, referenceID)
-	return nil
+func (q *fakeQuota) CheckAndConsume(_ context.Context, input membership.ConsumeInput) (membership.UsageItem, error) {
+	q.consumed = append(q.consumed, input)
+	if q.err != nil {
+		return membership.UsageItem{}, q.err
+	}
+	return membership.UsageItem{Key: input.FeatureKey, Used: len(q.consumed), Limit: 30, Unit: "次/月"}, nil
 }
 
-func (c *fakeCredits) Refund(_ context.Context, userID int64, amount int, referenceType string, referenceID int64) error {
-	c.refunded = append(c.refunded, referenceID)
-	return nil
+func (q *fakeQuota) RefundUsage(_ context.Context, input membership.ConsumeInput) (membership.UsageItem, error) {
+	q.refunded = append(q.refunded, input)
+	return membership.UsageItem{Key: input.FeatureKey, Used: 0, Limit: 30, Unit: "次/月"}, nil
 }
 
 type fakeQueue struct {
@@ -124,11 +129,11 @@ func (p *fakeLeadProvider) SearchLeads(_ context.Context, input SearchInput) ([]
 	return p.leads, p.err
 }
 
-func TestServiceCreatesTaskChargesCreditsAndEnqueues(t *testing.T) {
+func TestServiceCreatesTaskConsumesQuotaAndEnqueues(t *testing.T) {
 	repository := &memoryRepository{}
-	credits := &fakeCredits{}
+	quota := &fakeQuota{}
 	queue := &fakeQueue{}
-	service := NewService(repository, credits, queue, nil)
+	service := NewService(repository, quota, queue, nil)
 	service.now = func() time.Time { return time.Date(2026, 6, 24, 10, 0, 0, 0, time.UTC) }
 
 	task, err := service.CreateTask(context.Background(), CreateTaskInput{
@@ -142,8 +147,8 @@ func TestServiceCreatesTaskChargesCreditsAndEnqueues(t *testing.T) {
 	if task.Status != StatusQueued || task.ID == 0 {
 		t.Fatalf("task = %+v", task)
 	}
-	if len(credits.charged) != 1 || credits.charged[0] != task.ID {
-		t.Fatalf("charged = %+v", credits.charged)
+	if len(quota.consumed) != 1 || quota.consumed[0].FeatureKey != membership.FeatureLeadTasks || quota.consumed[0].IdempotencyKey != "lead-task-42" {
+		t.Fatalf("consumed = %+v", quota.consumed)
 	}
 	if len(queue.jobs) != 1 || queue.jobs[0].Type != jobs.TypeLeadSearch || queue.jobs[0].IdempotencyKey != "lead-task-42" {
 		t.Fatalf("jobs = %+v", queue.jobs)
@@ -152,9 +157,9 @@ func TestServiceCreatesTaskChargesCreditsAndEnqueues(t *testing.T) {
 
 func TestServiceCreateTaskIsIdempotent(t *testing.T) {
 	repository := &memoryRepository{}
-	credits := &fakeCredits{}
+	quota := &fakeQuota{}
 	queue := &fakeQueue{}
-	service := NewService(repository, credits, queue, nil)
+	service := NewService(repository, quota, queue, nil)
 
 	first, err := service.CreateTask(context.Background(), CreateTaskInput{UserID: 42, Query: "成都 教培", IdempotencyKey: "same-key"})
 	if err != nil {
@@ -167,15 +172,31 @@ func TestServiceCreateTaskIsIdempotent(t *testing.T) {
 	if first.ID != second.ID {
 		t.Fatalf("first=%+v second=%+v", first, second)
 	}
-	if len(credits.charged) != 1 || len(queue.jobs) != 1 {
-		t.Fatalf("charged=%+v jobs=%+v", credits.charged, queue.jobs)
+	if len(quota.consumed) != 2 || len(queue.jobs) != 1 {
+		t.Fatalf("consumed=%+v jobs=%+v", quota.consumed, queue.jobs)
+	}
+}
+
+func TestServiceCreateTaskStopsWhenQuotaExceeded(t *testing.T) {
+	repository := &memoryRepository{}
+	quota := &fakeQuota{err: membership.ErrQuotaExceeded}
+	queue := &fakeQueue{}
+	service := NewService(repository, quota, queue, nil)
+
+	_, err := service.CreateTask(context.Background(), CreateTaskInput{UserID: 42, Query: "成都 教培", IdempotencyKey: "quota-key"})
+
+	if !errors.Is(err, membership.ErrQuotaExceeded) {
+		t.Fatalf("CreateTask() error = %v, want ErrQuotaExceeded", err)
+	}
+	if len(repository.tasks) != 0 || len(queue.jobs) != 0 {
+		t.Fatalf("tasks=%+v jobs=%+v", repository.tasks, queue.jobs)
 	}
 }
 
 func TestServiceWorkerStoresResultsOnSuccess(t *testing.T) {
 	repository := &memoryRepository{}
 	provider := &fakeLeadProvider{leads: []Lead{{Name: "成都启明星教育", Phone: "028-12345678", Website: "https://example.com"}}}
-	service := NewService(repository, &fakeCredits{}, &fakeQueue{}, provider)
+	service := NewService(repository, &fakeQuota{}, &fakeQueue{}, provider)
 	task, _, err := repository.CreateTask(context.Background(), Task{UserID: 42, Query: "成都 教培", Status: StatusQueued, IdempotencyKey: "lead-task-42"})
 	if err != nil {
 		t.Fatalf("CreateTask fixture error = %v", err)
@@ -199,9 +220,9 @@ func TestServiceWorkerStoresResultsOnSuccess(t *testing.T) {
 
 func TestServiceWorkerRefundsOnSystemFailure(t *testing.T) {
 	repository := &memoryRepository{}
-	credits := &fakeCredits{}
+	quota := &fakeQuota{}
 	provider := &fakeLeadProvider{err: ErrProviderUnavailable}
-	service := NewService(repository, credits, &fakeQueue{}, provider)
+	service := NewService(repository, quota, &fakeQueue{}, provider)
 	task, _, err := repository.CreateTask(context.Background(), Task{UserID: 42, Query: "成都 教培", Status: StatusQueued, IdempotencyKey: "lead-task-42", CreditCost: 1})
 	if err != nil {
 		t.Fatalf("CreateTask fixture error = %v", err)
@@ -215,16 +236,16 @@ func TestServiceWorkerRefundsOnSystemFailure(t *testing.T) {
 	if updated.Status != StatusRefunded {
 		t.Fatalf("updated task = %+v", updated)
 	}
-	if len(credits.refunded) != 1 || credits.refunded[0] != task.ID {
-		t.Fatalf("refunded = %+v", credits.refunded)
+	if len(quota.refunded) != 1 || quota.refunded[0].FeatureKey != membership.FeatureLeadTasks {
+		t.Fatalf("refunded = %+v", quota.refunded)
 	}
 }
 
 func TestServiceWorkerDoesNotRefundProviderQuotaFailure(t *testing.T) {
 	repository := &memoryRepository{}
-	credits := &fakeCredits{}
+	quota := &fakeQuota{}
 	provider := &fakeLeadProvider{err: ErrProviderQuotaExceeded}
-	service := NewService(repository, credits, &fakeQueue{}, provider)
+	service := NewService(repository, quota, &fakeQueue{}, provider)
 	task, _, err := repository.CreateTask(context.Background(), Task{UserID: 42, Query: "成都 教培", Status: StatusQueued, IdempotencyKey: "lead-task-42", CreditCost: 1})
 	if err != nil {
 		t.Fatalf("CreateTask fixture error = %v", err)
@@ -238,8 +259,8 @@ func TestServiceWorkerDoesNotRefundProviderQuotaFailure(t *testing.T) {
 	if updated.Status != StatusFailed || updated.ErrorCode != ErrorProviderQuotaExceeded {
 		t.Fatalf("updated task = %+v", updated)
 	}
-	if len(credits.refunded) != 0 {
-		t.Fatalf("refunded = %+v", credits.refunded)
+	if len(quota.refunded) != 0 {
+		t.Fatalf("refunded = %+v", quota.refunded)
 	}
 }
 
@@ -251,7 +272,7 @@ func TestServiceGetsTaskDetailForOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask fixture error = %v", err)
 	}
-	service := NewService(repository, &fakeCredits{}, &fakeQueue{}, nil)
+	service := NewService(repository, &fakeQuota{}, &fakeQueue{}, nil)
 
 	detail, err := service.GetTask(context.Background(), 42, task.ID)
 
@@ -269,7 +290,7 @@ func TestServiceRejectsOtherUsersLeadTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask fixture error = %v", err)
 	}
-	service := NewService(repository, &fakeCredits{}, &fakeQueue{}, nil)
+	service := NewService(repository, &fakeQuota{}, &fakeQueue{}, nil)
 
 	_, err = service.GetTask(context.Background(), 42, task.ID)
 
@@ -289,7 +310,7 @@ func TestServiceListsTaskResultsForOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask fixture error = %v", err)
 	}
-	service := NewService(repository, &fakeCredits{}, &fakeQueue{}, nil)
+	service := NewService(repository, &fakeQuota{}, &fakeQueue{}, nil)
 
 	results, err := service.ListResults(context.Background(), 42, task.ID, 1)
 
