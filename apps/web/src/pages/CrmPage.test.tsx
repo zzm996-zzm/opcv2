@@ -105,6 +105,7 @@ describe("CrmPage", () => {
     expect(within(stats).getByText("总客户")).toBeInTheDocument();
     expect(within(stats).getByText("3")).toBeInTheDocument();
     expect(await screen.findByText("客户资料已更新")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看" })).toHaveAttribute("href", "/crm?customer_id=100");
     expect(screen.getByRole("link", { name: "查看全部跟进记录 ›" })).toHaveAttribute("href", "/crm/follow-ups?customer_id=100");
   });
 

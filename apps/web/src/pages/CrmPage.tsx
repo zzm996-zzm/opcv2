@@ -10,6 +10,7 @@ type CrmPageProps = {
 };
 
 type CustomerCard = {
+  id: number;
   name: string;
   owner: string;
   value: string;
@@ -49,6 +50,7 @@ function toCustomerCard(customer: CrmCustomer): CustomerCard {
     ? new Date(customer.next_follow_up_at).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
     : "待安排";
   return {
+    id: customer.id,
     name: customer.name,
     owner: "张婧",
     value: "待评估",
@@ -412,7 +414,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                   <span>{customer.owner}</span>
                   <span>{customer.next}</span>
                   <div className="cdk-crm-actions">
-                    <Link to="/crm/follow-ups">查看</Link>
+                    <Link to={`/crm?customer_id=${customer.id}`}>查看</Link>
                     <button type="button" aria-label={`更多操作 ${customer.name}`}>•••</button>
                   </div>
                 </article>
