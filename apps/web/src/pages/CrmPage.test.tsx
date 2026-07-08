@@ -352,6 +352,53 @@ describe("CrmPage", () => {
     expect(await screen.findByText("跟进已记录")).toBeInTheDocument();
   });
 
+  it("generates follow-up copy from the selected CRM customer detail", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        customers: [{
+          id: 100,
+          user_id: 7,
+          import_key: "lead_result:99",
+          name: "成都启明星教育",
+          phone: "028-12345678",
+          stage: "contacted",
+          source: "lead",
+          created_at: "2026-06-24T12:00:00Z",
+          updated_at: "2026-06-25T12:00:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 1,
+        qualified: 0,
+        proposal: 0,
+        won: 0,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activities: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        subject: "邀约方案演示",
+        body: "您好，我们想约您本周看一下企业AI运营方案。",
+        channel: "wechat"
+      }), { status: 200 }));
+    renderCrmRoute();
+
+    expect(await screen.findByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("跟进目标"), {
+      target: { value: "邀约方案演示" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "生成话术" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers/100/follow-up-copy", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ goal: "邀约方案演示" })
+    })));
+    expect(await screen.findByText("已生成wechat话术：邀约方案演示")).toBeInTheDocument();
+    expect(screen.getByLabelText("跟进内容")).toHaveValue("您好，我们想约您本周看一下企业AI运营方案。");
+  });
+
   it("updates the selected CRM customer stage from detail", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({

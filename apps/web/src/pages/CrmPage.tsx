@@ -137,9 +137,11 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [sourceFilter, setSourceFilter] = useState<CustomerSourceFilter>("all");
   const [stageFilter, setStageFilter] = useState<CustomerStageFilter>("all");
   const [customerQuery, setCustomerQuery] = useState("");
+  const [followUpGoal, setFollowUpGoal] = useState("推进下一次沟通");
   const [followUpNote, setFollowUpNote] = useState("");
   const [followUpNextAt, setFollowUpNextAt] = useState(defaultFollowUpDateTime);
   const [followUpSaving, setFollowUpSaving] = useState(false);
+  const [followUpCopyGenerating, setFollowUpCopyGenerating] = useState(false);
   const [followUpStatus, setFollowUpStatus] = useState("");
   const [followUpError, setFollowUpError] = useState("");
   const [stageUpdateValue, setStageUpdateValue] = useState<CrmStage>("contacted");
@@ -219,6 +221,9 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     setProfileWebsite(selectedApiCustomer.website ?? "");
     setProfileStatus("");
     setProfileError("");
+    setFollowUpGoal("推进下一次沟通");
+    setFollowUpStatus("");
+    setFollowUpError("");
   }, [selectedApiCustomer?.id]);
 
   if (variant === "followUps") {
@@ -251,6 +256,28 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
       setFollowUpError(apiErrorMessage(error, "暂时无法记录跟进"));
     } finally {
       setFollowUpSaving(false);
+    }
+  };
+
+  const generateSelectedFollowUpCopy = async () => {
+    if (!selectedApiCustomer) return;
+    const normalizedGoal = followUpGoal.trim();
+    if (!normalizedGoal) {
+      setFollowUpStatus("");
+      setFollowUpError("请输入跟进目标");
+      return;
+    }
+    setFollowUpCopyGenerating(true);
+    setFollowUpStatus("");
+    setFollowUpError("");
+    try {
+      const copy = await crmApi.generateFollowUpCopy(selectedApiCustomer.id, { goal: normalizedGoal });
+      setFollowUpNote(copy.body);
+      setFollowUpStatus(`已生成${copy.channel}话术：${copy.subject}`);
+    } catch (error) {
+      setFollowUpError(apiErrorMessage(error, "暂时无法生成跟进话术"));
+    } finally {
+      setFollowUpCopyGenerating(false);
     }
   };
 
@@ -473,6 +500,13 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                 <Link to={selectedFollowUpsPath}>查看全部跟进记录 ›</Link>
               </section>
               <section className="cdk-crm-followup-form" aria-label="记录客户跟进">
+                <label>
+                  <span>跟进目标</span>
+                  <input value={followUpGoal} onChange={(event) => setFollowUpGoal(event.target.value)} />
+                </label>
+                <button type="button" onClick={generateSelectedFollowUpCopy} disabled={followUpCopyGenerating}>
+                  {followUpCopyGenerating ? "生成中..." : "生成话术"}
+                </button>
                 <label>
                   <span>跟进内容</span>
                   <textarea value={followUpNote} onChange={(event) => setFollowUpNote(event.target.value)} />
