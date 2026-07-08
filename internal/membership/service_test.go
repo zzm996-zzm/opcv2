@@ -97,7 +97,7 @@ func (r *memoryRepository) ListPlans(context.Context) ([]PlanOption, error) {
 	return r.plans, nil
 }
 
-func (r *memoryRepository) CurrentUsage(context.Context, int64) ([]UsageItem, error) {
+func (r *memoryRepository) CurrentUsage(context.Context, int64, time.Time) ([]UsageItem, error) {
 	return r.usage, nil
 }
 

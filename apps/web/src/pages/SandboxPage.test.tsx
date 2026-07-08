@@ -224,4 +224,29 @@ describe("SandboxPage", () => {
 
     expect(await screen.findByText("请求参数有误，请检查后重试")).toBeInTheDocument();
   });
+
+  it("blocks sandbox runs when monthly quota is depleted", async () => {
+    signIn();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/sandbox/sessions?limit=10") {
+        return Promise.resolve(new Response(JSON.stringify({ sessions: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/membership/usage") {
+        return Promise.resolve(new Response(JSON.stringify({
+          usage: [{ key: "sandbox_runs", label: "商业沙盘", used: 1, limit: 1, unit: "次/月" }]
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    render(<MemoryRouter initialEntries={["/sandbox/start"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByText("0/1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: /开始推演/ }));
+
+    expect(await screen.findByText("本月商业沙盘次数已用完，请升级套餐或等待下月重置。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "升级套餐" })).toHaveAttribute("href", "/membership");
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/sandbox/sessions", expect.any(Object));
+  });
 });

@@ -362,6 +362,32 @@ describe("CompetitorDataPage", () => {
     expect(screen.getByText("获客动作前置")).toBeInTheDocument();
   });
 
+  it("blocks competitor scans when monthly quota is depleted", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/competitor/scans?limit=20" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({ scans: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/membership/usage") {
+        return Promise.resolve(new Response(JSON.stringify({
+          usage: [{ key: "competitor_scans", label: "竞品全盘数据破解", used: 5, limit: 5, unit: "次/月" }]
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderCompetitorDataPage();
+
+    expect(await screen.findByText("0/5")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "启动采集任务" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("输入竞品或关键词"), {
+      target: { value: "增长雷达；重点关注价格" }
+    });
+    expect(screen.getByRole("button", { name: "生成采集计划" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "升级套餐" })).toHaveAttribute("href", "/membership");
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/competitor/scans", expect.any(Object));
+  });
+
   it("shows queued scan progress after creating a competitor scan", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);

@@ -114,13 +114,35 @@ func (r *PostgresRepository) ListPlans(ctx context.Context) ([]PlanOption, error
 	return plans, nil
 }
 
-func (r *PostgresRepository) CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, error) {
+func (r *PostgresRepository) CurrentUsage(ctx context.Context, userID int64, now time.Time) ([]UsageItem, error) {
+	planCode := PlanFree
+	subscription, err := r.activeSubscription(ctx, r.db, userID, now)
+	if err != nil {
+		return nil, err
+	}
+	if subscription.PlanCode != "" {
+		planCode = subscription.PlanCode
+	}
+	resetAt := nextMonthlyReset(now)
 	rows, err := r.db.Query(ctx, `
-		SELECT key, label, used, limit_value, unit, reset_at
-		FROM membership_usage
-		WHERE user_id = $1
-		ORDER BY key
-	`, userID)
+		SELECT q.key,
+		       q.label,
+		       CASE
+		           WHEN u.reset_at IS NULL OR u.reset_at <= $3 THEN 0
+		           ELSE COALESCE(u.used, 0)
+		       END AS used,
+		       q.limit_value,
+		       q.unit,
+		       CASE
+		           WHEN u.reset_at IS NULL OR u.reset_at <= $3 THEN $4::TIMESTAMPTZ
+		           ELSE u.reset_at
+		       END AS reset_at
+		FROM membership_plan_quotas q
+		LEFT JOIN membership_usage u
+		  ON u.user_id = $1 AND u.key = q.key
+		WHERE q.plan_code = $2
+		ORDER BY q.display_order, q.key
+	`, userID, planCode, now, resetAt)
 	if err != nil {
 		return nil, err
 	}

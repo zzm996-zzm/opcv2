@@ -178,7 +178,7 @@ type Repository interface {
 	CurrentSnapshot(ctx context.Context, userID int64, now time.Time) (Snapshot, error)
 	RedeemCode(ctx context.Context, input RedeemInput, now time.Time) (RedeemResult, error)
 	ListPlans(ctx context.Context) ([]PlanOption, error)
-	CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, error)
+	CurrentUsage(ctx context.Context, userID int64, now time.Time) ([]UsageItem, error)
 	CheckAndConsume(ctx context.Context, input ConsumeInput, now time.Time) (UsageItem, error)
 	RefundUsage(ctx context.Context, input ConsumeInput, now time.Time) (UsageItem, error)
 	ListOrders(ctx context.Context, userID int64, limit int) ([]Order, error)
@@ -235,7 +235,7 @@ func (s *Service) CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, 
 	if s.repository == nil {
 		return nil, ErrServiceNotReady
 	}
-	return s.repository.CurrentUsage(ctx, userID)
+	return s.repository.CurrentUsage(ctx, userID, s.now())
 }
 
 func (s *Service) CheckAndConsume(ctx context.Context, input ConsumeInput) (UsageItem, error) {

@@ -93,6 +93,67 @@ func TestPostgresRepositoryListsPlansWithQuotas(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryCurrentUsageIncludesUnusedPlanQuotas(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC)
+	resetAt := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT plan_code, status, starts_at, ends_at
+		FROM user_subscriptions
+		WHERE user_id = $1
+		  AND status = 'active'
+		  AND (ends_at IS NULL OR ends_at > $2)
+		ORDER BY starts_at DESC
+		LIMIT 1
+	`)).
+		WithArgs(int64(42), now).
+		WillReturnRows(pgxmock.NewRows([]string{"plan_code", "status", "starts_at", "ends_at"}).
+			AddRow(PlanPro, "active", now.Add(-time.Hour), nil))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT q.key,
+		       q.label,
+		       CASE
+		           WHEN u.reset_at IS NULL OR u.reset_at <= $3 THEN 0
+		           ELSE COALESCE(u.used, 0)
+		       END AS used,
+		       q.limit_value,
+		       q.unit,
+		       CASE
+		           WHEN u.reset_at IS NULL OR u.reset_at <= $3 THEN $4::TIMESTAMPTZ
+		           ELSE u.reset_at
+		       END AS reset_at
+		FROM membership_plan_quotas q
+		LEFT JOIN membership_usage u
+		  ON u.user_id = $1 AND u.key = q.key
+		WHERE q.plan_code = $2
+		ORDER BY q.display_order, q.key
+	`)).
+		WithArgs(int64(42), PlanPro, now, resetAt).
+		WillReturnRows(pgxmock.NewRows([]string{"key", "label", "used", "limit_value", "unit", "reset_at"}).
+			AddRow(FeatureLeadTasks, "AI线索任务", 8, 30, "次/月", resetAt).
+			AddRow(FeatureSandboxRuns, "商业沙盘", 0, 20, "次/月", resetAt))
+
+	repository := NewPostgresRepository(db)
+	usage, err := repository.CurrentUsage(context.Background(), 42, now)
+	if err != nil {
+		t.Fatalf("CurrentUsage() error = %v", err)
+	}
+	if len(usage) != 2 || usage[0].Used != 8 || usage[1].Used != 0 {
+		t.Fatalf("usage = %+v", usage)
+	}
+	if usage[1].ResetAt == nil || !usage[1].ResetAt.Equal(resetAt) {
+		t.Fatalf("reset_at = %+v", usage[1].ResetAt)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryCreatesCheckoutOrder(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { competitorApi, type CompetitorScan } from "../lib/competitorApi";
+import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
+import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
 import { tasksApi } from "../lib/tasksApi";
 
 const emptyDataStats = [
@@ -76,11 +79,12 @@ function CompetitorDataPage() {
   const [taskMessage, setTaskMessage] = useState("");
   const [scanPlanInput, setScanPlanInput] = useState("");
   const [scanPlanError, setScanPlanError] = useState("");
+  const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
+  const scanQuota = quotaSummary(usage, quotaKeys.competitorScans, "竞品全盘数据破解");
 
   useEffect(() => {
     let active = true;
-    competitorApi
-      .listScans(20)
+    void competitorApi.listScans(20)
       .then((payload) => {
         if (!active) return;
         setLatestScan(payload.scans[0] ?? null);
@@ -90,6 +94,13 @@ function CompetitorDataPage() {
         if (!active) return;
         setLatestScan(null);
         setLoadError(apiErrorMessage(error, "暂时无法读取竞品采集数据"));
+      });
+    void membershipApi.usage()
+      .then((payload) => {
+        if (active) setUsage(payload.usage ?? []);
+      })
+      .catch(() => {
+        if (active) setUsage([]);
       });
     return () => {
       active = false;
@@ -132,6 +143,10 @@ function CompetitorDataPage() {
 
   async function startScan() {
     if (isScanning) return;
+    if (scanQuota.blocked) {
+      setLoadError("本月竞品全盘数据破解额度已用完，请升级套餐或等待下月重置。");
+      return;
+    }
     setIsScanning(true);
     try {
       const scan = await competitorApi.createScan({
@@ -139,6 +154,8 @@ function CompetitorDataPage() {
         focus: defaultScanFocus
       });
       setLatestScan(scan);
+      const usagePayload = await membershipApi.usage().catch(() => null);
+      if (usagePayload) setUsage(usagePayload.usage ?? []);
     } catch (error) {
       setLoadError(apiErrorMessage(error, "暂时无法启动采集任务"));
     } finally {
@@ -197,6 +214,10 @@ function CompetitorDataPage() {
 
   async function submitScanPlan() {
     if (isScanning) return;
+    if (scanQuota.blocked) {
+      setScanPlanError("本月竞品全盘数据破解额度已用完，请升级套餐或等待下月重置。");
+      return;
+    }
     const input = parseScanPlanInput(scanPlanInput);
     if (input.targets.length === 0) {
       setScanPlanError("请输入至少一个竞品或关键词");
@@ -208,6 +229,8 @@ function CompetitorDataPage() {
       const scan = await competitorApi.createScan(input);
       setLatestScan(scan);
       setLoadError("");
+      const usagePayload = await membershipApi.usage().catch(() => null);
+      if (usagePayload) setUsage(usagePayload.usage ?? []);
     } catch (error) {
       setLoadError(apiErrorMessage(error, "暂时无法生成采集计划"));
     } finally {
@@ -223,7 +246,12 @@ function CompetitorDataPage() {
             <h1>竞品全盘数据破解</h1>
             <p>发起脚本代查，自动采集竞品公开数据，再交给 AI 提炼威胁、机会和反击动作</p>
           </div>
-          <button className="module-primary-action" disabled={isScanning} onClick={() => void startScan()} type="button">
+          <div className={scanQuota.blocked ? "module-quota-inline depleted" : "module-quota-inline"}>
+            <small>{scanQuota.label}</small>
+            <strong>{scanQuota.value}</strong>
+            {scanQuota.blocked ? <Link to="/membership">升级套餐</Link> : <span>{scanQuota.unit}</span>}
+          </div>
+          <button className="module-primary-action" disabled={isScanning || scanQuota.blocked} onClick={() => void startScan()} type="button">
             {isScanning ? "采集中..." : "启动采集任务"}
           </button>
         </div>
@@ -267,7 +295,7 @@ function CompetitorDataPage() {
               value={scanPlanInput}
             />
             {scanPlanError ? <small className="form-error" role="alert">{scanPlanError}</small> : null}
-            <button disabled={isScanning} type="submit">{isScanning ? "生成中..." : "生成采集计划"}</button>
+            <button disabled={isScanning || scanQuota.blocked} type="submit">{isScanning ? "生成中..." : "生成采集计划"}</button>
           </form>
         </section>
 

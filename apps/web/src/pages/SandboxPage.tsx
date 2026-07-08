@@ -4,6 +4,8 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
+import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
+import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
 import { sandboxApi, type SandboxSession } from "../lib/sandboxApi";
 
 type SandboxVariant =
@@ -125,16 +127,24 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
   const [selectedSession, setSelectedSession] = useState<SandboxSession | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
+  const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
+  const sandboxQuota = quotaSummary(usage, quotaKeys.sandboxRuns, "商业沙盘");
 
   useEffect(() => {
     let active = true;
-    sandboxApi
-      .listSessions(10)
+    void sandboxApi.listSessions(10)
       .then((payload) => {
         if (active) setSessions(payload.sessions);
       })
       .catch(() => {
         if (active) setSessions([]);
+      });
+    void membershipApi.usage()
+      .then((payload) => {
+        if (active) setUsage(payload.usage ?? []);
+      })
+      .catch(() => {
+        if (active) setUsage([]);
       });
     return () => {
       active = false;
@@ -165,6 +175,10 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
   async function startSandbox(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
     if (isStarting) return;
+    if (sandboxQuota.blocked) {
+      setStartError("本月商业沙盘次数已用完，请升级套餐或等待下月重置。");
+      return;
+    }
     setIsStarting(true);
     setStartError("");
     try {
@@ -176,6 +190,8 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
       });
       const completed = await sandboxApi.runSession(draft.id);
       setSessions((current) => [completed, ...current.filter((session) => session.id !== completed.id)]);
+      const usagePayload = await membershipApi.usage().catch(() => null);
+      if (usagePayload) setUsage(usagePayload.usage ?? []);
       navigate("/sandbox/report", { state: { sandboxSession: completed } });
     } catch (error) {
       setStartError(apiErrorMessage(error, "推演启动失败，请稍后重试。"));
@@ -190,7 +206,7 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
         {variant === "home" && <SandboxHome />}
         {variant === "setup" && <SetupPage />}
         {variant === "roles" && <RolesPage />}
-        {variant === "start" && <StartPage isStarting={isStarting} onStart={startSandbox} startError={startError} />}
+        {variant === "start" && <StartPage isStarting={isStarting} onStart={startSandbox} quota={sandboxQuota} startError={startError} />}
         {variant === "questions" && <QuestionsPage />}
         {variant === "run" && <RunPage />}
         {variant === "report" && <ReportPage session={reportSession} />}
@@ -307,10 +323,12 @@ function RolesPage() {
 function StartPage({
   isStarting,
   onStart,
+  quota,
   startError
 }: {
   isStarting: boolean;
   onStart: (event: MouseEvent<HTMLAnchorElement>) => void;
+  quota: ReturnType<typeof quotaSummary>;
   startError: string;
 }) {
   return (
@@ -358,7 +376,12 @@ function StartPage({
             <input defaultChecked type="checkbox" />
             生成推演大纲
           </label>
-          <Link aria-disabled={isStarting} onClick={onStart} to="/sandbox/run">{isStarting ? "推演启动中..." : "开始推演 🚀"}</Link>
+          <div className={quota.blocked ? "module-quota-inline depleted" : "module-quota-inline"}>
+            <small>{quota.label}</small>
+            <strong>{quota.value}</strong>
+            {quota.blocked ? <Link to="/membership">升级套餐</Link> : <span>{quota.unit}</span>}
+          </div>
+          <Link aria-disabled={isStarting || quota.blocked} onClick={onStart} to="/sandbox/run">{isStarting ? "推演启动中..." : "开始推演 🚀"}</Link>
         </footer>
         {startError ? <p role="alert">{startError}</p> : null}
       </section>
