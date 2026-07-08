@@ -142,6 +142,10 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [followUpSaving, setFollowUpSaving] = useState(false);
   const [followUpStatus, setFollowUpStatus] = useState("");
   const [followUpError, setFollowUpError] = useState("");
+  const [stageUpdateValue, setStageUpdateValue] = useState<CrmStage>("contacted");
+  const [stageUpdating, setStageUpdating] = useState(false);
+  const [stageUpdateStatus, setStageUpdateStatus] = useState("");
+  const [stageUpdateError, setStageUpdateError] = useState("");
   const requestedCustomerID = Number(new URLSearchParams(location.search).get("customer_id") ?? 0);
 
   useEffect(() => {
@@ -192,15 +196,21 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
 
   const visibleCustomers = apiCustomers.map(toCustomerCard);
   const visibleStats = toStatCards(stats);
-
-  if (variant === "followUps") {
-    return <FollowUpsPage />;
-  }
-
   const selectedCustomer = visibleCustomers[0];
   const selectedApiCustomer = apiCustomers[0];
   const visibleTimelineRows = activities.map(toTimelineRow);
   const selectedFollowUpsPath = selectedApiCustomer ? `/crm/follow-ups?customer_id=${selectedApiCustomer.id}` : "/crm/follow-ups";
+
+  useEffect(() => {
+    if (!selectedApiCustomer) return;
+    setStageUpdateValue(selectedApiCustomer.stage);
+    setStageUpdateStatus("");
+    setStageUpdateError("");
+  }, [selectedApiCustomer]);
+
+  if (variant === "followUps") {
+    return <FollowUpsPage />;
+  }
 
   const recordSelectedFollowUp = async () => {
     if (!selectedApiCustomer) return;
@@ -228,6 +238,29 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
       setFollowUpError(apiErrorMessage(error, "暂时无法记录跟进"));
     } finally {
       setFollowUpSaving(false);
+    }
+  };
+
+  const updateSelectedStage = async () => {
+    if (!selectedApiCustomer) return;
+    setStageUpdating(true);
+    setStageUpdateStatus("");
+    setStageUpdateError("");
+    try {
+      const updatedCustomer = await crmApi.updateStage(selectedApiCustomer.id, {
+        stage: stageUpdateValue,
+        note: `阶段更新为${stageLabels[stageUpdateValue]}`
+      });
+      setApiCustomers((current) => current.map((customer) => (
+        customer.id === updatedCustomer.id ? updatedCustomer : customer
+      )));
+      const nextStats = await crmApi.pipelineStats();
+      setStats(nextStats);
+      setStageUpdateStatus("阶段已更新");
+    } catch (error) {
+      setStageUpdateError(apiErrorMessage(error, "暂时无法更新阶段"));
+    } finally {
+      setStageUpdating(false);
     }
   };
 
@@ -350,6 +383,24 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                 <div><dt>来源</dt><dd>{selectedCustomer.location}</dd></div>
                 <div><dt>需求摘要</dt><dd>{selectedCustomer.health}，下一步：{selectedCustomer.next}</dd></div>
               </dl>
+              <section className="cdk-crm-stage-form" aria-label="更新客户阶段">
+                <label>
+                  <span>客户阶段</span>
+                  <select value={stageUpdateValue} onChange={(event) => setStageUpdateValue(event.target.value as CrmStage)}>
+                    <option value="new">新线索</option>
+                    <option value="contacted">需求确认</option>
+                    <option value="qualified">方案演示</option>
+                    <option value="proposal">报价谈判</option>
+                    <option value="won">已成交</option>
+                    <option value="lost">已流失</option>
+                  </select>
+                </label>
+                {stageUpdateStatus && <p className="form-success" role="status">{stageUpdateStatus}</p>}
+                {stageUpdateError && <p className="form-error" role="alert">{stageUpdateError}</p>}
+                <button type="button" onClick={updateSelectedStage} disabled={stageUpdating}>
+                  {stageUpdating ? "更新中..." : "更新阶段"}
+                </button>
+              </section>
               <section className="cdk-crm-timeline">
                 <h2>跟进看板</h2>
                 {visibleTimelineRows.length === 0 ? (

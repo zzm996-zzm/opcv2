@@ -352,6 +352,67 @@ describe("CrmPage", () => {
     expect(await screen.findByText("跟进已记录")).toBeInTheDocument();
   });
 
+  it("updates the selected CRM customer stage from detail", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        customers: [{
+          id: 100,
+          user_id: 7,
+          import_key: "lead_result:99",
+          name: "成都启明星教育",
+          stage: "contacted",
+          source: "lead",
+          created_at: "2026-06-24T12:00:00Z",
+          updated_at: "2026-06-25T12:00:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 1,
+        qualified: 0,
+        proposal: 0,
+        won: 0,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activities: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 100,
+        user_id: 7,
+        import_key: "lead_result:99",
+        name: "成都启明星教育",
+        stage: "qualified",
+        source: "lead",
+        created_at: "2026-06-24T12:00:00Z",
+        updated_at: "2026-06-25T13:00:00Z"
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 0,
+        qualified: 1,
+        proposal: 0,
+        won: 0,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }));
+    renderCrmRoute();
+
+    expect(await screen.findByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("客户阶段"), {
+      target: { value: "qualified" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "更新阶段" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers/100/stage", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ stage: "qualified", note: "阶段更新为方案演示" })
+    })));
+    expect(await screen.findByText("阶段已更新")).toBeInTheDocument();
+    expect(screen.getAllByText("方案演示").length).toBeGreaterThan(0);
+  });
+
   it("renders an empty follow-up list instead of static sample records", async () => {
     signIn();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

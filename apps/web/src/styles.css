@@ -34751,6 +34751,7 @@ a {
   font-weight: 900;
 }
 
+.cdk-crm-stage-form,
 .cdk-crm-followup-form {
   display: grid;
   gap: 10px;
@@ -34760,6 +34761,7 @@ a {
   border-radius: 8px;
 }
 
+.cdk-crm-stage-form label,
 .cdk-crm-followup-form label {
   display: grid;
   gap: 7px;
@@ -34769,6 +34771,7 @@ a {
   font-weight: 900;
 }
 
+.cdk-crm-stage-form select,
 .cdk-crm-followup-form textarea,
 .cdk-crm-followup-form input {
   width: 100%;
@@ -34785,6 +34788,7 @@ a {
   resize: vertical;
 }
 
+.cdk-crm-stage-form button,
 .cdk-crm-followup-form button {
   min-height: 42px;
   color: white;
@@ -34794,6 +34798,7 @@ a {
   font-weight: 900;
 }
 
+.cdk-crm-stage-form button:disabled,
 .cdk-crm-followup-form button:disabled {
   cursor: not-allowed;
   opacity: 0.65;
