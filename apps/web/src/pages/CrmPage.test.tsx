@@ -200,6 +200,53 @@ describe("CrmPage", () => {
     expect(screen.getAllByText("企业交付").length).toBeGreaterThan(0);
   });
 
+  it("searches CRM customers from the backend API", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ customers: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 0,
+        qualified: 0,
+        proposal: 0,
+        won: 1,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        customers: [{
+          id: 102,
+          user_id: 7,
+          import_key: "enterprise_diagnosis_request:9",
+          name: "企业AI陪跑复盘客户",
+          stage: "won",
+          source: "enterprise",
+          created_at: "2026-07-08T09:30:00Z",
+          updated_at: "2026-07-08T09:30:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 0,
+        qualified: 0,
+        proposal: 0,
+        won: 1,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activities: [] }), { status: 200 }));
+    renderCrmRoute();
+
+    expect(await screen.findByText("暂无CRM客户")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("搜索客户"), {
+      target: { value: "陪跑" }
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers?q=%E9%99%AA%E8%B7%91&limit=20", expect.any(Object)));
+    expect(await screen.findByRole("heading", { name: "企业AI陪跑复盘客户" })).toBeInTheDocument();
+  });
+
   it("records a follow-up from the selected CRM customer detail", async () => {
     const nextInputValue = "2026-06-26T10:00";
     const expectedNextAt = new Date(nextInputValue).toISOString();

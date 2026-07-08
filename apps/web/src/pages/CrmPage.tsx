@@ -134,6 +134,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [stats, setStats] = useState<CrmPipelineStats | null>(null);
   const [error, setError] = useState("");
   const [sourceFilter, setSourceFilter] = useState<CustomerSourceFilter>("all");
+  const [customerQuery, setCustomerQuery] = useState("");
   const [followUpNote, setFollowUpNote] = useState("");
   const [followUpNextAt, setFollowUpNextAt] = useState(defaultFollowUpDateTime);
   const [followUpSaving, setFollowUpSaving] = useState(false);
@@ -146,7 +147,11 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     setError("");
     const customersRequest = requestedCustomerID > 0
       ? crmApi.getCustomer(requestedCustomerID).then((customer) => ({ customers: [customer] }))
-      : crmApi.listCustomers({ limit: 20, source: sourceFilter === "all" ? undefined : sourceFilter });
+      : crmApi.listCustomers({
+        limit: 20,
+        source: sourceFilter === "all" ? undefined : sourceFilter,
+        q: customerQuery.trim() || undefined
+      });
     Promise.all([customersRequest, crmApi.pipelineStats()])
       .then(([customersPayload, statsPayload]) => {
         if (active) {
@@ -160,7 +165,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     return () => {
       active = false;
     };
-  }, [sourceFilter, requestedCustomerID]);
+  }, [sourceFilter, customerQuery, requestedCustomerID]);
 
   useEffect(() => {
     const customer = apiCustomers[0];
@@ -258,7 +263,13 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
             </div>
             <label>
               <span aria-hidden="true">⌕</span>
-              <input aria-label="搜索客户" placeholder="搜索客户/公司/电话" />
+              <input
+                aria-label="搜索客户"
+                placeholder="搜索客户/公司/电话"
+                value={customerQuery}
+                onChange={(event) => setCustomerQuery(event.target.value)}
+                disabled={requestedCustomerID > 0}
+              />
             </label>
             <button type="button">来源筛选⌄</button>
           </header>
