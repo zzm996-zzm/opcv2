@@ -2,10 +2,12 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { apiErrorMessage } from "../lib/apiErrors";
+import { crmApi } from "../lib/crmApi";
 import { leadsApi, type LeadResult, type LeadTask, type LeadTaskDetail } from "../lib/leadsApi";
 import { CdkTopNav } from "./AnalysisPage";
 
 type LeadCompany = {
+  leadResultID?: number;
   name: string;
   industry: string;
   score: string;
@@ -66,6 +68,7 @@ function toLeadCompanyFromResult(result: LeadResult): LeadCompany {
     ];
   const score = 82 + Math.min(evidence.length * 4, 12) + (result.phone || result.email ? 4 : 0);
   return {
+    leadResultID: result.id,
     name: result.name,
     industry: result.website || "AI线索采集结果",
     score: String(Math.min(score, 98)),
@@ -80,6 +83,12 @@ function LeadDevelopmentPage() {
   const [tasks, setTasks] = useState<LeadTask[]>([]);
   const [taskDetail, setTaskDetail] = useState<LeadTaskDetail | null>(null);
   const [results, setResults] = useState<LeadResult[]>([]);
+  const [selectedLeadResultIDs, setSelectedLeadResultIDs] = useState<number[]>([]);
+  const [importingLeadID, setImportingLeadID] = useState<number | null>(null);
+  const [batchImporting, setBatchImporting] = useState(false);
+  const [importedLeadIDs, setImportedLeadIDs] = useState<number[]>([]);
+  const [crmImportStatus, setCrmImportStatus] = useState("");
+  const [crmImportError, setCrmImportError] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState("");
 
@@ -94,6 +103,7 @@ function LeadDevelopmentPage() {
         if (!completed) {
           setTaskDetail(null);
           setResults([]);
+          setSelectedLeadResultIDs([]);
           return;
         }
         const [detailPayload, resultsPayload] = await Promise.all([
@@ -102,7 +112,9 @@ function LeadDevelopmentPage() {
         ]);
         if (!active) return;
         setTaskDetail(detailPayload);
-        setResults(resultsPayload?.results ?? []);
+        const nextResults = resultsPayload?.results ?? [];
+        setResults(nextResults);
+        setSelectedLeadResultIDs([]);
       } catch (error) {
         if (active) setError(apiErrorMessage(error, "暂时无法读取线索任务"));
       }
@@ -152,6 +164,57 @@ function LeadDevelopmentPage() {
     : companies.length > 0
       ? "展示后端返回的线索任务和采集结果，优先处理购买时机明确、触达入口清晰的企业"
       : "暂无线索任务，提交目标客户画像后这里会展示采集结果。";
+  const selectedLeadResults = results.filter((result) => selectedLeadResultIDs.includes(result.id));
+
+  function toggleLeadResult(id: number) {
+    setSelectedLeadResultIDs((current) => (
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    ));
+  }
+
+  async function importLeadResult(result: LeadResult) {
+    setImportingLeadID(result.id);
+    setCrmImportStatus("");
+    setCrmImportError("");
+    try {
+      await crmApi.importLead({
+        leadResultId: result.id,
+        name: result.name,
+        phone: result.phone,
+        email: result.email,
+        website: result.website
+      });
+      setImportedLeadIDs((current) => current.includes(result.id) ? current : [...current, result.id]);
+      setCrmImportStatus(`${result.name} 已加入 CRM`);
+    } catch (error) {
+      setCrmImportError(apiErrorMessage(error, "暂时无法加入 CRM"));
+    } finally {
+      setImportingLeadID(null);
+    }
+  }
+
+  async function importSelectedLeadResults() {
+    if (selectedLeadResults.length === 0) return;
+    setBatchImporting(true);
+    setCrmImportStatus("");
+    setCrmImportError("");
+    try {
+      await Promise.all(selectedLeadResults.map((result) => crmApi.importLead({
+        leadResultId: result.id,
+        name: result.name,
+        phone: result.phone,
+        email: result.email,
+        website: result.website
+      })));
+      setImportedLeadIDs((current) => Array.from(new Set([...current, ...selectedLeadResults.map((result) => result.id)])));
+      setCrmImportStatus(`已批量加入 ${selectedLeadResults.length} 条线索到 CRM`);
+      setSelectedLeadResultIDs([]);
+    } catch (error) {
+      setCrmImportError(apiErrorMessage(error, "暂时无法批量加入 CRM"));
+    } finally {
+      setBatchImporting(false);
+    }
+  }
 
   return (
     <main className="cdk-analysis-page cdk-leads-page">
@@ -238,16 +301,26 @@ function LeadDevelopmentPage() {
             <p>{leadResultSummary}</p>
           </div>
           <div className="module-chip-row compact">
+            {results.length > 0 && (
+              <button disabled={selectedLeadResults.length === 0 || batchImporting} onClick={() => void importSelectedLeadResults()} type="button">
+                {batchImporting ? "导入中..." : `批量加入CRM (${selectedLeadResults.length})`}
+              </button>
+            )}
             {["全部", "高意向", "可开发", "待验证"].map((view, index) => (
               <button className={index === 0 ? "active" : ""} key={view} type="button">{view}</button>
             ))}
           </div>
         </div>
+        {crmImportStatus && <p className="form-success" role="status">{crmImportStatus}</p>}
+        {crmImportError && <p className="form-error" role="alert">{crmImportError}</p>}
 
         <div className="leads-company-list">
           {companies.length === 0 ? (
             <div className="module-empty-state" role="status">暂无高意向线索</div>
-          ) : companies.map((company) => (
+          ) : companies.map((company) => {
+              const result = company.leadResultID ? results.find((item) => item.id === company.leadResultID) : null;
+              const imported = company.leadResultID ? importedLeadIDs.includes(company.leadResultID) : false;
+              return (
               <article key={company.name}>
                 <header>
                   <div>
@@ -261,11 +334,29 @@ function LeadDevelopmentPage() {
                   {company.signals.map((signal) => <span key={signal}>{signal}</span>)}
                 </div>
                 <footer>
+                  {company.leadResultID && (
+                    <label className="lead-import-check">
+                      <input
+                        aria-label={`选择线索 ${company.name}`}
+                        checked={selectedLeadResultIDs.includes(company.leadResultID)}
+                        onChange={() => toggleLeadResult(company.leadResultID!)}
+                        type="checkbox"
+                      />
+                      选择
+                    </label>
+                  )}
                   <span className={company.stage === "高意向" ? "hot" : ""}>{company.stage}</span>
-                  <Link to="/crm">加入CRM</Link>
+                  {result ? (
+                    <button disabled={importingLeadID === result.id || imported} onClick={() => void importLeadResult(result)} type="button">
+                      {imported ? "已加入CRM" : importingLeadID === result.id ? "加入中..." : "加入CRM"}
+                    </button>
+                  ) : (
+                    <Link to="/crm">加入CRM</Link>
+                  )}
                 </footer>
               </article>
-            ))}
+              );
+            })}
         </div>
       </section>
 

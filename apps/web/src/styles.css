@@ -11394,10 +11394,27 @@ a {
   background: #fff0ed;
 }
 
-.leads-company-list footer a {
+.leads-company-list footer a,
+.leads-company-list footer button {
   color: #1557ff;
+  background: transparent;
+  border: 0;
   font-size: 13px;
   font-weight: 880;
+}
+
+.leads-company-list footer button:disabled {
+  color: #6f82a8;
+  cursor: default;
+}
+
+.lead-import-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #52658d;
+  font-size: 12px;
+  font-weight: 820;
 }
 
 .leads-source-card,
@@ -34427,7 +34444,8 @@ a {
 
 .cdk-crm-table-card > header > button,
 .cdk-crm-table-card > header > select,
-.cdk-followups-table-card > header > button {
+.cdk-followups-table-card > header > button,
+.cdk-followups-table-card > header > select {
   min-height: 42px;
   color: #203b7f;
   background: white;
@@ -34436,7 +34454,8 @@ a {
   font-weight: 900;
 }
 
-.cdk-crm-table-card > header > select {
+.cdk-crm-table-card > header > select,
+.cdk-followups-table-card > header > select {
   padding: 0 14px;
   outline: 0;
 }
@@ -34590,7 +34609,8 @@ a {
   font-weight: 820;
 }
 
-.cdk-crm-pagination button {
+.cdk-crm-pagination button,
+.cdk-crm-pagination select {
   min-width: 38px;
   min-height: 38px;
   color: #203b7f;
@@ -34598,6 +34618,10 @@ a {
   border: 1px solid #dfe8f6;
   border-radius: 8px;
   font-weight: 900;
+}
+
+.cdk-crm-pagination select {
+  padding: 0 10px;
 }
 
 .cdk-crm-pagination button.active {
@@ -35011,8 +35035,11 @@ a {
 
 .cdk-followups-reschedule label {
   display: grid;
+  min-height: auto;
   gap: 6px;
+  padding: 0;
   color: #536894;
+  border: 0;
   font-size: 12px;
   font-weight: 900;
 }
@@ -35041,6 +35068,10 @@ a {
   color: #fff;
   background: #0758ff;
   border-color: #0758ff;
+}
+
+.cdk-followups-record {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(220px, 1fr) auto auto;
 }
 
 .cdk-followups-sidebar {

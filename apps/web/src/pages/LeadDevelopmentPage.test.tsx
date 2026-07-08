@@ -139,6 +139,121 @@ describe("LeadDevelopmentPage", () => {
     expect(screen.getByText("线索采集已完成，可以查看结果并导入 CRM。 已发现 1 条候选线索。")).toBeInTheDocument();
   });
 
+  it("imports one lead result into CRM", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/leads/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [{
+            id: 99,
+            user_id: 7,
+            query: "成都 教培 私域转化",
+            status: "succeeded",
+            idempotency_key: "lead-task-99",
+            credit_cost: 1,
+            created_at: "2026-06-25T12:00:00Z",
+            updated_at: "2026-06-25T12:05:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/leads/tasks/99") {
+        return Promise.resolve(new Response(JSON.stringify({
+          task: { id: 99, user_id: 7, query: "成都 教培 私域转化", status: "succeeded" },
+          progress_percent: 100,
+          message: "线索采集已完成，可以查看结果并导入 CRM。",
+          results_count: 1
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/leads/tasks/99/results?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          results: [{
+            id: 7,
+            task_id: 99,
+            name: "成都启明星教育",
+            phone: "028-12345678",
+            email: "hello@example.com",
+            website: "https://example.com",
+            created_at: "2026-06-25T12:05:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/crm/customers/import-lead" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ id: 100, name: "成都启明星教育" }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderLeadRoute();
+
+    expect(await screen.findByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "加入CRM" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers/import-lead", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        lead_result_id: 7,
+        name: "成都启明星教育",
+        phone: "028-12345678",
+        email: "hello@example.com",
+        website: "https://example.com"
+      })
+    })));
+    expect(await screen.findByText("成都启明星教育 已加入 CRM")).toBeInTheDocument();
+  });
+
+  it("batch imports selected lead results into CRM", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/leads/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [{
+            id: 99,
+            user_id: 7,
+            query: "成都 教培 私域转化",
+            status: "succeeded",
+            idempotency_key: "lead-task-99",
+            credit_cost: 1,
+            created_at: "2026-06-25T12:00:00Z",
+            updated_at: "2026-06-25T12:05:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/leads/tasks/99") {
+        return Promise.resolve(new Response(JSON.stringify({
+          task: { id: 99, user_id: 7, query: "成都 教培 私域转化", status: "succeeded" },
+          progress_percent: 100,
+          message: "线索采集已完成，可以查看结果并导入 CRM。",
+          results_count: 2
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/leads/tasks/99/results?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          results: [
+            { id: 7, task_id: 99, name: "成都启明星教育", phone: "028-12345678", created_at: "2026-06-25T12:05:00Z" },
+            { id: 8, task_id: 99, name: "星桥教育集团", email: "hello@star.test", created_at: "2026-06-25T12:06:00Z" }
+          ]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/crm/customers/import-lead" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ id: 100 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderLeadRoute();
+
+    expect(await screen.findByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("选择线索 成都启明星教育"));
+    fireEvent.click(screen.getByLabelText("选择线索 星桥教育集团"));
+    fireEvent.click(screen.getByRole("button", { name: "批量加入CRM (2)" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers/import-lead", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ lead_result_id: 8, name: "星桥教育集团", email: "hello@star.test" })
+    })));
+    expect(await screen.findByText("已批量加入 2 条线索到 CRM")).toBeInTheDocument();
+  });
+
   it("creates lead task from target profile", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ tasks: [] }), { status: 200 }))

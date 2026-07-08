@@ -125,6 +125,61 @@ describe("CrmPage", () => {
     expect(screen.getAllByText("手工录入").length).toBeGreaterThan(0);
   });
 
+  it("imports a lead result from the CRM workbench", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
+      if (String(url) === "/api/v1/crm/customers/import-lead" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 101,
+          user_id: 7,
+          import_key: "lead_result:77",
+          name: "成都启明星教育",
+          phone: "028-12345678",
+          stage: "new",
+          source: "lead",
+          created_at: "2026-07-08T10:00:00Z",
+          updated_at: "2026-07-08T10:00:00Z"
+        }), { status: 200 }));
+      }
+      if (String(url).includes("/activities")) {
+        return Promise.resolve(new Response(JSON.stringify({ activities: [] }), { status: 200 }));
+      }
+      if (String(url).includes("/pipeline-stats")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 1,
+          new: 1,
+          contacted: 0,
+          qualified: 0,
+          proposal: 0,
+          won: 0,
+          lost: 0,
+          due_today: 0
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
+    });
+    renderCrmRoute();
+
+    expect(await screen.findByText("暂无CRM客户")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "导入客户" }));
+    fireEvent.change(screen.getByLabelText("线索结果ID"), { target: { value: "77" } });
+    fireEvent.change(screen.getByLabelText("导入客户名称"), { target: { value: "成都启明星教育" } });
+    fireEvent.change(screen.getByLabelText("导入电话"), { target: { value: "028-12345678" } });
+    fireEvent.click(screen.getByRole("button", { name: "导入线索" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers/import-lead", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        lead_result_id: 77,
+        name: "成都启明星教育",
+        phone: "028-12345678",
+        email: "",
+        website: ""
+      })
+    })));
+    expect(await screen.findByText("线索客户已导入")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
+  });
+
   it("loads CRM customers and pipeline stats from API", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({
@@ -695,7 +750,7 @@ describe("CrmPage", () => {
       target: { value: "演示" }
     });
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?q=%E6%BC%94%E7%A4%BA&limit=20", expect.any(Object)));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?q=%E6%BC%94%E7%A4%BA&limit=100", expect.any(Object)));
     expect((await screen.findAllByText("预约下周演示")).length).toBeGreaterThan(0);
     expect(screen.queryByText("已发送企业AI运营方案")).not.toBeInTheDocument();
   });
@@ -741,7 +796,7 @@ describe("CrmPage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "本周待跟进" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?due=week&limit=20", expect.any(Object)));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?due=week&limit=100", expect.any(Object)));
     expect((await screen.findAllByText("本周安排方案复盘")).length).toBeGreaterThan(0);
   });
 
@@ -807,10 +862,145 @@ describe("CrmPage", () => {
     expect(await screen.findByText("跟进时间已改期")).toBeInTheDocument();
   });
 
+  it("records a new follow-up from the follow-up list", async () => {
+    signIn();
+    const nextInputValue = "2026-06-28T10:00";
+    const expectedNextAt = new Date(nextInputValue).toISOString();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
+      if (String(url).includes("/api/v1/crm/customers?")) {
+        return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
+      }
+      if (String(url).includes("/api/v1/crm/pipeline-stats")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 0,
+          new: 0,
+          contacted: 0,
+          qualified: 0,
+          proposal: 0,
+          won: 0,
+          lost: 0,
+          due_today: 0
+        }), { status: 200 }));
+      }
+      if (String(url) === "/api/v1/crm/customers/100/follow-ups" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 2,
+          user_id: 7,
+          customer_id: 100,
+          note: "二次电话确认预算",
+          next_follow_up_at: expectedNextAt,
+          created_at: "2026-06-25T12:00:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({
+        follow_ups: [{
+          id: 1,
+          user_id: 7,
+          customer_id: 100,
+          note: "已发送企业AI运营方案",
+          next_follow_up_at: "2026-06-25T14:00:00Z",
+          created_at: "2026-06-24T12:00:00Z"
+        }]
+      }), { status: 200 }));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/crm/follow-ups"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect((await screen.findAllByText("已发送企业AI运营方案")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "记录跟进" }));
+    fireEvent.change(screen.getByLabelText("跟进内容 #1"), { target: { value: "二次电话确认预算" } });
+    fireEvent.change(screen.getByLabelText("下次跟进时间 #1"), { target: { value: nextInputValue } });
+    fireEvent.click(screen.getByRole("button", { name: "保存跟进" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers/100/follow-ups", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        note: "二次电话确认预算",
+        next_follow_up_at: expectedNextAt
+      })
+    })));
+    expect(await screen.findByText("跟进已记录")).toBeInTheDocument();
+    expect(screen.getAllByText("二次电话确认预算").length).toBeGreaterThan(0);
+  });
+
+  it("filters, paginates, and exports follow-up records", async () => {
+    signIn();
+    const createObjectURL = vi.fn(() => "blob:crm-followups");
+    const revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: createObjectURL });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
+    const rows = Array.from({ length: 11 }, (_, index) => ({
+      id: index + 1,
+      user_id: 7,
+      customer_id: 100 + index,
+      note: `跟进记录 ${index + 1}`,
+      next_follow_up_at: index === 0 ? "2026-06-25T14:00:00Z" : "2099-06-25T14:00:00Z",
+      created_at: "2026-06-24T12:00:00Z"
+    }));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (String(url).includes("/api/v1/crm/customers?")) {
+        return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
+      }
+      if (String(url).includes("/api/v1/crm/pipeline-stats")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 0,
+          new: 0,
+          contacted: 0,
+          qualified: 0,
+          proposal: 0,
+          won: 0,
+          lost: 0,
+          due_today: 0
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ follow_ups: rows }), { status: 200 }));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/crm/follow-ups"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    const table = screen.getByRole("table", { name: "全部跟进列表" });
+    expect((await within(table).findAllByText("跟进记录 1")).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("跟进状态筛选"), { target: { value: "pending" } });
+    await waitFor(() => expect(within(table).queryByText(/^跟进记录 1$/)).not.toBeInTheDocument());
+    expect(within(table).getAllByText("跟进记录 2").length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("跟进状态筛选"), { target: { value: "all" } });
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(await screen.findByText("跟进记录 11")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("跟进时间范围"), { target: { value: "week" } });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?due=week&limit=100", expect.any(Object)));
+    fireEvent.click(screen.getByRole("button", { name: "导出记录" }));
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(await screen.findByText("已导出 11 条跟进记录")).toBeInTheDocument();
+  });
+
   it("loads follow-up records for a specific customer from query string", async () => {
     signIn();
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
+      if (String(url).includes("/api/v1/crm/customers?")) {
+        return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
+      }
+      if (String(url).includes("/api/v1/crm/pipeline-stats")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 0,
+          new: 0,
+          contacted: 0,
+          qualified: 0,
+          proposal: 0,
+          won: 0,
+          lost: 0,
+          due_today: 0
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({
         follow_ups: [{
           id: 2,
           user_id: 7,
@@ -819,8 +1009,8 @@ describe("CrmPage", () => {
           next_follow_up_at: "2026-07-08T10:00:00Z",
           created_at: "2026-07-07T12:00:00Z"
         }]
-      }), { status: 200 })
-    );
+      }), { status: 200 }));
+    });
 
     render(
       <MemoryRouter initialEntries={["/crm/follow-ups?customer_id=100"]}>
@@ -828,7 +1018,7 @@ describe("CrmPage", () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?customer_id=100&limit=20", expect.any(Object)));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?customer_id=100&limit=100", expect.any(Object)));
     await waitFor(() => expect(screen.getAllByText("企业交付客户复盘下一步").length).toBeGreaterThan(0));
   });
 });
