@@ -34751,6 +34751,7 @@ a {
   font-weight: 900;
 }
 
+.cdk-crm-profile-form,
 .cdk-crm-stage-form,
 .cdk-crm-followup-form {
   display: grid;
@@ -34761,6 +34762,7 @@ a {
   border-radius: 8px;
 }
 
+.cdk-crm-profile-form label,
 .cdk-crm-stage-form label,
 .cdk-crm-followup-form label {
   display: grid;
@@ -34771,6 +34773,7 @@ a {
   font-weight: 900;
 }
 
+.cdk-crm-profile-form input,
 .cdk-crm-stage-form select,
 .cdk-crm-followup-form textarea,
 .cdk-crm-followup-form input {
@@ -34788,6 +34791,7 @@ a {
   resize: vertical;
 }
 
+.cdk-crm-profile-form button,
 .cdk-crm-stage-form button,
 .cdk-crm-followup-form button {
   min-height: 42px;
@@ -34798,6 +34802,7 @@ a {
   font-weight: 900;
 }
 
+.cdk-crm-profile-form button:disabled,
 .cdk-crm-stage-form button:disabled,
 .cdk-crm-followup-form button:disabled {
   cursor: not-allowed;

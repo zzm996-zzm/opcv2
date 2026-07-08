@@ -146,6 +146,13 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [stageUpdating, setStageUpdating] = useState(false);
   const [stageUpdateStatus, setStageUpdateStatus] = useState("");
   const [stageUpdateError, setStageUpdateError] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileWebsite, setProfileWebsite] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileStatus, setProfileStatus] = useState("");
+  const [profileError, setProfileError] = useState("");
   const requestedCustomerID = Number(new URLSearchParams(location.search).get("customer_id") ?? 0);
 
   useEffect(() => {
@@ -206,7 +213,13 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     setStageUpdateValue(selectedApiCustomer.stage);
     setStageUpdateStatus("");
     setStageUpdateError("");
-  }, [selectedApiCustomer]);
+    setProfileName(selectedApiCustomer.name);
+    setProfilePhone(selectedApiCustomer.phone ?? "");
+    setProfileEmail(selectedApiCustomer.email ?? "");
+    setProfileWebsite(selectedApiCustomer.website ?? "");
+    setProfileStatus("");
+    setProfileError("");
+  }, [selectedApiCustomer?.id]);
 
   if (variant === "followUps") {
     return <FollowUpsPage />;
@@ -261,6 +274,29 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
       setStageUpdateError(apiErrorMessage(error, "暂时无法更新阶段"));
     } finally {
       setStageUpdating(false);
+    }
+  };
+
+  const saveSelectedProfile = async () => {
+    if (!selectedApiCustomer) return;
+    setProfileSaving(true);
+    setProfileStatus("");
+    setProfileError("");
+    try {
+      const updatedCustomer = await crmApi.updateCustomer(selectedApiCustomer.id, {
+        name: profileName.trim(),
+        phone: profilePhone.trim(),
+        email: profileEmail.trim(),
+        website: profileWebsite.trim()
+      });
+      setApiCustomers((current) => current.map((customer) => (
+        customer.id === updatedCustomer.id ? updatedCustomer : customer
+      )));
+      setProfileStatus("客户资料已更新");
+    } catch (error) {
+      setProfileError(apiErrorMessage(error, "暂时无法更新客户资料"));
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -383,6 +419,29 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                 <div><dt>来源</dt><dd>{selectedCustomer.location}</dd></div>
                 <div><dt>需求摘要</dt><dd>{selectedCustomer.health}，下一步：{selectedCustomer.next}</dd></div>
               </dl>
+              <section className="cdk-crm-profile-form" aria-label="编辑客户资料">
+                <label>
+                  <span>客户名称</span>
+                  <input value={profileName} onChange={(event) => setProfileName(event.target.value)} />
+                </label>
+                <label>
+                  <span>电话</span>
+                  <input value={profilePhone} onChange={(event) => setProfilePhone(event.target.value)} />
+                </label>
+                <label>
+                  <span>邮箱</span>
+                  <input value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} />
+                </label>
+                <label>
+                  <span>网站</span>
+                  <input value={profileWebsite} onChange={(event) => setProfileWebsite(event.target.value)} />
+                </label>
+                {profileStatus && <p className="form-success" role="status">{profileStatus}</p>}
+                {profileError && <p className="form-error" role="alert">{profileError}</p>}
+                <button type="button" onClick={saveSelectedProfile} disabled={profileSaving}>
+                  {profileSaving ? "保存中..." : "保存资料"}
+                </button>
+              </section>
               <section className="cdk-crm-stage-form" aria-label="更新客户阶段">
                 <label>
                   <span>客户阶段</span>
