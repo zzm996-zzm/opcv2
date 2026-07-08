@@ -135,6 +135,7 @@ describe("CrmPage", () => {
               import_key: "lead:99",
               name: "成都启明星教育",
               phone: "028-12345678",
+              email: "hello@example.com",
               stage: "contacted",
               source: "lead",
               next_follow_up_at: "2026-06-25T14:00:00Z",
@@ -173,6 +174,8 @@ describe("CrmPage", () => {
     expect(await screen.findByText("客户资料已更新")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看" })).toHaveAttribute("href", "/crm?customer_id=100");
     expect(screen.getByRole("link", { name: "查看全部跟进记录 ›" })).toHaveAttribute("href", "/crm/follow-ups?customer_id=100");
+    expect(screen.getByRole("link", { name: "拨打电话" })).toHaveAttribute("href", "tel:028-12345678");
+    expect(screen.getByRole("link", { name: "发消息" })).toHaveAttribute("href", "mailto:hello@example.com?subject=%E8%B7%9F%E8%BF%9B%EF%BC%9A%E6%88%90%E9%83%BD%E5%90%AF%E6%98%8E%E6%98%9F%E6%95%99%E8%82%B2");
   });
 
   it("loads a CRM customer detail from query string", async () => {

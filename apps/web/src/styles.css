@@ -34842,9 +34842,15 @@ a {
   font-weight: 900;
 }
 
-.cdk-crm-detail-card footer button:first-child {
+.cdk-crm-detail-card footer button:first-child,
+.cdk-crm-detail-card footer a:first-child {
   color: #17a56a;
   border-color: #bdebd2;
+}
+
+.cdk-crm-detail-card footer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .cdk-followups-head > div:first-child {

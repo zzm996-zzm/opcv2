@@ -221,6 +221,10 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const selectedApiCustomer = apiCustomers[0];
   const visibleTimelineRows = activities.map(toTimelineRow);
   const selectedFollowUpsPath = selectedApiCustomer ? `/crm/follow-ups?customer_id=${selectedApiCustomer.id}` : "/crm/follow-ups";
+  const selectedPhoneHref = selectedApiCustomer?.phone ? `tel:${selectedApiCustomer.phone}` : "";
+  const selectedEmailHref = selectedApiCustomer?.email
+    ? `mailto:${selectedApiCustomer.email}?subject=${encodeURIComponent(`跟进：${selectedApiCustomer.name}`)}`
+    : "";
 
   useEffect(() => {
     if (!selectedApiCustomer) return;
@@ -592,8 +596,8 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                 </button>
               </section>
               <footer>
-                <button type="button">拨打电话</button>
-                <button type="button">发消息</button>
+                {selectedPhoneHref ? <a href={selectedPhoneHref}>拨打电话</a> : <button type="button" disabled>拨打电话</button>}
+                {selectedEmailHref ? <a href={selectedEmailHref}>发消息</a> : <button type="button" disabled>发消息</button>}
                 <Link to={selectedFollowUpsPath}>记录跟进</Link>
               </footer>
             </>
