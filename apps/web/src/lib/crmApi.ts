@@ -99,6 +99,13 @@ export const crmApi = {
     });
   },
 
+  createCustomer(input: { name: string; phone?: string; email?: string; website?: string }) {
+    return apiRequest<CrmCustomer>("/api/v1/crm/customers", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+
   updateCustomer(customerId: number, input: { name?: string; phone?: string; email?: string; website?: string }) {
     return apiRequest<CrmCustomer>(`/api/v1/crm/customers/${customerId}`, {
       method: "PATCH",

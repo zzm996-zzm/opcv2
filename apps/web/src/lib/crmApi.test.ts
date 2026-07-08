@@ -56,6 +56,27 @@ describe("crmApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/crm/customers/due?limit=10", expect.objectContaining({ method: "GET" }));
   });
 
+  it("creates a manual CRM customer", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 100, user_id: 7, name: "成都启明星教育" }), { status: 200 })
+    );
+
+    await crmApi.createCustomer({ name: "成都启明星教育", phone: "028-12345678", email: "hello@example.com", website: "https://example.com" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/crm/customers",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "成都启明星教育",
+          phone: "028-12345678",
+          email: "hello@example.com",
+          website: "https://example.com"
+        })
+      })
+    );
+  });
+
   it("imports lead into CRM", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: 100, user_id: 7, name: "成都启明星教育" }), { status: 200 })

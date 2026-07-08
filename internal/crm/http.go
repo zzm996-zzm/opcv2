@@ -12,6 +12,7 @@ import (
 )
 
 type Application interface {
+	CreateCustomer(ctx context.Context, input CreateCustomerInput) (Customer, error)
 	ImportLead(ctx context.Context, input ImportLeadInput) (Customer, error)
 	ListCustomers(ctx context.Context, input ListCustomersInput) ([]Customer, error)
 	GetCustomer(ctx context.Context, userID, customerID int64) (Customer, error)
@@ -34,6 +35,7 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 }
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
+	router.POST("/crm/customers", h.createCustomer)
 	router.POST("/crm/customers/import-lead", h.importLead)
 	router.GET("/crm/customers", h.listCustomers)
 	router.GET("/crm/customers/due", h.listDueCustomers)
@@ -45,6 +47,21 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/crm/customers/:id/follow-up-copy", h.generateFollowUpCopy)
 	router.GET("/crm/follow-ups", h.listFollowUps)
 	router.GET("/crm/pipeline-stats", h.pipelineStats)
+}
+
+func (h *HTTPHandler) createCustomer(c *gin.Context) {
+	var request CreateCustomerInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	customer, err := h.app.CreateCustomer(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, customer)
 }
 
 func (h *HTTPHandler) importLead(c *gin.Context) {

@@ -42,6 +42,29 @@ func NewService(repository Repository, generators ...JSONGenerator) *Service {
 	return &Service{repository: repository, generator: generator, now: time.Now}
 }
 
+func (s *Service) CreateCustomer(ctx context.Context, input CreateCustomerInput) (Customer, error) {
+	if s.repository == nil {
+		return Customer{}, ErrServiceNotReady
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	now := s.now()
+	if input.UserID <= 0 || input.Name == "" {
+		return Customer{}, ErrInvalidInput
+	}
+	customer, _, err := s.repository.ImportCustomer(ctx, Customer{
+		UserID:    input.UserID,
+		ImportKey: fmt.Sprintf("manual:%d", now.UnixNano()),
+		Name:      input.Name,
+		Phone:     strings.TrimSpace(input.Phone),
+		Email:     strings.TrimSpace(input.Email),
+		Website:   strings.TrimSpace(input.Website),
+		Stage:     StageNew,
+		Source:    SourceManual,
+		CreatedAt: now,
+	})
+	return customer, err
+}
+
 func (s *Service) ImportLead(ctx context.Context, input ImportLeadInput) (Customer, error) {
 	if s.repository == nil {
 		return Customer{}, ErrServiceNotReady

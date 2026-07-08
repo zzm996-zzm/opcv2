@@ -13,6 +13,7 @@ import (
 )
 
 type fakeApplication struct {
+	createInput    CreateCustomerInput
 	importInput    ImportLeadInput
 	listInput      ListCustomersInput
 	updateInput    UpdateCustomerInput
@@ -32,6 +33,11 @@ type fakeApplication struct {
 	getCustomerID  int64
 	statsUserID    int64
 	err            error
+}
+
+func (a *fakeApplication) CreateCustomer(_ context.Context, input CreateCustomerInput) (Customer, error) {
+	a.createInput = input
+	return a.customer, a.err
 }
 
 func (a *fakeApplication) ImportLead(_ context.Context, input ImportLeadInput) (Customer, error) {
@@ -90,6 +96,26 @@ func (a *fakeApplication) PipelineStats(_ context.Context, userID int64) (Pipeli
 func (a *fakeApplication) GenerateFollowUpCopy(_ context.Context, input FollowUpCopyInput) (FollowUpCopy, error) {
 	a.copyInput = input
 	return a.copy, a.err
+}
+
+func TestCreateCustomerEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{customer: Customer{ID: 100, UserID: 42, Name: "成都启明星教育", Stage: StageNew, Source: SourceManual}}
+	router := crmTestRouter(app)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/crm/customers", strings.NewReader(`{"name":"成都启明星教育","phone":"028-12345678"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if app.createInput.UserID != 42 || app.createInput.Name != "成都启明星教育" || app.createInput.Phone != "028-12345678" {
+		t.Fatalf("input = %+v", app.createInput)
+	}
+	if !strings.Contains(recorder.Body.String(), `"id":100`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
 }
 
 func TestListCustomersEndpointUsesAuthenticatedUserAndFilters(t *testing.T) {

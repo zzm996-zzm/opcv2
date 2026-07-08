@@ -59,6 +59,72 @@ describe("CrmPage", () => {
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
   });
 
+  it("creates a manual CRM customer from the workbench", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
+      if (String(url) === "/api/v1/crm/customers" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 100,
+          user_id: 7,
+          import_key: "manual:1783514400000000000",
+          name: "成都启明星教育",
+          phone: "028-12345678",
+          email: "hello@example.com",
+          website: "https://example.com",
+          stage: "new",
+          source: "manual",
+          created_at: "2026-07-08T10:00:00Z",
+          updated_at: "2026-07-08T10:00:00Z"
+        }), { status: 200 }));
+      }
+      if (String(url).includes("/activities")) {
+        return Promise.resolve(new Response(JSON.stringify({ activities: [] }), { status: 200 }));
+      }
+      if (String(url).includes("/pipeline-stats")) {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 1,
+          new: 1,
+          contacted: 0,
+          qualified: 0,
+          proposal: 0,
+          won: 0,
+          lost: 0,
+          due_today: 0
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
+    });
+    renderCrmRoute();
+
+    expect(await screen.findByText("暂无CRM客户")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "新建客户" }));
+    fireEvent.change(screen.getByLabelText("客户名称"), {
+      target: { value: "成都启明星教育" }
+    });
+    fireEvent.change(screen.getByLabelText("电话"), {
+      target: { value: "028-12345678" }
+    });
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "hello@example.com" }
+    });
+    fireEvent.change(screen.getByLabelText("网站"), {
+      target: { value: "https://example.com" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "创建客户" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        name: "成都启明星教育",
+        phone: "028-12345678",
+        email: "hello@example.com",
+        website: "https://example.com"
+      })
+    })));
+    expect(await screen.findByText("客户已创建")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
+    expect(screen.getAllByText("手工录入").length).toBeGreaterThan(0);
+  });
+
   it("loads CRM customers and pipeline stats from API", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({

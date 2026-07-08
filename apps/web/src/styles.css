@@ -34762,6 +34762,22 @@ a {
   border-radius: 8px;
 }
 
+.cdk-crm-create-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+
+.cdk-crm-create-form .form-success,
+.cdk-crm-create-form .form-error {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+  .cdk-crm-create-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .cdk-crm-profile-form label,
 .cdk-crm-stage-form label,
 .cdk-crm-followup-form label {

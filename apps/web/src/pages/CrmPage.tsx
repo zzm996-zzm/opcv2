@@ -42,7 +42,8 @@ const stageLabels: Record<CrmStage, string> = {
 
 const sourceLabels: Record<string, string> = {
   lead: "AI线索",
-  enterprise: "企业交付"
+  enterprise: "企业交付",
+  manual: "手工录入"
 };
 
 function toCustomerCard(customer: CrmCustomer): CustomerCard {
@@ -151,6 +152,14 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [stageUpdating, setStageUpdating] = useState(false);
   const [stageUpdateStatus, setStageUpdateStatus] = useState("");
   const [stageUpdateError, setStageUpdateError] = useState("");
+  const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [newCustomerWebsite, setNewCustomerWebsite] = useState("");
+  const [newCustomerSaving, setNewCustomerSaving] = useState(false);
+  const [newCustomerStatus, setNewCustomerStatus] = useState("");
+  const [newCustomerError, setNewCustomerError] = useState("");
   const [profileName, setProfileName] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
@@ -330,6 +339,38 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     }
   };
 
+  const createManualCustomer = async () => {
+    const normalizedName = newCustomerName.trim();
+    if (!normalizedName) {
+      setNewCustomerStatus("");
+      setNewCustomerError("请输入客户名称");
+      return;
+    }
+    setNewCustomerSaving(true);
+    setNewCustomerStatus("");
+    setNewCustomerError("");
+    try {
+      const customer = await crmApi.createCustomer({
+        name: normalizedName,
+        phone: newCustomerPhone.trim(),
+        email: newCustomerEmail.trim(),
+        website: newCustomerWebsite.trim()
+      });
+      setApiCustomers((current) => [customer, ...current.filter((item) => item.id !== customer.id)]);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      setNewCustomerEmail("");
+      setNewCustomerWebsite("");
+      setNewCustomerStatus("客户已创建");
+      const nextStats = await crmApi.pipelineStats();
+      setStats(nextStats);
+    } catch (error) {
+      setNewCustomerError(apiErrorMessage(error, "暂时无法创建客户"));
+    } finally {
+      setNewCustomerSaving(false);
+    }
+  };
+
   return (
     <main className="cdk-analysis-page cdk-crm-page">
       <CdkTopNav active="VIP获客" />
@@ -340,10 +381,36 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
         </div>
         <div>
           <button type="button">导入客户</button>
-          <button type="button">新建客户</button>
+          <button type="button" onClick={() => setShowCreateCustomer((current) => !current)}>新建客户</button>
           <Link to="/crm/follow-ups">新建跟进</Link>
         </div>
       </section>
+
+      {showCreateCustomer && (
+        <section className="cdk-crm-profile-form cdk-crm-create-form" aria-label="新建客户表单">
+          <label>
+            <span>客户名称</span>
+            <input value={newCustomerName} onChange={(event) => setNewCustomerName(event.target.value)} />
+          </label>
+          <label>
+            <span>电话</span>
+            <input value={newCustomerPhone} onChange={(event) => setNewCustomerPhone(event.target.value)} />
+          </label>
+          <label>
+            <span>邮箱</span>
+            <input value={newCustomerEmail} onChange={(event) => setNewCustomerEmail(event.target.value)} />
+          </label>
+          <label>
+            <span>网站</span>
+            <input value={newCustomerWebsite} onChange={(event) => setNewCustomerWebsite(event.target.value)} />
+          </label>
+          {newCustomerStatus && <p className="form-success" role="status">{newCustomerStatus}</p>}
+          {newCustomerError && <p className="form-error" role="alert">{newCustomerError}</p>}
+          <button type="button" onClick={createManualCustomer} disabled={newCustomerSaving}>
+            {newCustomerSaving ? "创建中..." : "创建客户"}
+          </button>
+        </section>
+      )}
 
       <section className="cdk-crm-stats" aria-label="CRM关键指标">
         {visibleStats.map(([label, value, icon]) => (

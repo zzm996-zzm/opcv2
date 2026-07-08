@@ -237,6 +237,30 @@ func TestServiceImportLeadIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestServiceCreatesManualCustomer(t *testing.T) {
+	repository := &memoryRepository{}
+	service := NewService(repository)
+	now := time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	customer, err := service.CreateCustomer(context.Background(), CreateCustomerInput{
+		UserID:  42,
+		Name:    " 成都启明星教育 ",
+		Phone:   " 028-12345678 ",
+		Email:   " hello@example.com ",
+		Website: " https://example.com ",
+	})
+	if err != nil {
+		t.Fatalf("CreateCustomer() error = %v", err)
+	}
+	if customer.Name != "成都启明星教育" || customer.Phone != "028-12345678" || customer.Email != "hello@example.com" || customer.Website != "https://example.com" {
+		t.Fatalf("customer fields = %+v", customer)
+	}
+	if customer.Stage != StageNew || customer.Source != SourceManual || customer.ImportKey != "manual:1783504800000000000" {
+		t.Fatalf("customer defaults = %+v", customer)
+	}
+}
+
 func TestServiceImportEnterpriseDeliveryIsIdempotent(t *testing.T) {
 	repository := &memoryRepository{}
 	service := NewService(repository)
