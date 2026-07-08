@@ -34426,6 +34426,7 @@ a {
 }
 
 .cdk-crm-table-card > header > button,
+.cdk-crm-table-card > header > select,
 .cdk-followups-table-card > header > button {
   min-height: 42px;
   color: #203b7f;
@@ -34433,6 +34434,11 @@ a {
   border: 1px solid #dfe8f6;
   border-radius: 9px;
   font-weight: 900;
+}
+
+.cdk-crm-table-card > header > select {
+  padding: 0 14px;
+  outline: 0;
 }
 
 .cdk-crm-table,

@@ -27,6 +27,7 @@ type StatCard = readonly [string, string, string];
 type FollowRow = readonly [string, string, string, string, string, string, string, string, number];
 type TimelineRow = readonly [string, string];
 type CustomerSourceFilter = "all" | "lead" | "enterprise";
+type CustomerStageFilter = "all" | CrmStage;
 
 const stageLabels: Record<CrmStage, string> = {
   new: "新线索",
@@ -134,6 +135,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [stats, setStats] = useState<CrmPipelineStats | null>(null);
   const [error, setError] = useState("");
   const [sourceFilter, setSourceFilter] = useState<CustomerSourceFilter>("all");
+  const [stageFilter, setStageFilter] = useState<CustomerStageFilter>("all");
   const [customerQuery, setCustomerQuery] = useState("");
   const [followUpNote, setFollowUpNote] = useState("");
   const [followUpNextAt, setFollowUpNextAt] = useState(defaultFollowUpDateTime);
@@ -149,6 +151,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
       ? crmApi.getCustomer(requestedCustomerID).then((customer) => ({ customers: [customer] }))
       : crmApi.listCustomers({
         limit: 20,
+        stage: stageFilter === "all" ? undefined : stageFilter,
         source: sourceFilter === "all" ? undefined : sourceFilter,
         q: customerQuery.trim() || undefined
       });
@@ -165,7 +168,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     return () => {
       active = false;
     };
-  }, [sourceFilter, customerQuery, requestedCustomerID]);
+  }, [sourceFilter, stageFilter, customerQuery, requestedCustomerID]);
 
   useEffect(() => {
     const customer = apiCustomers[0];
@@ -271,7 +274,20 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
                 disabled={requestedCustomerID > 0}
               />
             </label>
-            <button type="button">来源筛选⌄</button>
+            <select
+              aria-label="客户阶段筛选"
+              value={stageFilter}
+              onChange={(event) => setStageFilter(event.target.value as CustomerStageFilter)}
+              disabled={requestedCustomerID > 0}
+            >
+              <option value="all">全部阶段</option>
+              <option value="new">新线索</option>
+              <option value="contacted">需求确认</option>
+              <option value="qualified">方案演示</option>
+              <option value="proposal">报价谈判</option>
+              <option value="won">已成交</option>
+              <option value="lost">已流失</option>
+            </select>
           </header>
 
           <h2 className="sr-only">客户列表</h2>

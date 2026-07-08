@@ -247,6 +247,54 @@ describe("CrmPage", () => {
     expect(await screen.findByRole("heading", { name: "企业AI陪跑复盘客户" })).toBeInTheDocument();
   });
 
+  it("filters CRM customers by stage from the backend API", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ customers: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 0,
+        qualified: 0,
+        proposal: 0,
+        won: 1,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        customers: [{
+          id: 103,
+          user_id: 7,
+          import_key: "enterprise_diagnosis_request:10",
+          name: "已成交企业交付客户",
+          stage: "won",
+          source: "enterprise",
+          created_at: "2026-07-08T10:30:00Z",
+          updated_at: "2026-07-08T10:30:00Z"
+        }]
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1,
+        new: 0,
+        contacted: 0,
+        qualified: 0,
+        proposal: 0,
+        won: 1,
+        lost: 0,
+        due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activities: [] }), { status: 200 }));
+    renderCrmRoute();
+
+    expect(await screen.findByText("暂无CRM客户")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("客户阶段筛选"), {
+      target: { value: "won" }
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/customers?stage=won&limit=20", expect.any(Object)));
+    expect(await screen.findByRole("heading", { name: "已成交企业交付客户" })).toBeInTheDocument();
+    expect(screen.getAllByText("已成交").length).toBeGreaterThan(0);
+  });
+
   it("records a follow-up from the selected CRM customer detail", async () => {
     const nextInputValue = "2026-06-26T10:00";
     const expectedNextAt = new Date(nextInputValue).toISOString();
