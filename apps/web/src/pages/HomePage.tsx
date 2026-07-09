@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
+import { apiErrorMessage } from "../lib/apiErrors";
 import { authApi } from "../lib/authApi";
 import { authSession, useAuthSession } from "../lib/authSession";
 import { homeApi, type HomeSummary } from "../lib/homeApi";
+import { notificationsApi } from "../lib/notificationsApi";
 
 const topNav = [
   { label: "工作台", href: "/" },
@@ -126,6 +128,8 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   const [assistantOpen, setAssistantOpen] = useState((assistantState === "settings" || assistantState === "files") && Boolean(session.user));
   const [assistantMode, setAssistantMode] = useState<"chat" | "settings">(assistantState === "settings" ? "settings" : "chat");
   const [filesOpen, setFilesOpen] = useState(assistantState === "files");
+  const [noticeBusy, setNoticeBusy] = useState(false);
+  const [noticeError, setNoticeError] = useState("");
   const signedIn = Boolean(session.user);
   const nickname = session.user?.nickname || "张婧";
   const visibleHeroCards = summary?.hero_cards.length ? summary.hero_cards.map((card, index) => ({
@@ -197,7 +201,10 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
     homeApi
       .summary()
       .then((payload) => {
-        if (active) setSummary(payload);
+        if (active) {
+          setSummary(payload);
+          setNoticeError("");
+        }
       })
       .catch(() => {
         if (active) setSummary(null);
@@ -229,6 +236,21 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
       setAccountOpen(false);
       setNoticeOpen(false);
       setAssistantOpen(false);
+    }
+  }
+
+  async function markAllNotificationsRead() {
+    if (!summary?.notification_summary.unread || noticeBusy) return;
+    setNoticeBusy(true);
+    setNoticeError("");
+    try {
+      await notificationsApi.markAllRead();
+      const payload = await homeApi.summary();
+      setSummary(payload);
+    } catch (error) {
+      setNoticeError(apiErrorMessage(error, "暂时无法标记全部已读"));
+    } finally {
+      setNoticeBusy(false);
     }
   }
 
@@ -306,11 +328,14 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     <div className="notice-head">
                       <h2>通知</h2>
                       <div>
-                        <button type="button">全部已读</button>
+                        <button disabled={!summary?.notification_summary.unread || noticeBusy} onClick={markAllNotificationsRead} type="button">
+                          {noticeBusy ? "处理中..." : "全部已读"}
+                        </button>
                         <Link to="/messages">查看消息中心</Link>
                         <button aria-label="关闭通知" onClick={() => setNoticeOpen(false)} type="button">×</button>
                       </div>
                     </div>
+                    {noticeError && <p className="notice-error" role="alert">{noticeError}</p>}
                     <div className="notice-tabs" role="tablist" aria-label="通知分类">
                       {(notificationTabs.length ? notificationTabs : [{ label: "全部", count: 0 }]).map((tab, index) => (
                         <button className={index === 0 ? "active" : ""} key={tab.label} role="tab" aria-selected={index === 0} type="button">

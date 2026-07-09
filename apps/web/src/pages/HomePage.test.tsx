@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authSession } from "../lib/authSession";
 import { homeApi } from "../lib/homeApi";
+import { notificationsApi } from "../lib/notificationsApi";
 import HomePage from "./HomePage";
 
 vi.mock("../lib/homeApi", () => ({
@@ -12,9 +13,16 @@ vi.mock("../lib/homeApi", () => ({
   }
 }));
 
+vi.mock("../lib/notificationsApi", () => ({
+  notificationsApi: {
+    markAllRead: vi.fn()
+  }
+}));
+
 describe("HomePage", () => {
   afterEach(() => {
     authSession.clear();
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -71,6 +79,43 @@ describe("HomePage", () => {
         quota_warnings: [{ key: "analysis", label: "AI分析额度", used: 28, limit: 30, message: "AI分析额度即将用完" }]
       }
     });
+  }
+
+  function homeSummaryPayload(unread = 1) {
+    return {
+      metrics: [
+        { label: "进行中任务", value: "3", icon: "folder" },
+        { label: "待办任务", value: "4", icon: "inbox" },
+        { label: "今日跟进", value: "8", icon: "trend" }
+      ],
+      hero_cards: [
+        { title: "项目雷达", summary: "发现高潜力机会", url: "/projects" }
+      ],
+      recommendations: [],
+      action_items: [],
+      recent_tasks: [],
+      notification_summary: {
+        unread,
+        by_type: [{ type: "task", count: unread }],
+        latest: [
+          {
+            id: 7,
+            type: "task",
+            title: "任务提醒",
+            summary: "联调首页聚合接口即将截止",
+            action_label: "查看任务",
+            action_url: "/tasks",
+            read_at: unread === 0 ? "2026-07-02T10:00:00Z" : undefined,
+            created_at: "2026-07-02T09:30:00Z"
+          }
+        ]
+      },
+      account_summary: {
+        plan_name: "会员版",
+        credit_balance: 88,
+        quota_warnings: []
+      }
+    };
   }
 
   it("loads home summary from API", async () => {
@@ -200,6 +245,28 @@ describe("HomePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "添加文件" }));
     expect(screen.getByText("市场分析报告.pdf")).toBeInTheDocument();
+  });
+
+  it("marks all home notifications as read and refreshes summary", async () => {
+    signIn();
+    vi.mocked(homeApi.summary)
+      .mockResolvedValueOnce(homeSummaryPayload(1))
+      .mockResolvedValueOnce(homeSummaryPayload(0));
+    vi.mocked(notificationsApi.markAllRead).mockResolvedValue({ updated: 1 });
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "通知" }));
+    expect(await screen.findByText("任务提醒")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "全部已读" }));
+
+    await waitFor(() => expect(notificationsApi.markAllRead).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(homeApi.summary).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole("button", { name: "全部已读" })).toBeDisabled();
   });
 
   it("renders direct Copilot settings and file states", () => {
