@@ -35,9 +35,9 @@ describe("HomePage", () => {
   function mockHomeSummary() {
     vi.mocked(homeApi.summary).mockResolvedValue({
       metrics: [
-        { label: "进行中项目", value: "1", icon: "folder" },
-        { label: "待办事项", value: "2", icon: "inbox" },
-        { label: "额度预警", value: "1", icon: "trend" }
+        { label: "进行中任务", value: "3", icon: "folder" },
+        { label: "待办任务", value: "4", icon: "inbox" },
+        { label: "今日跟进", value: "8", icon: "trend" }
       ],
       hero_cards: [
         { title: "项目雷达", summary: "发现高潜力机会", url: "/projects" },
@@ -88,6 +88,8 @@ describe("HomePage", () => {
     expect(screen.getByText("会员版")).toBeInTheDocument();
     expect(screen.getByText("88 积分")).toBeInTheDocument();
     expect(screen.getByText("AI分析额度即将用完")).toBeInTheDocument();
+    expect(screen.getByText("今日跟进")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
     expect(homeApi.summary).toHaveBeenCalled();
   });
 

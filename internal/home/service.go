@@ -27,6 +27,7 @@ type MembershipReader interface {
 
 type TaskReader interface {
 	ListTasks(ctx context.Context, userID int64, filters tasks.ListFilters) ([]tasks.Task, error)
+	TaskStats(ctx context.Context, userID int64) (tasks.Stats, error)
 }
 
 type LeadTaskReader interface {
@@ -43,6 +44,7 @@ type CompetitorReader interface {
 
 type CRMReader interface {
 	ListDueCustomers(ctx context.Context, input crm.ListDueInput) ([]crm.Customer, error)
+	PipelineStats(ctx context.Context, userID int64) (crm.PipelineStats, error)
 }
 
 type Dependencies struct {
@@ -69,9 +71,9 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 	}
 	summary := Summary{
 		Metrics: []Metric{
-			{Label: "进行中项目", Value: "0", Icon: "folder"},
-			{Label: "待办事项", Value: "0", Icon: "inbox"},
-			{Label: "额度预警", Value: "0", Icon: "trend"},
+			{Label: "进行中任务", Value: "0", Icon: "folder"},
+			{Label: "待办任务", Value: "0", Icon: "inbox"},
+			{Label: "今日跟进", Value: "0", Icon: "trend"},
 		},
 		HeroCards: []Card{
 			{Title: "项目确定及拆解", Summary: "洞察机会，精准定位，科学拆解", URL: "/projects"},
@@ -158,6 +160,12 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 			}
 			summary.Metrics[0].Value = fmt.Sprintf("%d", inProgressCount)
 			summary.Metrics[1].Value = fmt.Sprintf("%d", todoCount)
+			if stats, err := s.deps.Tasks.TaskStats(ctx, userID); err == nil {
+				todoCount = stats.Todo
+				inProgressCount = stats.InProgress
+				summary.Metrics[0].Value = fmt.Sprintf("%d", stats.InProgress)
+				summary.Metrics[1].Value = fmt.Sprintf("%d", stats.Todo)
+			}
 			if len(rows) == 0 {
 				cards := []Card{
 					{Title: "浏览项目超市", Summary: "先选择一个想验证的项目方向", URL: "/projects"},
@@ -216,6 +224,9 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 		}
 	}
 	if s.deps.CRM != nil {
+		if stats, err := s.deps.CRM.PipelineStats(ctx, userID); err == nil {
+			summary.Metrics[2].Value = fmt.Sprintf("%d", stats.DueToday)
+		}
 		if rows, err := s.deps.CRM.ListDueCustomers(ctx, crm.ListDueInput{UserID: userID, Limit: 3}); err == nil && len(rows) > 0 {
 			card := Card{
 				Title:   "跟进今日客户",
@@ -226,7 +237,6 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 			summary.ActionItems = append(summary.ActionItems, actionItemFromCard("crm", "high", "去跟进", card))
 		}
 	}
-	summary.Metrics[2].Value = fmt.Sprintf("%d", len(summary.AccountSummary.QuotaWarnings))
 
 	if summary.Metrics == nil {
 		summary.Metrics = []Metric{}
