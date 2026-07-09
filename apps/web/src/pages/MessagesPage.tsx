@@ -69,6 +69,7 @@ function MessageListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
+  const [markingAllRead, setMarkingAllRead] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -97,15 +98,24 @@ function MessageListPage() {
   }, []);
 
   async function markAllRead() {
+    if (markingAllRead || !summary?.unread) return;
+    setMarkingAllRead(true);
     setStatus("");
     try {
       const result = await notificationsApi.markAllRead();
       const readAt = new Date().toISOString();
       setNotifications((current) => current.map((item) => ({ ...item, read_at: item.read_at ?? readAt })));
-      setSummary((current) => current ? { ...current, unread: 0 } : current);
+      setSummary((current) => current ? {
+        ...current,
+        unread: 0,
+        by_type: current.by_type.map((item) => ({ ...item, count: 0 })),
+        latest: current.latest.map((item) => ({ ...item, read_at: item.read_at ?? readAt }))
+      } : current);
       setStatus(`已标记 ${result.updated} 条消息为已读`);
     } catch (err) {
       setStatus(apiErrorMessage(err, "暂时无法标记已读"));
+    } finally {
+      setMarkingAllRead(false);
     }
   }
 
@@ -119,7 +129,9 @@ function MessageListPage() {
             <h1>消息中心</h1>
             <p>查看与你相关的所有通知和消息</p>
           </div>
-          <button onClick={() => void markAllRead()} type="button">全部已读</button>
+          <button disabled={!summary?.unread || markingAllRead} onClick={() => void markAllRead()} type="button">
+            {markingAllRead ? "处理中..." : "全部已读"}
+          </button>
         </div>
 
         {error && <p className="form-error" role="alert">{error}</p>}

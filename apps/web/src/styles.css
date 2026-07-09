@@ -6667,6 +6667,11 @@ a {
   cursor: pointer;
 }
 
+.message-card-head button:disabled {
+  color: #9aa7c0;
+  cursor: not-allowed;
+}
+
 .message-tabs {
   display: flex;
   align-items: center;

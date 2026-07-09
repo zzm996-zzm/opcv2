@@ -79,6 +79,8 @@ describe("MessagesPage", () => {
 
     await waitFor(() => expect(notificationsApi.markAllRead).toHaveBeenCalled());
     expect(await screen.findByText("已标记 1 条消息为已读")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "任务 0" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "全部已读" })).toBeDisabled();
   });
 
   it("renders a message detail page and marks it read", async () => {
