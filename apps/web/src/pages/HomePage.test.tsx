@@ -47,6 +47,10 @@ describe("HomePage", () => {
         { title: "本地AI获客顾问", summary: "适合轻资产启动", url: "/projects/detail" },
         { title: "跟进今日客户", summary: "星河教育 等 2 位客户待跟进", url: "/crm" }
       ],
+      action_items: [
+        { type: "project", priority: "medium", title: "本地AI获客顾问", summary: "适合轻资产启动", url: "/projects/detail", cta: "查看项目" },
+        { type: "crm", priority: "high", title: "跟进今日客户", summary: "星河教育 等 2 位客户待跟进", url: "/crm", cta: "去跟进" }
+      ],
       recent_tasks: [
         { id: 41, title: "联调首页聚合接口", project: "工作台", status: "in_progress", due_at: "2026-07-02T10:00:00Z" }
       ],
@@ -78,6 +82,8 @@ describe("HomePage", () => {
     expect(screen.getByText("本地AI获客顾问")).toBeInTheDocument();
     expect(screen.getByText("跟进今日客户")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /跟进今日客户/ })).toHaveAttribute("href", "/crm");
+    expect(screen.getByText("CRM客户 · 去跟进")).toBeInTheDocument();
+    expect(screen.getByText("优先处理")).toBeInTheDocument();
     expect(screen.getByText("联调首页聚合接口")).toBeInTheDocument();
     expect(screen.getByText("会员版")).toBeInTheDocument();
     expect(screen.getByText("88 积分")).toBeInTheDocument();
@@ -91,6 +97,7 @@ describe("HomePage", () => {
       metrics: [],
       hero_cards: [],
       recommendations: [],
+      action_items: [],
       recent_tasks: [],
       notification_summary: {
         unread: 0,
@@ -109,7 +116,7 @@ describe("HomePage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("暂无个性化推荐")).toBeInTheDocument();
+    expect(await screen.findByText("暂无待处理行动")).toBeInTheDocument();
     expect(screen.getByText("暂无待办任务")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /先去项目超市/ })).toHaveAttribute("href", "/projects");
     expect(screen.getByRole("link", { name: /咨询 Copilot/ })).toHaveAttribute("href", "/copilot");

@@ -134,14 +134,27 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
     href: card.url || heroCards[index % heroCards.length].href,
     art: heroCards[index % heroCards.length].art
   })) : heroCards;
-  const visibleRecommendations = summary ? summary.recommendations.map((card, index) => ({
-    title: card.title,
-    desc: card.summary ?? "",
-    meta: "为你推荐",
-    href: card.url || "/projects",
-    accent: ["violet", "blue", "cyan"][index % 3],
-    art: ["board", "blocks", "news"][index % 3]
-  })) : [];
+  const visibleActions = summary ? (
+    summary.action_items?.length ? summary.action_items.map((item, index) => ({
+      title: item.title,
+      desc: item.summary ?? "",
+      meta: actionTypeLabel(item.type),
+      href: item.url || "/projects",
+      cta: item.cta || "去处理",
+      priority: item.priority,
+      accent: actionAccent(item.type, index),
+      art: ["board", "blocks", "news"][index % 3]
+    })) : summary.recommendations.map((card, index) => ({
+      title: card.title,
+      desc: card.summary ?? "",
+      meta: "为你推荐",
+      href: card.url || "/projects",
+      cta: "查看",
+      priority: "medium",
+      accent: ["violet", "blue", "cyan"][index % 3],
+      art: ["board", "blocks", "news"][index % 3]
+    }))
+  ) : [];
   const visibleTasks = summary ? summary.recent_tasks.map((task) => [
     task.title,
     task.project,
@@ -411,28 +424,29 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               ))}
             </div>
 
-            <section className="recommend-panel" aria-label="为你推荐">
+            <section className="recommend-panel" aria-label="行动队列">
               <div className="panel-heading">
-                <h2>为你推荐</h2>
-                <Link to="/projects">查看全部 <span aria-hidden="true">›</span></Link>
+                <h2>行动队列</h2>
+                <Link to="/tasks">查看全部 <span aria-hidden="true">›</span></Link>
               </div>
               <div className="recommend-grid">
-                {visibleRecommendations.length === 0 ? (
+                {visibleActions.length === 0 ? (
                   <div className="recommend-empty-state" role="status">
                     <span className="recommend-empty-icon" aria-hidden="true" />
                     <div>
-                      <h3>暂无个性化推荐</h3>
+                      <h3>暂无待处理行动</h3>
                       <p>当你浏览项目、使用工具或创建任务后，这里会展示接口返回的推荐内容。</p>
                     </div>
                     <Link to="/projects">先去项目超市 <span aria-hidden="true">›</span></Link>
                   </div>
-                ) : visibleRecommendations.map((card) => (
+                ) : visibleActions.map((card) => (
                     <Link key={card.title} className="recommend-card" to={card.href}>
                       <span className={`recommend-icon ${card.accent}`} aria-hidden="true" />
                       <div>
+                        <span className={`action-priority ${card.priority}`}>{priorityLabel(card.priority)}</span>
                         <h3>{card.title}</h3>
                         <p>{card.desc}</p>
-                        <small>{card.meta}</small>
+                        <small>{card.meta} · {card.cta}</small>
                       </div>
                       <span className={`mini-art ${card.art}`} aria-hidden="true" />
                       <span className="tiny-arrow" aria-hidden="true">→</span>
@@ -621,6 +635,52 @@ function MetricCard({ label, value, icon }: { label: string; value: string; icon
       <i className={`metric-icon ${icon}`} aria-hidden="true" />
     </article>
   );
+}
+
+function actionTypeLabel(type: string) {
+  switch (type) {
+    case "membership":
+      return "会员权益";
+    case "task":
+      return "任务中心";
+    case "leads":
+      return "AI线索";
+    case "sandbox":
+      return "商业沙盘";
+    case "competitor":
+      return "竞品数据";
+    case "crm":
+      return "CRM客户";
+    case "project":
+      return "项目超市";
+    default:
+      return "工作台";
+  }
+}
+
+function actionAccent(type: string, index: number) {
+  switch (type) {
+    case "task":
+    case "crm":
+    case "membership":
+      return "blue";
+    case "leads":
+    case "competitor":
+      return "cyan";
+    default:
+      return ["violet", "blue", "cyan"][index % 3];
+  }
+}
+
+function priorityLabel(priority: string) {
+  switch (priority) {
+    case "high":
+      return "优先处理";
+    case "low":
+      return "等待中";
+    default:
+      return "建议处理";
+  }
 }
 
 function tagClass(tag: string) {

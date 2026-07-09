@@ -151,11 +151,23 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	if len(summary.HeroCards) != 3 || len(summary.Recommendations) != 6 {
 		t.Fatalf("cards/recommendations = %+v/%+v", summary.HeroCards, summary.Recommendations)
 	}
+	if len(summary.ActionItems) != 6 {
+		t.Fatalf("action items = %+v", summary.ActionItems)
+	}
 	if summary.Recommendations[2].Title != "查看最新 AI 线索结果" || summary.Recommendations[3].URL != "/sandbox/sessions/12/report" || summary.Recommendations[4].Title != "查看竞品采集进度" || summary.Recommendations[5].Title != "跟进今日客户" {
 		t.Fatalf("recommendations = %+v", summary.Recommendations)
 	}
 	if summary.Recommendations[5].Summary != "星河教育 等 2 位客户待跟进" {
 		t.Fatalf("crm recommendation = %+v", summary.Recommendations[5])
+	}
+	if summary.ActionItems[0].Type != "membership" || summary.ActionItems[0].Priority != "high" || summary.ActionItems[0].CTA != "查看会员权益" {
+		t.Fatalf("membership action item = %+v", summary.ActionItems[0])
+	}
+	if summary.ActionItems[2].Type != "leads" || summary.ActionItems[2].Priority != "medium" || summary.ActionItems[2].CTA != "查看线索" {
+		t.Fatalf("lead action item = %+v", summary.ActionItems[2])
+	}
+	if summary.ActionItems[5].Type != "crm" || summary.ActionItems[5].Priority != "high" || summary.ActionItems[5].CTA != "去跟进" {
+		t.Fatalf("crm action item = %+v", summary.ActionItems[5])
 	}
 	if notificationReader.userID != 42 || membershipReader.userID != 42 || taskReader.userID != 42 || taskReader.filters.Limit != 5 || leadReader.limit != 1 || sandboxReader.limit != 1 || competitorReader.limit != 1 || crmReader.input.UserID != 42 || crmReader.input.Limit != 3 {
 		t.Fatalf("dependency calls = %d/%d/%d/%d/%d/%d/%d/%d/%d", notificationReader.userID, membershipReader.userID, taskReader.userID, taskReader.filters.Limit, leadReader.limit, sandboxReader.limit, competitorReader.limit, crmReader.input.UserID, crmReader.input.Limit)
@@ -178,7 +190,7 @@ func TestServiceDegradesPartialDependencyFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Summary() error = %v", err)
 	}
-	if summary.Metrics == nil || summary.HeroCards == nil || summary.Recommendations == nil || summary.RecentTasks == nil || summary.NotificationSummary.Latest == nil || summary.AccountSummary.QuotaWarnings == nil {
+	if summary.Metrics == nil || summary.HeroCards == nil || summary.Recommendations == nil || summary.ActionItems == nil || summary.RecentTasks == nil || summary.NotificationSummary.Latest == nil || summary.AccountSummary.QuotaWarnings == nil {
 		t.Fatalf("summary should contain safe empty slices: %+v", summary)
 	}
 }

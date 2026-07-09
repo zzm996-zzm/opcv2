@@ -79,6 +79,7 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 			{Title: "增长", Summary: "获客转化，客户运营，持续增长", URL: "/leads"},
 		},
 		Recommendations: []Card{},
+		ActionItems:     []ActionItem{},
 		RecentTasks:     []RecentTask{},
 		NotificationSummary: NotificationSummary{
 			Latest: []NotificationItem{},
@@ -124,11 +125,13 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 			}
 			if len(summary.AccountSummary.QuotaWarnings) > 0 {
 				warning := summary.AccountSummary.QuotaWarnings[0]
-				summary.Recommendations = append(summary.Recommendations, Card{
+				card := Card{
 					Title:   "会员额度即将用完",
 					Summary: warning.Message,
 					URL:     "/membership",
-				})
+				}
+				summary.Recommendations = append(summary.Recommendations, card)
+				summary.ActionItems = append(summary.ActionItems, actionItemFromCard("membership", "high", "查看会员权益", card))
 			}
 		}
 	}
@@ -156,56 +159,71 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 			summary.Metrics[0].Value = fmt.Sprintf("%d", inProgressCount)
 			summary.Metrics[1].Value = fmt.Sprintf("%d", todoCount)
 			if len(rows) == 0 {
-				summary.Recommendations = append(summary.Recommendations,
-					Card{Title: "浏览项目超市", Summary: "先选择一个想验证的项目方向", URL: "/projects"},
-					Card{Title: "打开商业沙盘", Summary: "拆解商业模式、成本和落地路径", URL: "/sandbox"},
+				cards := []Card{
+					{Title: "浏览项目超市", Summary: "先选择一个想验证的项目方向", URL: "/projects"},
+					{Title: "打开商业沙盘", Summary: "拆解商业模式、成本和落地路径", URL: "/sandbox"},
+				}
+				summary.Recommendations = append(summary.Recommendations, cards...)
+				summary.ActionItems = append(summary.ActionItems,
+					actionItemFromCard("project", "medium", "去选择项目", cards[0]),
+					actionItemFromCard("sandbox", "medium", "开始推演", cards[1]),
 				)
 			} else {
-				summary.Recommendations = append(summary.Recommendations, Card{
+				card := Card{
 					Title:   "继续推进任务",
 					Summary: fmt.Sprintf("当前有 %d 个待办、%d 个进行中任务", todoCount, inProgressCount),
 					URL:     "/tasks",
-				})
+				}
+				summary.Recommendations = append(summary.Recommendations, card)
+				summary.ActionItems = append(summary.ActionItems, actionItemFromCard("task", "high", "查看任务", card))
 			}
 		}
 	}
 	if s.deps.Leads != nil {
 		if rows, err := s.deps.Leads.ListTasks(ctx, userID, 1); err == nil && len(rows) > 0 {
 			latest := rows[0]
-			summary.Recommendations = append(summary.Recommendations, Card{
+			card := Card{
 				Title:   leadRecommendationTitle(latest),
 				Summary: fmt.Sprintf("最新线索任务：%s", latest.Query),
 				URL:     "/leads",
-			})
+			}
+			summary.Recommendations = append(summary.Recommendations, card)
+			summary.ActionItems = append(summary.ActionItems, actionItemFromCard("leads", leadRecommendationPriority(latest), leadRecommendationCTA(latest), card))
 		}
 	}
 	if s.deps.Sandbox != nil {
 		if rows, err := s.deps.Sandbox.ListSessions(ctx, userID, 1); err == nil && len(rows) > 0 {
 			latest := rows[0]
-			summary.Recommendations = append(summary.Recommendations, Card{
+			card := Card{
 				Title:   sandboxRecommendationTitle(latest),
 				Summary: latest.Goal,
 				URL:     sandboxRecommendationURL(latest),
-			})
+			}
+			summary.Recommendations = append(summary.Recommendations, card)
+			summary.ActionItems = append(summary.ActionItems, actionItemFromCard("sandbox", sandboxRecommendationPriority(latest), sandboxRecommendationCTA(latest), card))
 		}
 	}
 	if s.deps.Competitor != nil {
 		if rows, err := s.deps.Competitor.ListScans(ctx, userID, 1); err == nil && len(rows) > 0 {
 			latest := rows[0]
-			summary.Recommendations = append(summary.Recommendations, Card{
+			card := Card{
 				Title:   competitorRecommendationTitle(latest),
 				Summary: competitorRecommendationSummary(latest),
 				URL:     "/competitor-data",
-			})
+			}
+			summary.Recommendations = append(summary.Recommendations, card)
+			summary.ActionItems = append(summary.ActionItems, actionItemFromCard("competitor", competitorRecommendationPriority(latest), competitorRecommendationCTA(latest), card))
 		}
 	}
 	if s.deps.CRM != nil {
 		if rows, err := s.deps.CRM.ListDueCustomers(ctx, crm.ListDueInput{UserID: userID, Limit: 3}); err == nil && len(rows) > 0 {
-			summary.Recommendations = append(summary.Recommendations, Card{
+			card := Card{
 				Title:   "跟进今日客户",
 				Summary: crmRecommendationSummary(rows),
 				URL:     "/crm",
-			})
+			}
+			summary.Recommendations = append(summary.Recommendations, card)
+			summary.ActionItems = append(summary.ActionItems, actionItemFromCard("crm", "high", "去跟进", card))
 		}
 	}
 	summary.Metrics[2].Value = fmt.Sprintf("%d", len(summary.AccountSummary.QuotaWarnings))
@@ -216,6 +234,9 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 	if summary.RecentTasks == nil {
 		summary.RecentTasks = []RecentTask{}
 	}
+	if summary.ActionItems == nil {
+		summary.ActionItems = []ActionItem{}
+	}
 	if summary.NotificationSummary.Latest == nil {
 		summary.NotificationSummary.Latest = []NotificationItem{}
 	}
@@ -223,6 +244,17 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 		summary.AccountSummary.QuotaWarnings = []QuotaWarning{}
 	}
 	return summary, nil
+}
+
+func actionItemFromCard(itemType, priority, cta string, card Card) ActionItem {
+	return ActionItem{
+		Type:     itemType,
+		Priority: priority,
+		Title:    card.Title,
+		Summary:  card.Summary,
+		URL:      card.URL,
+		CTA:      cta,
+	}
 }
 
 func leadRecommendationTitle(task leads.Task) string {
@@ -236,11 +268,47 @@ func leadRecommendationTitle(task leads.Task) string {
 	}
 }
 
+func leadRecommendationPriority(task leads.Task) string {
+	switch task.Status {
+	case leads.StatusSucceeded:
+		return "medium"
+	case leads.StatusFailed, leads.StatusRefunded:
+		return "high"
+	default:
+		return "low"
+	}
+}
+
+func leadRecommendationCTA(task leads.Task) string {
+	switch task.Status {
+	case leads.StatusSucceeded:
+		return "查看线索"
+	case leads.StatusFailed, leads.StatusRefunded:
+		return "重新发起"
+	default:
+		return "查看进度"
+	}
+}
+
 func sandboxRecommendationTitle(session sandbox.Session) string {
 	if session.Status == sandbox.StatusCompleted {
 		return "查看最新商业沙盘报告"
 	}
 	return "继续完成商业沙盘推演"
+}
+
+func sandboxRecommendationPriority(session sandbox.Session) string {
+	if session.Status == sandbox.StatusCompleted {
+		return "medium"
+	}
+	return "high"
+}
+
+func sandboxRecommendationCTA(session sandbox.Session) string {
+	if session.Status == sandbox.StatusCompleted {
+		return "查看报告"
+	}
+	return "继续推演"
 }
 
 func sandboxRecommendationURL(session sandbox.Session) string {
@@ -258,6 +326,28 @@ func competitorRecommendationTitle(scan competitor.Scan) string {
 		return "重新发起竞品采集"
 	default:
 		return "查看竞品采集进度"
+	}
+}
+
+func competitorRecommendationPriority(scan competitor.Scan) string {
+	switch scan.Status {
+	case competitor.StatusFailed:
+		return "high"
+	case competitor.StatusSucceeded:
+		return "medium"
+	default:
+		return "low"
+	}
+}
+
+func competitorRecommendationCTA(scan competitor.Scan) string {
+	switch scan.Status {
+	case competitor.StatusSucceeded:
+		return "查看结论"
+	case competitor.StatusFailed:
+		return "重新采集"
+	default:
+		return "查看进度"
 	}
 }
 

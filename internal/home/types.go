@@ -14,6 +14,15 @@ type Metric struct {
 	Icon  string `json:"icon,omitempty"`
 }
 
+type ActionItem struct {
+	Type     string `json:"type"`
+	Priority string `json:"priority"`
+	Title    string `json:"title"`
+	Summary  string `json:"summary,omitempty"`
+	URL      string `json:"url,omitempty"`
+	CTA      string `json:"cta,omitempty"`
+}
+
 type RecentTask struct {
 	ID      int64      `json:"id"`
 	Title   string     `json:"title"`
@@ -54,6 +63,7 @@ type Summary struct {
 	Metrics             []Metric            `json:"metrics"`
 	HeroCards           []Card              `json:"hero_cards"`
 	Recommendations     []Card              `json:"recommendations"`
+	ActionItems         []ActionItem        `json:"action_items"`
 	RecentTasks         []RecentTask        `json:"recent_tasks"`
 	NotificationSummary NotificationSummary `json:"notification_summary"`
 	AccountSummary      AccountSummary      `json:"account_summary"`

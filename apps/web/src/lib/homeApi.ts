@@ -12,6 +12,15 @@ export type HomeMetric = {
   icon?: string;
 };
 
+export type HomeActionItem = {
+  type: string;
+  priority: string;
+  title: string;
+  summary?: string;
+  url?: string;
+  cta?: string;
+};
+
 export type HomeRecentTask = {
   id: number;
   title: string;
@@ -52,6 +61,7 @@ export type HomeSummary = {
   metrics: HomeMetric[];
   hero_cards: HomeCard[];
   recommendations: HomeCard[];
+  action_items?: HomeActionItem[];
   recent_tasks: HomeRecentTask[];
   notification_summary: HomeNotificationSummary;
   account_summary: HomeAccountSummary;

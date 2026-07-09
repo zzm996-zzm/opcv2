@@ -1388,6 +1388,34 @@ a {
   font-weight: 760;
 }
 
+.action-priority {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin: 0 0 8px;
+  padding: 0 8px;
+  color: #2457c5;
+  background: rgba(31, 95, 255, 0.08);
+  border: 1px solid rgba(31, 95, 255, 0.12);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.action-priority.high {
+  color: #b9344f;
+  background: rgba(255, 83, 115, 0.1);
+  border-color: rgba(255, 83, 115, 0.16);
+}
+
+.action-priority.low {
+  color: #66738f;
+  background: rgba(102, 115, 143, 0.08);
+  border-color: rgba(102, 115, 143, 0.12);
+}
+
 .mini-art {
   position: relative;
   display: block;
