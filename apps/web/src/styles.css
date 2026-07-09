@@ -624,6 +624,10 @@ a {
 
 .notice-tabs button {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 34px;
   color: #405792;
   background: transparent;
@@ -631,6 +635,18 @@ a {
   font-size: 13px;
   font-weight: 820;
   cursor: pointer;
+}
+
+.notice-tabs button span {
+  display: inline-grid;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  color: #61749d;
+  background: rgba(31, 68, 140, 0.08);
+  border-radius: 999px;
+  font-size: 11px;
+  place-items: center;
 }
 
 .notice-tabs button.active {
@@ -741,9 +757,19 @@ a {
 }
 
 .notice-item small {
+  display: block;
   color: #324c87;
   font-size: 12px;
   font-weight: 720;
+}
+
+.notice-item em {
+  display: inline-flex;
+  margin-top: 5px;
+  color: #6075a9;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 820;
 }
 
 .notice-item time {

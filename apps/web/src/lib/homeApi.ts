@@ -36,12 +36,20 @@ export type HomeNotificationItem = {
   type: string;
   title: string;
   summary?: string;
+  action_label?: string;
   action_url?: string;
+  read_at?: string;
   created_at: string;
+};
+
+export type HomeNotificationTypeCount = {
+  type: string;
+  count: number;
 };
 
 export type HomeNotificationSummary = {
   unread: number;
+  by_type?: HomeNotificationTypeCount[];
   latest: HomeNotificationItem[];
 };
 

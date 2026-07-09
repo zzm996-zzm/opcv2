@@ -56,8 +56,13 @@ describe("HomePage", () => {
       ],
       notification_summary: {
         unread: 1,
+        by_type: [
+          { type: "task", count: 1 },
+          { type: "crm", count: 2 }
+        ],
         latest: [
-          { id: 7, type: "task", title: "任务提醒", summary: "联调首页聚合接口即将截止", action_url: "/tasks", created_at: "2026-07-02T09:30:00Z" }
+          { id: 7, type: "task", title: "任务提醒", summary: "联调首页聚合接口即将截止", action_label: "查看任务", action_url: "/tasks", created_at: "2026-07-02T09:30:00Z" },
+          { id: 8, type: "crm", title: "客户跟进", summary: "星河教育需要跟进", action_label: "去跟进", action_url: "/crm", read_at: "2026-07-02T10:00:00Z", created_at: "2026-07-02T08:30:00Z" }
         ]
       },
       account_summary: {
@@ -106,6 +111,7 @@ describe("HomePage", () => {
       recent_tasks: [],
       notification_summary: {
         unread: 0,
+        by_type: [],
         latest: []
       },
       account_summary: {
@@ -183,6 +189,9 @@ describe("HomePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "通知" }));
     expect(screen.getByRole("dialog", { name: "通知下拉框" })).toBeInTheDocument();
     expect(await screen.findByText("任务提醒")).toBeInTheDocument();
+    expect(screen.getByText("CRM")).toBeInTheDocument();
+    expect(screen.getByText("任务 · 查看任务")).toBeInTheDocument();
+    expect(screen.getByText("CRM · 去跟进")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "打开智活 Copilot" }));
     fireEvent.click(screen.getByRole("button", { name: "打开 Copilot 设置" }));

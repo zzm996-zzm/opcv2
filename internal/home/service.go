@@ -85,6 +85,7 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 		ActionItems:     []ActionItem{},
 		RecentTasks:     []RecentTask{},
 		NotificationSummary: NotificationSummary{
+			ByType: []NotificationTypeCount{},
 			Latest: []NotificationItem{},
 		},
 		AccountSummary: AccountSummary{
@@ -95,15 +96,24 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 	if s.deps.Notifications != nil {
 		if notificationSummary, err := s.deps.Notifications.Summary(ctx, userID); err == nil {
 			summary.NotificationSummary.Unread = notificationSummary.Unread
+			summary.NotificationSummary.ByType = make([]NotificationTypeCount, 0, len(notificationSummary.ByType))
+			for _, item := range notificationSummary.ByType {
+				summary.NotificationSummary.ByType = append(summary.NotificationSummary.ByType, NotificationTypeCount{
+					Type:  item.Type,
+					Count: item.Count,
+				})
+			}
 			summary.NotificationSummary.Latest = make([]NotificationItem, 0, len(notificationSummary.Latest))
 			for _, item := range notificationSummary.Latest {
 				summary.NotificationSummary.Latest = append(summary.NotificationSummary.Latest, NotificationItem{
-					ID:        item.ID,
-					Type:      item.Type,
-					Title:     item.Title,
-					Summary:   item.Summary,
-					ActionURL: item.ActionURL,
-					CreatedAt: item.CreatedAt,
+					ID:          item.ID,
+					Type:        item.Type,
+					Title:       item.Title,
+					Summary:     item.Summary,
+					ActionLabel: item.ActionLabel,
+					ActionURL:   item.ActionURL,
+					ReadAt:      item.ReadAt,
+					CreatedAt:   item.CreatedAt,
 				})
 			}
 		}
@@ -253,6 +263,9 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 	}
 	if summary.NotificationSummary.Latest == nil {
 		summary.NotificationSummary.Latest = []NotificationItem{}
+	}
+	if summary.NotificationSummary.ByType == nil {
+		summary.NotificationSummary.ByType = []NotificationTypeCount{}
 	}
 	if summary.AccountSummary.QuotaWarnings == nil {
 		summary.AccountSummary.QuotaWarnings = []QuotaWarning{}

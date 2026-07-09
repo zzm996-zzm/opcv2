@@ -129,9 +129,11 @@ func (f *fakeCRM) PipelineStats(_ context.Context, userID int64) (crm.PipelineSt
 func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
 	overdue := time.Now().Add(-time.Hour)
+	readAt := now.Add(10 * time.Minute)
 	notificationReader := &fakeNotifications{summary: notifications.Summary{
 		Unread: 2,
-		Latest: []notifications.Notification{{ID: 7, Type: notifications.TypeTask, Title: "任务提醒", ActionURL: "/tasks", CreatedAt: now}},
+		ByType: []notifications.TypeCount{{Type: notifications.TypeTask, Count: 1}, {Type: notifications.TypeCRM, Count: 1}},
+		Latest: []notifications.Notification{{ID: 7, Type: notifications.TypeTask, Title: "任务提醒", ActionLabel: "查看任务", ActionURL: "/tasks", ReadAt: &readAt, CreatedAt: now}},
 	}}
 	membershipReader := &fakeMembership{
 		snapshot: membership.Snapshot{Plan: membership.Plan{Code: membership.PlanPro, Name: "会员版"}, CreditBalance: 88},
@@ -165,6 +167,12 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	}
 	if summary.NotificationSummary.Unread != 2 || summary.AccountSummary.PlanName != "会员版" || len(summary.RecentTasks) != 2 {
 		t.Fatalf("summary = %+v", summary)
+	}
+	if len(summary.NotificationSummary.ByType) != 2 || summary.NotificationSummary.ByType[1].Type != notifications.TypeCRM {
+		t.Fatalf("notification by type = %+v", summary.NotificationSummary.ByType)
+	}
+	if summary.NotificationSummary.Latest[0].ActionLabel != "查看任务" || summary.NotificationSummary.Latest[0].ReadAt == nil {
+		t.Fatalf("notification latest = %+v", summary.NotificationSummary.Latest[0])
 	}
 	if summary.RecentTasks[0].Priority != tasks.PriorityHigh || !summary.RecentTasks[0].IsOverdue {
 		t.Fatalf("recent task detail = %+v", summary.RecentTasks[0])
@@ -214,7 +222,7 @@ func TestServiceDegradesPartialDependencyFailures(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Summary() error = %v", err)
 	}
-	if summary.Metrics == nil || summary.HeroCards == nil || summary.Recommendations == nil || summary.ActionItems == nil || summary.RecentTasks == nil || summary.NotificationSummary.Latest == nil || summary.AccountSummary.QuotaWarnings == nil {
+	if summary.Metrics == nil || summary.HeroCards == nil || summary.Recommendations == nil || summary.ActionItems == nil || summary.RecentTasks == nil || summary.NotificationSummary.Latest == nil || summary.NotificationSummary.ByType == nil || summary.AccountSummary.QuotaWarnings == nil {
 		t.Fatalf("summary should contain safe empty slices: %+v", summary)
 	}
 }

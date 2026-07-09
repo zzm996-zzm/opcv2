@@ -34,17 +34,25 @@ type RecentTask struct {
 }
 
 type NotificationItem struct {
-	ID        int64     `json:"id"`
-	Type      string    `json:"type"`
-	Title     string    `json:"title"`
-	Summary   string    `json:"summary,omitempty"`
-	ActionURL string    `json:"action_url,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          int64      `json:"id"`
+	Type        string     `json:"type"`
+	Title       string     `json:"title"`
+	Summary     string     `json:"summary,omitempty"`
+	ActionLabel string     `json:"action_label,omitempty"`
+	ActionURL   string     `json:"action_url,omitempty"`
+	ReadAt      *time.Time `json:"read_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+}
+
+type NotificationTypeCount struct {
+	Type  string `json:"type"`
+	Count int    `json:"count"`
 }
 
 type NotificationSummary struct {
-	Unread int                `json:"unread"`
-	Latest []NotificationItem `json:"latest"`
+	Unread int                     `json:"unread"`
+	ByType []NotificationTypeCount `json:"by_type"`
+	Latest []NotificationItem      `json:"latest"`
 }
 
 type QuotaWarning struct {

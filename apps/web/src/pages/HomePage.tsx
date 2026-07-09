@@ -169,14 +169,23 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
     { label: "待办任务", value: signedIn ? String(visibleTasks.length) : "-", icon: "inbox" },
     { label: "今日跟进", value: "-", icon: "trend" }
   ];
-  const visibleNotifications = summary ? summary.notification_summary.latest.map((item) => [
-    item.title,
-    item.summary ?? "",
-    formatHomeTime(item.created_at),
-    item.type === "task" ? "check" : item.type === "membership" ? "gift" : "system",
-    true,
-    item.action_url || "/messages"
-  ] as const) : [];
+  const visibleNotifications = summary ? summary.notification_summary.latest.map((item) => ({
+    title: item.title,
+    desc: item.summary ?? "",
+    time: formatHomeTime(item.created_at),
+    icon: notificationIcon(item.type),
+    unread: !item.read_at,
+    href: item.action_url || "/messages",
+    typeLabel: notificationTypeLabel(item.type),
+    actionLabel: item.action_label || "查看详情"
+  })) : [];
+  const notificationTabs = summary ? [
+    { label: "全部", count: summary.notification_summary.latest.length },
+    ...((summary.notification_summary.by_type ?? []).slice(0, 3).map((item) => ({
+      label: notificationTypeLabel(item.type),
+      count: item.count
+    })))
+  ] : [];
   const accountSummary = summary?.account_summary;
 
   useEffect(() => {
@@ -303,22 +312,24 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       </div>
                     </div>
                     <div className="notice-tabs" role="tablist" aria-label="通知分类">
-                      <button className="active" role="tab" aria-selected="true" type="button">全部</button>
-                      <button role="tab" aria-selected="false" type="button">任务</button>
-                      <button role="tab" aria-selected="false" type="button">系统</button>
-                      <button role="tab" aria-selected="false" type="button">营销</button>
+                      {(notificationTabs.length ? notificationTabs : [{ label: "全部", count: 0 }]).map((tab, index) => (
+                        <button className={index === 0 ? "active" : ""} key={tab.label} role="tab" aria-selected={index === 0} type="button">
+                          {tab.label}<span>{tab.count}</span>
+                        </button>
+                      ))}
                     </div>
                     <div className="notice-list">
                       {visibleNotifications.length === 0 ? (
                         <p className="module-empty-state">暂无通知</p>
-                      ) : visibleNotifications.map(([title, desc, time, icon, unread, href]) => (
-                          <Link key={`${title}-${time}`} className={`notice-item ${unread ? "unread" : "muted"}`} to={href}>
-                            <span className={`notice-icon ${icon}`} aria-hidden="true" />
+                      ) : visibleNotifications.map((notice) => (
+                          <Link key={`${notice.title}-${notice.time}`} className={`notice-item ${notice.unread ? "unread" : "muted"}`} to={notice.href}>
+                            <span className={`notice-icon ${notice.icon}`} aria-hidden="true" />
                             <span>
-                              <strong>{title}</strong>
-                              <small>{desc}</small>
+                              <strong>{notice.title}</strong>
+                              <small>{notice.desc}</small>
+                              <em>{notice.typeLabel} · {notice.actionLabel}</em>
                             </span>
-                            <time>{time}</time>
+                            <time>{notice.time}</time>
                           </Link>
                         ))}
                     </div>
@@ -719,6 +730,41 @@ function priorityText(priority?: string) {
 function dueLabel(value: string, overdue: boolean) {
   const formatted = formatHomeTime(value);
   return overdue ? `已逾期 ${formatted}` : `截止 ${formatted}`;
+}
+
+function notificationTypeLabel(type: string) {
+  switch (type) {
+    case "task":
+      return "任务";
+    case "analysis":
+      return "分析";
+    case "lead":
+      return "线索";
+    case "crm":
+      return "CRM";
+    case "membership":
+      return "会员";
+    case "system":
+      return "系统";
+    default:
+      return "通知";
+  }
+}
+
+function notificationIcon(type: string) {
+  switch (type) {
+    case "task":
+      return "check";
+    case "lead":
+    case "crm":
+      return "target";
+    case "analysis":
+      return "calc";
+    case "membership":
+      return "gift";
+    default:
+      return "system";
+  }
 }
 
 function formatHomeTime(value: string) {
