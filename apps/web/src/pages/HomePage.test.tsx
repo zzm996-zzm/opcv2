@@ -182,6 +182,25 @@ describe("HomePage", () => {
     expect(screen.queryByText("竞品价格监测数据已更新完成")).not.toBeInTheDocument();
   });
 
+  it("shows home summary load errors and retries", async () => {
+    signIn();
+    vi.mocked(homeApi.summary)
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(homeSummaryPayload(0));
+
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("暂时无法同步工作台数据")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新加载" }));
+
+    expect(await screen.findByRole("heading", { name: "项目雷达" })).toBeInTheDocument();
+    expect(homeApi.summary).toHaveBeenCalledTimes(2);
+  });
+
   it("shows the signed-in user and logs out from the account menu", async () => {
     signIn();
     mockHomeSummary();

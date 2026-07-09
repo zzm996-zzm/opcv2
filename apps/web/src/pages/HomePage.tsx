@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
@@ -130,6 +130,8 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   const [filesOpen, setFilesOpen] = useState(assistantState === "files");
   const [noticeBusy, setNoticeBusy] = useState(false);
   const [noticeError, setNoticeError] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState("");
   const signedIn = Boolean(session.user);
   const nickname = session.user?.nickname || "张婧";
   const visibleHeroCards = summary?.hero_cards.length ? summary.hero_cards.map((card, index) => ({
@@ -192,27 +194,31 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   ] : [];
   const accountSummary = summary?.account_summary;
 
-  useEffect(() => {
-    if (!session.user) {
+  const loadHomeSummary = useCallback(async () => {
+    if (!signedIn) return;
+    setSummaryLoading(true);
+    setSummaryError("");
+    try {
+      const payload = await homeApi.summary();
+      setSummary(payload);
+      setNoticeError("");
+    } catch (error) {
       setSummary(null);
+      setSummaryError(apiErrorMessage(error, "暂时无法同步工作台数据"));
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [signedIn]);
+
+  useEffect(() => {
+    if (!signedIn) {
+      setSummary(null);
+      setSummaryError("");
+      setSummaryLoading(false);
       return;
     }
-    let active = true;
-    homeApi
-      .summary()
-      .then((payload) => {
-        if (active) {
-          setSummary(payload);
-          setNoticeError("");
-        }
-      })
-      .catch(() => {
-        if (active) setSummary(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [session.user]);
+    void loadHomeSummary();
+  }, [signedIn, loadHomeSummary]);
 
   useEffect(() => {
     if (!assistantState) return;
@@ -441,6 +447,13 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     {accountSummary.quota_warnings.map((warning) => (
                       <span key={warning.key}>{warning.message}</span>
                     ))}
+                  </div>
+                )}
+                {signedIn && summaryLoading && <p className="home-summary-status" role="status">正在同步工作台数据...</p>}
+                {signedIn && summaryError && (
+                  <div className="home-summary-error" role="alert">
+                    <span>{summaryError}</span>
+                    <button onClick={loadHomeSummary} type="button">重新加载</button>
                   </div>
                 )}
               </div>

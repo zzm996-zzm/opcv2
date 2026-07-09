@@ -2350,6 +2350,39 @@ a {
   border-color: rgba(31, 95, 255, 0.12);
 }
 
+.home-summary-status {
+  margin: 12px 0 0;
+  color: #526ba5;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.home-summary-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  color: #b9344f;
+  background: rgba(255, 83, 115, 0.08);
+  border: 1px solid rgba(255, 83, 115, 0.14);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.home-summary-error button {
+  min-height: 28px;
+  padding: 0 10px;
+  color: #1f5fff;
+  background: white;
+  border: 1px solid rgba(31, 95, 255, 0.14);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 820;
+  cursor: pointer;
+}
+
 .stat-strip {
   min-height: 78px;
   background: rgba(255, 255, 255, 0.86);
