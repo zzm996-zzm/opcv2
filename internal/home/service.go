@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/zzm/opcv2/internal/competitor"
+	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/leads"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/notifications"
@@ -40,6 +41,10 @@ type CompetitorReader interface {
 	ListScans(ctx context.Context, userID int64, limit int) ([]competitor.Scan, error)
 }
 
+type CRMReader interface {
+	ListDueCustomers(ctx context.Context, input crm.ListDueInput) ([]crm.Customer, error)
+}
+
 type Dependencies struct {
 	Notifications NotificationReader
 	Membership    MembershipReader
@@ -47,6 +52,7 @@ type Dependencies struct {
 	Leads         LeadTaskReader
 	Sandbox       SandboxReader
 	Competitor    CompetitorReader
+	CRM           CRMReader
 }
 
 type Service struct {
@@ -193,6 +199,15 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 			})
 		}
 	}
+	if s.deps.CRM != nil {
+		if rows, err := s.deps.CRM.ListDueCustomers(ctx, crm.ListDueInput{UserID: userID, Limit: 3}); err == nil && len(rows) > 0 {
+			summary.Recommendations = append(summary.Recommendations, Card{
+				Title:   "跟进今日客户",
+				Summary: crmRecommendationSummary(rows),
+				URL:     "/crm",
+			})
+		}
+	}
 	summary.Metrics[2].Value = fmt.Sprintf("%d", len(summary.AccountSummary.QuotaWarnings))
 
 	if summary.Metrics == nil {
@@ -251,4 +266,11 @@ func competitorRecommendationSummary(scan competitor.Scan) string {
 		return "竞品采集任务已更新"
 	}
 	return fmt.Sprintf("目标：%s", scan.Targets[0])
+}
+
+func crmRecommendationSummary(customers []crm.Customer) string {
+	if len(customers) == 1 {
+		return fmt.Sprintf("%s 已到跟进时间", customers[0].Name)
+	}
+	return fmt.Sprintf("%s 等 %d 位客户待跟进", customers[0].Name, len(customers))
 }

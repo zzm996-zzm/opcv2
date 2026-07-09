@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/competitor"
+	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/leads"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/notifications"
@@ -94,6 +95,17 @@ func (f *fakeCompetitor) ListScans(_ context.Context, userID int64, limit int) (
 	return f.rows, f.err
 }
 
+type fakeCRM struct {
+	rows  []crm.Customer
+	err   error
+	input crm.ListDueInput
+}
+
+func (f *fakeCRM) ListDueCustomers(_ context.Context, input crm.ListDueInput) ([]crm.Customer, error) {
+	f.input = input
+	return f.rows, f.err
+}
+
 func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
 	notificationReader := &fakeNotifications{summary: notifications.Summary{
@@ -111,6 +123,10 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	leadReader := &fakeLeads{rows: []leads.Task{{ID: 11, Query: "成都 教培 私域转化", Status: leads.StatusSucceeded}}}
 	sandboxReader := &fakeSandbox{rows: []sandbox.Session{{ID: 12, Goal: "验证 AI 低卡代餐奶昔", Status: sandbox.StatusCompleted}}}
 	competitorReader := &fakeCompetitor{rows: []competitor.Scan{{ID: 13, Targets: []string{"小鹅通"}, Status: competitor.StatusRunning}}}
+	crmReader := &fakeCRM{rows: []crm.Customer{
+		{ID: 14, Name: "星河教育", Stage: crm.StageContacted},
+		{ID: 15, Name: "星火咨询", Stage: crm.StageNew},
+	}}
 	service := NewService(Dependencies{
 		Notifications: notificationReader,
 		Membership:    membershipReader,
@@ -118,6 +134,7 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 		Leads:         leadReader,
 		Sandbox:       sandboxReader,
 		Competitor:    competitorReader,
+		CRM:           crmReader,
 	})
 
 	summary, err := service.Summary(context.Background(), 42)
@@ -131,14 +148,17 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	if len(summary.Metrics) != 3 || summary.Metrics[0].Value != "1" || summary.Metrics[1].Value != "1" || summary.Metrics[2].Value != "1" {
 		t.Fatalf("metrics = %+v", summary.Metrics)
 	}
-	if len(summary.HeroCards) != 3 || len(summary.Recommendations) != 5 {
+	if len(summary.HeroCards) != 3 || len(summary.Recommendations) != 6 {
 		t.Fatalf("cards/recommendations = %+v/%+v", summary.HeroCards, summary.Recommendations)
 	}
-	if summary.Recommendations[2].Title != "查看最新 AI 线索结果" || summary.Recommendations[3].URL != "/sandbox/sessions/12/report" || summary.Recommendations[4].Title != "查看竞品采集进度" {
+	if summary.Recommendations[2].Title != "查看最新 AI 线索结果" || summary.Recommendations[3].URL != "/sandbox/sessions/12/report" || summary.Recommendations[4].Title != "查看竞品采集进度" || summary.Recommendations[5].Title != "跟进今日客户" {
 		t.Fatalf("recommendations = %+v", summary.Recommendations)
 	}
-	if notificationReader.userID != 42 || membershipReader.userID != 42 || taskReader.userID != 42 || taskReader.filters.Limit != 5 || leadReader.limit != 1 || sandboxReader.limit != 1 || competitorReader.limit != 1 {
-		t.Fatalf("dependency calls = %d/%d/%d/%d/%d/%d/%d", notificationReader.userID, membershipReader.userID, taskReader.userID, taskReader.filters.Limit, leadReader.limit, sandboxReader.limit, competitorReader.limit)
+	if summary.Recommendations[5].Summary != "星河教育 等 2 位客户待跟进" {
+		t.Fatalf("crm recommendation = %+v", summary.Recommendations[5])
+	}
+	if notificationReader.userID != 42 || membershipReader.userID != 42 || taskReader.userID != 42 || taskReader.filters.Limit != 5 || leadReader.limit != 1 || sandboxReader.limit != 1 || competitorReader.limit != 1 || crmReader.input.UserID != 42 || crmReader.input.Limit != 3 {
+		t.Fatalf("dependency calls = %d/%d/%d/%d/%d/%d/%d/%d/%d", notificationReader.userID, membershipReader.userID, taskReader.userID, taskReader.filters.Limit, leadReader.limit, sandboxReader.limit, competitorReader.limit, crmReader.input.UserID, crmReader.input.Limit)
 	}
 }
 
@@ -150,6 +170,7 @@ func TestServiceDegradesPartialDependencyFailures(t *testing.T) {
 		Leads:         &fakeLeads{err: errors.New("leads down")},
 		Sandbox:       &fakeSandbox{err: errors.New("sandbox down")},
 		Competitor:    &fakeCompetitor{err: errors.New("competitor down")},
+		CRM:           &fakeCRM{err: errors.New("crm down")},
 	})
 
 	summary, err := service.Summary(context.Background(), 42)

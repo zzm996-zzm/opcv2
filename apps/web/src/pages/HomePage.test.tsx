@@ -44,7 +44,8 @@ describe("HomePage", () => {
         { title: "落地任务", summary: "推进今日待办", url: "/tasks" }
       ],
       recommendations: [
-        { title: "本地AI获客顾问", summary: "适合轻资产启动", url: "/projects/detail" }
+        { title: "本地AI获客顾问", summary: "适合轻资产启动", url: "/projects/detail" },
+        { title: "跟进今日客户", summary: "星河教育 等 2 位客户待跟进", url: "/crm" }
       ],
       recent_tasks: [
         { id: 41, title: "联调首页聚合接口", project: "工作台", status: "in_progress", due_at: "2026-07-02T10:00:00Z" }
@@ -75,6 +76,8 @@ describe("HomePage", () => {
 
     expect(await screen.findByRole("heading", { name: "项目雷达" })).toBeInTheDocument();
     expect(screen.getByText("本地AI获客顾问")).toBeInTheDocument();
+    expect(screen.getByText("跟进今日客户")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /跟进今日客户/ })).toHaveAttribute("href", "/crm");
     expect(screen.getByText("联调首页聚合接口")).toBeInTheDocument();
     expect(screen.getByText("会员版")).toBeInTheDocument();
     expect(screen.getByText("88 积分")).toBeInTheDocument();

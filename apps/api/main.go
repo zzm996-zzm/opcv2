@@ -177,6 +177,7 @@ func main() {
 		Leads:         leadsService,
 		Sandbox:       sandboxService,
 		Competitor:    competitorService,
+		CRM:           crmService,
 	})
 	homeHTTP := home.NewHTTPHandler(homeService)
 	learningRepository := learning.NewPostgresRepository(db)
