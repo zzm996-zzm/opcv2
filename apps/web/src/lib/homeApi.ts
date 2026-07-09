@@ -26,7 +26,9 @@ export type HomeRecentTask = {
   title: string;
   project: string;
   status: string;
+  priority?: string;
   due_at?: string;
+  is_overdue: boolean;
 };
 
 export type HomeNotificationItem = {

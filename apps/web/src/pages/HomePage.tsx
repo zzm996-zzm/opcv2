@@ -155,15 +155,19 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
       art: ["board", "blocks", "news"][index % 3]
     }))
   ) : [];
-  const visibleTasks = summary ? summary.recent_tasks.map((task) => [
-    task.title,
-    task.project,
-    task.due_at ? formatHomeTime(task.due_at) : task.status
-  ] as const) : [];
+  const visibleTasks = summary ? summary.recent_tasks.map((task) => ({
+    title: task.title,
+    project: task.project,
+    status: statusLabel(task.status),
+    priority: priorityText(task.priority),
+    priorityClass: task.priority || "medium",
+    time: task.due_at ? dueLabel(task.due_at, task.is_overdue) : "暂无截止",
+    overdue: task.is_overdue
+  })) : [];
   const visibleMetrics = summary?.metrics.length ? summary.metrics.slice(0, 3) : [
-    { label: "进行中项目", value: signedIn ? String(visibleTasks.length) : "-", icon: "folder" },
-    { label: "待办事项", value: signedIn ? String(visibleTasks.length) : "-", icon: "inbox" },
-    { label: "本周新增线索", value: "-", icon: "trend" }
+    { label: "进行中任务", value: signedIn ? String(visibleTasks.length) : "-", icon: "folder" },
+    { label: "待办任务", value: signedIn ? String(visibleTasks.length) : "-", icon: "inbox" },
+    { label: "今日跟进", value: "-", icon: "trend" }
   ];
   const visibleNotifications = summary ? summary.notification_summary.latest.map((item) => [
     item.title,
@@ -481,12 +485,15 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       ))}
                     </div>
                   </div>
-                ) : visibleTasks.map(([title, tag, time]) => (
-                    <Link key={title} className="task-row" to="/tasks">
+                ) : visibleTasks.map((task) => (
+                    <Link key={task.title} className={`task-row ${task.overdue ? "overdue" : ""}`} to="/tasks">
                       <span className="task-check" aria-hidden="true" />
-                      <span className="task-title">{title}</span>
-                      <span className={`task-tag ${tagClass(tag)}`}>{tag}</span>
-                      <time>{time}</time>
+                      <span className="task-title">
+                        <strong>{task.title}</strong>
+                        <small>{task.project} · {task.status}</small>
+                      </span>
+                      <span className={`task-tag priority-${task.priorityClass}`}>{task.priority}</span>
+                      <time>{task.time}</time>
                     </Link>
                   ))}
               </div>
@@ -683,12 +690,35 @@ function priorityLabel(priority: string) {
   }
 }
 
-function tagClass(tag: string) {
-  if (tag.includes("项目")) return "purple";
-  if (tag.includes("咨询")) return "blue";
-  if (tag.includes("CRM")) return "green";
-  if (tag.includes("教学")) return "cyan";
-  return "orange";
+function statusLabel(status: string) {
+  switch (status) {
+    case "todo":
+      return "待办";
+    case "in_progress":
+      return "进行中";
+    case "completed":
+      return "已完成";
+    case "reminder":
+      return "提醒";
+    default:
+      return status || "未分类";
+  }
+}
+
+function priorityText(priority?: string) {
+  switch (priority) {
+    case "high":
+      return "高优先级";
+    case "low":
+      return "低优先级";
+    default:
+      return "中优先级";
+  }
+}
+
+function dueLabel(value: string, overdue: boolean) {
+  const formatted = formatHomeTime(value);
+  return overdue ? `已逾期 ${formatted}` : `截止 ${formatted}`;
 }
 
 function formatHomeTime(value: string) {

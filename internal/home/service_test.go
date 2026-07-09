@@ -128,6 +128,7 @@ func (f *fakeCRM) PipelineStats(_ context.Context, userID int64) (crm.PipelineSt
 
 func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
+	overdue := time.Now().Add(-time.Hour)
 	notificationReader := &fakeNotifications{summary: notifications.Summary{
 		Unread: 2,
 		Latest: []notifications.Notification{{ID: 7, Type: notifications.TypeTask, Title: "任务提醒", ActionURL: "/tasks", CreatedAt: now}},
@@ -137,8 +138,8 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 		usage:    []membership.UsageItem{{Key: "lead_tasks", Label: "AI线索任务", Used: 28, Limit: 30}},
 	}
 	taskReader := &fakeTasks{rows: []tasks.Task{
-		{ID: 9, Title: "整理客户名单", Project: "AI线索开发", Status: tasks.StatusTodo, CreatedAt: now},
-		{ID: 10, Title: "联调工作台", Project: "工作台", Status: tasks.StatusInProgress, CreatedAt: now},
+		{ID: 9, Title: "整理客户名单", Project: "AI线索开发", Status: tasks.StatusTodo, Priority: tasks.PriorityHigh, DueAt: &overdue, CreatedAt: now},
+		{ID: 10, Title: "联调工作台", Project: "工作台", Status: tasks.StatusInProgress, Priority: tasks.PriorityMedium, CreatedAt: now},
 	}, stats: tasks.Stats{Todo: 4, InProgress: 3}}
 	leadReader := &fakeLeads{rows: []leads.Task{{ID: 11, Query: "成都 教培 私域转化", Status: leads.StatusSucceeded}}}
 	sandboxReader := &fakeSandbox{rows: []sandbox.Session{{ID: 12, Goal: "验证 AI 低卡代餐奶昔", Status: sandbox.StatusCompleted}}}
@@ -164,6 +165,9 @@ func TestServiceBuildsSummaryFromDependencies(t *testing.T) {
 	}
 	if summary.NotificationSummary.Unread != 2 || summary.AccountSummary.PlanName != "会员版" || len(summary.RecentTasks) != 2 {
 		t.Fatalf("summary = %+v", summary)
+	}
+	if summary.RecentTasks[0].Priority != tasks.PriorityHigh || !summary.RecentTasks[0].IsOverdue {
+		t.Fatalf("recent task detail = %+v", summary.RecentTasks[0])
 	}
 	if len(summary.Metrics) != 3 || summary.Metrics[0].Label != "进行中任务" || summary.Metrics[0].Value != "3" || summary.Metrics[1].Label != "待办任务" || summary.Metrics[1].Value != "4" || summary.Metrics[2].Label != "今日跟进" || summary.Metrics[2].Value != "8" {
 		t.Fatalf("metrics = %+v", summary.Metrics)

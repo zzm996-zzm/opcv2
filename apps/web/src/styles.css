@@ -1517,11 +1517,43 @@ a {
   background: rgba(238, 244, 255, 0.72);
 }
 
+.task-row.overdue {
+  color: #9b3148;
+}
+
 .task-check {
   width: 16px;
   height: 16px;
   border: 2px solid #b9c8ed;
   border-radius: 50%;
+}
+
+.task-row.overdue .task-check {
+  border-color: rgba(185, 49, 72, 0.42);
+  background: rgba(255, 83, 115, 0.1);
+}
+
+.task-title {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.task-title strong,
+.task-title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-title strong {
+  font-size: 14px;
+}
+
+.task-title small {
+  color: #6c7faa;
+  font-size: 12px;
+  font-weight: 720;
 }
 
 .task-tag {
@@ -1556,6 +1588,21 @@ a {
 .task-tag.orange {
   color: #f07b24;
   background: #fff0df;
+}
+
+.task-tag.priority-high {
+  color: #b9344f;
+  background: rgba(255, 83, 115, 0.1);
+}
+
+.task-tag.priority-medium {
+  color: #086de0;
+  background: #e6f1ff;
+}
+
+.task-tag.priority-low {
+  color: #66738f;
+  background: rgba(102, 115, 143, 0.08);
 }
 
 .task-row time {
@@ -2506,7 +2553,6 @@ a {
 .task-tag {
   min-width: auto;
   padding: 2px 8px;
-  background: transparent;
   font-size: 12px;
 }
 
@@ -27650,6 +27696,13 @@ a {
 
   .task-row {
     grid-template-columns: 24px 1fr;
+  }
+
+  .task-tag,
+  .task-row time {
+    grid-column: 2;
+    justify-self: start;
+    text-align: left;
   }
 
   .v4-page-main {

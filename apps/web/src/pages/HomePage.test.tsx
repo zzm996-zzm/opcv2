@@ -52,7 +52,7 @@ describe("HomePage", () => {
         { type: "crm", priority: "high", title: "跟进今日客户", summary: "星河教育 等 2 位客户待跟进", url: "/crm", cta: "去跟进" }
       ],
       recent_tasks: [
-        { id: 41, title: "联调首页聚合接口", project: "工作台", status: "in_progress", due_at: "2026-07-02T10:00:00Z" }
+        { id: 41, title: "联调首页聚合接口", project: "工作台", status: "in_progress", priority: "high", due_at: "2026-07-02T10:00:00Z", is_overdue: true }
       ],
       notification_summary: {
         unread: 1,
@@ -85,6 +85,9 @@ describe("HomePage", () => {
     expect(screen.getByText("CRM客户 · 去跟进")).toBeInTheDocument();
     expect(screen.getByText("优先处理")).toBeInTheDocument();
     expect(screen.getByText("联调首页聚合接口")).toBeInTheDocument();
+    expect(screen.getByText("工作台 · 进行中")).toBeInTheDocument();
+    expect(screen.getByText("高优先级")).toBeInTheDocument();
+    expect(screen.getByText(/已逾期/)).toBeInTheDocument();
     expect(screen.getByText("会员版")).toBeInTheDocument();
     expect(screen.getByText("88 积分")).toBeInTheDocument();
     expect(screen.getByText("AI分析额度即将用完")).toBeInTheDocument();

@@ -24,11 +24,13 @@ type ActionItem struct {
 }
 
 type RecentTask struct {
-	ID      int64      `json:"id"`
-	Title   string     `json:"title"`
-	Project string     `json:"project"`
-	Status  string     `json:"status"`
-	DueAt   *time.Time `json:"due_at,omitempty"`
+	ID        int64      `json:"id"`
+	Title     string     `json:"title"`
+	Project   string     `json:"project"`
+	Status    string     `json:"status"`
+	Priority  string     `json:"priority,omitempty"`
+	DueAt     *time.Time `json:"due_at,omitempty"`
+	IsOverdue bool       `json:"is_overdue"`
 }
 
 type NotificationItem struct {

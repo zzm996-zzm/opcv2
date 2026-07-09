@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/crm"
@@ -143,13 +144,16 @@ func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {
 			summary.RecentTasks = make([]RecentTask, 0, len(rows))
 			todoCount := 0
 			inProgressCount := 0
+			now := time.Now()
 			for _, task := range rows {
 				summary.RecentTasks = append(summary.RecentTasks, RecentTask{
-					ID:      task.ID,
-					Title:   task.Title,
-					Project: task.Project,
-					Status:  task.Status,
-					DueAt:   task.DueAt,
+					ID:        task.ID,
+					Title:     task.Title,
+					Project:   task.Project,
+					Status:    task.Status,
+					Priority:  task.Priority,
+					DueAt:     task.DueAt,
+					IsOverdue: task.DueAt != nil && task.DueAt.Before(now) && task.Status != tasks.StatusCompleted,
 				})
 				switch task.Status {
 				case tasks.StatusTodo:
