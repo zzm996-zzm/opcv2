@@ -19,6 +19,14 @@ export type NotificationFilters = {
   type?: string;
   status?: "all" | "unread" | "read" | string;
   limit?: number;
+  offset?: number;
+};
+
+export type NotificationPage = {
+  notifications: NotificationItem[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type NotificationTypeCount = {
@@ -45,7 +53,7 @@ function queryString(params: NotificationFilters) {
 
 export const notificationsApi = {
   list(filters: NotificationFilters = {}) {
-    return apiRequest<{ notifications: NotificationItem[] }>(`/api/v1/notifications${queryString(filters)}`);
+    return apiRequest<NotificationPage>(`/api/v1/notifications${queryString(filters)}`);
   },
 
   get(id: number) {

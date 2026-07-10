@@ -12,7 +12,7 @@ import (
 )
 
 type Application interface {
-	ListNotifications(ctx context.Context, userID int64, filters ListFilters) ([]Notification, error)
+	ListNotifications(ctx context.Context, userID int64, filters ListFilters) (Page, error)
 	GetNotification(ctx context.Context, userID, id int64) (Notification, error)
 	MarkRead(ctx context.Context, userID, id int64) (Notification, error)
 	MarkAllRead(ctx context.Context, userID int64) (int, error)
@@ -41,16 +41,22 @@ func (h *HTTPHandler) listNotifications(c *gin.Context) {
 	if !ok {
 		return
 	}
-	rows, err := h.app.ListNotifications(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), ListFilters{
+	offset, ok := httpapi.QueryOffset(c)
+	if !ok {
+		return
+	}
+	page, err := h.app.ListNotifications(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), ListFilters{
 		Type:   c.Query("type"),
 		Status: c.Query("status"),
 		Limit:  limit,
+		Offset: offset,
 	})
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"notifications": httpapi.EnsureSlice(rows)})
+	page.Notifications = httpapi.EnsureSlice(page.Notifications)
+	c.JSON(http.StatusOK, page)
 }
 
 func (h *HTTPHandler) getNotification(c *gin.Context) {

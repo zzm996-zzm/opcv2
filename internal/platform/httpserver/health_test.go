@@ -195,8 +195,8 @@ func TestAccountRoutesAreMountedBehindAuth(t *testing.T) {
 
 type fakeNotificationsApp struct{}
 
-func (fakeNotificationsApp) ListNotifications(context.Context, int64, notifications.ListFilters) ([]notifications.Notification, error) {
-	return []notifications.Notification{{ID: 1, UserID: 42, Type: notifications.TypeTask, Title: "任务提醒"}}, nil
+func (fakeNotificationsApp) ListNotifications(context.Context, int64, notifications.ListFilters) (notifications.Page, error) {
+	return notifications.Page{Notifications: []notifications.Notification{{ID: 1, UserID: 42, Type: notifications.TypeTask, Title: "任务提醒"}}, Total: 1, Limit: 20}, nil
 }
 func (fakeNotificationsApp) GetNotification(context.Context, int64, int64) (notifications.Notification, error) {
 	return notifications.Notification{ID: 1, UserID: 42, Type: notifications.TypeTask, Title: "任务提醒"}, nil

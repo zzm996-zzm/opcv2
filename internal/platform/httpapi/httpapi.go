@@ -31,6 +31,19 @@ func QueryLimit(c *gin.Context, defaultLimit, maxLimit int) (int, bool) {
 	return limit, true
 }
 
+func QueryOffset(c *gin.Context) (int, bool) {
+	offset := 0
+	if value := c.Query("offset"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			BadRequest(c, "invalid_offset")
+			return 0, false
+		}
+		offset = parsed
+	}
+	return offset, true
+}
+
 func EnsureSlice[T any](values []T) []T {
 	if values == nil {
 		return []T{}

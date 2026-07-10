@@ -3,6 +3,7 @@ import { authSession } from "./authSession";
 const errorMessages: Record<string, string> = {
   invalid_request: "请求参数有误，请检查后重试",
   invalid_limit: "列表数量参数有误",
+  invalid_offset: "分页位置参数有误",
   invalid_access_token: "登录状态已过期，请重新登录",
   invalid_refresh_token: "登录状态已过期，请重新登录",
   invalid_token: "登录状态已过期，请重新登录",

@@ -33,13 +33,26 @@ func (r *PostgresRepository) ListNotifications(ctx context.Context, userID int64
 		  AND ($3 = 'all' OR ($3 = 'unread' AND read_at IS NULL) OR ($3 = 'read' AND read_at IS NOT NULL))
 		ORDER BY created_at DESC
 		LIMIT $4
+		OFFSET $5
 	`
-	rows, err := r.db.Query(ctx, query, userID, filters.Type, filters.Status, filters.Limit)
+	rows, err := r.db.Query(ctx, query, userID, filters.Type, filters.Status, filters.Limit, filters.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	return scanNotifications(rows)
+}
+
+func (r *PostgresRepository) CountNotifications(ctx context.Context, userID int64, filters ListFilters) (int, error) {
+	var total int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM notifications
+		WHERE user_id = $1
+		  AND ($2 = '' OR type = $2)
+		  AND ($3 = 'all' OR ($3 = 'unread' AND read_at IS NULL) OR ($3 = 'read' AND read_at IS NOT NULL))
+	`, userID, filters.Type, filters.Status).Scan(&total)
+	return total, err
 }
 
 func (r *PostgresRepository) GetNotification(ctx context.Context, userID, id int64) (Notification, error) {

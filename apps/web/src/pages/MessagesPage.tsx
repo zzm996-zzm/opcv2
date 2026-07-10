@@ -30,6 +30,7 @@ const iconByType: Record<string, string> = {
 };
 
 const messageTypes = ["task", "system", "analysis", "lead", "crm", "membership"] as const;
+const messagePageSize = 20;
 
 function MessagesPage() {
   const { messageId } = useParams();
@@ -63,6 +64,12 @@ function buildTabs(summary: NotificationSummary | null) {
   ] as const;
 }
 
+function buildPageNumbers(current: number, total: number) {
+  const start = Math.max(1, Math.min(current - 2, total - 4));
+  const end = Math.min(total, start + 4);
+  return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
+}
+
 function MessageListPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [summary, setSummary] = useState<NotificationSummary | null>(null);
@@ -71,6 +78,8 @@ function MessageListPage() {
   const [status, setStatus] = useState("");
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const [activeType, setActiveType] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -79,18 +88,24 @@ function MessageListPage() {
     setStatus("");
     setNotifications([]);
     Promise.all([
-      notificationsApi.list({ ...(activeType ? { type: activeType } : {}), limit: 20 }),
+      notificationsApi.list({
+        ...(activeType ? { type: activeType } : {}),
+        limit: messagePageSize,
+        ...(page > 1 ? { offset: (page - 1) * messagePageSize } : {})
+      }),
       notificationsApi.summary()
     ])
       .then(([listPayload, summaryPayload]) => {
         if (!active) return;
         setNotifications(listPayload.notifications);
+        setTotal(listPayload.total);
         setSummary(summaryPayload);
         setError("");
       })
       .catch((err) => {
         if (!active) return;
         setNotifications([]);
+        setTotal(0);
         setSummary(null);
         setError(apiErrorMessage(err, "暂时无法读取消息"));
       })
@@ -100,7 +115,7 @@ function MessageListPage() {
     return () => {
       active = false;
     };
-  }, [activeType]);
+  }, [activeType, page]);
 
   async function markAllRead() {
     if (markingAllRead || !summary?.unread) return;
@@ -125,6 +140,13 @@ function MessageListPage() {
   }
 
   const tabs = buildTabs(summary);
+  const totalPages = Math.max(1, Math.ceil(total / messagePageSize));
+  const pageNumbers = buildPageNumbers(page, totalPages);
+
+  function selectMessageType(type: string) {
+    setActiveType(type);
+    setPage(1);
+  }
 
   return (
     <section className="message-page message-list-page" aria-label="消息中心">
@@ -144,7 +166,7 @@ function MessageListPage() {
 
         <div className="message-tabs" role="tablist" aria-label="消息分类">
           {tabs.map((tab) => (
-            <button key={tab.type || "all"} className={activeType === tab.type ? "active" : ""} onClick={() => setActiveType(tab.type)} role="tab" aria-selected={activeType === tab.type} type="button">
+            <button key={tab.type || "all"} className={activeType === tab.type ? "active" : ""} onClick={() => selectMessageType(tab.type)} role="tab" aria-selected={activeType === tab.type} type="button">
               {tab.label} <span>{tab.count}</span>
             </button>
           ))}
@@ -168,10 +190,14 @@ function MessageListPage() {
         </div>
 
         <footer className="message-pagination" aria-label="消息分页">
-          <button type="button" aria-label="上一页">‹</button>
-          <button className="active" type="button">1</button>
-          <button type="button" aria-label="下一页">›</button>
-          <span>20条/页</span>
+          <button disabled={loading || page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} type="button" aria-label="上一页">‹</button>
+          {pageNumbers.map((pageNumber) => (
+            <button aria-current={pageNumber === page ? "page" : undefined} className={pageNumber === page ? "active" : ""} disabled={loading} key={pageNumber} onClick={() => setPage(pageNumber)} type="button">
+              {pageNumber}
+            </button>
+          ))}
+          <button disabled={loading || page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} type="button" aria-label="下一页">›</button>
+          <span>{total}条 · {messagePageSize}条/页</span>
         </footer>
       </div>
     </section>

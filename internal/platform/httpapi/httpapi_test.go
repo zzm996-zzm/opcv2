@@ -80,6 +80,43 @@ func TestQueryLimitRejectsInvalidLimit(t *testing.T) {
 	}
 }
 
+func TestQueryOffsetDefaultsAndParsesOffset(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	var defaulted int
+	var parsed int
+	router.GET("/default", func(c *gin.Context) {
+		defaulted, _ = QueryOffset(c)
+		c.Status(http.StatusNoContent)
+	})
+	router.GET("/parsed", func(c *gin.Context) {
+		parsed, _ = QueryOffset(c)
+		c.Status(http.StatusNoContent)
+	})
+
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/default", nil))
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/parsed?offset=40", nil))
+
+	if defaulted != 0 || parsed != 40 {
+		t.Fatalf("defaulted/parsed = %d/%d", defaulted, parsed)
+	}
+}
+
+func TestQueryOffsetRejectsNegativeOffset(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/invalid", func(c *gin.Context) {
+		QueryOffset(c)
+	})
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/invalid?offset=-1", nil))
+
+	if recorder.Code != http.StatusBadRequest || strings.TrimSpace(recorder.Body.String()) != `{"error":"invalid_offset"}` {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestEnsureSliceReturnsEmptySliceForNil(t *testing.T) {
 	values := EnsureSlice[string](nil)
 

@@ -13,7 +13,7 @@ import (
 )
 
 type fakeApplication struct {
-	rows    []Notification
+	page    Page
 	row     Notification
 	summary Summary
 	filters ListFilters
@@ -23,10 +23,10 @@ type fakeApplication struct {
 	err     error
 }
 
-func (a *fakeApplication) ListNotifications(_ context.Context, userID int64, filters ListFilters) ([]Notification, error) {
+func (a *fakeApplication) ListNotifications(_ context.Context, userID int64, filters ListFilters) (Page, error) {
 	a.userID = userID
 	a.filters = filters
-	return a.rows, a.err
+	return a.page, a.err
 }
 
 func (a *fakeApplication) GetNotification(_ context.Context, userID, id int64) (Notification, error) {
@@ -71,19 +71,19 @@ func notificationsTestRouter(app Application) *gin.Engine {
 
 func TestListNotificationsEndpointUsesFilters(t *testing.T) {
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
-	app := &fakeApplication{rows: []Notification{{ID: 1, UserID: 42, Type: TypeTask, Title: "任务", CreatedAt: now}}}
+	app := &fakeApplication{page: Page{Notifications: []Notification{{ID: 1, UserID: 42, Type: TypeTask, Title: "任务", CreatedAt: now}}, Total: 37, Limit: 100, Offset: 40}}
 	router := notificationsTestRouter(app)
 	recorder := httptest.NewRecorder()
 
-	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/notifications?type=task&status=unread&limit=500", nil))
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/notifications?type=task&status=unread&limit=500&offset=40", nil))
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.userID != 42 || app.filters.Type != TypeTask || app.filters.Status != StatusUnread || app.filters.Limit != 100 {
+	if app.userID != 42 || app.filters.Type != TypeTask || app.filters.Status != StatusUnread || app.filters.Limit != 100 || app.filters.Offset != 40 {
 		t.Fatalf("user/filters = %d/%+v", app.userID, app.filters)
 	}
-	if !strings.Contains(recorder.Body.String(), `"notifications"`) {
+	if !strings.Contains(recorder.Body.String(), `"notifications"`) || !strings.Contains(recorder.Body.String(), `"total":37`) || !strings.Contains(recorder.Body.String(), `"offset":40`) {
 		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }

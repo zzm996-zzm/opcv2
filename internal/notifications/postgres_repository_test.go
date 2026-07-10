@@ -26,8 +26,9 @@ func TestPostgresRepositoryListsNotifications(t *testing.T) {
 		  AND ($3 = 'all' OR ($3 = 'unread' AND read_at IS NULL) OR ($3 = 'read' AND read_at IS NOT NULL))
 		ORDER BY created_at DESC
 		LIMIT $4
+		OFFSET $5
 	`)).
-		WithArgs(int64(42), TypeTask, StatusUnread, 20).
+		WithArgs(int64(42), TypeTask, StatusUnread, 20, 40).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "user_id", "type", "title", "summary", "body", "source_type", "source_id", "action_label", "action_url", "read_at", "created_at",
 		}).AddRow(
@@ -35,12 +36,42 @@ func TestPostgresRepositoryListsNotifications(t *testing.T) {
 		))
 
 	repository := NewPostgresRepository(db)
-	rows, err := repository.ListNotifications(context.Background(), 42, ListFilters{Type: TypeTask, Status: StatusUnread, Limit: 20})
+	rows, err := repository.ListNotifications(context.Background(), 42, ListFilters{Type: TypeTask, Status: StatusUnread, Limit: 20, Offset: 40})
 	if err != nil {
 		t.Fatalf("ListNotifications() error = %v", err)
 	}
 	if len(rows) != 1 || rows[0].SourceID == nil || *rows[0].SourceID != 9 {
 		t.Fatalf("rows = %+v", rows)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryCountsFilteredNotifications(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT COUNT(*)
+		FROM notifications
+		WHERE user_id = $1
+		  AND ($2 = '' OR type = $2)
+		  AND ($3 = 'all' OR ($3 = 'unread' AND read_at IS NULL) OR ($3 = 'read' AND read_at IS NOT NULL))
+	`)).
+		WithArgs(int64(42), TypeTask, StatusUnread).
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(27))
+
+	repository := NewPostgresRepository(db)
+	total, err := repository.CountNotifications(context.Background(), 42, ListFilters{Type: TypeTask, Status: StatusUnread})
+	if err != nil {
+		t.Fatalf("CountNotifications() error = %v", err)
+	}
+	if total != 27 {
+		t.Fatalf("total = %d, want 27", total)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

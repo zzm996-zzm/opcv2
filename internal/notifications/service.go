@@ -15,6 +15,7 @@ var (
 
 type Repository interface {
 	ListNotifications(ctx context.Context, userID int64, filters ListFilters) ([]Notification, error)
+	CountNotifications(ctx context.Context, userID int64, filters ListFilters) (int, error)
 	GetNotification(ctx context.Context, userID, id int64) (Notification, error)
 	MarkRead(ctx context.Context, userID, id int64) (Notification, error)
 	MarkAllRead(ctx context.Context, userID int64) (int, error)
@@ -30,9 +31,9 @@ func NewService(repository Repository) *Service {
 	return &Service{repository: repository}
 }
 
-func (s *Service) ListNotifications(ctx context.Context, userID int64, filters ListFilters) ([]Notification, error) {
+func (s *Service) ListNotifications(ctx context.Context, userID int64, filters ListFilters) (Page, error) {
 	if err := s.ready(userID); err != nil {
-		return nil, err
+		return Page{}, err
 	}
 	if filters.Status == "" {
 		filters.Status = StatusAll
@@ -44,12 +45,23 @@ func (s *Service) ListNotifications(ctx context.Context, userID int64, filters L
 		filters.Limit = 100
 	}
 	if filters.Type != "" && !validType(filters.Type) {
-		return nil, ErrInvalidFilter
+		return Page{}, ErrInvalidFilter
 	}
 	if !validStatus(filters.Status) {
-		return nil, ErrInvalidFilter
+		return Page{}, ErrInvalidFilter
 	}
-	return s.repository.ListNotifications(ctx, userID, filters)
+	if filters.Offset < 0 {
+		filters.Offset = 0
+	}
+	rows, err := s.repository.ListNotifications(ctx, userID, filters)
+	if err != nil {
+		return Page{}, err
+	}
+	total, err := s.repository.CountNotifications(ctx, userID, filters)
+	if err != nil {
+		return Page{}, err
+	}
+	return Page{Notifications: rows, Total: total, Limit: filters.Limit, Offset: filters.Offset}, nil
 }
 
 func (s *Service) GetNotification(ctx context.Context, userID, id int64) (Notification, error) {

@@ -9,15 +9,15 @@ describe("notificationsApi", () => {
 
   it("lists notifications with filters and reads detail", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify({ notifications: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ notifications: [], total: 0, limit: 10, offset: 20 }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 7, title: "任务提醒" }), { status: 200 }));
 
-    await notificationsApi.list({ type: "task", status: "unread", limit: 10 });
+    await notificationsApi.list({ type: "task", status: "unread", limit: 10, offset: 20 });
     await notificationsApi.get(7);
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/api/v1/notifications?type=task&status=unread&limit=10",
+      "/api/v1/notifications?type=task&status=unread&limit=10&offset=20",
       expect.any(Object)
     );
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/notifications/7", expect.any(Object));

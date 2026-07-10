@@ -56,7 +56,7 @@ describe("MessagesPage", () => {
 
   it("renders notifications from API and marks all read", async () => {
     signIn();
-    vi.mocked(notificationsApi.list).mockResolvedValue({ notifications: [notification()] });
+    vi.mocked(notificationsApi.list).mockResolvedValue({ notifications: [notification()], total: 1, limit: 20, offset: 0 });
     vi.mocked(notificationsApi.summary).mockResolvedValue({
       unread: 1,
       by_type: [{ type: "task", count: 1 }],
@@ -94,9 +94,9 @@ describe("MessagesPage", () => {
       title: "系统维护通知"
     };
     vi.mocked(notificationsApi.list)
-      .mockResolvedValueOnce({ notifications: [notification(), systemNotification] })
-      .mockResolvedValueOnce({ notifications: [systemNotification] })
-      .mockResolvedValueOnce({ notifications: [] });
+      .mockResolvedValueOnce({ notifications: [notification(), systemNotification], total: 2, limit: 20, offset: 0 })
+      .mockResolvedValueOnce({ notifications: [systemNotification], total: 1, limit: 20, offset: 0 })
+      .mockResolvedValueOnce({ notifications: [], total: 0, limit: 20, offset: 0 });
     vi.mocked(notificationsApi.summary).mockResolvedValue({
       unread: 2,
       by_type: [{ type: "task", count: 1 }, { type: "system", count: 1 }],
@@ -119,6 +119,42 @@ describe("MessagesPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "CRM 0" }));
     expect(await screen.findByText("暂无CRM消息")).toBeInTheDocument();
     expect(notificationsApi.list).toHaveBeenLastCalledWith({ type: "crm", limit: 20 });
+  });
+
+  it("paginates notifications and resets page when category changes", async () => {
+    signIn();
+    const secondPageNotification = {
+      ...notification(),
+      id: 27,
+      title: "第二页任务提醒"
+    };
+    vi.mocked(notificationsApi.list)
+      .mockResolvedValueOnce({ notifications: [notification()], total: 25, limit: 20, offset: 0 })
+      .mockResolvedValueOnce({ notifications: [secondPageNotification], total: 25, limit: 20, offset: 20 })
+      .mockResolvedValueOnce({ notifications: [notification()], total: 1, limit: 20, offset: 0 });
+    vi.mocked(notificationsApi.summary).mockResolvedValue({
+      unread: 1,
+      by_type: [{ type: "task", count: 1 }],
+      latest: [notification()]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/messages"]}>
+        <MessagesPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("任务提醒：AI 智能硬件项目拆解完成")).toBeInTheDocument();
+    expect(screen.getByText("25条 · 20条/页")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+
+    expect(await screen.findByText("第二页任务提醒")).toBeInTheDocument();
+    expect(notificationsApi.list).toHaveBeenLastCalledWith({ limit: 20, offset: 20 });
+    expect(screen.getByRole("button", { name: "2" })).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(screen.getByRole("tab", { name: "任务 1" }));
+    await waitFor(() => expect(notificationsApi.list).toHaveBeenLastCalledWith({ type: "task", limit: 20 }));
+    expect(screen.getByRole("button", { name: "1" })).toHaveAttribute("aria-current", "page");
   });
 
   it("renders a message detail page and marks it read", async () => {

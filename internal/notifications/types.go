@@ -34,6 +34,14 @@ type ListFilters struct {
 	Type   string
 	Status string
 	Limit  int
+	Offset int
+}
+
+type Page struct {
+	Notifications []Notification `json:"notifications"`
+	Total         int            `json:"total"`
+	Limit         int            `json:"limit"`
+	Offset        int            `json:"offset"`
 }
 
 type TypeCount struct {

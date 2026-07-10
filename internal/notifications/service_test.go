@@ -15,6 +15,7 @@ type fakeRepository struct {
 	userID  int64
 	id      int64
 	updated int
+	total   int
 	err     error
 }
 
@@ -22,6 +23,12 @@ func (r *fakeRepository) ListNotifications(_ context.Context, userID int64, filt
 	r.userID = userID
 	r.filters = filters
 	return r.rows, r.err
+}
+
+func (r *fakeRepository) CountNotifications(_ context.Context, userID int64, filters ListFilters) (int, error) {
+	r.userID = userID
+	r.filters = filters
+	return r.total, r.err
 }
 
 func (r *fakeRepository) GetNotification(_ context.Context, userID, id int64) (Notification, error) {
@@ -68,16 +75,16 @@ func TestServiceRejectsInvalidFilters(t *testing.T) {
 
 func TestServiceListsNotificationsWithCappedLimit(t *testing.T) {
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
-	repository := &fakeRepository{rows: []Notification{{ID: 1, UserID: 42, Type: TypeTask, Title: "任务", CreatedAt: now}}}
+	repository := &fakeRepository{rows: []Notification{{ID: 1, UserID: 42, Type: TypeTask, Title: "任务", CreatedAt: now}}, total: 27}
 	service := NewService(repository)
 
-	rows, err := service.ListNotifications(context.Background(), 42, ListFilters{Type: TypeTask, Status: StatusUnread, Limit: 500})
+	page, err := service.ListNotifications(context.Background(), 42, ListFilters{Type: TypeTask, Status: StatusUnread, Limit: 500, Offset: 20})
 
 	if err != nil {
 		t.Fatalf("ListNotifications() error = %v", err)
 	}
-	if repository.userID != 42 || repository.filters.Limit != 100 || len(rows) != 1 {
-		t.Fatalf("user/filters/rows = %d/%+v/%+v", repository.userID, repository.filters, rows)
+	if repository.userID != 42 || repository.filters.Limit != 100 || repository.filters.Offset != 20 || len(page.Notifications) != 1 || page.Total != 27 || page.Limit != 100 || page.Offset != 20 {
+		t.Fatalf("user/filters/page = %d/%+v/%+v", repository.userID, repository.filters, page)
 	}
 }
 

@@ -6864,6 +6864,12 @@ a {
   background: #edf4ff;
 }
 
+.message-pagination button:disabled {
+  color: #a2aec5;
+  background: #f5f7fb;
+  cursor: not-allowed;
+}
+
 .message-pagination span {
   margin-left: 8px;
   color: #7184ad;
