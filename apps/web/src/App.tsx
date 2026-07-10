@@ -41,6 +41,7 @@ import ProjectsPage from "./pages/ProjectsPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterDetailsPage from "./pages/RegisterDetailsPage";
 import SandboxPage from "./pages/SandboxPage";
+import TaskCreatePage from "./pages/TaskCreatePage";
 import TasksPage from "./pages/TasksPage";
 import ToolsPage from "./pages/ToolsPage";
 
@@ -609,6 +610,14 @@ function App() {
           </RequireAuth>
         }
         path="/sandbox/quota"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <TaskCreatePage />
+          </RequireAuth>
+        }
+        path="/tasks/new"
       />
       <Route
         element={

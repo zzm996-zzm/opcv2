@@ -84,6 +84,7 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	router := tasksTestRouter(app)
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", strings.NewReader(`{
 		"title":"整理客户名单",
+		"description":"完成首批客户画像并安排访谈",
 		"project":"AI线索开发",
 		"priority":"high",
 		"tools":["CRM"],
@@ -97,7 +98,7 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.input.UserID != 42 || app.input.Title == "" {
+	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" {
 		t.Fatalf("input = %+v", app.input)
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"todo"`) {
@@ -268,6 +269,13 @@ func TestUpdateTaskEndpointRejectsInvalidStatus(t *testing.T) {
 	}
 	if app.update.Status != nil {
 		t.Fatalf("UpdateTask should not be called, update = %+v", app.update)
+	}
+}
+
+func TestValidTaskUpdateRejectsOversizedTitle(t *testing.T) {
+	title := strings.Repeat("任", 101)
+	if validTaskUpdate(TaskUpdate{Title: &title}) {
+		t.Fatal("validTaskUpdate() accepted a title longer than 100 characters")
 	}
 }
 

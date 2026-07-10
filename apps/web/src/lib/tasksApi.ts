@@ -7,6 +7,7 @@ export type Task = {
   id: number;
   user_id: number;
   title: string;
+  description?: string;
   project: string;
   status: TaskStatus;
   priority: TaskPriority;
@@ -44,6 +45,7 @@ export type TaskStats = {
 
 export type CreateTaskInput = {
   title: string;
+  description?: string;
   project: string;
   priority: TaskPriority;
   dueAt?: string;
@@ -53,6 +55,7 @@ export type CreateTaskInput = {
 
 export type UpdateTaskInput = Partial<{
   title: string;
+  description: string;
   project: string;
   status: TaskStatus;
   priority: TaskPriority;
@@ -65,6 +68,7 @@ export type UpdateTaskInput = Partial<{
 function toCreatePayload(input: CreateTaskInput) {
   return {
     title: input.title,
+    description: input.description,
     project: input.project,
     priority: input.priority,
     due_at: input.dueAt,
@@ -76,6 +80,7 @@ function toCreatePayload(input: CreateTaskInput) {
 function toUpdatePayload(input: UpdateTaskInput) {
   return {
     title: input.title,
+    description: input.description,
     project: input.project,
     status: input.status,
     priority: input.priority,

@@ -23,6 +23,7 @@ const taskPageSize = 20;
 
 type TaskEditForm = {
   title: string;
+  description: string;
   project: string;
   status: TaskStatus;
   priority: TaskPriority;
@@ -107,6 +108,7 @@ function toDateTimeLocal(dueAt?: string) {
 function toTaskEditForm(task: Task): TaskEditForm {
   return {
     title: task.title,
+    description: task.description ?? "",
     project: task.project,
     status: task.status,
     priority: task.priority,
@@ -320,7 +322,7 @@ function TasksPage() {
     return (!selectedStatus || task.status === selectedStatus) &&
       (!selectedProject || task.project === selectedProject) &&
       (!selectedPriority || task.priority === selectedPriority) &&
-      (!normalizedQuery || [task.title, task.project, task.learning].some((value) => value.toLowerCase().includes(normalizedQuery)));
+      (!normalizedQuery || [task.title, task.description ?? "", task.project, task.learning].some((value) => value.toLowerCase().includes(normalizedQuery)));
   }
 
   async function updateTaskStatus(taskID: number, currentStatus: TaskStatus) {
@@ -379,13 +381,6 @@ function TasksPage() {
     }
   }
 
-  function focusTaskGoal() {
-    if (typeof taskGoalRef.current?.scrollIntoView === "function") {
-      taskGoalRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    taskGoalRef.current?.focus();
-  }
-
   async function openTaskDetail(taskID: number) {
     setDetailTaskID(taskID);
     setDetailTask(null);
@@ -430,6 +425,7 @@ function TasksPage() {
     try {
       const updated = await tasksApi.updateTask(detailTask.id, {
         title,
+        description: detailForm.description !== (detailTask.description ?? "") ? detailForm.description : undefined,
         project,
         status: detailForm.status,
         priority: detailForm.priority,
@@ -521,7 +517,7 @@ function TasksPage() {
             <h1>任务中心</h1>
             <p>把当前情况和目标拆成可执行任务，并联动工具箱与 AI 教学</p>
           </div>
-          <button className="module-primary-action" onClick={focusTaskGoal} type="button">新建任务</button>
+          <Link className="module-primary-action" to="/tasks/new">新建任务</Link>
         </div>
         {listError ? <p className="form-error" role="alert">{listError}</p> : null}
         {createMessage ? <p className="form-success" role="status">{createMessage}</p> : null}
@@ -601,7 +597,7 @@ function TasksPage() {
                 <input
                   id="task-search"
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="搜索标题、项目或补课内容"
+                  placeholder="搜索标题、描述、项目或补课内容"
                   value={searchInput}
                 />
                 <button type="submit">搜索</button>
@@ -767,6 +763,10 @@ function TasksPage() {
                     <label className="wide">
                       <span>任务标题</span>
                       <input onChange={(event) => updateDetailField("title", event.target.value)} value={detailForm.title} />
+                    </label>
+                    <label className="wide">
+                      <span>任务描述</span>
+                      <textarea maxLength={1000} onChange={(event) => updateDetailField("description", event.target.value)} value={detailForm.description} />
                     </label>
                     <label>
                       <span>所属项目</span>

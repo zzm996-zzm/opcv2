@@ -49,7 +49,7 @@ describe("TasksPage", () => {
     expect(screen.queryByText("完成智能客服系统项目商业画布")).not.toBeInTheDocument();
   });
 
-  it("focuses the task goal input from the primary new task action", async () => {
+  it("links the primary new task action to the manual creation page", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
       if (url === "/api/v1/tasks?limit=20") {
@@ -63,9 +63,7 @@ describe("TasksPage", () => {
 
     renderTasksPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "新建任务" }));
-
-    expect(screen.getByLabelText("描述任务目标")).toHaveFocus();
+    expect(screen.getByRole("link", { name: "新建任务" })).toHaveAttribute("href", "/tasks/new");
     expect(await screen.findByText("暂无任务数据")).toBeInTheDocument();
   });
 

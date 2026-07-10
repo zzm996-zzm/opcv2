@@ -134,12 +134,13 @@ func TestServiceCreatesTaskWithDefaults(t *testing.T) {
 	service.now = func() time.Time { return now }
 
 	task, err := service.CreateTask(context.Background(), CreateInput{
-		UserID:   42,
-		Title:    "整理首批客户名单",
-		Project:  "AI线索开发",
-		Priority: PriorityHigh,
-		Tools:    []string{"CRM", "表格助手"},
-		Learning: "线索评分",
+		UserID:      42,
+		Title:       "整理首批客户名单",
+		Description: " 明确客户范围和访谈目标 ",
+		Project:     "AI线索开发",
+		Priority:    PriorityHigh,
+		Tools:       []string{"CRM", "表格助手"},
+		Learning:    "线索评分",
 	})
 
 	if err != nil {
@@ -148,7 +149,7 @@ func TestServiceCreatesTaskWithDefaults(t *testing.T) {
 	if task.ID != 99 || task.Status != StatusTodo {
 		t.Fatalf("task = %+v", task)
 	}
-	if repository.created.UserID != 42 || repository.created.Title == "" || repository.created.CreatedAt != now {
+	if repository.created.UserID != 42 || repository.created.Title == "" || repository.created.Description != "明确客户范围和访谈目标" || repository.created.CreatedAt != now {
 		t.Fatalf("created = %+v", repository.created)
 	}
 }

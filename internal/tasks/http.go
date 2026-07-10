@@ -62,6 +62,8 @@ func (h *HTTPHandler) createTask(c *gin.Context) {
 func validCreateInput(input CreateInput) bool {
 	return strings.TrimSpace(input.Title) != "" &&
 		strings.TrimSpace(input.Project) != "" &&
+		len([]rune(strings.TrimSpace(input.Title))) <= 100 &&
+		len([]rune(strings.TrimSpace(input.Description))) <= 1000 &&
 		validPriority(input.Priority)
 }
 
@@ -166,10 +168,16 @@ func (h *HTTPHandler) deleteTask(c *gin.Context) {
 }
 
 func validTaskUpdate(update TaskUpdate) bool {
-	if update.Title != nil && strings.TrimSpace(*update.Title) == "" {
-		return false
+	if update.Title != nil {
+		title := strings.TrimSpace(*update.Title)
+		if title == "" || len([]rune(title)) > 100 {
+			return false
+		}
 	}
 	if update.Project != nil && strings.TrimSpace(*update.Project) == "" {
+		return false
+	}
+	if update.Description != nil && len([]rune(strings.TrimSpace(*update.Description))) > 1000 {
 		return false
 	}
 	if update.Status != nil && !validStatus(*update.Status) {

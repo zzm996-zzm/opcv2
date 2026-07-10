@@ -31,15 +31,16 @@ func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, erro
 		return Task{}, ErrServiceNotReady
 	}
 	task := Task{
-		UserID:    input.UserID,
-		Title:     strings.TrimSpace(input.Title),
-		Project:   strings.TrimSpace(input.Project),
-		Status:    StatusTodo,
-		Priority:  normalizePriority(input.Priority),
-		DueAt:     input.DueAt,
-		Tools:     normalizeStrings(input.Tools),
-		Learning:  strings.TrimSpace(input.Learning),
-		CreatedAt: s.now(),
+		UserID:      input.UserID,
+		Title:       strings.TrimSpace(input.Title),
+		Description: strings.TrimSpace(input.Description),
+		Project:     strings.TrimSpace(input.Project),
+		Status:      StatusTodo,
+		Priority:    normalizePriority(input.Priority),
+		DueAt:       input.DueAt,
+		Tools:       normalizeStrings(input.Tools),
+		Learning:    strings.TrimSpace(input.Learning),
+		CreatedAt:   s.now(),
 	}
 	return s.repository.CreateTask(ctx, task)
 }
@@ -126,6 +127,10 @@ func (s *Service) UpdateTask(ctx context.Context, userID, id int64, update TaskU
 	if update.Title != nil {
 		title := strings.TrimSpace(*update.Title)
 		update.Title = &title
+	}
+	if update.Description != nil {
+		description := strings.TrimSpace(*update.Description)
+		update.Description = &description
 	}
 	if update.Project != nil {
 		project := strings.TrimSpace(*update.Project)

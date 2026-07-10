@@ -9735,6 +9735,199 @@ a {
   font-weight: 800;
 }
 
+.task-create-page {
+  width: 100%;
+}
+
+.task-create-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.task-create-heading > a {
+  display: grid;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  color: #3156a4;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(31, 68, 140, 0.12);
+  border-radius: 8px;
+  font-size: 28px;
+  line-height: 1;
+  place-items: center;
+}
+
+.task-create-heading h1 {
+  margin: 0 0 5px;
+  color: #071637;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.task-create-heading p {
+  margin: 0;
+  color: #6377a5;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.task-create-form {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+}
+
+.task-create-form > section {
+  display: grid;
+  gap: 20px;
+  padding: 24px 28px 28px;
+}
+
+.task-create-form > section + section {
+  border-top: 1px solid rgba(31, 68, 140, 0.09);
+}
+
+.task-create-form > section > header h2 {
+  margin: 0;
+  color: #10265f;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.task-create-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+}
+
+.task-create-grid label {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.task-create-grid label.wide {
+  grid-column: 1 / -1;
+}
+
+.task-create-grid label > span {
+  color: #243d76;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.task-create-grid label > span b {
+  color: #f04f4f;
+}
+
+.task-create-grid input,
+.task-create-grid select,
+.task-create-grid textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 13px;
+  color: #10265f;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 8px;
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 720;
+}
+
+.task-create-grid input,
+.task-create-grid select {
+  min-height: 44px;
+}
+
+.task-create-grid textarea {
+  min-height: 108px;
+  resize: vertical;
+}
+
+.task-create-grid input:focus,
+.task-create-grid select:focus,
+.task-create-grid textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(21, 87, 255, 0.08);
+}
+
+.task-create-grid input:disabled {
+  color: #7f8dac;
+  background: #f2f5fa;
+  cursor: not-allowed;
+}
+
+.task-create-grid label > small {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  color: #8a98b5;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.task-create-grid label:has(> small) input,
+.task-create-grid label:has(> small) textarea {
+  padding-bottom: 30px;
+}
+
+.task-create-form > .form-error {
+  margin: 0 28px 20px;
+}
+
+.task-create-form > footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 28px;
+  background: rgba(247, 250, 255, 0.72);
+  border-top: 1px solid rgba(31, 68, 140, 0.09);
+}
+
+.task-create-form > footer a,
+.task-create-form > footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-create-form > footer a,
+.task-create-form > footer button:not(.primary) {
+  color: #48608f;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+}
+
+.task-create-form > footer button.primary {
+  color: #fff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+}
+
+.task-create-form > footer button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .sandbox-page {
   max-width: 1240px;
 }
@@ -29291,6 +29484,33 @@ a {
 
   .task-detail-form-grid label.wide {
     grid-column: 1;
+  }
+
+  .task-create-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-create-grid label.wide {
+    grid-column: 1;
+  }
+
+  .task-create-form > section {
+    padding: 20px 16px 24px;
+  }
+
+  .task-create-form > .form-error {
+    margin: 0 16px 18px;
+  }
+
+  .task-create-form > footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+    padding: 16px;
+  }
+
+  .task-create-form > footer a,
+  .task-create-form > footer button {
+    width: 100%;
   }
 
   .task-delete-confirm,
