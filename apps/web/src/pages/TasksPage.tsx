@@ -17,6 +17,8 @@ type TaskRow = {
   learning: string;
 };
 
+type TaskView = "list" | "board" | "calendar";
+
 const emptyTaskStats = [
   ["今日待办", "0"],
   ["进行中", "0"],
@@ -27,8 +29,21 @@ const emptyTaskStats = [
 const boardColumnLabels: Array<{ label: string; status: TaskStatus }> = [
   { label: "待开始", status: "todo" },
   { label: "进行中", status: "in_progress" },
-  { label: "已完成", status: "completed" }
+  { label: "已完成", status: "completed" },
+  { label: "提醒中", status: "reminder" }
 ];
+
+const taskViews: Array<{ label: string; value: TaskView }> = [
+  { label: "列表", value: "list" },
+  { label: "看板", value: "board" },
+  { label: "日历", value: "calendar" }
+];
+
+const taskViewDescriptions: Record<TaskView, string> = {
+  list: "按优先级和状态快速处理任务",
+  board: "按执行状态查看跨项目任务",
+  calendar: "按截止日期安排任务节奏"
+};
 
 const statusLabels: Record<TaskStatus, string> = {
   todo: "待开始",
@@ -59,6 +74,14 @@ function formatDueAt(dueAt?: string) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false
+  });
+}
+
+function formatCalendarDate(dueAt: string) {
+  return new Date(dueAt).toLocaleDateString("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
   });
 }
 
@@ -118,6 +141,7 @@ function TasksPage() {
   const [apiTasks, setApiTasks] = useState<Task[]>([]);
   const [apiStats, setApiStats] = useState<TaskStats | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>();
+  const [activeView, setActiveView] = useState<TaskView>("list");
   const [listError, setListError] = useState("");
   const [savingTaskID, setSavingTaskID] = useState<number | null>(null);
   const [taskGoal, setTaskGoal] = useState("");
@@ -165,6 +189,15 @@ function TasksPage() {
     column.label,
     apiTasks.filter((task) => task.status === column.status).map((task) => task.title)
   ] as const);
+  const scheduledTasks = apiTasks
+    .filter((task) => task.due_at)
+    .sort((left, right) => new Date(left.due_at as string).getTime() - new Date(right.due_at as string).getTime());
+  const calendarGroups = Array.from(scheduledTasks.reduce<Map<string, Task[]>>((groups, task) => {
+    const label = formatCalendarDate(task.due_at as string);
+    groups.set(label, [...(groups.get(label) ?? []), task]);
+    return groups;
+  }, new Map()));
+  const unscheduledTasks = apiTasks.filter((task) => !task.due_at);
 
   async function refreshTaskStats() {
     try {
@@ -228,6 +261,38 @@ function TasksPage() {
     taskGoalRef.current?.focus();
   }
 
+  function renderTaskCard(task: Task) {
+    const action = taskStatusAction(task.status);
+    return (
+      <article className="task-view-card" key={task.id}>
+        <div className="task-view-card-head">
+          <div>
+            <h3>{task.title}</h3>
+            <small>{task.project}</small>
+          </div>
+          <span className={`task-priority ${task.priority === "high" ? "high" : task.priority === "medium" ? "mid" : ""}`}>
+            {priorityLabels[task.priority]}
+          </span>
+        </div>
+        <div className="task-view-card-meta">
+          <span className="task-state">{statusLabels[task.status]}</span>
+          <span>{task.due_at ? `截止 ${formatDueAt(task.due_at)}` : "待安排"}</span>
+        </div>
+        <div className="task-view-card-links">
+          <Link to="/tools">工具：{task.tools.join(" / ")}</Link>
+          <Link to="/learning">补课：{task.learning}</Link>
+        </div>
+        <button
+          disabled={savingTaskID === task.id}
+          onClick={() => void updateTaskStatus(task.id, task.status)}
+          type="button"
+        >
+          {savingTaskID === task.id ? "更新中..." : action.label}
+        </button>
+      </article>
+    );
+  }
+
   return (
     <V4PageShell>
       <section className="module-page tasks-page" aria-label="任务中心">
@@ -273,16 +338,24 @@ function TasksPage() {
           </form>
         </section>
 
-        <section className="task-workbench">
+        <section className={`task-workbench ${activeView === "list" ? "" : "full-width"}`}>
           <div className="task-list-panel">
             <div className="module-section-head">
               <div>
                 <h2>任务总览</h2>
-                <p>列表 / 看板 / 日历多视图，当前显示列表视图</p>
+                <p>{taskViewDescriptions[activeView]}</p>
               </div>
               <div className="module-chip-row compact">
-                {["列表", "看板", "日历"].map((view, index) => (
-                  <button className={index === 0 ? "active" : ""} key={view} type="button">{view}</button>
+                {taskViews.map((view) => (
+                  <button
+                    aria-pressed={activeView === view.value}
+                    className={activeView === view.value ? "active" : ""}
+                    key={view.value}
+                    onClick={() => setActiveView(view.value)}
+                    type="button"
+                  >
+                    {view.label}
+                  </button>
                 ))}
               </div>
             </div>
@@ -299,46 +372,93 @@ function TasksPage() {
                 </button>
               ))}
             </div>
-            <div className="task-table">
-              {visibleTasks.length === 0 ? (
-                <div className="module-empty-state" role="status">暂无任务数据</div>
-              ) : visibleTasks.map((task) => (
-                <article key={task.id ?? task.title}>
-                  <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
-                  <div>
-                    <h3>{task.title}</h3>
-                    <small>{task.project} · 截止 {task.due}</small>
-                  </div>
-                  <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>
-                  <span className="task-state">{task.status}</span>
-                  {task.id && task.statusCode ? (
-                    <button
-                      disabled={savingTaskID === task.id}
-                      onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus)}
-                      type="button"
-                    >
-                      {savingTaskID === task.id ? "更新中..." : taskStatusAction(task.statusCode).label}
-                    </button>
-                  ) : null}
-                  <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
-                  <Link to="/learning">补课：{task.learning}</Link>
-                </article>
-              ))}
-            </div>
+            {activeView === "list" ? (
+              <div aria-label="任务列表" className="task-table">
+                {visibleTasks.length === 0 ? (
+                  <div className="module-empty-state" role="status">暂无任务数据</div>
+                ) : visibleTasks.map((task) => (
+                  <article key={task.id ?? task.title}>
+                    <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
+                    <div>
+                      <h3>{task.title}</h3>
+                      <small>{task.project} · 截止 {task.due}</small>
+                    </div>
+                    <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>
+                    <span className="task-state">{task.status}</span>
+                    {task.id && task.statusCode ? (
+                      <button
+                        disabled={savingTaskID === task.id}
+                        onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus)}
+                        type="button"
+                      >
+                        {savingTaskID === task.id ? "更新中..." : taskStatusAction(task.statusCode).label}
+                      </button>
+                    ) : null}
+                    <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
+                    <Link to="/learning">补课：{task.learning}</Link>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+            {activeView === "board" ? (
+              <div aria-label="任务看板" className="task-view-board" role="region">
+                {boardColumnLabels.map((column) => {
+                  const columnTasks = apiTasks.filter((task) => task.status === column.status);
+                  return (
+                    <section aria-label={`${column.label}任务`} className="task-view-column" key={column.status}>
+                      <header>
+                        <h3>{column.label}</h3>
+                        <span>{columnTasks.length}</span>
+                      </header>
+                      <div>
+                        {columnTasks.length === 0
+                          ? <div className="module-empty-state">暂无任务</div>
+                          : columnTasks.map(renderTaskCard)}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            ) : null}
+            {activeView === "calendar" ? (
+              <div aria-label="任务日历" className="task-calendar-view" role="region">
+                {apiTasks.length === 0 ? <div className="module-empty-state" role="status">暂无任务数据</div> : null}
+                {calendarGroups.map(([label, tasks]) => (
+                  <section aria-label={`${label}任务`} className="task-calendar-group" key={label}>
+                    <header>
+                      <h3>{label}</h3>
+                      <span>{tasks.length} 项</span>
+                    </header>
+                    <div>{tasks.map(renderTaskCard)}</div>
+                  </section>
+                ))}
+                {unscheduledTasks.length > 0 ? (
+                  <section aria-label="待安排任务" className="task-calendar-group unscheduled">
+                    <header>
+                      <h3>待安排</h3>
+                      <span>{unscheduledTasks.length} 项</span>
+                    </header>
+                    <div>{unscheduledTasks.map(renderTaskCard)}</div>
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
-          <aside className="task-board-panel" aria-label="任务看板预览">
-            <h2>跨项目看板</h2>
-            <p>付费后可跨项目拖拽、分组和日历同步</p>
-            <div>
-              {boardColumns.map(([title, items]) => (
-                <section key={title}>
-                  <strong>{title}</strong>
-                  {items.length === 0 ? <span>暂无任务</span> : items.map((item) => <span key={item}>{item}</span>)}
-                </section>
-              ))}
-            </div>
-          </aside>
+          {activeView === "list" ? (
+            <aside className="task-board-panel" aria-label="任务看板预览">
+              <h2>跨项目看板</h2>
+              <p>切换到看板视图可按状态处理跨项目任务</p>
+              <div>
+                {boardColumns.map(([title, items]) => (
+                  <section key={title}>
+                    <strong>{title}</strong>
+                    {items.length === 0 ? <span>暂无任务</span> : items.map((item) => <span key={item}>{item}</span>)}
+                  </section>
+                ))}
+              </div>
+            </aside>
+          ) : null}
         </section>
       </section>
     </V4PageShell>

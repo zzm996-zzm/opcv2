@@ -421,4 +421,117 @@ describe("TasksPage", () => {
     expect(screen.queryByRole("heading", { name: "梳理竞品反击动作" })).not.toBeInTheDocument();
     expect(screen.getByText("暂无任务数据")).toBeInTheDocument();
   });
+
+  it("switches to a full task board grouped by every status", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [
+            {
+              id: 91,
+              user_id: 7,
+              title: "整理客户访谈提纲",
+              project: "客户验证",
+              status: "todo",
+              priority: "high",
+              tools: ["CRM"],
+              learning: "访谈方法",
+              created_at: "2026-07-10T08:00:00Z",
+              updated_at: "2026-07-10T08:00:00Z"
+            },
+            {
+              id: 92,
+              user_id: 7,
+              title: "跟进试用反馈",
+              project: "客户验证",
+              status: "reminder",
+              priority: "medium",
+              tools: ["任务中心"],
+              learning: "反馈分析",
+              created_at: "2026-07-10T09:00:00Z",
+              updated_at: "2026-07-10T09:00:00Z"
+            }
+          ]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 2, todo: 1, in_progress: 0, completed: 0, reminder: 1, overdue: 0 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    const boardButton = screen.getByRole("button", { name: "看板" });
+    fireEvent.click(boardButton);
+
+    expect(boardButton).toHaveAttribute("aria-pressed", "true");
+    const board = await screen.findByRole("region", { name: "任务看板" });
+    expect(within(board).getByRole("heading", { name: "待开始" })).toBeInTheDocument();
+    expect(within(board).getByRole("heading", { name: "提醒中" })).toBeInTheDocument();
+    expect(within(board).getByRole("heading", { name: "整理客户访谈提纲" })).toBeInTheDocument();
+    expect(within(board).getByRole("heading", { name: "跟进试用反馈" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("任务看板预览")).not.toBeInTheDocument();
+  });
+
+  it("groups calendar tasks by due date and restores the list view", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [
+            {
+              id: 93,
+              user_id: 7,
+              title: "提交商业计划书",
+              project: "融资准备",
+              status: "in_progress",
+              priority: "high",
+              due_at: "2026-07-15T10:00:00Z",
+              tools: ["商业画布"],
+              learning: "融资材料",
+              created_at: "2026-07-10T08:00:00Z",
+              updated_at: "2026-07-10T08:00:00Z"
+            },
+            {
+              id: 94,
+              user_id: 7,
+              title: "补充竞品数据",
+              project: "竞品分析",
+              status: "todo",
+              priority: "low",
+              tools: ["竞品雷达"],
+              learning: "竞品调研",
+              created_at: "2026-07-10T09:00:00Z",
+              updated_at: "2026-07-10T09:00:00Z"
+            }
+          ]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 2, todo: 1, in_progress: 1, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "日历" }));
+
+    const calendar = await screen.findByRole("region", { name: "任务日历" });
+    expect(within(calendar).getByRole("heading", { name: "2026年7月15日" })).toBeInTheDocument();
+    expect(within(calendar).getByRole("heading", { name: "待安排" })).toBeInTheDocument();
+    expect(within(calendar).getByRole("heading", { name: "提交商业计划书" })).toBeInTheDocument();
+    expect(within(calendar).getByRole("heading", { name: "补充竞品数据" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("任务看板预览")).not.toBeInTheDocument();
+
+    const listButton = screen.getByRole("button", { name: "列表" });
+    fireEvent.click(listButton);
+
+    expect(listButton).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("任务列表")).toBeInTheDocument();
+    expect(screen.getByLabelText("任务看板预览")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "任务日历" })).not.toBeInTheDocument();
+  });
 });
