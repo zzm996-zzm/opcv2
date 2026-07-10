@@ -204,7 +204,8 @@ func (fakeNotificationsApp) GetNotification(context.Context, int64, int64) (noti
 func (fakeNotificationsApp) MarkRead(context.Context, int64, int64) (notifications.Notification, error) {
 	return notifications.Notification{ID: 1, UserID: 42, Type: notifications.TypeTask, Title: "任务提醒"}, nil
 }
-func (fakeNotificationsApp) MarkAllRead(context.Context, int64) (int, error) { return 1, nil }
+func (fakeNotificationsApp) MarkAllRead(context.Context, int64) (int, error)        { return 1, nil }
+func (fakeNotificationsApp) DeleteNotification(context.Context, int64, int64) error { return nil }
 func (fakeNotificationsApp) Summary(context.Context, int64) (notifications.Summary, error) {
 	return notifications.Summary{Unread: 1}, nil
 }

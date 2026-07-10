@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -77,6 +78,47 @@ func TestPostgresRepositoryMarksRead(t *testing.T) {
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryDeletesNotificationForUser(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec(regexp.QuoteMeta(`
+		DELETE FROM notifications
+		WHERE user_id = $1 AND id = $2
+	`)).
+		WithArgs(int64(42), int64(99)).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+	repository := NewPostgresRepository(db)
+	if err := repository.DeleteNotification(context.Background(), 42, 99); err != nil {
+		t.Fatalf("DeleteNotification() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryReturnsNotFoundWhenDeleteMisses(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec("DELETE FROM notifications").
+		WithArgs(int64(42), int64(99)).
+		WillReturnResult(pgxmock.NewResult("DELETE", 0))
+
+	repository := NewPostgresRepository(db)
+	err = repository.DeleteNotification(context.Background(), 42, 99)
+	if !errors.Is(err, ErrNotificationNotFound) {
+		t.Fatalf("err = %v, want ErrNotificationNotFound", err)
 	}
 }
 

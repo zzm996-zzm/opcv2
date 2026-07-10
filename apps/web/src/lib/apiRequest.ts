@@ -55,7 +55,8 @@ const errorMessages: Record<string, string> = {
   thread_not_found: "对话不存在或已无权限访问",
   memory_not_found: "记忆不存在或已无权限访问",
   invalid_thread_id: "对话 ID 不正确",
-  invalid_memory_id: "记忆 ID 不正确"
+  invalid_memory_id: "记忆 ID 不正确",
+  notification_not_found: "消息不存在或已无权限访问"
 };
 
 export class ApiRequestError extends Error {

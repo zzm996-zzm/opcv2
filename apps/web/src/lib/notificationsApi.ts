@@ -64,6 +64,12 @@ export const notificationsApi = {
     });
   },
 
+  delete(id: number) {
+    return apiRequest<void>(`/api/v1/notifications/${id}`, {
+      method: "DELETE"
+    });
+  },
+
   summary() {
     return apiRequest<NotificationSummary>("/api/v1/notifications/summary");
   }

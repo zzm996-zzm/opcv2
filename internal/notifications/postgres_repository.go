@@ -81,6 +81,20 @@ func (r *PostgresRepository) MarkAllRead(ctx context.Context, userID int64) (int
 	return int(tag.RowsAffected()), nil
 }
 
+func (r *PostgresRepository) DeleteNotification(ctx context.Context, userID, id int64) error {
+	tag, err := r.db.Exec(ctx, `
+		DELETE FROM notifications
+		WHERE user_id = $1 AND id = $2
+	`, userID, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotificationNotFound
+	}
+	return nil
+}
+
 func (r *PostgresRepository) Summary(ctx context.Context, userID int64) (Summary, error) {
 	var summary Summary
 	if err := r.db.QueryRow(ctx, `

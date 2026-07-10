@@ -18,6 +18,7 @@ type Repository interface {
 	GetNotification(ctx context.Context, userID, id int64) (Notification, error)
 	MarkRead(ctx context.Context, userID, id int64) (Notification, error)
 	MarkAllRead(ctx context.Context, userID int64) (int, error)
+	DeleteNotification(ctx context.Context, userID, id int64) error
 	Summary(ctx context.Context, userID int64) (Summary, error)
 }
 
@@ -76,6 +77,16 @@ func (s *Service) MarkAllRead(ctx context.Context, userID int64) (int, error) {
 		return 0, err
 	}
 	return s.repository.MarkAllRead(ctx, userID)
+}
+
+func (s *Service) DeleteNotification(ctx context.Context, userID, id int64) error {
+	if err := s.ready(userID); err != nil {
+		return err
+	}
+	if id <= 0 {
+		return ErrInvalidNotificationID
+	}
+	return s.repository.DeleteNotification(ctx, userID, id)
 }
 
 func (s *Service) Summary(ctx context.Context, userID int64) (Summary, error) {

@@ -41,6 +41,12 @@ func (r *fakeRepository) MarkAllRead(_ context.Context, userID int64) (int, erro
 	return r.updated, r.err
 }
 
+func (r *fakeRepository) DeleteNotification(_ context.Context, userID, id int64) error {
+	r.userID = userID
+	r.id = id
+	return r.err
+}
+
 func (r *fakeRepository) Summary(_ context.Context, userID int64) (Summary, error) {
 	r.userID = userID
 	return r.summary, r.err
@@ -86,6 +92,25 @@ func TestServiceRejectsInvalidID(t *testing.T) {
 	_, err = service.MarkRead(context.Background(), 42, -1)
 	if !errors.Is(err, ErrInvalidNotificationID) {
 		t.Fatalf("mark err = %v, want ErrInvalidNotificationID", err)
+	}
+
+	err = service.DeleteNotification(context.Background(), 42, 0)
+	if !errors.Is(err, ErrInvalidNotificationID) {
+		t.Fatalf("delete err = %v, want ErrInvalidNotificationID", err)
+	}
+}
+
+func TestServiceDeletesNotificationForUser(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository)
+
+	err := service.DeleteNotification(context.Background(), 42, 99)
+
+	if err != nil {
+		t.Fatalf("DeleteNotification() error = %v", err)
+	}
+	if repository.userID != 42 || repository.id != 99 {
+		t.Fatalf("user/id = %d/%d", repository.userID, repository.id)
 	}
 }
 

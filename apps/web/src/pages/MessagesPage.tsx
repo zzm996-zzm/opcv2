@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
@@ -174,11 +174,14 @@ function MessageListPage() {
 }
 
 function MessageDetailPage({ messageId }: { messageId: string }) {
+  const navigate = useNavigate();
   const [message, setMessage] = useState<NotificationItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [markingRead, setMarkingRead] = useState(false);
   const [readStatus, setReadStatus] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -243,6 +246,26 @@ function MessageDetailPage({ messageId }: { messageId: string }) {
     }
   }
 
+  async function deleteMessage() {
+    const id = Number(messageId);
+    if (!message || deleting || !Number.isInteger(id) || id <= 0) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setDeleting(true);
+    setError("");
+    try {
+      await notificationsApi.delete(id);
+      navigate("/messages", { replace: true });
+    } catch (err) {
+      setError(apiErrorMessage(err, "暂时无法删除消息"));
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <section className="message-page message-detail-page" aria-label="消息详情">
       <div className="detail-topline">
@@ -251,7 +274,9 @@ function MessageDetailPage({ messageId }: { messageId: string }) {
           <button disabled={!message || Boolean(message.read_at) || markingRead} onClick={() => void markMessageRead()} type="button">
             <span aria-hidden="true">▱</span> {markingRead ? "处理中..." : message?.read_at ? "已读" : "标记已读"}
           </button>
-          <button className="danger" type="button"><span aria-hidden="true">⌫</span> 删除</button>
+          <button className={`danger ${confirmDelete ? "confirm" : ""}`} disabled={!message || deleting || markingRead} onClick={() => void deleteMessage()} type="button">
+            <span aria-hidden="true">⌫</span> {deleting ? "删除中..." : confirmDelete ? "确认删除" : "删除消息"}
+          </button>
         </div>
       </div>
 

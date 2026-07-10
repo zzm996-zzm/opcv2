@@ -12,6 +12,7 @@ vi.mock("../lib/notificationsApi", () => ({
     get: vi.fn(),
     markRead: vi.fn(),
     markAllRead: vi.fn(),
+    delete: vi.fn(),
     summary: vi.fn()
   }
 }));
@@ -126,5 +127,28 @@ describe("MessagesPage", () => {
     await waitFor(() => expect(notificationsApi.markRead).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("已标记为已读")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /已读/ })).toBeDisabled();
+  });
+
+  it("confirms deletion and returns to the message list", async () => {
+    signIn();
+    vi.mocked(notificationsApi.get).mockResolvedValue({ ...notification(), read_at: "2026-07-02T10:00:00Z" });
+    vi.mocked(notificationsApi.delete).mockResolvedValue(undefined);
+
+    render(
+      <MemoryRouter initialEntries={["/messages/7"]}>
+        <Routes>
+          <Route element={<MessagesPage />} path="/messages/:messageId" />
+          <Route element={<h1>消息中心列表</h1>} path="/messages" />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("heading", { name: "任务提醒：AI 智能硬件项目拆解完成" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /删除消息/ }));
+    expect(notificationsApi.delete).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /确认删除/ }));
+
+    await waitFor(() => expect(notificationsApi.delete).toHaveBeenCalledWith(7));
+    expect(await screen.findByRole("heading", { name: "消息中心列表" })).toBeInTheDocument();
   });
 });

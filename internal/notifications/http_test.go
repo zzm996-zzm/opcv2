@@ -46,6 +46,12 @@ func (a *fakeApplication) MarkAllRead(_ context.Context, userID int64) (int, err
 	return a.updated, a.err
 }
 
+func (a *fakeApplication) DeleteNotification(_ context.Context, userID, id int64) error {
+	a.userID = userID
+	a.id = id
+	return a.err
+}
+
 func (a *fakeApplication) Summary(_ context.Context, userID int64) (Summary, error) {
 	a.userID = userID
 	return a.summary, a.err
@@ -122,6 +128,21 @@ func TestMarkAllReadEndpointReturnsUpdatedCount(t *testing.T) {
 
 	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"updated":12`) {
 		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestDeleteNotificationEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := notificationsTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodDelete, "/api/v1/notifications/99", nil))
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.id != 99 {
+		t.Fatalf("user/id = %d/%d", app.userID, app.id)
 	}
 }
 

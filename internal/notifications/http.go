@@ -16,6 +16,7 @@ type Application interface {
 	GetNotification(ctx context.Context, userID, id int64) (Notification, error)
 	MarkRead(ctx context.Context, userID, id int64) (Notification, error)
 	MarkAllRead(ctx context.Context, userID int64) (int, error)
+	DeleteNotification(ctx context.Context, userID, id int64) error
 	Summary(ctx context.Context, userID int64) (Summary, error)
 }
 
@@ -32,6 +33,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/notifications/:id", h.getNotification)
 	router.PATCH("/notifications/:id/read", h.markRead)
 	router.POST("/notifications/read-all", h.markAllRead)
+	router.DELETE("/notifications/:id", h.deleteNotification)
 }
 
 func (h *HTTPHandler) listNotifications(c *gin.Context) {
@@ -88,6 +90,18 @@ func (h *HTTPHandler) markAllRead(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"updated": updated})
+}
+
+func (h *HTTPHandler) deleteNotification(c *gin.Context) {
+	id, ok := notificationID(c)
+	if !ok {
+		return
+	}
+	if err := h.app.DeleteNotification(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *HTTPHandler) summary(c *gin.Context) {
