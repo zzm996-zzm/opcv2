@@ -12,19 +12,24 @@ import (
 )
 
 type fakeApplication struct {
-	input    CreateInput
-	userID   int64
-	taskID   int64
-	deleted  bool
-	filters  ListFilters
-	update   TaskUpdate
-	task     Task
-	tasks    []Task
-	total    int
-	projects []string
-	tags     []string
-	stats    Stats
-	err      error
+	input          CreateInput
+	userID         int64
+	taskID         int64
+	deleted        bool
+	filters        ListFilters
+	update         TaskUpdate
+	task           Task
+	tasks          []Task
+	total          int
+	projects       []string
+	tags           []string
+	stats          Stats
+	err            error
+	subtasks       []Subtask
+	subtaskInput   CreateSubtaskInput
+	subtaskID      int64
+	subtaskUpdate  SubtaskUpdate
+	subtaskDeleted bool
 }
 
 func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task, error) {
@@ -70,6 +75,23 @@ func (a *fakeApplication) DeleteTask(_ context.Context, userID, id int64) error 
 	a.userID = userID
 	a.taskID = id
 	a.deleted = true
+	return a.err
+}
+
+func (a *fakeApplication) ListSubtasks(_ context.Context, userID, taskID int64) ([]Subtask, error) {
+	a.userID, a.taskID = userID, taskID
+	return a.subtasks, a.err
+}
+func (a *fakeApplication) CreateSubtask(_ context.Context, input CreateSubtaskInput) (Subtask, error) {
+	a.subtaskInput = input
+	return Subtask{ID: 1, TaskID: input.TaskID, UserID: input.UserID, Title: input.Title}, a.err
+}
+func (a *fakeApplication) UpdateSubtask(_ context.Context, userID, taskID, id int64, update SubtaskUpdate) (Subtask, error) {
+	a.userID, a.taskID, a.subtaskID, a.subtaskUpdate = userID, taskID, id, update
+	return Subtask{ID: id, TaskID: taskID, UserID: userID, Completed: update.Completed != nil && *update.Completed}, a.err
+}
+func (a *fakeApplication) DeleteSubtask(_ context.Context, userID, taskID, id int64) error {
+	a.userID, a.taskID, a.subtaskID, a.subtaskDeleted = userID, taskID, id, true
 	return a.err
 }
 
@@ -361,6 +383,83 @@ func TestGetTaskEndpointReturnsNotFoundForOtherUser(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestListSubtasksEndpointReturnsTaskChildren(t *testing.T) {
+	app := &fakeApplication{subtasks: []Subtask{{ID: 7, TaskID: 99, UserID: 42, Title: "整理访谈提纲"}}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/99/subtasks", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.taskID != 99 || !strings.Contains(recorder.Body.String(), `"title":"整理访谈提纲"`) {
+		t.Fatalf("user/task/body = %d/%d/%s", app.userID, app.taskID, recorder.Body.String())
+	}
+}
+
+func TestCreateSubtaskEndpointUsesParentTaskAndAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/99/subtasks", strings.NewReader(`{"title":"整理访谈提纲","assignee":"李明"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.subtaskInput.UserID != 42 || app.subtaskInput.TaskID != 99 || app.subtaskInput.Title != "整理访谈提纲" {
+		t.Fatalf("input = %+v", app.subtaskInput)
+	}
+}
+
+func TestCreateSubtaskEndpointRejectsBlankTitle(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/99/subtasks", strings.NewReader(`{"title":" "}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || app.subtaskInput.UserID != 0 {
+		t.Fatalf("status = %d input=%+v body=%s", recorder.Code, app.subtaskInput, recorder.Body.String())
+	}
+}
+
+func TestUpdateSubtaskEndpointUsesSubtaskPathID(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/99/subtasks/7", strings.NewReader(`{"completed":true}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || app.taskID != 99 || app.subtaskID != 7 || app.subtaskUpdate.Completed == nil || !*app.subtaskUpdate.Completed {
+		t.Fatalf("user/task/subtask/update = %d/%d/%d/%+v", app.userID, app.taskID, app.subtaskID, app.subtaskUpdate)
+	}
+}
+
+func TestDeleteSubtaskEndpointUsesSubtaskPathID(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/99/subtasks/7", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent || !app.subtaskDeleted || app.userID != 42 || app.taskID != 99 || app.subtaskID != 7 {
+		t.Fatalf("status/deleted/user/task/subtask = %d/%t/%d/%d/%d body=%s", recorder.Code, app.subtaskDeleted, app.userID, app.taskID, app.subtaskID, recorder.Body.String())
 	}
 }
 

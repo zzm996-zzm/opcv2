@@ -433,6 +433,16 @@ func (fakeTasksApp) UpdateTask(context.Context, int64, int64, tasks.TaskUpdate) 
 	return tasks.Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusCompleted}, nil
 }
 func (fakeTasksApp) DeleteTask(context.Context, int64, int64) error { return nil }
+func (fakeTasksApp) ListSubtasks(context.Context, int64, int64) ([]tasks.Subtask, error) {
+	return []tasks.Subtask{}, nil
+}
+func (fakeTasksApp) CreateSubtask(context.Context, tasks.CreateSubtaskInput) (tasks.Subtask, error) {
+	return tasks.Subtask{}, nil
+}
+func (fakeTasksApp) UpdateSubtask(context.Context, int64, int64, int64, tasks.SubtaskUpdate) (tasks.Subtask, error) {
+	return tasks.Subtask{}, nil
+}
+func (fakeTasksApp) DeleteSubtask(context.Context, int64, int64, int64) error { return nil }
 
 func TestTaskRoutesAreMountedBehindAuth(t *testing.T) {
 	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)

@@ -21,6 +21,10 @@ type Application interface {
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
 	DeleteTask(ctx context.Context, userID, id int64) error
+	ListSubtasks(ctx context.Context, userID, taskID int64) ([]Subtask, error)
+	CreateSubtask(ctx context.Context, input CreateSubtaskInput) (Subtask, error)
+	UpdateSubtask(ctx context.Context, userID, taskID, id int64, update SubtaskUpdate) (Subtask, error)
+	DeleteSubtask(ctx context.Context, userID, taskID, id int64) error
 }
 
 type HTTPHandler struct {
@@ -40,6 +44,10 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/:id", h.getTask)
 	router.PATCH("/tasks/:id", h.updateTask)
 	router.DELETE("/tasks/:id", h.deleteTask)
+	router.GET("/tasks/:id/subtasks", h.listSubtasks)
+	router.POST("/tasks/:id/subtasks", h.createSubtask)
+	router.PATCH("/tasks/:id/subtasks/:subtask_id", h.updateSubtask)
+	router.DELETE("/tasks/:id/subtasks/:subtask_id", h.deleteSubtask)
 }
 
 func (h *HTTPHandler) createTask(c *gin.Context) {
@@ -243,9 +251,13 @@ func validPriority(priority string) bool {
 }
 
 func taskID(c *gin.Context) (int64, bool) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	return positivePathID(c, "id", "invalid_task_id")
+}
+
+func positivePathID(c *gin.Context, param, errorCode string) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param(param), 10, 64)
 	if err != nil || id <= 0 {
-		httpapi.BadRequest(c, "invalid_task_id")
+		httpapi.BadRequest(c, errorCode)
 		return 0, false
 	}
 	return id, true
@@ -255,6 +267,8 @@ func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrTaskNotFound):
 		httpapi.Error(c, http.StatusNotFound, "task_not_found")
+	case errors.Is(err, ErrSubtaskNotFound):
+		httpapi.Error(c, http.StatusNotFound, "subtask_not_found")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

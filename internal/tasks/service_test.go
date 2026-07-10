@@ -328,3 +328,104 @@ func TestServiceRejectsDeletingOtherUsersTask(t *testing.T) {
 		t.Fatalf("err = %v, want ErrTaskNotFound", err)
 	}
 }
+
+type fakeSubtaskRepository struct {
+	*fakeRepository
+	subtasks       []Subtask
+	createdSubtask Subtask
+	updatedSubtask SubtaskUpdate
+	deletedTaskID  int64
+	deletedID      int64
+}
+
+func (r *fakeSubtaskRepository) ListSubtasks(_ context.Context, userID, taskID int64) ([]Subtask, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	items := make([]Subtask, 0, len(r.subtasks))
+	for _, item := range r.subtasks {
+		if item.UserID == userID && item.TaskID == taskID {
+			items = append(items, item)
+		}
+	}
+	return items, nil
+}
+
+func (r *fakeSubtaskRepository) CreateSubtask(_ context.Context, item Subtask) (Subtask, error) {
+	r.createdSubtask = item
+	item.ID = 7
+	return item, r.err
+}
+
+func (r *fakeSubtaskRepository) UpdateSubtask(_ context.Context, userID, taskID, id int64, update SubtaskUpdate) (Subtask, error) {
+	r.updatedSubtask = update
+	return Subtask{ID: id, TaskID: taskID, UserID: userID}, r.err
+}
+
+func (r *fakeSubtaskRepository) DeleteSubtask(_ context.Context, _ int64, taskID, id int64) error {
+	r.deletedTaskID, r.deletedID = taskID, id
+	return r.err
+}
+
+func TestServiceCreatesTrimmedSubtask(t *testing.T) {
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	repository := &fakeSubtaskRepository{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	item, err := service.CreateSubtask(context.Background(), CreateSubtaskInput{
+		UserID: 42, TaskID: 99, Title: "  整理访谈提纲  ", Assignee: " 李明 ",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateSubtask() error = %v", err)
+	}
+	if item.ID != 7 || repository.createdSubtask.Title != "整理访谈提纲" || repository.createdSubtask.Assignee != "李明" || !repository.createdSubtask.CreatedAt.Equal(now) {
+		t.Fatalf("item/created = %+v/%+v", item, repository.createdSubtask)
+	}
+}
+
+func TestServiceListsOnlyParentTaskSubtasks(t *testing.T) {
+	repository := &fakeSubtaskRepository{
+		fakeRepository: &fakeRepository{},
+		subtasks: []Subtask{
+			{ID: 1, TaskID: 99, UserID: 42},
+			{ID: 2, TaskID: 100, UserID: 42},
+			{ID: 3, TaskID: 99, UserID: 7},
+		},
+	}
+	service := NewService(repository)
+
+	items, err := service.ListSubtasks(context.Background(), 42, 99)
+
+	if err != nil || len(items) != 1 || items[0].ID != 1 {
+		t.Fatalf("items/error = %+v/%v", items, err)
+	}
+}
+
+func TestServiceNormalizesUpdatedSubtask(t *testing.T) {
+	repository := &fakeSubtaskRepository{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	title, assignee := "  完成访谈提纲  ", " 王芳 "
+	completed := true
+
+	_, err := service.UpdateSubtask(context.Background(), 42, 99, 7, SubtaskUpdate{Title: &title, Assignee: &assignee, Completed: &completed})
+
+	if err != nil {
+		t.Fatalf("UpdateSubtask() error = %v", err)
+	}
+	if repository.updatedSubtask.Title == nil || *repository.updatedSubtask.Title != "完成访谈提纲" || repository.updatedSubtask.Assignee == nil || *repository.updatedSubtask.Assignee != "王芳" {
+		t.Fatalf("update = %+v", repository.updatedSubtask)
+	}
+}
+
+func TestServiceDeletesSubtaskFromParentTask(t *testing.T) {
+	repository := &fakeSubtaskRepository{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+
+	err := service.DeleteSubtask(context.Background(), 42, 99, 7)
+
+	if err != nil || repository.deletedTaskID != 99 || repository.deletedID != 7 {
+		t.Fatalf("task/id/error = %d/%d/%v", repository.deletedTaskID, repository.deletedID, err)
+	}
+}

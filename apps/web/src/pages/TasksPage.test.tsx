@@ -560,6 +560,9 @@ describe("TasksPage", () => {
       if (url === "/api/v1/tasks/95" && init?.method === "GET") {
         return Promise.resolve(new Response(JSON.stringify({ ...task, title: "准备首轮客户访谈" }), { status: 200 }));
       }
+	  if (url === "/api/v1/tasks/95/subtasks" && init?.method === "GET") {
+		return Promise.resolve(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }));
+	  }
       if (url === "/api/v1/tasks/95" && init?.method === "PATCH") {
         return Promise.resolve(new Response(JSON.stringify({
           ...task,
@@ -616,6 +619,76 @@ describe("TasksPage", () => {
     expect(screen.queryByRole("dialog", { name: "任务详情" })).not.toBeInTheDocument();
   });
 
+  it("loads, creates, completes, and deletes subtasks in task detail", async () => {
+	const task = {
+	  id: 97,
+	  user_id: 7,
+	  title: "准备客户访谈",
+	  project: "客户验证",
+	  status: "todo",
+	  priority: "medium",
+	  tools: ["CRM"],
+	  learning: "访谈方法",
+	  created_at: "2026-07-10T08:00:00Z",
+	  updated_at: "2026-07-10T08:00:00Z"
+	};
+	const initialSubtask = {
+	  id: 7,
+	  task_id: 97,
+	  user_id: 7,
+	  title: "确认访谈名单",
+	  assignee: "张晨",
+	  completed: false,
+	  created_at: "2026-07-10T09:00:00Z",
+	  updated_at: "2026-07-10T09:00:00Z"
+	};
+	const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+	  const url = String(input);
+	  if (url === "/api/v1/tasks?limit=20") {
+		return Promise.resolve(new Response(JSON.stringify({ tasks: [task], total: 1, limit: 20, offset: 0 }), { status: 200 }));
+	  }
+	  if (url === "/api/v1/tasks/stats") {
+		return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 1, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+	  }
+	  if (url === "/api/v1/tasks/97" && init?.method === "GET") {
+		return Promise.resolve(new Response(JSON.stringify(task), { status: 200 }));
+	  }
+	  if (url === "/api/v1/tasks/97/subtasks" && init?.method === "GET") {
+		return Promise.resolve(new Response(JSON.stringify({ subtasks: [initialSubtask] }), { status: 200 }));
+	  }
+	  if (url === "/api/v1/tasks/97/subtasks" && init?.method === "POST") {
+		return Promise.resolve(new Response(JSON.stringify({ ...initialSubtask, id: 8, title: "整理访谈提纲", assignee: "" }), { status: 200 }));
+	  }
+	  if (url === "/api/v1/tasks/97/subtasks/7" && init?.method === "PATCH") {
+		return Promise.resolve(new Response(JSON.stringify({ ...initialSubtask, completed: true }), { status: 200 }));
+	  }
+	  if (url === "/api/v1/tasks/97/subtasks/8" && init?.method === "DELETE") {
+		return Promise.resolve(new Response(null, { status: 204 }));
+	  }
+	  return Promise.reject(new Error(`unexpected request: ${url}`));
+	});
+
+	renderTasksPage();
+
+	const taskHeading = await screen.findByRole("heading", { name: "准备客户访谈" });
+	fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "查看任务详情" }));
+	const dialog = await screen.findByRole("dialog", { name: "任务详情" });
+	expect(await within(dialog).findByText("确认访谈名单")).toBeInTheDocument();
+
+	fireEvent.change(within(dialog).getByLabelText("新建子任务"), { target: { value: "整理访谈提纲" } });
+	fireEvent.click(within(dialog).getByRole("button", { name: "添加子任务" }));
+	expect(await within(dialog).findByText("整理访谈提纲")).toBeInTheDocument();
+
+	const completedCheckbox = within(dialog).getByRole("checkbox", { name: "完成子任务 确认访谈名单" });
+	fireEvent.click(completedCheckbox);
+	await waitFor(() => expect(completedCheckbox).toBeChecked());
+
+	fireEvent.click(within(dialog).getByRole("button", { name: "删除子任务 整理访谈提纲" }));
+	await waitFor(() => expect(within(dialog).queryByText("整理访谈提纲")).not.toBeInTheDocument());
+	expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/97/subtasks/7", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ completed: true }) }));
+	expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/97/subtasks/8", expect.objectContaining({ method: "DELETE" }));
+  });
+
   it("deletes a task after a second confirmation", async () => {
     let deleted = false;
     const task = {
@@ -648,6 +721,9 @@ describe("TasksPage", () => {
       if (url === "/api/v1/tasks/96" && init?.method === "GET") {
         return Promise.resolve(new Response(JSON.stringify(task), { status: 200 }));
       }
+	  if (url === "/api/v1/tasks/96/subtasks" && init?.method === "GET") {
+		return Promise.resolve(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }));
+	  }
       if (url === "/api/v1/tasks/96" && init?.method === "DELETE") {
         deleted = true;
         return Promise.resolve(new Response(null, { status: 204 }));

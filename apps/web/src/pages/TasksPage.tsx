@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { tasksApi, type Task, type TaskPriority, type TaskStats, type TaskStatus } from "../lib/tasksApi";
+import { tasksApi, type Task, type TaskPriority, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
 
 type TaskRow = {
   id?: number;
@@ -218,6 +218,12 @@ function TasksPage() {
   const [detailDeleting, setDetailDeleting] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [subtasks, setSubtasks] = useState<TaskSubtask[]>([]);
+  const [subtasksLoading, setSubtasksLoading] = useState(false);
+  const [subtaskCreating, setSubtaskCreating] = useState(false);
+  const [subtaskBusyID, setSubtaskBusyID] = useState<number | null>(null);
+  const [subtaskTitle, setSubtaskTitle] = useState("");
+  const [subtaskError, setSubtaskError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -417,15 +423,27 @@ function TasksPage() {
     setDetailLoading(true);
     setDetailError("");
     setConfirmDelete(false);
-    try {
-      const task = await tasksApi.getTask(taskID);
-      setDetailTask(task);
-      setDetailForm(toTaskEditForm(task));
-    } catch (error) {
-      setDetailError(apiErrorMessage(error, "暂时无法读取任务详情"));
-    } finally {
-      setDetailLoading(false);
+    setSubtasks([]);
+    setSubtasksLoading(true);
+    setSubtaskTitle("");
+    setSubtaskError("");
+    const [taskResult, subtasksResult] = await Promise.allSettled([
+      tasksApi.getTask(taskID),
+      tasksApi.listSubtasks(taskID)
+    ]);
+    if (taskResult.status === "fulfilled") {
+      setDetailTask(taskResult.value);
+      setDetailForm(toTaskEditForm(taskResult.value));
+    } else {
+      setDetailError(apiErrorMessage(taskResult.reason, "暂时无法读取任务详情"));
     }
+    if (subtasksResult.status === "fulfilled") {
+      setSubtasks(subtasksResult.value.subtasks);
+    } else {
+      setSubtaskError(apiErrorMessage(subtasksResult.reason, "暂时无法读取子任务"));
+    }
+    setDetailLoading(false);
+    setSubtasksLoading(false);
   }
 
   function closeTaskDetail() {
@@ -435,10 +453,61 @@ function TasksPage() {
     setDetailForm(null);
     setDetailError("");
     setConfirmDelete(false);
+    setSubtasks([]);
+    setSubtaskTitle("");
+    setSubtaskError("");
   }
 
   function updateDetailField<Key extends keyof TaskEditForm>(key: Key, value: TaskEditForm[Key]) {
     setDetailForm((current) => current ? { ...current, [key]: value } : current);
+  }
+
+  async function createDetailSubtask() {
+    if (!detailTaskID || subtaskCreating) return;
+    const title = subtaskTitle.trim();
+    if (!title) {
+      setSubtaskError("请输入子任务标题");
+      return;
+    }
+    setSubtaskCreating(true);
+    setSubtaskError("");
+    try {
+      const item = await tasksApi.createSubtask(detailTaskID, { title });
+      setSubtasks((current) => [...current, item]);
+      setSubtaskTitle("");
+    } catch (error) {
+      setSubtaskError(apiErrorMessage(error, "暂时无法添加子任务"));
+    } finally {
+      setSubtaskCreating(false);
+    }
+  }
+
+  async function toggleDetailSubtask(item: TaskSubtask) {
+    if (!detailTaskID || subtaskBusyID !== null) return;
+    setSubtaskBusyID(item.id);
+    setSubtaskError("");
+    try {
+      const updated = await tasksApi.updateSubtask(detailTaskID, item.id, { completed: !item.completed });
+      setSubtasks((current) => current.map((subtask) => subtask.id === updated.id ? updated : subtask));
+    } catch (error) {
+      setSubtaskError(apiErrorMessage(error, "暂时无法更新子任务"));
+    } finally {
+      setSubtaskBusyID(null);
+    }
+  }
+
+  async function deleteDetailSubtask(item: TaskSubtask) {
+    if (!detailTaskID || subtaskBusyID !== null) return;
+    setSubtaskBusyID(item.id);
+    setSubtaskError("");
+    try {
+      await tasksApi.deleteSubtask(detailTaskID, item.id);
+      setSubtasks((current) => current.filter((subtask) => subtask.id !== item.id));
+    } catch (error) {
+      setSubtaskError(apiErrorMessage(error, "暂时无法删除子任务"));
+    } finally {
+      setSubtaskBusyID(null);
+    }
   }
 
   async function saveTaskDetail() {
@@ -864,6 +933,67 @@ function TasksPage() {
                       <textarea onChange={(event) => updateDetailField("learning", event.target.value)} value={detailForm.learning} />
                     </label>
                   </div>
+                  <section aria-label="子任务" className="task-subtask-section">
+                    <header>
+                      <div>
+                        <h3>子任务</h3>
+                        <p>将当前任务拆成可逐项完成的执行步骤</p>
+                      </div>
+                      <span>{subtasks.filter((item) => item.completed).length} / {subtasks.length} 已完成</span>
+                    </header>
+                    <div className="task-subtask-create">
+                      <input
+                        aria-label="新建子任务"
+                        disabled={subtaskCreating}
+                        maxLength={100}
+                        onChange={(event) => setSubtaskTitle(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") return;
+                          event.preventDefault();
+                          void createDetailSubtask();
+                        }}
+                        placeholder="输入子任务标题"
+                        value={subtaskTitle}
+                      />
+                      <button disabled={subtaskCreating || !subtaskTitle.trim()} onClick={() => void createDetailSubtask()} type="button">
+                        {subtaskCreating ? "添加中..." : "添加子任务"}
+                      </button>
+                    </div>
+                    {subtasksLoading ? <div className="task-subtask-empty" role="status">正在读取子任务...</div> : null}
+                    {!subtasksLoading && subtasks.length === 0 ? <div className="task-subtask-empty" role="status">暂无子任务</div> : null}
+                    {!subtasksLoading && subtasks.length > 0 ? (
+                      <div className="task-subtask-list">
+                        {subtasks.map((item) => (
+                          <article className={item.completed ? "completed" : ""} key={item.id}>
+                            <label>
+                              <input
+                                aria-label={`完成子任务 ${item.title}`}
+                                checked={item.completed}
+                                disabled={subtaskBusyID !== null}
+                                onChange={() => void toggleDetailSubtask(item)}
+                                type="checkbox"
+                              />
+                            </label>
+                            <div>
+                              <strong>{item.title}</strong>
+                              {item.assignee || item.due_at ? (
+                                <small>{item.assignee ? `负责人 ${item.assignee}` : ""}{item.assignee && item.due_at ? " · " : ""}{item.due_at ? `截止 ${formatDueAt(item.due_at)}` : ""}</small>
+                              ) : null}
+                            </div>
+                            <button
+                              aria-label={`删除子任务 ${item.title}`}
+                              disabled={subtaskBusyID !== null}
+                              onClick={() => void deleteDetailSubtask(item)}
+                              type="button"
+                            >
+                              删除
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                    {subtaskError ? <p className="form-error" role="alert">{subtaskError}</p> : null}
+                  </section>
                   {detailError ? <p className="form-error" role="alert">{detailError}</p> : null}
                   {confirmDelete ? (
                     <div className="task-delete-confirm" role="alert">

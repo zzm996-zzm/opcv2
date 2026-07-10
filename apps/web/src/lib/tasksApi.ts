@@ -46,6 +46,32 @@ export type TaskStats = {
   overdue: number;
 };
 
+export type TaskSubtask = {
+  id: number;
+  task_id: number;
+  user_id: number;
+  title: string;
+  assignee?: string;
+  due_at?: string;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateSubtaskInput = {
+  title: string;
+  assignee?: string;
+  dueAt?: string;
+};
+
+export type UpdateSubtaskInput = Partial<{
+  title: string;
+  assignee: string;
+  dueAt: string;
+  clearDueAt: boolean;
+  completed: boolean;
+}>;
+
 export type CreateTaskInput = {
   title: string;
   description?: string;
@@ -99,6 +125,16 @@ function toUpdatePayload(input: UpdateTaskInput) {
     clear_due_at: input.clearDueAt,
     tools: input.tools,
     learning: input.learning
+  };
+}
+
+function toSubtaskPayload(input: CreateSubtaskInput | UpdateSubtaskInput) {
+  return {
+    title: input.title,
+    assignee: input.assignee,
+    due_at: input.dueAt,
+    clear_due_at: "clearDueAt" in input ? input.clearDueAt : undefined,
+    completed: "completed" in input ? input.completed : undefined
   };
 }
 
@@ -161,6 +197,32 @@ export const tasksApi = {
 
   deleteTask(id: number) {
     return apiRequest<void>(`/api/v1/tasks/${id}`, {
+      method: "DELETE"
+    });
+  },
+
+  listSubtasks(taskID: number) {
+    return apiRequest<{ subtasks: TaskSubtask[] }>(`/api/v1/tasks/${taskID}/subtasks`, {
+      method: "GET"
+    });
+  },
+
+  createSubtask(taskID: number, input: CreateSubtaskInput) {
+    return apiRequest<TaskSubtask>(`/api/v1/tasks/${taskID}/subtasks`, {
+      method: "POST",
+      body: JSON.stringify(toSubtaskPayload(input))
+    });
+  },
+
+  updateSubtask(taskID: number, subtaskID: number, input: UpdateSubtaskInput) {
+    return apiRequest<TaskSubtask>(`/api/v1/tasks/${taskID}/subtasks/${subtaskID}`, {
+      method: "PATCH",
+      body: JSON.stringify(toSubtaskPayload(input))
+    });
+  },
+
+  deleteSubtask(taskID: number, subtaskID: number) {
+    return apiRequest<void>(`/api/v1/tasks/${taskID}/subtasks/${subtaskID}`, {
       method: "DELETE"
     });
   }

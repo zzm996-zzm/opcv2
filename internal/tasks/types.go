@@ -19,6 +19,7 @@ const (
 var (
 	ErrServiceNotReady = errors.New("tasks service is not configured")
 	ErrTaskNotFound    = errors.New("task not found")
+	ErrSubtaskNotFound = errors.New("subtask not found")
 )
 
 type CreateInput struct {
@@ -32,6 +33,34 @@ type CreateInput struct {
 	DueAt       *time.Time `json:"due_at,omitempty"`
 	Tools       []string   `json:"tools"`
 	Learning    string     `json:"learning"`
+}
+
+type Subtask struct {
+	ID        int64      `json:"id"`
+	TaskID    int64      `json:"task_id"`
+	UserID    int64      `json:"user_id"`
+	Title     string     `json:"title"`
+	Assignee  string     `json:"assignee"`
+	DueAt     *time.Time `json:"due_at,omitempty"`
+	Completed bool       `json:"completed"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+type CreateSubtaskInput struct {
+	UserID   int64      `json:"-"`
+	TaskID   int64      `json:"-"`
+	Title    string     `json:"title"`
+	Assignee string     `json:"assignee"`
+	DueAt    *time.Time `json:"due_at,omitempty"`
+}
+
+type SubtaskUpdate struct {
+	Title      *string    `json:"title,omitempty"`
+	Assignee   *string    `json:"assignee,omitempty"`
+	DueAt      *time.Time `json:"due_at,omitempty"`
+	ClearDueAt bool       `json:"clear_due_at,omitempty"`
+	Completed  *bool      `json:"completed,omitempty"`
 }
 
 type TaskUpdate struct {

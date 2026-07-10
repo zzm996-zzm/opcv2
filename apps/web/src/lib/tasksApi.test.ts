@@ -41,4 +41,28 @@ describe("tasksApi", () => {
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "completed" }) })
     );
   });
+
+  it("lists, creates, updates, and deletes task subtasks", async () => {
+	const fetchMock = vi.spyOn(globalThis, "fetch")
+	  .mockResolvedValueOnce(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }))
+	  .mockResolvedValueOnce(new Response(JSON.stringify({ id: 7, title: "整理访谈提纲" }), { status: 200 }))
+	  .mockResolvedValueOnce(new Response(JSON.stringify({ id: 7, completed: true }), { status: 200 }))
+	  .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+	await tasksApi.listSubtasks(99);
+	await tasksApi.createSubtask(99, { title: "整理访谈提纲", assignee: "李明" });
+	await tasksApi.updateSubtask(99, 7, { completed: true });
+	await tasksApi.deleteSubtask(99, 7);
+
+	expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks/99/subtasks", expect.objectContaining({ method: "GET" }));
+	expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/99/subtasks", expect.objectContaining({
+	  method: "POST",
+	  body: JSON.stringify({ title: "整理访谈提纲", assignee: "李明" })
+	}));
+	expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/tasks/99/subtasks/7", expect.objectContaining({
+	  method: "PATCH",
+	  body: JSON.stringify({ completed: true })
+	}));
+	expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/tasks/99/subtasks/7", expect.objectContaining({ method: "DELETE" }));
+  });
 });

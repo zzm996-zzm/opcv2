@@ -355,6 +355,103 @@ Errors:
 - `400 invalid_task_id`
 - `404 task_not_found`
 
+Deleting a task also deletes all of its subtasks.
+
+### List Subtasks
+
+`GET /api/v1/tasks/{id}/subtasks`
+
+Response `200`:
+
+```json
+{
+  "subtasks": [
+    {
+      "id": 7,
+      "task_id": 99,
+      "user_id": 42,
+      "title": "整理访谈提纲",
+      "assignee": "李明",
+      "due_at": "2026-07-18T10:00:00Z",
+      "completed": false,
+      "created_at": "2026-07-10T10:00:00Z",
+      "updated_at": "2026-07-10T10:00:00Z"
+    }
+  ]
+}
+```
+
+Only subtasks belonging to the authenticated user's parent task are returned.
+
+### Create Subtask
+
+`POST /api/v1/tasks/{id}/subtasks`
+
+Request:
+
+```json
+{
+  "title": "整理访谈提纲",
+  "assignee": "李明",
+  "due_at": "2026-07-18T10:00:00Z"
+}
+```
+
+Validation:
+
+- `title` must be non-empty after trimming and supports at most 100 characters.
+- `assignee` is optional and supports at most 100 characters.
+- The parent task must belong to the authenticated user.
+
+Response `200`: `Subtask`
+
+Errors:
+
+- `400 invalid_task_id`
+- `400 invalid_request`
+- `404 task_not_found`
+
+### Update Subtask
+
+`PATCH /api/v1/tasks/{id}/subtasks/{subtask_id}`
+
+Request fields are optional:
+
+```json
+{
+  "title": "完成访谈提纲",
+  "assignee": "李明",
+  "due_at": "2026-07-18T10:00:00Z",
+  "clear_due_at": false,
+  "completed": true
+}
+```
+
+Validation follows create rules for present fields. `clear_due_at` cannot be
+combined with `due_at`. The authenticated user, parent task, and subtask IDs
+must all match the stored subtask.
+
+Response `200`: `Subtask`
+
+Errors:
+
+- `400 invalid_task_id`
+- `400 invalid_subtask_id`
+- `400 invalid_request`
+- `404 subtask_not_found`
+
+### Delete Subtask
+
+`DELETE /api/v1/tasks/{id}/subtasks/{subtask_id}`
+
+Response `204`: empty body.
+
+Errors:
+
+- `400 invalid_task_id`
+- `400 invalid_subtask_id`
+- `404 subtask_not_found`
+
 ## Dashboard
 
 Dashboard endpoints are protected.
