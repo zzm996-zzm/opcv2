@@ -6675,6 +6675,7 @@ a {
 .message-tabs {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 30px;
   min-height: 40px;
   padding: 0 0 8px;

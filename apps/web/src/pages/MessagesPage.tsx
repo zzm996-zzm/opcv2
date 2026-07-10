@@ -29,6 +29,8 @@ const iconByType: Record<string, string> = {
   marketing: "news"
 };
 
+const messageTypes = ["task", "system", "analysis", "lead", "crm", "membership"] as const;
+
 function MessagesPage() {
   const { messageId } = useParams();
 
@@ -53,13 +55,11 @@ function unread(message: NotificationItem) {
   return !message.read_at;
 }
 
-function buildTabs(notifications: NotificationItem[], summary: NotificationSummary | null) {
+function buildTabs(summary: NotificationSummary | null) {
   const counts = new Map(summary?.by_type.map((item) => [item.type, item.count]) ?? []);
   return [
-    ["全部", notifications.length],
-    ["任务", counts.get("task") ?? notifications.filter((item) => item.type === "task").length],
-    ["系统", counts.get("system") ?? notifications.filter((item) => item.type === "system").length],
-    ["营销", counts.get("marketing") ?? notifications.filter((item) => item.type === "marketing").length]
+    { type: "", label: "全部", count: summary?.unread ?? 0 },
+    ...messageTypes.map((type) => ({ type, label: typeLabels[type], count: counts.get(type) ?? 0 }))
   ] as const;
 }
 
@@ -70,11 +70,16 @@ function MessageListPage() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [markingAllRead, setMarkingAllRead] = useState(false);
+  const [activeType, setActiveType] = useState("");
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError("");
+    setStatus("");
+    setNotifications([]);
     Promise.all([
-      notificationsApi.list({ limit: 20 }),
+      notificationsApi.list({ ...(activeType ? { type: activeType } : {}), limit: 20 }),
       notificationsApi.summary()
     ])
       .then(([listPayload, summaryPayload]) => {
@@ -95,7 +100,7 @@ function MessageListPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [activeType]);
 
   async function markAllRead() {
     if (markingAllRead || !summary?.unread) return;
@@ -119,7 +124,7 @@ function MessageListPage() {
     }
   }
 
-  const tabs = buildTabs(notifications, summary);
+  const tabs = buildTabs(summary);
 
   return (
     <section className="message-page message-list-page" aria-label="消息中心">
@@ -138,16 +143,16 @@ function MessageListPage() {
         {status && <p className="form-success" role="status">{status}</p>}
 
         <div className="message-tabs" role="tablist" aria-label="消息分类">
-          {tabs.map(([label, count], index) => (
-            <button key={label} className={index === 0 ? "active" : ""} role="tab" aria-selected={index === 0} type="button">
-              {label} <span>{count}</span>
+          {tabs.map((tab) => (
+            <button key={tab.type || "all"} className={activeType === tab.type ? "active" : ""} onClick={() => setActiveType(tab.type)} role="tab" aria-selected={activeType === tab.type} type="button">
+              {tab.label} <span>{tab.count}</span>
             </button>
           ))}
         </div>
 
         <div className="message-list">
           {loading && <p>正在读取消息...</p>}
-          {!loading && !error && notifications.length === 0 && <p>暂无消息</p>}
+          {!loading && !error && notifications.length === 0 && <p>{activeType ? `暂无${typeLabels[activeType] ?? "此类"}消息` : "暂无消息"}</p>}
           {notifications.map((message) => (
             <Link key={message.id} className={`message-row ${unread(message) ? "unread" : ""}`} to={`/messages/${message.id}`}>
               <span className="message-unread-dot" aria-hidden="true" />

@@ -85,6 +85,42 @@ describe("MessagesPage", () => {
     expect(screen.getByRole("button", { name: "全部已读" })).toBeDisabled();
   });
 
+  it("filters notifications by category", async () => {
+    signIn();
+    const systemNotification = {
+      ...notification(),
+      id: 8,
+      type: "system",
+      title: "系统维护通知"
+    };
+    vi.mocked(notificationsApi.list)
+      .mockResolvedValueOnce({ notifications: [notification(), systemNotification] })
+      .mockResolvedValueOnce({ notifications: [systemNotification] })
+      .mockResolvedValueOnce({ notifications: [] });
+    vi.mocked(notificationsApi.summary).mockResolvedValue({
+      unread: 2,
+      by_type: [{ type: "task", count: 1 }, { type: "system", count: 1 }],
+      latest: [notification(), systemNotification]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/messages"]}>
+        <MessagesPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("系统维护通知")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "系统 1" }));
+
+    await waitFor(() => expect(notificationsApi.list).toHaveBeenLastCalledWith({ type: "system", limit: 20 }));
+    expect(screen.getByRole("tab", { name: "系统 1" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText("任务提醒：AI 智能硬件项目拆解完成")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "CRM 0" }));
+    expect(await screen.findByText("暂无CRM消息")).toBeInTheDocument();
+    expect(notificationsApi.list).toHaveBeenLastCalledWith({ type: "crm", limit: 20 });
+  });
+
   it("renders a message detail page and marks it read", async () => {
     signIn();
     vi.mocked(notificationsApi.get).mockResolvedValue(notification());
