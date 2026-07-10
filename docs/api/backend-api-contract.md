@@ -214,6 +214,7 @@ Request:
 {
   "title": "整理客户名单",
   "description": "整理本季度潜在客户并完成首轮筛选",
+  "assignee": "李明",
   "project": "AI线索开发",
   "priority": "high",
   "due_at": "2026-06-30T12:00:00Z",
@@ -225,7 +226,8 @@ Request:
 Validation:
 
 - `title` and `project` must be non-empty after trimming.
-- `title` supports at most 100 characters and `description` supports at most 1000 characters.
+- `title` and `assignee` support at most 100 characters; `description` supports at most 1000 characters.
+- `assignee` is an optional display-name snapshot for the responsible person or external collaborator.
 - `priority` must be one of the task priority enum values.
 - Client-supplied `user_id` is ignored.
 
@@ -240,7 +242,7 @@ Query:
 - `status` optional task status enum.
 - `project` optional exact project name.
 - `priority` optional task priority enum.
-- `q` optional keyword matched against title, description, project and learning fields.
+- `q` optional keyword matched against title, description, assignee, project and learning fields.
 - `limit` optional, capped at 100.
 - `offset` optional, defaults to 0.
 
@@ -305,6 +307,7 @@ Request fields are optional:
 {
   "title": "整理客户名单",
   "description": "整理本季度潜在客户并完成首轮筛选",
+  "assignee": "李明",
   "project": "AI线索开发",
   "status": "completed",
   "priority": "high",
@@ -318,7 +321,7 @@ Request fields are optional:
 Validation:
 
 - If present, `title` and `project` must be non-empty after trimming.
-- If present, `title` supports at most 100 characters and `description` supports at most 1000 characters.
+- If present, `title` and `assignee` support at most 100 characters; `description` supports at most 1000 characters.
 - If present, `status` and `priority` must match their enum values.
 - Set `clear_due_at` to `true` to remove the current due date. It cannot be combined with `due_at`.
 

@@ -112,6 +112,9 @@ func (r *fakeRepository) UpdateTask(_ context.Context, userID, id int64, update 
 	if update.Title != nil {
 		r.task.Title = *update.Title
 	}
+	if update.Assignee != nil {
+		r.task.Assignee = *update.Assignee
+	}
 	r.updated = r.task
 	return r.task, nil
 }
@@ -137,6 +140,7 @@ func TestServiceCreatesTaskWithDefaults(t *testing.T) {
 		UserID:      42,
 		Title:       "整理首批客户名单",
 		Description: " 明确客户范围和访谈目标 ",
+		Assignee:    " 李明 ",
 		Project:     "AI线索开发",
 		Priority:    PriorityHigh,
 		Tools:       []string{"CRM", "表格助手"},
@@ -149,7 +153,7 @@ func TestServiceCreatesTaskWithDefaults(t *testing.T) {
 	if task.ID != 99 || task.Status != StatusTodo {
 		t.Fatalf("task = %+v", task)
 	}
-	if repository.created.UserID != 42 || repository.created.Title == "" || repository.created.Description != "明确客户范围和访谈目标" || repository.created.CreatedAt != now {
+	if repository.created.UserID != 42 || repository.created.Title == "" || repository.created.Description != "明确客户范围和访谈目标" || repository.created.Assignee != "李明" || repository.created.CreatedAt != now {
 		t.Fatalf("created = %+v", repository.created)
 	}
 }
@@ -239,6 +243,21 @@ func TestServiceUpdatesOwnedTask(t *testing.T) {
 	}
 	if task.Status != StatusCompleted || repository.updated.Status != StatusCompleted {
 		t.Fatalf("task = %+v", task)
+	}
+}
+
+func TestServiceNormalizesUpdatedTaskAssignee(t *testing.T) {
+	repository := &fakeRepository{task: Task{ID: 99, UserID: 42, Title: "整理客户", Status: StatusTodo}}
+	service := NewService(repository)
+	assignee := " 李明 "
+
+	_, err := service.UpdateTask(context.Background(), 42, 99, TaskUpdate{Assignee: &assignee})
+
+	if err != nil {
+		t.Fatalf("UpdateTask() error = %v", err)
+	}
+	if repository.updated.Assignee != "李明" {
+		t.Fatalf("updated.Assignee = %q, want 李明", repository.updated.Assignee)
 	}
 }
 

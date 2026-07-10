@@ -85,6 +85,7 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", strings.NewReader(`{
 		"title":"整理客户名单",
 		"description":"完成首批客户画像并安排访谈",
+		"assignee":"李明",
 		"project":"AI线索开发",
 		"priority":"high",
 		"tools":["CRM"],
@@ -98,7 +99,7 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" {
+	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" || app.input.Assignee != "李明" {
 		t.Fatalf("input = %+v", app.input)
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"todo"`) {
@@ -146,6 +147,28 @@ func TestCreateTaskEndpointRejectsInvalidPriority(t *testing.T) {
 
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestCreateTaskEndpointRejectsOversizedAssignee(t *testing.T) {
+	app := &fakeApplication{task: Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: StatusTodo}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", strings.NewReader(`{
+		"title":"整理客户名单",
+		"project":"AI线索开发",
+		"assignee":"`+strings.Repeat("任", 101)+`",
+		"priority":"high"
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.input.UserID != 0 {
+		t.Fatalf("CreateTask should not be called, input = %+v", app.input)
 	}
 }
 

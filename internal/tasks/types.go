@@ -25,6 +25,7 @@ type CreateInput struct {
 	UserID      int64      `json:"-"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
+	Assignee    string     `json:"assignee"`
 	Project     string     `json:"project"`
 	Priority    string     `json:"priority"`
 	DueAt       *time.Time `json:"due_at,omitempty"`
@@ -35,6 +36,7 @@ type CreateInput struct {
 type TaskUpdate struct {
 	Title       *string    `json:"title,omitempty"`
 	Description *string    `json:"description,omitempty"`
+	Assignee    *string    `json:"assignee,omitempty"`
 	Project     *string    `json:"project,omitempty"`
 	Status      *string    `json:"status,omitempty"`
 	Priority    *string    `json:"priority,omitempty"`
@@ -74,6 +76,7 @@ type Task struct {
 	UserID      int64      `json:"user_id"`
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
+	Assignee    string     `json:"assignee"`
 	Project     string     `json:"project"`
 	Status      string     `json:"status"`
 	Priority    string     `json:"priority"`

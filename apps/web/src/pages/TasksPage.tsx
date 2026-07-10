@@ -8,6 +8,7 @@ import { tasksApi, type Task, type TaskPriority, type TaskStats, type TaskStatus
 type TaskRow = {
   id?: number;
   title: string;
+  assignee: string;
   project: string;
   status: string;
   statusCode?: TaskStatus;
@@ -24,6 +25,7 @@ const taskPageSize = 20;
 type TaskEditForm = {
   title: string;
   description: string;
+  assignee: string;
   project: string;
   status: TaskStatus;
   priority: TaskPriority;
@@ -109,6 +111,7 @@ function toTaskEditForm(task: Task): TaskEditForm {
   return {
     title: task.title,
     description: task.description ?? "",
+    assignee: task.assignee ?? "",
     project: task.project,
     status: task.status,
     priority: task.priority,
@@ -129,6 +132,7 @@ function toTaskRow(task: Task): TaskRow {
   return {
     id: task.id,
     title: task.title,
+    assignee: task.assignee ?? "",
     project: task.project,
     status: statusLabels[task.status],
     statusCode: task.status,
@@ -322,7 +326,7 @@ function TasksPage() {
     return (!selectedStatus || task.status === selectedStatus) &&
       (!selectedProject || task.project === selectedProject) &&
       (!selectedPriority || task.priority === selectedPriority) &&
-      (!normalizedQuery || [task.title, task.description ?? "", task.project, task.learning].some((value) => value.toLowerCase().includes(normalizedQuery)));
+      (!normalizedQuery || [task.title, task.description ?? "", task.assignee ?? "", task.project, task.learning].some((value) => value.toLowerCase().includes(normalizedQuery)));
   }
 
   async function updateTaskStatus(taskID: number, currentStatus: TaskStatus) {
@@ -426,6 +430,7 @@ function TasksPage() {
       const updated = await tasksApi.updateTask(detailTask.id, {
         title,
         description: detailForm.description !== (detailTask.description ?? "") ? detailForm.description : undefined,
+        assignee: detailForm.assignee !== (detailTask.assignee ?? "") ? detailForm.assignee : undefined,
         project,
         status: detailForm.status,
         priority: detailForm.priority,
@@ -481,7 +486,7 @@ function TasksPage() {
         <div className="task-view-card-head">
           <div>
             <h3>{task.title}</h3>
-            <small>{task.project}</small>
+            <small>{task.project} · 负责人 {task.assignee || "未指定"}</small>
           </div>
           <span className={`task-priority ${task.priority === "high" ? "high" : task.priority === "medium" ? "mid" : ""}`}>
             {priorityLabels[task.priority]}
@@ -597,7 +602,7 @@ function TasksPage() {
                 <input
                   id="task-search"
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="搜索标题、描述、项目或补课内容"
+                  placeholder="搜索标题、描述、负责人、项目或补课内容"
                   value={searchInput}
                 />
                 <button type="submit">搜索</button>
@@ -640,7 +645,7 @@ function TasksPage() {
                     <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
                     <div>
                       <h3>{task.title}</h3>
-                      <small>{task.project} · 截止 {task.due}</small>
+                      <small>{task.project} · 负责人 {task.assignee || "未指定"} · 截止 {task.due}</small>
                     </div>
                     <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>
                     <span className="task-state">{task.status}</span>
@@ -771,6 +776,10 @@ function TasksPage() {
                     <label>
                       <span>所属项目</span>
                       <input onChange={(event) => updateDetailField("project", event.target.value)} value={detailForm.project} />
+                    </label>
+                    <label>
+                      <span>负责人</span>
+                      <input maxLength={100} onChange={(event) => updateDetailField("assignee", event.target.value)} placeholder="输入负责人或外部协作人" value={detailForm.assignee} />
                     </label>
                     <label>
                       <span>截止时间</span>

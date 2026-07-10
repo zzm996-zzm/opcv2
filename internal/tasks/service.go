@@ -34,6 +34,7 @@ func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, erro
 		UserID:      input.UserID,
 		Title:       strings.TrimSpace(input.Title),
 		Description: strings.TrimSpace(input.Description),
+		Assignee:    strings.TrimSpace(input.Assignee),
 		Project:     strings.TrimSpace(input.Project),
 		Status:      StatusTodo,
 		Priority:    normalizePriority(input.Priority),
@@ -131,6 +132,10 @@ func (s *Service) UpdateTask(ctx context.Context, userID, id int64, update TaskU
 	if update.Description != nil {
 		description := strings.TrimSpace(*update.Description)
 		update.Description = &description
+	}
+	if update.Assignee != nil {
+		assignee := strings.TrimSpace(*update.Assignee)
+		update.Assignee = &assignee
 	}
 	if update.Project != nil {
 		project := strings.TrimSpace(*update.Project)

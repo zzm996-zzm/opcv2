@@ -30,13 +30,14 @@ func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, e
 		return Task{}, err
 	}
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO tasks (user_id, title, description, project, status, priority, due_at, tools, learning, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 		RETURNING id
 	`,
 		task.UserID,
 		task.Title,
 		task.Description,
+		task.Assignee,
 		task.Project,
 		task.Status,
 		task.Priority,
@@ -50,13 +51,13 @@ func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, e
 
 func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, title, description, project, status, priority, due_at, tools, learning, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR project = $3)
 		  AND ($4 = '' OR priority = $4)
-		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR description ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
+		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR description ILIKE '%' || $5 || '%' OR assignee ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
 		ORDER BY created_at DESC
 		LIMIT $6
 		OFFSET $7
@@ -89,7 +90,7 @@ func (r *PostgresRepository) CountTasks(ctx context.Context, userID int64, filte
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR project = $3)
 		  AND ($4 = '' OR priority = $4)
-		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR description ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
+		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR description ILIKE '%' || $5 || '%' OR assignee ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
 	`, userID, filters.Status, filters.Project, filters.Priority, filters.Query).Scan(&total)
 	return total, err
 }
@@ -144,7 +145,7 @@ func (r *PostgresRepository) TaskStats(ctx context.Context, userID int64, now ti
 
 func (r *PostgresRepository) GetTask(ctx context.Context, userID, id int64) (Task, error) {
 	task, err := scanTask(r.db.QueryRow(ctx, `
-		SELECT id, user_id, title, description, project, status, priority, due_at, tools, learning, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1 AND id = $2
 	`, userID, id))
@@ -167,18 +168,20 @@ func (r *PostgresRepository) UpdateTask(ctx context.Context, userID, id int64, u
 		UPDATE tasks
 		SET title = COALESCE($1, title),
 		    description = COALESCE($2, description),
-		    project = COALESCE($3, project),
-		    status = COALESCE($4, status),
-		    priority = COALESCE($5, priority),
-		    due_at = CASE WHEN $7 THEN NULL ELSE COALESCE($6, due_at) END,
-		    tools = COALESCE($8, tools),
-		    learning = COALESCE($9, learning),
+		    assignee = COALESCE($3, assignee),
+		    project = COALESCE($4, project),
+		    status = COALESCE($5, status),
+		    priority = COALESCE($6, priority),
+		    due_at = CASE WHEN $8 THEN NULL ELSE COALESCE($7, due_at) END,
+		    tools = COALESCE($9, tools),
+		    learning = COALESCE($10, learning),
 		    updated_at = NOW()
-		WHERE user_id = $10 AND id = $11
-		RETURNING id, user_id, title, description, project, status, priority, due_at, tools, learning, created_at, updated_at
+		WHERE user_id = $11 AND id = $12
+		RETURNING id, user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at
 	`,
 		optionalString(update.Title),
 		optionalString(update.Description),
+		optionalString(update.Assignee),
 		optionalString(update.Project),
 		optionalString(update.Status),
 		optionalString(update.Priority),
@@ -235,6 +238,7 @@ func scanTask(scanner taskScanner) (Task, error) {
 		&task.UserID,
 		&task.Title,
 		&task.Description,
+		&task.Assignee,
 		&task.Project,
 		&task.Status,
 		&task.Priority,

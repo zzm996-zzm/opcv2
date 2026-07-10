@@ -64,6 +64,7 @@ func validCreateInput(input CreateInput) bool {
 		strings.TrimSpace(input.Project) != "" &&
 		len([]rune(strings.TrimSpace(input.Title))) <= 100 &&
 		len([]rune(strings.TrimSpace(input.Description))) <= 1000 &&
+		len([]rune(strings.TrimSpace(input.Assignee))) <= 100 &&
 		validPriority(input.Priority)
 }
 
@@ -178,6 +179,9 @@ func validTaskUpdate(update TaskUpdate) bool {
 		return false
 	}
 	if update.Description != nil && len([]rune(strings.TrimSpace(*update.Description))) > 1000 {
+		return false
+	}
+	if update.Assignee != nil && len([]rune(strings.TrimSpace(*update.Assignee))) > 100 {
 		return false
 	}
 	if update.Status != nil && !validStatus(*update.Status) {

@@ -3,27 +3,32 @@ import { Link, useNavigate } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
+import { useAuthSession } from "../lib/authSession";
 import { tasksApi, type TaskPriority } from "../lib/tasksApi";
 
 type ManualTaskForm = {
   title: string;
   description: string;
   project: string;
+  assignee: string;
   dueAt: string;
   priority: TaskPriority;
   tools: string;
   learning: string;
 };
 
-const emptyManualTask: ManualTaskForm = {
-  title: "",
-  description: "",
-  project: "",
-  dueAt: "",
-  priority: "medium",
-  tools: "",
-  learning: ""
-};
+function emptyManualTask(assignee = ""): ManualTaskForm {
+  return {
+    title: "",
+    description: "",
+    project: "",
+    assignee,
+    dueAt: "",
+    priority: "medium",
+    tools: "",
+    learning: ""
+  };
+}
 
 function parseTools(value: string) {
   return value
@@ -34,7 +39,9 @@ function parseTools(value: string) {
 
 function TaskCreatePage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState<ManualTaskForm>(emptyManualTask);
+  const { user } = useAuthSession();
+  const defaultAssignee = user?.nickname?.trim() ?? "";
+  const [form, setForm] = useState<ManualTaskForm>(() => emptyManualTask(defaultAssignee));
   const [projects, setProjects] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -62,8 +69,9 @@ function TaskCreatePage() {
     if (saving) return;
     const title = form.title.trim();
     const project = form.project.trim();
-    if (!title || !project) {
-      setError("请填写任务标题和所属项目");
+    const assignee = form.assignee.trim();
+    if (!title || !project || !assignee) {
+      setError("请填写任务标题、所属项目和负责人");
       return;
     }
     setSaving(true);
@@ -74,13 +82,14 @@ function TaskCreatePage() {
         title,
         description: form.description.trim(),
         project,
+        assignee,
         priority: form.priority,
         dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined,
         tools: parseTools(form.tools),
         learning: form.learning.trim()
       });
       if (continueAdding) {
-        setForm(emptyManualTask);
+        setForm(emptyManualTask(defaultAssignee));
         setMessage(`已创建任务：${task.title}`);
       } else {
         navigate("/tasks");
@@ -126,6 +135,10 @@ function TaskCreatePage() {
                 <datalist id="task-project-options">
                   {projects.map((project) => <option key={project} value={project}>{project}</option>)}
                 </datalist>
+              </label>
+              <label>
+                <span>负责人 <b>*</b></span>
+                <input aria-label="负责人" maxLength={100} onChange={(event) => updateField("assignee", event.target.value)} placeholder="输入负责人或外部协作人" value={form.assignee} />
               </label>
               <label>
                 <span>截止时间</span>

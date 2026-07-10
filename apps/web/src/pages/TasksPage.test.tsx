@@ -98,7 +98,7 @@ describe("TasksPage", () => {
     renderTasksPage();
 
     expect(await screen.findByRole("heading", { name: "联调商业沙盘接口" })).toBeInTheDocument();
-    expect(screen.getByText("商业沙盘 · 截止 06/30 18:00")).toBeInTheDocument();
+    expect(screen.getByText("商业沙盘 · 负责人 未指定 · 截止 06/30 18:00")).toBeInTheDocument();
     expect(screen.getByText("建议工具：沙盘推演 / 任务中心")).toBeInTheDocument();
     const inProgressStat = screen.getAllByText("进行中").find((node) => node.tagName.toLowerCase() === "small")?.closest("article");
     expect(inProgressStat).not.toBeNull();
@@ -538,6 +538,7 @@ describe("TasksPage", () => {
       id: 95,
       user_id: 7,
       title: "准备客户访谈",
+      assignee: "张晨",
       project: "客户验证",
       status: "todo",
       priority: "medium",
@@ -576,11 +577,13 @@ describe("TasksPage", () => {
     renderTasksPage();
 
     const taskHeading = await screen.findByRole("heading", { name: "准备客户访谈" });
+    expect(screen.getByText(/负责人 张晨/)).toBeInTheDocument();
     fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "查看任务详情" }));
 
     const dialog = await screen.findByRole("dialog", { name: "任务详情" });
     expect(await within(dialog).findByDisplayValue("准备首轮客户访谈")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("任务标题"), { target: { value: "完成客户访谈提纲" } });
+    fireEvent.change(within(dialog).getByLabelText("负责人"), { target: { value: "李明" } });
     fireEvent.change(within(dialog).getByLabelText("任务状态"), { target: { value: "in_progress" } });
     fireEvent.change(within(dialog).getByLabelText("优先级"), { target: { value: "high" } });
     fireEvent.change(within(dialog).getByLabelText("截止时间"), { target: { value: "" } });
@@ -594,6 +597,7 @@ describe("TasksPage", () => {
         method: "PATCH",
         body: JSON.stringify({
           title: "完成客户访谈提纲",
+          assignee: "李明",
           project: "客户验证",
           status: "in_progress",
           priority: "high",

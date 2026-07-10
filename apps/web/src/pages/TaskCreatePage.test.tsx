@@ -58,6 +58,8 @@ describe("TaskCreatePage", () => {
     fireEvent.change(screen.getByLabelText("任务标题"), { target: { value: "完成首轮客户访谈" } });
     fireEvent.change(screen.getByLabelText("任务描述"), { target: { value: "访谈 5 位目标客户并整理关键问题" } });
     fireEvent.change(screen.getByLabelText("所属项目"), { target: { value: "客户验证" } });
+    expect(screen.getByLabelText("负责人")).toHaveValue("张晨");
+    fireEvent.change(screen.getByLabelText("负责人"), { target: { value: "李明" } });
     fireEvent.change(screen.getByLabelText("截止时间"), { target: { value: "2026-07-20T10:00" } });
     fireEvent.change(screen.getByLabelText("优先级"), { target: { value: "high" } });
     fireEvent.change(screen.getByLabelText("建议工具"), { target: { value: "CRM，任务中心" } });
@@ -72,6 +74,7 @@ describe("TaskCreatePage", () => {
       title: "完成首轮客户访谈",
       description: "访谈 5 位目标客户并整理关键问题",
       project: "客户验证",
+      assignee: "李明",
       priority: "high",
       due_at: new Date("2026-07-20T10:00").toISOString(),
       tools: ["CRM", "任务中心"],
@@ -79,5 +82,6 @@ describe("TaskCreatePage", () => {
     });
     expect(await screen.findByText("已创建任务：完成首轮客户访谈")).toBeInTheDocument();
     expect(screen.getByLabelText("任务标题")).toHaveValue("");
+    expect(screen.getByLabelText("负责人")).toHaveValue("张晨");
   });
 });
