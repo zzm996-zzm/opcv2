@@ -177,6 +177,8 @@ function MessageDetailPage({ messageId }: { messageId: string }) {
   const [message, setMessage] = useState<NotificationItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [markingRead, setMarkingRead] = useState(false);
+  const [readStatus, setReadStatus] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -196,7 +198,20 @@ function MessageDetailPage({ messageId }: { messageId: string }) {
         setMessage(payload);
         setError("");
         if (!payload.read_at) {
-          void notificationsApi.markRead(id);
+          setMarkingRead(true);
+          notificationsApi
+            .markRead(id)
+            .then((updated) => {
+              if (!active) return;
+              setMessage(updated);
+              setReadStatus("已标记为已读");
+            })
+            .catch((err) => {
+              if (active) setReadStatus(apiErrorMessage(err, "暂时无法标记已读"));
+            })
+            .finally(() => {
+              if (active) setMarkingRead(false);
+            });
         }
       })
       .catch((err) => {
@@ -212,18 +227,37 @@ function MessageDetailPage({ messageId }: { messageId: string }) {
     };
   }, [messageId]);
 
+  async function markMessageRead() {
+    const id = Number(messageId);
+    if (!message || message.read_at || markingRead || !Number.isInteger(id) || id <= 0) return;
+    setMarkingRead(true);
+    setReadStatus("");
+    try {
+      const updated = await notificationsApi.markRead(id);
+      setMessage(updated);
+      setReadStatus("已标记为已读");
+    } catch (err) {
+      setReadStatus(apiErrorMessage(err, "暂时无法标记已读"));
+    } finally {
+      setMarkingRead(false);
+    }
+  }
+
   return (
     <section className="message-page message-detail-page" aria-label="消息详情">
       <div className="detail-topline">
         <Link to="/messages">← 返回</Link>
         <div>
-          <button type="button"><span aria-hidden="true">▱</span> 标记已读</button>
+          <button disabled={!message || Boolean(message.read_at) || markingRead} onClick={() => void markMessageRead()} type="button">
+            <span aria-hidden="true">▱</span> {markingRead ? "处理中..." : message?.read_at ? "已读" : "标记已读"}
+          </button>
           <button className="danger" type="button"><span aria-hidden="true">⌫</span> 删除</button>
         </div>
       </div>
 
       {loading && <p>正在读取消息详情...</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
+      {readStatus && <p className={message?.read_at ? "form-success" : "form-error"} role={message?.read_at ? "status" : "alert"}>{readStatus}</p>}
       {message && <MessageDetail message={message} />}
     </section>
   );

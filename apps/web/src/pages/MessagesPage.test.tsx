@@ -19,6 +19,7 @@ vi.mock("../lib/notificationsApi", () => ({
 describe("MessagesPage", () => {
   afterEach(() => {
     authSession.clear();
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -100,5 +101,30 @@ describe("MessagesPage", () => {
     expect(screen.getByRole("link", { name: "查看拆解报告" })).toHaveAttribute("href", "/analysis");
     expect(screen.getByText("你发起的项目拆解已完成，点击查看拆解报告。")).toBeInTheDocument();
     await waitFor(() => expect(notificationsApi.markRead).toHaveBeenCalledWith(7));
+    expect(await screen.findByText("已标记为已读")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /已读/ })).toBeDisabled();
+  });
+
+  it("allows retrying when automatic read marking fails", async () => {
+    signIn();
+    vi.mocked(notificationsApi.get).mockResolvedValue(notification());
+    vi.mocked(notificationsApi.markRead)
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({ ...notification(), read_at: "2026-07-02T10:00:00Z" });
+
+    render(
+      <MemoryRouter initialEntries={["/messages/7"]}>
+        <Routes>
+          <Route element={<MessagesPage />} path="/messages/:messageId" />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("暂时无法标记已读")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /标记已读/ }));
+
+    await waitFor(() => expect(notificationsApi.markRead).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("已标记为已读")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /已读/ })).toBeDisabled();
   });
 });

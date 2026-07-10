@@ -6892,6 +6892,12 @@ a {
   border-color: rgba(255, 76, 54, 0.2);
 }
 
+.detail-topline button:disabled {
+  color: #9aa7c0;
+  border-color: rgba(154, 167, 192, 0.2);
+  cursor: not-allowed;
+}
+
 .message-detail-card {
   display: grid;
   gap: 24px;
