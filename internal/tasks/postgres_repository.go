@@ -54,10 +54,12 @@ func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filter
 		WHERE user_id = $1
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR project = $3)
-		  AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR project ILIKE '%' || $4 || '%' OR learning ILIKE '%' || $4 || '%')
+		  AND ($4 = '' OR priority = $4)
+		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
 		ORDER BY created_at DESC
-		LIMIT $5
-	`, userID, filters.Status, filters.Project, filters.Query, filters.Limit)
+		LIMIT $6
+		OFFSET $7
+	`, userID, filters.Status, filters.Project, filters.Priority, filters.Query, filters.Limit, filters.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +77,45 @@ func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filter
 		return nil, err
 	}
 	return tasks, nil
+}
+
+func (r *PostgresRepository) CountTasks(ctx context.Context, userID int64, filters ListFilters) (int, error) {
+	var total int
+	err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM tasks
+		WHERE user_id = $1
+		  AND ($2 = '' OR status = $2)
+		  AND ($3 = '' OR project = $3)
+		  AND ($4 = '' OR priority = $4)
+		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
+	`, userID, filters.Status, filters.Project, filters.Priority, filters.Query).Scan(&total)
+	return total, err
+}
+
+func (r *PostgresRepository) ListTaskProjects(ctx context.Context, userID int64) ([]string, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT project
+		FROM tasks
+		WHERE user_id = $1 AND project <> ''
+		ORDER BY project
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var projects []string
+	for rows.Next() {
+		var project string
+		if err := rows.Scan(&project); err != nil {
+			return nil, err
+		}
+		projects = append(projects, project)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return projects, nil
 }
 
 func (r *PostgresRepository) TaskStats(ctx context.Context, userID int64, now time.Time) (Stats, error) {

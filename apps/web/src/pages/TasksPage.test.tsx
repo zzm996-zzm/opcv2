@@ -667,4 +667,111 @@ describe("TasksPage", () => {
     expect(screen.queryByRole("heading", { name: "清理过期跟进任务" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "任务详情" })).not.toBeInTheDocument();
   });
+
+  it("searches tasks and combines project and priority filters", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [], total: 0, limit: 20, offset: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/projects") {
+        return Promise.resolve(new Response(JSON.stringify({ projects: ["商业沙盘", "客户验证"] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks?q=%E5%AE%A2%E6%88%B7&limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [], total: 0, limit: 20, offset: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks?project=%E5%95%86%E4%B8%9A%E6%B2%99%E7%9B%98&q=%E5%AE%A2%E6%88%B7&limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [], total: 0, limit: 20, offset: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks?project=%E5%95%86%E4%B8%9A%E6%B2%99%E7%9B%98&priority=high&q=%E5%AE%A2%E6%88%B7&limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [{
+            id: 101,
+            user_id: 7,
+            title: "高优先级客户沙盘任务",
+            project: "商业沙盘",
+            status: "todo",
+            priority: "high",
+            tools: ["商业沙盘"],
+            learning: "客户分析",
+            created_at: "2026-07-10T08:00:00Z",
+            updated_at: "2026-07-10T08:00:00Z"
+          }],
+          total: 1,
+          limit: 20,
+          offset: 0
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 1, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    fireEvent.change(screen.getByLabelText("搜索任务"), { target: { value: "客户" } });
+    fireEvent.click(screen.getByRole("button", { name: "搜索" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks?q=%E5%AE%A2%E6%88%B7&limit=20",
+      expect.objectContaining({ method: "GET" })
+    ));
+
+    const projectFilter = screen.getByRole("combobox", { name: "按项目筛选" });
+    fireEvent.focus(projectFilter);
+    expect(await screen.findByRole("option", { name: "商业沙盘" })).toBeInTheDocument();
+    fireEvent.change(projectFilter, { target: { value: "商业沙盘" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "按优先级筛选" }), { target: { value: "high" } });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks?project=%E5%95%86%E4%B8%9A%E6%B2%99%E7%9B%98&priority=high&q=%E5%AE%A2%E6%88%B7&limit=20",
+      expect.objectContaining({ method: "GET" })
+    ));
+    expect(await screen.findByRole("heading", { name: "高优先级客户沙盘任务" })).toBeInTheDocument();
+  });
+
+  it("paginates tasks using the backend total", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [], total: 21, limit: 20, offset: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks?limit=20&offset=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [{
+            id: 102,
+            user_id: 7,
+            title: "第二页任务",
+            project: "任务中心",
+            status: "todo",
+            priority: "medium",
+            tools: ["任务中心"],
+            learning: "分页验证",
+            created_at: "2026-07-01T08:00:00Z",
+            updated_at: "2026-07-01T08:00:00Z"
+          }],
+          total: 21,
+          limit: 20,
+          offset: 20
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 21, todo: 21, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    expect(await screen.findByText("第 1 / 2 页 · 共 21 条")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks?limit=20&offset=20",
+      expect.objectContaining({ method: "GET" })
+    ));
+    expect(await screen.findByRole("heading", { name: "第二页任务" })).toBeInTheDocument();
+    expect(screen.getByText("第 2 / 2 页 · 共 21 条")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
+  });
 });

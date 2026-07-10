@@ -36,6 +36,7 @@ const errorMessages: Record<string, string> = {
   invalid_task_input: "线索任务参数有误，请检查后重试",
   task_not_found: "任务不存在或已无权限访问",
   invalid_task_id: "任务 ID 不正确",
+  invalid_priority: "优先级筛选参数有误",
   quota_exceeded: "当前会员额度不足，请升级或下月重置后再试",
   quota_not_configured: "当前功能额度暂未配置，请联系管理员",
   session_not_found: "记录不存在或已无权限访问",

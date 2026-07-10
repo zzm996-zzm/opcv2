@@ -231,20 +231,37 @@ Response `200`: `Task`
 
 ### List Tasks
 
-`GET /api/v1/tasks?status=in_progress&project=商业沙盘&q=接口&limit=20`
+`GET /api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&q=接口&limit=20&offset=0`
 
 Query:
 
 - `status` optional task status enum.
 - `project` optional exact project name.
+- `priority` optional task priority enum.
 - `q` optional keyword matched against title, project and learning field.
 - `limit` optional, capped at 100.
+- `offset` optional, defaults to 0.
 
 Response:
 
 ```json
 {
-  "tasks": []
+  "tasks": [],
+  "total": 0,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+### Task Project Options
+
+`GET /api/v1/tasks/projects`
+
+Response `200`:
+
+```json
+{
+  "projects": ["AI线索开发", "商业沙盘"]
 }
 ```
 

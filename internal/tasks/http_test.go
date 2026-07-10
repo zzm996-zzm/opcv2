@@ -12,16 +12,18 @@ import (
 )
 
 type fakeApplication struct {
-	input   CreateInput
-	userID  int64
-	taskID  int64
-	deleted bool
-	filters ListFilters
-	update  TaskUpdate
-	task    Task
-	tasks   []Task
-	stats   Stats
-	err     error
+	input    CreateInput
+	userID   int64
+	taskID   int64
+	deleted  bool
+	filters  ListFilters
+	update   TaskUpdate
+	task     Task
+	tasks    []Task
+	total    int
+	projects []string
+	stats    Stats
+	err      error
 }
 
 func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task, error) {
@@ -29,10 +31,15 @@ func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task
 	return a.task, a.err
 }
 
-func (a *fakeApplication) ListTasks(_ context.Context, userID int64, filters ListFilters) ([]Task, error) {
+func (a *fakeApplication) ListTaskPage(_ context.Context, userID int64, filters ListFilters) (TaskPage, error) {
 	a.userID = userID
 	a.filters = filters
-	return a.tasks, a.err
+	return TaskPage{Tasks: a.tasks, Total: a.total, Limit: filters.Limit, Offset: filters.Offset}, a.err
+}
+
+func (a *fakeApplication) ListTaskProjects(_ context.Context, userID int64) ([]string, error) {
+	a.userID = userID
+	return a.projects, a.err
 }
 
 func (a *fakeApplication) TaskStats(_ context.Context, userID int64) (Stats, error) {
@@ -161,9 +168,9 @@ func TestListTasksEndpointUsesAuthenticatedUser(t *testing.T) {
 }
 
 func TestListTasksEndpointPassesFilters(t *testing.T) {
-	app := &fakeApplication{tasks: []Task{{ID: 99, UserID: 42, Title: "我的任务"}}}
+	app := &fakeApplication{tasks: []Task{{ID: 99, UserID: 42, Title: "我的任务"}}, total: 21}
 	router := tasksTestRouter(app)
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks?status=in_progress&project=商业沙盘&q=接口&limit=10", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&q=接口&limit=10&offset=20", nil)
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -171,8 +178,11 @@ func TestListTasksEndpointPassesFilters(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.filters.Status != StatusInProgress || app.filters.Project != "商业沙盘" || app.filters.Query != "接口" || app.filters.Limit != 10 {
+	if app.filters.Status != StatusInProgress || app.filters.Project != "商业沙盘" || app.filters.Priority != PriorityHigh || app.filters.Query != "接口" || app.filters.Limit != 10 || app.filters.Offset != 20 {
 		t.Fatalf("filters = %+v", app.filters)
+	}
+	if !strings.Contains(recorder.Body.String(), `"total":21`) || !strings.Contains(recorder.Body.String(), `"offset":20`) {
+		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }
 
@@ -192,6 +202,22 @@ func TestListTasksEndpointReturnsEmptyArrayAndCapsLimit(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"tasks":[]`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestListTaskProjectsEndpointReturnsUserOptions(t *testing.T) {
+	app := &fakeApplication{projects: []string{"AI线索开发", "商业沙盘"}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/projects", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || !strings.Contains(recorder.Body.String(), `"projects":["AI线索开发","商业沙盘"]`) {
+		t.Fatalf("user/body = %d/%s", app.userID, recorder.Body.String())
 	}
 }
 

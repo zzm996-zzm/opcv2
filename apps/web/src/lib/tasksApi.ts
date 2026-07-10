@@ -20,8 +20,17 @@ export type Task = {
 export type TaskFilters = {
   status?: TaskStatus;
   project?: string;
+  priority?: TaskPriority;
   q?: string;
   limit?: number;
+  offset?: number;
+};
+
+export type TaskPage = {
+  tasks: Task[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type TaskStats = {
@@ -98,7 +107,13 @@ export const tasksApi = {
 
   listTasks(filters: TaskFilters | number = {}) {
     const normalized = typeof filters === "number" ? { limit: filters } : filters;
-    return apiRequest<{ tasks: Task[] }>(`/api/v1/tasks${queryString(normalized)}`, {
+    return apiRequest<TaskPage>(`/api/v1/tasks${queryString(normalized)}`, {
+      method: "GET"
+    });
+  },
+
+  listProjects() {
+    return apiRequest<{ projects: string[] }>("/api/v1/tasks/projects", {
       method: "GET"
     });
   },

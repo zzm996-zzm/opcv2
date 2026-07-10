@@ -9,6 +9,8 @@ import (
 type Repository interface {
 	CreateTask(ctx context.Context, task Task) (Task, error)
 	ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error)
+	CountTasks(ctx context.Context, userID int64, filters ListFilters) (int, error)
+	ListTaskProjects(ctx context.Context, userID int64) ([]string, error)
 	TaskStats(ctx context.Context, userID int64, now time.Time) (Stats, error)
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
@@ -46,11 +48,35 @@ func (s *Service) ListTasks(ctx context.Context, userID int64, filters ListFilte
 	if s.repository == nil {
 		return nil, ErrServiceNotReady
 	}
+	return s.repository.ListTasks(ctx, userID, normalizeListFilters(filters))
+}
+
+func (s *Service) ListTaskPage(ctx context.Context, userID int64, filters ListFilters) (TaskPage, error) {
+	if s.repository == nil {
+		return TaskPage{}, ErrServiceNotReady
+	}
+	filters = normalizeListFilters(filters)
+	tasks, err := s.repository.ListTasks(ctx, userID, filters)
+	if err != nil {
+		return TaskPage{}, err
+	}
+	total, err := s.repository.CountTasks(ctx, userID, filters)
+	if err != nil {
+		return TaskPage{}, err
+	}
+	return TaskPage{Tasks: tasks, Total: total, Limit: filters.Limit, Offset: filters.Offset}, nil
+}
+
+func normalizeListFilters(filters ListFilters) ListFilters {
 	filters.Status = strings.TrimSpace(filters.Status)
 	filters.Project = strings.TrimSpace(filters.Project)
+	filters.Priority = strings.TrimSpace(filters.Priority)
 	filters.Query = strings.TrimSpace(filters.Query)
 	if filters.Status != "" {
 		filters.Status = normalizeStatus(filters.Status)
+	}
+	if filters.Priority != "" {
+		filters.Priority = normalizePriority(filters.Priority)
 	}
 	if filters.Limit <= 0 {
 		filters.Limit = 20
@@ -58,7 +84,17 @@ func (s *Service) ListTasks(ctx context.Context, userID int64, filters ListFilte
 	if filters.Limit > 100 {
 		filters.Limit = 100
 	}
-	return s.repository.ListTasks(ctx, userID, filters)
+	if filters.Offset < 0 {
+		filters.Offset = 0
+	}
+	return filters
+}
+
+func (s *Service) ListTaskProjects(ctx context.Context, userID int64) ([]string, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	return s.repository.ListTaskProjects(ctx, userID)
 }
 
 func (s *Service) TaskStats(ctx context.Context, userID int64) (Stats, error) {

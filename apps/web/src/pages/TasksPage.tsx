@@ -19,6 +19,8 @@ type TaskRow = {
 
 type TaskView = "list" | "board" | "calendar";
 
+const taskPageSize = 20;
+
 type TaskEditForm = {
   title: string;
   project: string;
@@ -177,6 +179,16 @@ function TasksPage() {
   const [apiTasks, setApiTasks] = useState<Task[]>([]);
   const [apiStats, setApiStats] = useState<TaskStats | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>();
+  const [selectedProject, setSelectedProject] = useState("");
+  const [selectedPriority, setSelectedPriority] = useState<TaskPriority | "">("");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [taskPage, setTaskPage] = useState(1);
+  const [taskTotal, setTaskTotal] = useState(0);
+  const [projectOptions, setProjectOptions] = useState<string[]>([]);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [listLoading, setListLoading] = useState(false);
   const [activeView, setActiveView] = useState<TaskView>("list");
   const [listError, setListError] = useState("");
   const [savingTaskID, setSavingTaskID] = useState<number | null>(null);
@@ -195,22 +207,35 @@ function TasksPage() {
 
   useEffect(() => {
     let active = true;
+    setListLoading(true);
     tasksApi
-      .listTasks({ status: selectedStatus, limit: 20 })
+      .listTasks({
+        status: selectedStatus,
+        project: selectedProject || undefined,
+        priority: selectedPriority || undefined,
+        q: searchQuery || undefined,
+        limit: taskPageSize,
+        offset: taskPage > 1 ? (taskPage - 1) * taskPageSize : undefined
+      })
       .then((payload) => {
         if (!active) return;
         setApiTasks(payload.tasks);
+        setTaskTotal(payload.total ?? payload.tasks.length);
         setListError("");
       })
       .catch((error) => {
         if (!active) return;
         setApiTasks([]);
+        setTaskTotal(0);
         setListError(apiErrorMessage(error, "暂时无法读取任务列表"));
+      })
+      .finally(() => {
+        if (active) setListLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [selectedStatus]);
+  }, [selectedStatus, selectedProject, selectedPriority, searchQuery, taskPage]);
 
   useEffect(() => {
     let active = true;
@@ -242,6 +267,12 @@ function TasksPage() {
     return groups;
   }, new Map()));
   const unscheduledTasks = apiTasks.filter((task) => !task.due_at);
+  const totalPages = Math.max(1, Math.ceil(taskTotal / taskPageSize));
+  const hasActiveFilters = Boolean(selectedStatus || selectedProject || selectedPriority || searchQuery);
+
+  useEffect(() => {
+    if (taskPage > totalPages) setTaskPage(totalPages);
+  }, [taskPage, totalPages]);
 
   async function refreshTaskStats() {
     try {
@@ -251,14 +282,57 @@ function TasksPage() {
     }
   }
 
+  async function loadProjectOptions() {
+    if (projectsLoaded || projectsLoading) return;
+    setProjectsLoading(true);
+    try {
+      const payload = await tasksApi.listProjects();
+      setProjectOptions(payload.projects);
+      setProjectsLoaded(true);
+    } catch (error) {
+      setListError(apiErrorMessage(error, "暂时无法读取项目选项"));
+    } finally {
+      setProjectsLoading(false);
+    }
+  }
+
+  function selectStatus(status?: TaskStatus) {
+    setTaskPage(1);
+    setSelectedStatus(status);
+  }
+
+  function applyTaskSearch() {
+    setTaskPage(1);
+    setSearchQuery(searchInput.trim());
+  }
+
+  function clearTaskFilters() {
+    setSearchInput("");
+    setSearchQuery("");
+    setSelectedStatus(undefined);
+    setSelectedProject("");
+    setSelectedPriority("");
+    setTaskPage(1);
+  }
+
+  function taskMatchesCurrentFilters(task: Task) {
+    const normalizedQuery = searchQuery.toLowerCase();
+    return (!selectedStatus || task.status === selectedStatus) &&
+      (!selectedProject || task.project === selectedProject) &&
+      (!selectedPriority || task.priority === selectedPriority) &&
+      (!normalizedQuery || [task.title, task.project, task.learning].some((value) => value.toLowerCase().includes(normalizedQuery)));
+  }
+
   async function updateTaskStatus(taskID: number, currentStatus: TaskStatus) {
     const action = taskStatusAction(currentStatus);
     setSavingTaskID(taskID);
     try {
       const updated = await tasksApi.updateTask(taskID, { status: action.nextStatus });
-      setApiTasks((current) => selectedStatus && updated.status !== selectedStatus
+      const remainsVisible = taskMatchesCurrentFilters(updated);
+      setApiTasks((current) => !remainsVisible
         ? current.filter((task) => task.id !== taskID)
         : current.map((task) => task.id === taskID ? updated : task));
+      if (!remainsVisible) setTaskTotal((current) => Math.max(0, current - 1));
       await refreshTaskStats();
       setListError("");
     } catch (error) {
@@ -286,7 +360,14 @@ function TasksPage() {
         tools: ["任务中心"],
         learning: title
       });
-      setApiTasks((current) => selectedStatus && task.status !== selectedStatus ? current : [task, ...current]);
+      if (taskMatchesCurrentFilters(task)) {
+        setTaskTotal((current) => current + 1);
+        if (taskPage === 1) {
+          setApiTasks((current) => [task, ...current].slice(0, taskPageSize));
+        } else {
+          setTaskPage(1);
+        }
+      }
       await refreshTaskStats();
       setTaskGoal("");
       setListError("");
@@ -357,9 +438,11 @@ function TasksPage() {
         tools: parseTools(detailForm.tools),
         learning: detailForm.learning.trim()
       });
-      setApiTasks((current) => selectedStatus && updated.status !== selectedStatus
+      const remainsVisible = taskMatchesCurrentFilters(updated);
+      setApiTasks((current) => !remainsVisible
         ? current.filter((task) => task.id !== updated.id)
         : current.map((task) => task.id === updated.id ? updated : task));
+      if (!remainsVisible) setTaskTotal((current) => Math.max(0, current - 1));
       await refreshTaskStats();
       setCreateMessage(`已更新任务：${updated.title}`);
       setListError("");
@@ -380,6 +463,7 @@ function TasksPage() {
     try {
       await tasksApi.deleteTask(detailTask.id);
       setApiTasks((current) => current.filter((task) => task.id !== detailTask.id));
+      setTaskTotal((current) => Math.max(0, current - 1));
       await refreshTaskStats();
       setCreateMessage(`已删除任务：${detailTask.title}`);
       setListError("");
@@ -501,13 +585,56 @@ function TasksPage() {
                   aria-label={`筛选${filter.label}`}
                   className={selectedStatus === filter.value ? "active" : ""}
                   key={filter.label}
-                  onClick={() => setSelectedStatus(filter.value)}
+                  onClick={() => selectStatus(filter.value)}
                   type="button"
                 >
                   {filter.label}
                 </button>
               ))}
             </div>
+            <form className="task-filter-bar" aria-label="任务搜索与筛选" onSubmit={(event) => {
+              event.preventDefault();
+              applyTaskSearch();
+            }}>
+              <div className="task-search-field">
+                <label className="sr-only" htmlFor="task-search">搜索任务</label>
+                <input
+                  id="task-search"
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="搜索标题、项目或补课内容"
+                  value={searchInput}
+                />
+                <button type="submit">搜索</button>
+              </div>
+              <label className="sr-only" htmlFor="task-project-filter">按项目筛选</label>
+              <select
+                id="task-project-filter"
+                onChange={(event) => {
+                  setTaskPage(1);
+                  setSelectedProject(event.target.value);
+                }}
+                onFocus={() => void loadProjectOptions()}
+                value={selectedProject}
+              >
+                <option value="">{projectsLoading ? "读取项目中..." : "全部项目"}</option>
+                {projectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
+              </select>
+              <label className="sr-only" htmlFor="task-priority-filter">按优先级筛选</label>
+              <select
+                id="task-priority-filter"
+                onChange={(event) => {
+                  setTaskPage(1);
+                  setSelectedPriority(event.target.value as TaskPriority | "");
+                }}
+                value={selectedPriority}
+              >
+                <option value="">全部优先级</option>
+                <option value="high">高优先级</option>
+                <option value="medium">中优先级</option>
+                <option value="low">低优先级</option>
+              </select>
+              {hasActiveFilters ? <button className="task-filter-clear" onClick={clearTaskFilters} type="button">清除筛选</button> : null}
+            </form>
             {activeView === "list" ? (
               <div aria-label="任务列表" className="task-table">
                 {visibleTasks.length === 0 ? (
@@ -581,6 +708,27 @@ function TasksPage() {
                   </section>
                 ) : null}
               </div>
+            ) : null}
+            {taskTotal > 0 ? (
+              <footer className="task-pagination" aria-label="任务分页">
+                <button
+                  aria-label="上一页"
+                  disabled={listLoading || taskPage <= 1}
+                  onClick={() => setTaskPage((current) => Math.max(1, current - 1))}
+                  type="button"
+                >
+                  ‹
+                </button>
+                <span>第 {taskPage} / {totalPages} 页 · 共 {taskTotal} 条</span>
+                <button
+                  aria-label="下一页"
+                  disabled={listLoading || taskPage >= totalPages}
+                  onClick={() => setTaskPage((current) => Math.min(totalPages, current + 1))}
+                  type="button"
+                >
+                  ›
+                </button>
+              </footer>
             ) : null}
           </div>
 

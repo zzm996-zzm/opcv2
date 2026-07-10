@@ -8,13 +8,14 @@ import (
 )
 
 type fakeRepository struct {
-	created Task
-	updated Task
-	deleted Task
-	task    Task
-	tasks   []Task
-	filters ListFilters
-	err     error
+	created  Task
+	updated  Task
+	deleted  Task
+	task     Task
+	tasks    []Task
+	projects []string
+	filters  ListFilters
+	err      error
 }
 
 func (r *fakeRepository) CreateTask(_ context.Context, task Task) (Task, error) {
@@ -36,7 +37,26 @@ func (r *fakeRepository) ListTasks(_ context.Context, userID int64, filters List
 			rows = append(rows, task)
 		}
 	}
-	return rows[:min(len(rows), filters.Limit)], nil
+	start := min(len(rows), filters.Offset)
+	end := min(len(rows), start+filters.Limit)
+	return rows[start:end], nil
+}
+
+func (r *fakeRepository) CountTasks(_ context.Context, userID int64, _ ListFilters) (int, error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+	total := 0
+	for _, task := range r.tasks {
+		if task.UserID == userID {
+			total++
+		}
+	}
+	return total, nil
+}
+
+func (r *fakeRepository) ListTaskProjects(_ context.Context, _ int64) ([]string, error) {
+	return r.projects, r.err
 }
 
 func (r *fakeRepository) TaskStats(_ context.Context, userID int64, now time.Time) (Stats, error) {
@@ -140,13 +160,13 @@ func TestServiceListsOnlyUserTasks(t *testing.T) {
 	}}
 	service := NewService(repository)
 
-	rows, err := service.ListTasks(context.Background(), 42, ListFilters{Limit: 20})
+	page, err := service.ListTaskPage(context.Background(), 42, ListFilters{Limit: 20})
 
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
-	if len(rows) != 1 || rows[0].Title != "我的任务" {
-		t.Fatalf("rows = %+v", rows)
+	if len(page.Tasks) != 1 || page.Tasks[0].Title != "我的任务" || page.Total != 1 {
+		t.Fatalf("page = %+v", page)
 	}
 }
 
@@ -154,18 +174,34 @@ func TestServiceNormalizesTaskFilters(t *testing.T) {
 	repository := &fakeRepository{tasks: []Task{{ID: 1, UserID: 42, Title: "我的任务"}}}
 	service := NewService(repository)
 
-	_, err := service.ListTasks(context.Background(), 42, ListFilters{
-		Status:  " in_progress ",
-		Project: " 商业沙盘 ",
-		Query:   " 接口 ",
-		Limit:   500,
+	_, err := service.ListTaskPage(context.Background(), 42, ListFilters{
+		Status:   " in_progress ",
+		Project:  " 商业沙盘 ",
+		Priority: " high ",
+		Query:    " 接口 ",
+		Limit:    500,
+		Offset:   -10,
 	})
 
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
-	if repository.filters.Status != StatusInProgress || repository.filters.Project != "商业沙盘" || repository.filters.Query != "接口" || repository.filters.Limit != 100 {
+	if repository.filters.Status != StatusInProgress || repository.filters.Project != "商业沙盘" || repository.filters.Priority != PriorityHigh || repository.filters.Query != "接口" || repository.filters.Limit != 100 || repository.filters.Offset != 0 {
 		t.Fatalf("filters = %+v", repository.filters)
+	}
+}
+
+func TestServiceListsTaskProjects(t *testing.T) {
+	repository := &fakeRepository{projects: []string{"AI线索开发", "商业沙盘"}}
+	service := NewService(repository)
+
+	projects, err := service.ListTaskProjects(context.Background(), 42)
+
+	if err != nil {
+		t.Fatalf("ListTaskProjects() error = %v", err)
+	}
+	if len(projects) != 2 || projects[1] != "商业沙盘" {
+		t.Fatalf("projects = %+v", projects)
 	}
 }
 

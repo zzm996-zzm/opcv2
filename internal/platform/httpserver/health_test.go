@@ -414,8 +414,11 @@ type fakeTasksApp struct{}
 func (fakeTasksApp) CreateTask(context.Context, tasks.CreateInput) (tasks.Task, error) {
 	return tasks.Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusTodo}, nil
 }
-func (fakeTasksApp) ListTasks(context.Context, int64, tasks.ListFilters) ([]tasks.Task, error) {
-	return []tasks.Task{{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusTodo}}, nil
+func (fakeTasksApp) ListTaskPage(context.Context, int64, tasks.ListFilters) (tasks.TaskPage, error) {
+	return tasks.TaskPage{Tasks: []tasks.Task{{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusTodo}}, Total: 1}, nil
+}
+func (fakeTasksApp) ListTaskProjects(context.Context, int64) ([]string, error) {
+	return []string{"任务中心"}, nil
 }
 func (fakeTasksApp) TaskStats(context.Context, int64) (tasks.Stats, error) {
 	return tasks.Stats{Total: 1, Todo: 1}, nil

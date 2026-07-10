@@ -14,7 +14,8 @@ import (
 
 type Application interface {
 	CreateTask(ctx context.Context, input CreateInput) (Task, error)
-	ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error)
+	ListTaskPage(ctx context.Context, userID int64, filters ListFilters) (TaskPage, error)
+	ListTaskProjects(ctx context.Context, userID int64) ([]string, error)
 	TaskStats(ctx context.Context, userID int64) (Stats, error)
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
@@ -33,6 +34,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/tasks", h.createTask)
 	router.GET("/tasks", h.listTasks)
 	router.GET("/tasks/stats", h.taskStats)
+	router.GET("/tasks/projects", h.listTaskProjects)
 	router.GET("/tasks/:id", h.getTask)
 	router.PATCH("/tasks/:id", h.updateTask)
 	router.DELETE("/tasks/:id", h.deleteTask)
@@ -73,17 +75,38 @@ func (h *HTTPHandler) listTasks(c *gin.Context) {
 		httpapi.BadRequest(c, "invalid_status")
 		return
 	}
-	tasks, err := h.app.ListTasks(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), ListFilters{
-		Status:  status,
-		Project: c.Query("project"),
-		Query:   c.Query("q"),
-		Limit:   limit,
+	priority := strings.TrimSpace(c.Query("priority"))
+	if priority != "" && !validPriority(priority) {
+		httpapi.BadRequest(c, "invalid_priority")
+		return
+	}
+	offset, ok := httpapi.QueryOffset(c)
+	if !ok {
+		return
+	}
+	page, err := h.app.ListTaskPage(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), ListFilters{
+		Status:   status,
+		Project:  c.Query("project"),
+		Priority: priority,
+		Query:    c.Query("q"),
+		Limit:    limit,
+		Offset:   offset,
 	})
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"tasks": httpapi.EnsureSlice(tasks)})
+	page.Tasks = httpapi.EnsureSlice(page.Tasks)
+	c.JSON(http.StatusOK, page)
+}
+
+func (h *HTTPHandler) listTaskProjects(c *gin.Context) {
+	projects, err := h.app.ListTaskProjects(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"projects": httpapi.EnsureSlice(projects)})
 }
 
 func (h *HTTPHandler) taskStats(c *gin.Context) {

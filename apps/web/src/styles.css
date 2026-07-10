@@ -24559,6 +24559,104 @@ a {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.task-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(140px, 190px) minmax(130px, 170px) auto;
+  gap: 10px;
+}
+
+.task-search-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.task-search-field input,
+.task-filter-bar > select {
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  color: #10265f;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  outline: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.task-search-field input {
+  border-radius: 8px 0 0 8px;
+}
+
+.task-search-field input:focus,
+.task-filter-bar > select:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(21, 87, 255, 0.08);
+}
+
+.task-search-field button,
+.task-filter-clear {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-search-field button {
+  color: #fff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 0 8px 8px 0;
+}
+
+.task-filter-bar > select {
+  border-radius: 8px;
+}
+
+.task-filter-clear {
+  color: #6377a5;
+  background: #f7faff;
+  border: 1px solid rgba(31, 68, 140, 0.12);
+}
+
+.task-pagination {
+  display: grid;
+  grid-template-columns: 36px minmax(0, auto) 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.task-pagination button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--blue);
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 8px;
+  font-size: 20px;
+  cursor: pointer;
+  place-items: center;
+}
+
+.task-pagination button:disabled {
+  color: #a8b3c9;
+  background: #f5f7fb;
+  cursor: not-allowed;
+}
+
+.task-pagination span {
+  color: #6377a5;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
 .task-view-board {
   display: grid;
   grid-template-columns: repeat(4, minmax(220px, 1fr));
@@ -29158,6 +29256,14 @@ a {
 
   .task-view-column {
     padding: 12px;
+  }
+
+  .task-filter-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .task-filter-clear {
+    width: 100%;
   }
 
   .task-calendar-group > div {

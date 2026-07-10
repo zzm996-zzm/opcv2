@@ -43,10 +43,19 @@ type TaskUpdate struct {
 }
 
 type ListFilters struct {
-	Status  string
-	Project string
-	Query   string
-	Limit   int
+	Status   string
+	Project  string
+	Priority string
+	Query    string
+	Limit    int
+	Offset   int
+}
+
+type TaskPage struct {
+	Tasks  []Task `json:"tasks"`
+	Total  int    `json:"total"`
+	Limit  int    `json:"limit"`
+	Offset int    `json:"offset"`
 }
 
 type Stats struct {

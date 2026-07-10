@@ -74,11 +74,13 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 		WHERE user_id = $1
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR project = $3)
-		  AND ($4 = '' OR title ILIKE '%' || $4 || '%' OR project ILIKE '%' || $4 || '%' OR learning ILIKE '%' || $4 || '%')
+		  AND ($4 = '' OR priority = $4)
+		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
 		ORDER BY created_at DESC
-		LIMIT $5
+		LIMIT $6
+		OFFSET $7
 	`)).
-		WithArgs(int64(42), StatusTodo, "AI线索开发", "客户", 20).
+		WithArgs(int64(42), StatusTodo, "AI线索开发", PriorityHigh, "客户", 20, 10).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "user_id", "title", "project", "status", "priority", "due_at", "tools", "learning", "created_at", "updated_at",
 		}).AddRow(
@@ -97,10 +99,12 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 
 	repository := NewPostgresRepository(db)
 	tasks, err := repository.ListTasks(context.Background(), 42, ListFilters{
-		Status:  StatusTodo,
-		Project: "AI线索开发",
-		Query:   "客户",
-		Limit:   20,
+		Status:   StatusTodo,
+		Project:  "AI线索开发",
+		Priority: PriorityHigh,
+		Query:    "客户",
+		Limit:    20,
+		Offset:   10,
 	})
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
@@ -110,6 +114,50 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryCountsFilteredTasks(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery("SELECT COUNT\\(\\*\\)").
+		WithArgs(int64(42), StatusTodo, "AI线索开发", PriorityHigh, "客户").
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(21))
+
+	repository := NewPostgresRepository(db)
+	total, err := repository.CountTasks(context.Background(), 42, ListFilters{
+		Status: StatusTodo, Project: "AI线索开发", Priority: PriorityHigh, Query: "客户",
+	})
+	if err != nil {
+		t.Fatalf("CountTasks() error = %v", err)
+	}
+	if total != 21 {
+		t.Fatalf("total = %d, want 21", total)
+	}
+}
+
+func TestPostgresRepositoryListsTaskProjects(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery("SELECT DISTINCT project").
+		WithArgs(int64(42)).
+		WillReturnRows(pgxmock.NewRows([]string{"project"}).AddRow("AI线索开发").AddRow("商业沙盘"))
+
+	repository := NewPostgresRepository(db)
+	projects, err := repository.ListTaskProjects(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ListTaskProjects() error = %v", err)
+	}
+	if len(projects) != 2 || projects[0] != "AI线索开发" {
+		t.Fatalf("projects = %+v", projects)
 	}
 }
 
