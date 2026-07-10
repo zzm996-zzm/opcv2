@@ -65,4 +65,22 @@ describe("tasksApi", () => {
 	}));
 	expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/tasks/99/subtasks/7", expect.objectContaining({ method: "DELETE" }));
   });
+
+  it("gets, upserts, and deletes a task reminder", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ reminder: null }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 8, remind_at: "2026-07-18T10:00:00Z" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await tasksApi.getReminder(99);
+    await tasksApi.upsertReminder(99, "2026-07-18T10:00:00Z");
+    await tasksApi.deleteReminder(99);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks/99/reminder", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/99/reminder", expect.objectContaining({
+      method: "PUT",
+      body: JSON.stringify({ remind_at: "2026-07-18T10:00:00Z" })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/tasks/99/reminder", expect.objectContaining({ method: "DELETE" }));
+  });
 });

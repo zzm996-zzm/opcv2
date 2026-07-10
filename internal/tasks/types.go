@@ -17,9 +17,11 @@ const (
 )
 
 var (
-	ErrServiceNotReady = errors.New("tasks service is not configured")
-	ErrTaskNotFound    = errors.New("task not found")
-	ErrSubtaskNotFound = errors.New("subtask not found")
+	ErrServiceNotReady     = errors.New("tasks service is not configured")
+	ErrTaskNotFound        = errors.New("task not found")
+	ErrSubtaskNotFound     = errors.New("subtask not found")
+	ErrReminderNotFound    = errors.New("task reminder not found")
+	ErrInvalidReminderTime = errors.New("invalid task reminder time")
 )
 
 type CreateInput struct {
@@ -61,6 +63,22 @@ type SubtaskUpdate struct {
 	DueAt      *time.Time `json:"due_at,omitempty"`
 	ClearDueAt bool       `json:"clear_due_at,omitempty"`
 	Completed  *bool      `json:"completed,omitempty"`
+}
+
+type TaskReminder struct {
+	ID        int64      `json:"id"`
+	TaskID    int64      `json:"task_id"`
+	UserID    int64      `json:"user_id"`
+	RemindAt  time.Time  `json:"remind_at"`
+	SentAt    *time.Time `json:"sent_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+type UpsertTaskReminderInput struct {
+	UserID   int64     `json:"-"`
+	TaskID   int64     `json:"-"`
+	RemindAt time.Time `json:"remind_at"`
 }
 
 type TaskUpdate struct {

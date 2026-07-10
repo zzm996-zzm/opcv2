@@ -14,6 +14,7 @@ import (
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/postgres"
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
+	"github.com/zzm/opcv2/internal/tasks"
 )
 
 func main() {
@@ -58,6 +59,11 @@ func main() {
 		competitorOptions = append(competitorOptions, competitor.WithScanner(competitorScanner))
 	}
 	competitorService := competitor.NewService(competitorRepository, competitorOptions...)
+	tasksRepository := tasks.NewPostgresRepository(db)
+	tasksService := tasks.NewService(tasksRepository)
+	go tasks.RunReminderWorker(context.Background(), tasksService, time.Minute, func(err error) {
+		logger.Error("dispatch task reminders", "error", err)
+	})
 	server := taskqueue.NewServer(cfg.RedisAddr)
 	mux := taskqueue.NewMux()
 	leads.RegisterWorker(mux, leadsService)

@@ -63,6 +63,8 @@ services:
       OPCV2_DATABASE_URL: postgres://${POSTGRES_USER:-opcv2}:${POSTGRES_PASSWORD:-opcv2}@postgres:5432/${POSTGRES_DB:-opcv2}?sslmode=disable
       OPCV2_REDIS_ADDR: redis:6379
     depends_on:
+      api:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:

@@ -111,6 +111,8 @@ services:
       OPCV2_SERPER_BASE_URL: ${OPCV2_SERPER_BASE_URL:-}
       OPCV2_SERPER_TIMEOUT_SECONDS: ${OPCV2_SERPER_TIMEOUT_SECONDS:-10}
     depends_on:
+      api:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       redis:

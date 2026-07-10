@@ -443,6 +443,13 @@ func (fakeTasksApp) UpdateSubtask(context.Context, int64, int64, int64, tasks.Su
 	return tasks.Subtask{}, nil
 }
 func (fakeTasksApp) DeleteSubtask(context.Context, int64, int64, int64) error { return nil }
+func (fakeTasksApp) GetTaskReminder(context.Context, int64, int64) (*tasks.TaskReminder, error) {
+	return nil, nil
+}
+func (fakeTasksApp) UpsertTaskReminder(context.Context, tasks.UpsertTaskReminderInput) (tasks.TaskReminder, error) {
+	return tasks.TaskReminder{}, nil
+}
+func (fakeTasksApp) DeleteTaskReminder(context.Context, int64, int64) error { return nil }
 
 func TestTaskRoutesAreMountedBehindAuth(t *testing.T) {
 	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)

@@ -58,6 +58,16 @@ export type TaskSubtask = {
   updated_at: string;
 };
 
+export type TaskReminder = {
+  id: number;
+  task_id: number;
+  user_id: number;
+  remind_at: string;
+  sent_at?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreateSubtaskInput = {
   title: string;
   assignee?: string;
@@ -223,6 +233,25 @@ export const tasksApi = {
 
   deleteSubtask(taskID: number, subtaskID: number) {
     return apiRequest<void>(`/api/v1/tasks/${taskID}/subtasks/${subtaskID}`, {
+      method: "DELETE"
+    });
+  },
+
+  getReminder(taskID: number) {
+    return apiRequest<{ reminder: TaskReminder | null }>(`/api/v1/tasks/${taskID}/reminder`, {
+      method: "GET"
+    });
+  },
+
+  upsertReminder(taskID: number, remindAt: string) {
+    return apiRequest<TaskReminder>(`/api/v1/tasks/${taskID}/reminder`, {
+      method: "PUT",
+      body: JSON.stringify({ remind_at: remindAt })
+    });
+  },
+
+  deleteReminder(taskID: number) {
+    return apiRequest<void>(`/api/v1/tasks/${taskID}/reminder`, {
       method: "DELETE"
     });
   }

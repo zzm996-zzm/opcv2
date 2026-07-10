@@ -25,6 +25,9 @@ type Application interface {
 	CreateSubtask(ctx context.Context, input CreateSubtaskInput) (Subtask, error)
 	UpdateSubtask(ctx context.Context, userID, taskID, id int64, update SubtaskUpdate) (Subtask, error)
 	DeleteSubtask(ctx context.Context, userID, taskID, id int64) error
+	GetTaskReminder(ctx context.Context, userID, taskID int64) (*TaskReminder, error)
+	UpsertTaskReminder(ctx context.Context, input UpsertTaskReminderInput) (TaskReminder, error)
+	DeleteTaskReminder(ctx context.Context, userID, taskID int64) error
 }
 
 type HTTPHandler struct {
@@ -48,6 +51,9 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/tasks/:id/subtasks", h.createSubtask)
 	router.PATCH("/tasks/:id/subtasks/:subtask_id", h.updateSubtask)
 	router.DELETE("/tasks/:id/subtasks/:subtask_id", h.deleteSubtask)
+	router.GET("/tasks/:id/reminder", h.getTaskReminder)
+	router.PUT("/tasks/:id/reminder", h.upsertTaskReminder)
+	router.DELETE("/tasks/:id/reminder", h.deleteTaskReminder)
 }
 
 func (h *HTTPHandler) createTask(c *gin.Context) {
@@ -269,6 +275,10 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusNotFound, "task_not_found")
 	case errors.Is(err, ErrSubtaskNotFound):
 		httpapi.Error(c, http.StatusNotFound, "subtask_not_found")
+	case errors.Is(err, ErrReminderNotFound):
+		httpapi.Error(c, http.StatusNotFound, "reminder_not_found")
+	case errors.Is(err, ErrInvalidReminderTime):
+		httpapi.BadRequest(c, "invalid_remind_at")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

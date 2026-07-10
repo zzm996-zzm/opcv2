@@ -429,3 +429,105 @@ func TestServiceDeletesSubtaskFromParentTask(t *testing.T) {
 		t.Fatalf("task/id/error = %d/%d/%v", repository.deletedTaskID, repository.deletedID, err)
 	}
 }
+
+type fakeReminderRepository struct {
+	*fakeRepository
+	reminder        *TaskReminder
+	savedReminder   TaskReminder
+	deletedReminder bool
+	dispatchAt      time.Time
+	dispatchLimit   int
+	dispatchCount   int
+}
+
+func (r *fakeReminderRepository) GetTaskReminder(_ context.Context, userID, taskID int64) (*TaskReminder, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.reminder == nil || r.reminder.UserID != userID || r.reminder.TaskID != taskID {
+		return nil, nil
+	}
+	item := *r.reminder
+	return &item, nil
+}
+
+func (r *fakeReminderRepository) UpsertTaskReminder(_ context.Context, reminder TaskReminder) (TaskReminder, error) {
+	r.savedReminder = reminder
+	reminder.ID = 8
+	return reminder, r.err
+}
+
+func (r *fakeReminderRepository) DeleteTaskReminder(_ context.Context, _, _ int64) error {
+	r.deletedReminder = true
+	return r.err
+}
+
+func (r *fakeReminderRepository) DispatchDueTaskReminders(_ context.Context, now time.Time, limit int) (int, error) {
+	r.dispatchAt, r.dispatchLimit = now, limit
+	return r.dispatchCount, r.err
+}
+
+func TestServiceUpsertsFutureTaskReminder(t *testing.T) {
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	remindAt := now.Add(2 * time.Hour)
+	repository := &fakeReminderRepository{fakeRepository: &fakeRepository{task: Task{ID: 99, UserID: 42}}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	reminder, err := service.UpsertTaskReminder(context.Background(), UpsertTaskReminderInput{UserID: 42, TaskID: 99, RemindAt: remindAt})
+
+	if err != nil {
+		t.Fatalf("UpsertTaskReminder() error = %v", err)
+	}
+	if reminder.ID != 8 || repository.savedReminder.UserID != 42 || repository.savedReminder.TaskID != 99 || !repository.savedReminder.RemindAt.Equal(remindAt) || !repository.savedReminder.CreatedAt.Equal(now) {
+		t.Fatalf("reminder/saved = %+v/%+v", reminder, repository.savedReminder)
+	}
+}
+
+func TestServiceRejectsPastTaskReminder(t *testing.T) {
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	repository := &fakeReminderRepository{fakeRepository: &fakeRepository{task: Task{ID: 99, UserID: 42}}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	_, err := service.UpsertTaskReminder(context.Background(), UpsertTaskReminderInput{UserID: 42, TaskID: 99, RemindAt: now})
+
+	if !errors.Is(err, ErrInvalidReminderTime) || repository.savedReminder.ID != 0 {
+		t.Fatalf("err/saved = %v/%+v, want ErrInvalidReminderTime and no save", err, repository.savedReminder)
+	}
+}
+
+func TestServiceGetsEmptyReminderForOwnedTask(t *testing.T) {
+	repository := &fakeReminderRepository{fakeRepository: &fakeRepository{task: Task{ID: 99, UserID: 42}}}
+	service := NewService(repository)
+
+	reminder, err := service.GetTaskReminder(context.Background(), 42, 99)
+
+	if err != nil || reminder != nil {
+		t.Fatalf("reminder/error = %+v/%v", reminder, err)
+	}
+}
+
+func TestServiceDeletesOwnedTaskReminder(t *testing.T) {
+	repository := &fakeReminderRepository{fakeRepository: &fakeRepository{task: Task{ID: 99, UserID: 42}}}
+	service := NewService(repository)
+
+	err := service.DeleteTaskReminder(context.Background(), 42, 99)
+
+	if err != nil || !repository.deletedReminder {
+		t.Fatalf("deleted/error = %t/%v", repository.deletedReminder, err)
+	}
+}
+
+func TestServiceDispatchesDueTaskRemindersAtCurrentTime(t *testing.T) {
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	repository := &fakeReminderRepository{fakeRepository: &fakeRepository{}, dispatchCount: 2}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	count, err := service.DispatchDueTaskReminders(context.Background(), 0)
+
+	if err != nil || count != 2 || !repository.dispatchAt.Equal(now) || repository.dispatchLimit != 100 {
+		t.Fatalf("count/at/limit/error = %d/%v/%d/%v", count, repository.dispatchAt, repository.dispatchLimit, err)
+	}
+}

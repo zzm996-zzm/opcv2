@@ -499,3 +499,103 @@ func TestPostgresRepositoryReturnsNotFoundForOtherUsersSubtask(t *testing.T) {
 		t.Fatalf("err = %v, want ErrSubtaskNotFound", err)
 	}
 }
+
+func TestPostgresRepositoryGetsTaskReminder(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	remindAt := now.Add(2 * time.Hour)
+	db.ExpectQuery("SELECT id, task_id, user_id, remind_at, sent_at, created_at, updated_at").
+		WithArgs(int64(42), int64(99)).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "sent_at", "created_at", "updated_at"}).
+			AddRow(int64(8), int64(99), int64(42), remindAt, nil, now, now))
+
+	repository := NewPostgresRepository(db)
+	reminder, err := repository.GetTaskReminder(context.Background(), 42, 99)
+
+	if err != nil || reminder == nil || reminder.ID != 8 || !reminder.RemindAt.Equal(remindAt) {
+		t.Fatalf("reminder/error = %+v/%v", reminder, err)
+	}
+}
+
+func TestPostgresRepositoryReturnsNilWhenTaskReminderIsMissing(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery("SELECT id, task_id, user_id, remind_at, sent_at, created_at, updated_at").
+		WithArgs(int64(42), int64(99)).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "sent_at", "created_at", "updated_at"}))
+
+	repository := NewPostgresRepository(db)
+	reminder, err := repository.GetTaskReminder(context.Background(), 42, 99)
+
+	if err != nil || reminder != nil {
+		t.Fatalf("reminder/error = %+v/%v", reminder, err)
+	}
+}
+
+func TestPostgresRepositoryUpsertsReminderOnlyForOwnedTask(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	remindAt := now.Add(2 * time.Hour)
+	db.ExpectQuery("INSERT INTO task_reminders").
+		WithArgs(int64(99), int64(42), remindAt, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "sent_at", "created_at", "updated_at"}).
+			AddRow(int64(8), int64(99), int64(42), remindAt, nil, now, now))
+
+	repository := NewPostgresRepository(db)
+	reminder, err := repository.UpsertTaskReminder(context.Background(), TaskReminder{TaskID: 99, UserID: 42, RemindAt: remindAt, CreatedAt: now})
+
+	if err != nil || reminder.ID != 8 {
+		t.Fatalf("reminder/error = %+v/%v", reminder, err)
+	}
+}
+
+func TestPostgresRepositoryDeletesOwnedTaskReminder(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec("DELETE FROM task_reminders").
+		WithArgs(int64(42), int64(99)).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+	repository := NewPostgresRepository(db)
+	if err := repository.DeleteTaskReminder(context.Background(), 42, 99); err != nil {
+		t.Fatalf("DeleteTaskReminder() error = %v", err)
+	}
+}
+
+func TestPostgresRepositoryDispatchesDueTaskReminders(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery("(?s)WITH due AS.*status <> 'completed'.*notifications_enabled").
+		WithArgs(now, 100).
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
+
+	repository := NewPostgresRepository(db)
+	count, err := repository.DispatchDueTaskReminders(context.Background(), now, 100)
+
+	if err != nil || count != 2 {
+		t.Fatalf("count/error = %d/%v", count, err)
+	}
+}

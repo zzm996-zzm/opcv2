@@ -355,7 +355,7 @@ Errors:
 - `400 invalid_task_id`
 - `404 task_not_found`
 
-Deleting a task also deletes all of its subtasks.
+Deleting a task also deletes all of its subtasks and its reminder.
 
 ### List Subtasks
 
@@ -451,6 +451,88 @@ Errors:
 - `400 invalid_task_id`
 - `400 invalid_subtask_id`
 - `404 subtask_not_found`
+
+### Get Task Reminder
+
+`GET /api/v1/tasks/{id}/reminder`
+
+Response `200` when no reminder is configured:
+
+```json
+{
+  "reminder": null
+}
+```
+
+Response `200` when a reminder exists:
+
+```json
+{
+  "reminder": {
+    "id": 8,
+    "task_id": 99,
+    "user_id": 42,
+    "remind_at": "2026-07-18T10:00:00Z",
+    "created_at": "2026-07-10T10:00:00Z",
+    "updated_at": "2026-07-10T10:00:00Z"
+  }
+}
+```
+
+`sent_at` is included after the reminder has been processed.
+
+Errors:
+
+- `400 invalid_task_id`
+- `404 task_not_found`
+
+### Set Task Reminder
+
+`PUT /api/v1/tasks/{id}/reminder`
+
+Request:
+
+```json
+{
+  "remind_at": "2026-07-18T10:00:00Z"
+}
+```
+
+`remind_at` must be a valid RFC 3339 timestamp later than the current server
+time. Each task has one current one-time reminder. Repeating this request
+updates the time and resets `sent_at` so the reminder can trigger again.
+
+Response `200`: `TaskReminder`
+
+Errors:
+
+- `400 invalid_task_id`
+- `400 invalid_request`
+- `400 invalid_remind_at`
+- `404 task_not_found`
+
+### Delete Task Reminder
+
+`DELETE /api/v1/tasks/{id}/reminder`
+
+Response `204`: empty body.
+
+Errors:
+
+- `400 invalid_task_id`
+- `404 task_not_found`
+- `404 reminder_not_found`
+
+### Reminder Delivery
+
+The Worker checks due reminders once per minute and atomically marks them sent
+while inserting `task` notifications. Concurrent workers use row locks with
+`SKIP LOCKED`, so one reminder is delivered at most once. Completed tasks and
+users with site notifications disabled do not receive a notification. The
+notification links back to the task center.
+
+This slice supports one-time site notifications. Recurring reminders and
+external channels remain separate paid-feature work.
 
 ## Dashboard
 

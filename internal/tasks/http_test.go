@@ -12,24 +12,27 @@ import (
 )
 
 type fakeApplication struct {
-	input          CreateInput
-	userID         int64
-	taskID         int64
-	deleted        bool
-	filters        ListFilters
-	update         TaskUpdate
-	task           Task
-	tasks          []Task
-	total          int
-	projects       []string
-	tags           []string
-	stats          Stats
-	err            error
-	subtasks       []Subtask
-	subtaskInput   CreateSubtaskInput
-	subtaskID      int64
-	subtaskUpdate  SubtaskUpdate
-	subtaskDeleted bool
+	input           CreateInput
+	userID          int64
+	taskID          int64
+	deleted         bool
+	filters         ListFilters
+	update          TaskUpdate
+	task            Task
+	tasks           []Task
+	total           int
+	projects        []string
+	tags            []string
+	stats           Stats
+	err             error
+	subtasks        []Subtask
+	subtaskInput    CreateSubtaskInput
+	subtaskID       int64
+	subtaskUpdate   SubtaskUpdate
+	subtaskDeleted  bool
+	reminder        *TaskReminder
+	reminderInput   UpsertTaskReminderInput
+	reminderDeleted bool
 }
 
 func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task, error) {
@@ -92,6 +95,21 @@ func (a *fakeApplication) UpdateSubtask(_ context.Context, userID, taskID, id in
 }
 func (a *fakeApplication) DeleteSubtask(_ context.Context, userID, taskID, id int64) error {
 	a.userID, a.taskID, a.subtaskID, a.subtaskDeleted = userID, taskID, id, true
+	return a.err
+}
+
+func (a *fakeApplication) GetTaskReminder(_ context.Context, userID, taskID int64) (*TaskReminder, error) {
+	a.userID, a.taskID = userID, taskID
+	return a.reminder, a.err
+}
+
+func (a *fakeApplication) UpsertTaskReminder(_ context.Context, input UpsertTaskReminderInput) (TaskReminder, error) {
+	a.reminderInput = input
+	return TaskReminder{ID: 8, UserID: input.UserID, TaskID: input.TaskID, RemindAt: input.RemindAt}, a.err
+}
+
+func (a *fakeApplication) DeleteTaskReminder(_ context.Context, userID, taskID int64) error {
+	a.userID, a.taskID, a.reminderDeleted = userID, taskID, true
 	return a.err
 }
 
@@ -460,6 +478,60 @@ func TestDeleteSubtaskEndpointUsesSubtaskPathID(t *testing.T) {
 
 	if recorder.Code != http.StatusNoContent || !app.subtaskDeleted || app.userID != 42 || app.taskID != 99 || app.subtaskID != 7 {
 		t.Fatalf("status/deleted/user/task/subtask = %d/%t/%d/%d/%d body=%s", recorder.Code, app.subtaskDeleted, app.userID, app.taskID, app.subtaskID, recorder.Body.String())
+	}
+}
+
+func TestGetTaskReminderEndpointReturnsNullableReminder(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/99/reminder", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.userID != 42 || app.taskID != 99 || !strings.Contains(recorder.Body.String(), `"reminder":null`) {
+		t.Fatalf("status/user/task/body = %d/%d/%d/%s", recorder.Code, app.userID, app.taskID, recorder.Body.String())
+	}
+}
+
+func TestUpsertTaskReminderEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/tasks/99/reminder", strings.NewReader(`{"remind_at":"2026-07-18T10:00:00Z"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.reminderInput.UserID != 42 || app.reminderInput.TaskID != 99 || app.reminderInput.RemindAt.IsZero() {
+		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.reminderInput, recorder.Body.String())
+	}
+}
+
+func TestUpsertTaskReminderEndpointRejectsMissingTime(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/tasks/99/reminder", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || app.reminderInput.UserID != 0 {
+		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.reminderInput, recorder.Body.String())
+	}
+}
+
+func TestDeleteTaskReminderEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/99/reminder", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent || !app.reminderDeleted || app.userID != 42 || app.taskID != 99 {
+		t.Fatalf("status/deleted/user/task/body = %d/%t/%d/%d/%s", recorder.Code, app.reminderDeleted, app.userID, app.taskID, recorder.Body.String())
 	}
 }
 

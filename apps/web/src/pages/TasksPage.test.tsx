@@ -563,6 +563,9 @@ describe("TasksPage", () => {
 	  if (url === "/api/v1/tasks/95/subtasks" && init?.method === "GET") {
 		return Promise.resolve(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }));
 	  }
+	  if (url === "/api/v1/tasks/95/reminder" && init?.method === "GET") {
+		return Promise.resolve(new Response(JSON.stringify({ reminder: null }), { status: 200 }));
+	  }
       if (url === "/api/v1/tasks/95" && init?.method === "PATCH") {
         return Promise.resolve(new Response(JSON.stringify({
           ...task,
@@ -656,6 +659,9 @@ describe("TasksPage", () => {
 	  if (url === "/api/v1/tasks/97/subtasks" && init?.method === "GET") {
 		return Promise.resolve(new Response(JSON.stringify({ subtasks: [initialSubtask] }), { status: 200 }));
 	  }
+	  if (url === "/api/v1/tasks/97/reminder" && init?.method === "GET") {
+		return Promise.resolve(new Response(JSON.stringify({ reminder: null }), { status: 200 }));
+	  }
 	  if (url === "/api/v1/tasks/97/subtasks" && init?.method === "POST") {
 		return Promise.resolve(new Response(JSON.stringify({ ...initialSubtask, id: 8, title: "整理访谈提纲", assignee: "" }), { status: 200 }));
 	  }
@@ -687,6 +693,74 @@ describe("TasksPage", () => {
 	await waitFor(() => expect(within(dialog).queryByText("整理访谈提纲")).not.toBeInTheDocument());
 	expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/97/subtasks/7", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ completed: true }) }));
 	expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/97/subtasks/8", expect.objectContaining({ method: "DELETE" }));
+  });
+
+  it("sets and cancels a one-time task reminder", async () => {
+    const task = {
+      id: 98,
+      user_id: 7,
+      title: "提交客户访谈报告",
+      project: "客户验证",
+      status: "todo",
+      priority: "high",
+      tools: ["CRM"],
+      learning: "访谈复盘",
+      created_at: "2026-07-10T08:00:00Z",
+      updated_at: "2026-07-10T08:00:00Z"
+    };
+    const remindAt = new Date("2026-07-18T18:00").toISOString();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [task], total: 1, limit: 20, offset: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 1, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/98" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify(task), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/98/subtasks" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/98/reminder" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({ reminder: null }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/98/reminder" && init?.method === "PUT") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 8,
+          task_id: 98,
+          user_id: 7,
+          remind_at: remindAt,
+          created_at: "2026-07-10T10:00:00Z",
+          updated_at: "2026-07-10T10:00:00Z"
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/98/reminder" && init?.method === "DELETE") {
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    const taskHeading = await screen.findByRole("heading", { name: "提交客户访谈报告" });
+    fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "查看任务详情" }));
+    const dialog = await screen.findByRole("dialog", { name: "任务详情" });
+    expect(await within(dialog).findByText("暂无提醒")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText("提醒时间"), { target: { value: "2026-07-18T18:00" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存提醒" }));
+
+    expect(await within(dialog).findByText("已设置站内提醒")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/98/reminder", expect.objectContaining({
+      method: "PUT",
+      body: JSON.stringify({ remind_at: remindAt })
+    }));
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "取消提醒" }));
+    await waitFor(() => expect(within(dialog).getByText("暂无提醒")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/98/reminder", expect.objectContaining({ method: "DELETE" }));
   });
 
   it("deletes a task after a second confirmation", async () => {
@@ -723,6 +797,9 @@ describe("TasksPage", () => {
       }
 	  if (url === "/api/v1/tasks/96/subtasks" && init?.method === "GET") {
 		return Promise.resolve(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }));
+	  }
+	  if (url === "/api/v1/tasks/96/reminder" && init?.method === "GET") {
+		return Promise.resolve(new Response(JSON.stringify({ reminder: null }), { status: 200 }));
 	  }
       if (url === "/api/v1/tasks/96" && init?.method === "DELETE") {
         deleted = true;

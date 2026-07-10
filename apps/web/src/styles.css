@@ -25143,6 +25143,98 @@ a {
   box-shadow: 0 0 0 3px rgba(21, 87, 255, 0.1);
 }
 
+.task-reminder-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(31, 68, 140, 0.1);
+}
+
+.task-reminder-section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.task-reminder-section h3 {
+  margin: 0;
+  color: #071637;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.task-reminder-section header > span {
+  padding: 5px 9px;
+  color: #1557ff;
+  background: #edf4ff;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.task-reminder-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.task-reminder-controls label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: #435b93;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.task-reminder-controls input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  color: #10265f;
+  background: #fbfcff;
+  border: 1px solid rgba(31, 68, 140, 0.16);
+  border-radius: 8px;
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.task-reminder-controls input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(21, 87, 255, 0.1);
+}
+
+.task-reminder-controls button {
+  min-height: 40px;
+  padding: 0 14px;
+  color: #fff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-reminder-controls button.cancel {
+  color: #b03830;
+  background: #fff;
+  border-color: rgba(217, 54, 43, 0.2);
+}
+
+.task-reminder-message {
+  margin: 0;
+  color: #167345;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .task-subtask-section {
   display: grid;
   gap: 12px;
@@ -29657,6 +29749,14 @@ a {
   .task-subtask-section > header {
     flex-direction: column;
     gap: 6px;
+  }
+
+  .task-reminder-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .task-reminder-controls button {
+    width: 100%;
   }
 
   .task-subtask-create {

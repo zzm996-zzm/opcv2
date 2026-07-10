@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { tasksApi, type Task, type TaskPriority, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
+import { tasksApi, type Task, type TaskPriority, type TaskReminder, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
 
 type TaskRow = {
   id?: number;
@@ -224,6 +224,12 @@ function TasksPage() {
   const [subtaskBusyID, setSubtaskBusyID] = useState<number | null>(null);
   const [subtaskTitle, setSubtaskTitle] = useState("");
   const [subtaskError, setSubtaskError] = useState("");
+  const [taskReminder, setTaskReminder] = useState<TaskReminder | null>(null);
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderSaving, setReminderSaving] = useState(false);
+  const [reminderTime, setReminderTime] = useState("");
+  const [reminderError, setReminderError] = useState("");
+  const [reminderMessage, setReminderMessage] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -427,9 +433,15 @@ function TasksPage() {
     setSubtasksLoading(true);
     setSubtaskTitle("");
     setSubtaskError("");
-    const [taskResult, subtasksResult] = await Promise.allSettled([
+    setTaskReminder(null);
+    setReminderLoading(true);
+    setReminderTime("");
+    setReminderError("");
+    setReminderMessage("");
+    const [taskResult, subtasksResult, reminderResult] = await Promise.allSettled([
       tasksApi.getTask(taskID),
-      tasksApi.listSubtasks(taskID)
+      tasksApi.listSubtasks(taskID),
+      tasksApi.getReminder(taskID)
     ]);
     if (taskResult.status === "fulfilled") {
       setDetailTask(taskResult.value);
@@ -442,12 +454,19 @@ function TasksPage() {
     } else {
       setSubtaskError(apiErrorMessage(subtasksResult.reason, "暂时无法读取子任务"));
     }
+    if (reminderResult.status === "fulfilled") {
+      setTaskReminder(reminderResult.value.reminder);
+      setReminderTime(toDateTimeLocal(reminderResult.value.reminder?.remind_at));
+    } else {
+      setReminderError(apiErrorMessage(reminderResult.reason, "暂时无法读取提醒设置"));
+    }
     setDetailLoading(false);
     setSubtasksLoading(false);
+    setReminderLoading(false);
   }
 
   function closeTaskDetail() {
-    if (detailSaving || detailDeleting) return;
+    if (detailSaving || detailDeleting || reminderSaving) return;
     setDetailTaskID(null);
     setDetailTask(null);
     setDetailForm(null);
@@ -456,6 +475,10 @@ function TasksPage() {
     setSubtasks([]);
     setSubtaskTitle("");
     setSubtaskError("");
+    setTaskReminder(null);
+    setReminderTime("");
+    setReminderError("");
+    setReminderMessage("");
   }
 
   function updateDetailField<Key extends keyof TaskEditForm>(key: Key, value: TaskEditForm[Key]) {
@@ -507,6 +530,44 @@ function TasksPage() {
       setSubtaskError(apiErrorMessage(error, "暂时无法删除子任务"));
     } finally {
       setSubtaskBusyID(null);
+    }
+  }
+
+  async function saveTaskReminder() {
+    if (!detailTaskID || reminderSaving) return;
+    const remindAt = new Date(reminderTime);
+    if (!reminderTime || Number.isNaN(remindAt.getTime()) || remindAt.getTime() <= Date.now()) {
+      setReminderError("请选择未来的提醒时间");
+      return;
+    }
+    setReminderSaving(true);
+    setReminderError("");
+    setReminderMessage("");
+    try {
+      const reminder = await tasksApi.upsertReminder(detailTaskID, remindAt.toISOString());
+      setTaskReminder(reminder);
+      setReminderTime(toDateTimeLocal(reminder.remind_at));
+      setReminderMessage("已设置站内提醒");
+    } catch (error) {
+      setReminderError(apiErrorMessage(error, "暂时无法保存提醒"));
+    } finally {
+      setReminderSaving(false);
+    }
+  }
+
+  async function cancelTaskReminder() {
+    if (!detailTaskID || !taskReminder || reminderSaving) return;
+    setReminderSaving(true);
+    setReminderError("");
+    setReminderMessage("");
+    try {
+      await tasksApi.deleteReminder(detailTaskID);
+      setTaskReminder(null);
+      setReminderTime("");
+    } catch (error) {
+      setReminderError(apiErrorMessage(error, "暂时无法取消提醒"));
+    } finally {
+      setReminderSaving(false);
     }
   }
 
@@ -933,6 +994,35 @@ function TasksPage() {
                       <textarea onChange={(event) => updateDetailField("learning", event.target.value)} value={detailForm.learning} />
                     </label>
                   </div>
+                  <section aria-label="提醒设置" className="task-reminder-section">
+                    <header>
+                      <h3>提醒设置</h3>
+                      <span>{reminderLoading ? "读取中" : taskReminder?.sent_at ? "已触发" : taskReminder ? "待触发" : "暂无提醒"}</span>
+                    </header>
+                    <div className="task-reminder-controls">
+                      <label>
+                        <span>提醒时间</span>
+                        <input
+                          aria-label="提醒时间"
+                          disabled={reminderLoading || reminderSaving}
+                          onChange={(event) => {
+                            setReminderTime(event.target.value);
+                            setReminderMessage("");
+                          }}
+                          type="datetime-local"
+                          value={reminderTime}
+                        />
+                      </label>
+                      <button disabled={reminderLoading || reminderSaving || !reminderTime} onClick={() => void saveTaskReminder()} type="button">
+                        {reminderSaving ? "处理中..." : "保存提醒"}
+                      </button>
+                      {taskReminder ? (
+                        <button className="cancel" disabled={reminderSaving} onClick={() => void cancelTaskReminder()} type="button">取消提醒</button>
+                      ) : null}
+                    </div>
+                    {reminderMessage ? <p className="task-reminder-message" role="status">{reminderMessage}</p> : null}
+                    {reminderError ? <p className="form-error" role="alert">{reminderError}</p> : null}
+                  </section>
                   <section aria-label="子任务" className="task-subtask-section">
                     <header>
                       <div>
