@@ -9615,7 +9615,7 @@ a {
 
 .task-table article {
   display: grid;
-  grid-template-columns: 12px minmax(220px, 1fr) 46px 72px;
+  grid-template-columns: 12px minmax(220px, 1fr) 46px 72px auto;
   align-items: center;
   gap: 12px;
   min-height: 76px;
@@ -9679,6 +9679,24 @@ a {
   color: var(--blue);
   font-size: 12px;
   font-weight: 820;
+}
+
+.task-table article > button {
+  justify-self: end;
+  min-height: 32px;
+  padding: 0 11px;
+  color: var(--blue);
+  background: white;
+  border: 1px solid rgba(21, 87, 255, 0.16);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-table article > button:disabled {
+  color: #9aa7c0;
+  cursor: not-allowed;
 }
 
 .task-board-panel > div {
@@ -28768,6 +28786,10 @@ a {
 
   .task-table a {
     grid-column: 1;
+  }
+
+  .task-table article > button {
+    justify-self: start;
   }
 
   .module-section-head,

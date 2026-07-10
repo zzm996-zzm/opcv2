@@ -160,6 +160,7 @@ describe("TasksPage", () => {
   });
 
   it("updates task status from the task row action", async () => {
+    let completed = false;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/tasks?limit=20") {
@@ -180,9 +181,17 @@ describe("TasksPage", () => {
         }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/stats") {
-        return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 0, in_progress: 1, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 1,
+          todo: 0,
+          in_progress: completed ? 0 : 1,
+          completed: completed ? 1 : 0,
+          reminder: 0,
+          overdue: 0
+        }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/41" && init?.method === "PATCH") {
+        completed = true;
         return Promise.resolve(new Response(JSON.stringify({
           id: 41,
           user_id: 7,
@@ -212,10 +221,74 @@ describe("TasksPage", () => {
         expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "completed" }) })
       );
     });
-    expect(within(taskRow).getByRole("button", { name: "已完成" })).toBeDisabled();
+    expect(within(taskRow).getByRole("button", { name: "重新打开" })).toBeEnabled();
     const completedStat = screen.getAllByText("已完成").find((node) => node.tagName.toLowerCase() === "small")?.closest("article");
     expect(completedStat).not.toBeNull();
     expect(within(completedStat as HTMLElement).getByText("1")).toBeInTheDocument();
+  });
+
+  it("starts todo tasks and removes transitioned tasks from active filters", async () => {
+    let status = "todo";
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks?status=todo&limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [{
+            id: 51,
+            user_id: 7,
+            title: "准备首轮客户访谈",
+            project: "客户验证",
+            status: "todo",
+            priority: "high",
+            tools: ["CRM"],
+            learning: "客户访谈",
+            created_at: "2026-07-09T09:00:00Z",
+            updated_at: "2026-07-09T09:00:00Z"
+          }]
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 1,
+          todo: status === "todo" ? 1 : 0,
+          in_progress: status === "in_progress" ? 1 : 0,
+          completed: 0,
+          reminder: 0,
+          overdue: 0
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/51" && init?.method === "PATCH") {
+        status = "in_progress";
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 51,
+          user_id: 7,
+          title: "准备首轮客户访谈",
+          project: "客户验证",
+          status,
+          priority: "high",
+          tools: ["CRM"],
+          learning: "客户访谈",
+          created_at: "2026-07-09T09:00:00Z",
+          updated_at: "2026-07-09T10:00:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+    fireEvent.click(await screen.findByRole("button", { name: "筛选待开始" }));
+    const taskHeading = await screen.findByRole("heading", { name: "准备首轮客户访谈" });
+    fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "开始任务" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/51",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "in_progress" }) })
+    ));
+    expect(await screen.findByText("暂无任务数据")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "准备首轮客户访谈" })).not.toBeInTheDocument();
   });
 
   it("shows task update errors from the row action", async () => {

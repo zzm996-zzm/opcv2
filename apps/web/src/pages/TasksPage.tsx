@@ -102,6 +102,17 @@ function statsFromApi(stats: TaskStats) {
   ] as const;
 }
 
+function taskStatusAction(status: TaskStatus) {
+  switch (status) {
+    case "todo":
+      return { label: "开始任务", nextStatus: "in_progress" as TaskStatus };
+    case "completed":
+      return { label: "重新打开", nextStatus: "todo" as TaskStatus };
+    default:
+      return { label: "标记完成", nextStatus: "completed" as TaskStatus };
+  }
+}
+
 function TasksPage() {
   const taskGoalRef = useRef<HTMLTextAreaElement | null>(null);
   const [apiTasks, setApiTasks] = useState<Task[]>([]);
@@ -155,12 +166,24 @@ function TasksPage() {
     apiTasks.filter((task) => task.status === column.status).map((task) => task.title)
   ] as const);
 
-  async function completeTask(taskID: number) {
+  async function refreshTaskStats() {
+    try {
+      setApiStats(await tasksApi.stats());
+    } catch {
+      // Keep the last known aggregate stats when refresh is temporarily unavailable.
+    }
+  }
+
+  async function updateTaskStatus(taskID: number, currentStatus: TaskStatus) {
+    const action = taskStatusAction(currentStatus);
     setSavingTaskID(taskID);
     try {
-      const updated = await tasksApi.updateTask(taskID, { status: "completed" });
-      setApiTasks((current) => current.map((task) => task.id === taskID ? updated : task));
-      setApiStats(null);
+      const updated = await tasksApi.updateTask(taskID, { status: action.nextStatus });
+      setApiTasks((current) => selectedStatus && updated.status !== selectedStatus
+        ? current.filter((task) => task.id !== taskID)
+        : current.map((task) => task.id === taskID ? updated : task));
+      await refreshTaskStats();
+      setListError("");
     } catch (error) {
       setListError(apiErrorMessage(error, "暂时无法更新任务状态"));
     } finally {
@@ -187,7 +210,7 @@ function TasksPage() {
         learning: title
       });
       setApiTasks((current) => selectedStatus && task.status !== selectedStatus ? current : [task, ...current]);
-      setApiStats(null);
+      await refreshTaskStats();
       setTaskGoal("");
       setListError("");
       setCreateMessage(`已生成任务：${task.title}`);
@@ -280,7 +303,7 @@ function TasksPage() {
               {visibleTasks.length === 0 ? (
                 <div className="module-empty-state" role="status">暂无任务数据</div>
               ) : visibleTasks.map((task) => (
-                <article key={task.title}>
+                <article key={task.id ?? task.title}>
                   <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
                   <div>
                     <h3>{task.title}</h3>
@@ -288,17 +311,17 @@ function TasksPage() {
                   </div>
                   <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>
                   <span className="task-state">{task.status}</span>
-                  <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
-                  <Link to="/learning">补课：{task.learning}</Link>
-                  {task.id ? (
+                  {task.id && task.statusCode ? (
                     <button
-                      disabled={task.statusCode === "completed" || savingTaskID === task.id}
-                      onClick={() => void completeTask(task.id as number)}
+                      disabled={savingTaskID === task.id}
+                      onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus)}
                       type="button"
                     >
-                      {task.statusCode === "completed" ? "已完成" : savingTaskID === task.id ? "更新中..." : "标记完成"}
+                      {savingTaskID === task.id ? "更新中..." : taskStatusAction(task.statusCode).label}
                     </button>
                   ) : null}
+                  <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
+                  <Link to="/learning">补课：{task.learning}</Link>
                 </article>
               ))}
             </div>
