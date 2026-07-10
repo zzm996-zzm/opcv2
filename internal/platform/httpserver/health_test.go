@@ -420,6 +420,9 @@ func (fakeTasksApp) ListTaskPage(context.Context, int64, tasks.ListFilters) (tas
 func (fakeTasksApp) ListTaskProjects(context.Context, int64) ([]string, error) {
 	return []string{"任务中心"}, nil
 }
+func (fakeTasksApp) ListTaskTags(context.Context, int64) ([]string, error) {
+	return []string{"用户研究"}, nil
+}
 func (fakeTasksApp) TaskStats(context.Context, int64) (tasks.Stats, error) {
 	return tasks.Stats{Total: 1, Todo: 1}, nil
 }

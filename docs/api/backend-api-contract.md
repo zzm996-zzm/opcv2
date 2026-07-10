@@ -217,6 +217,7 @@ Request:
   "assignee": "李明",
   "project": "AI线索开发",
   "priority": "high",
+  "tags": ["用户研究", "访谈"],
   "due_at": "2026-06-30T12:00:00Z",
   "tools": ["CRM"],
   "learning": "线索评分"
@@ -228,6 +229,7 @@ Validation:
 - `title` and `project` must be non-empty after trimming.
 - `title` and `assignee` support at most 100 characters; `description` supports at most 1000 characters.
 - `assignee` is an optional display-name snapshot for the responsible person or external collaborator.
+- `tags` supports at most 10 entries and each tag supports at most 30 characters.
 - `priority` must be one of the task priority enum values.
 - Client-supplied `user_id` is ignored.
 
@@ -235,14 +237,15 @@ Response `200`: `Task`
 
 ### List Tasks
 
-`GET /api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&q=接口&limit=20&offset=0`
+`GET /api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&tag=用户研究&q=接口&limit=20&offset=0`
 
 Query:
 
 - `status` optional task status enum.
 - `project` optional exact project name.
 - `priority` optional task priority enum.
-- `q` optional keyword matched against title, description, assignee, project and learning fields.
+- `tag` optional exact tag match.
+- `q` optional keyword matched against title, description, assignee, tags, project and learning fields.
 - `limit` optional, capped at 100.
 - `offset` optional, defaults to 0.
 
@@ -266,6 +269,18 @@ Response `200`:
 ```json
 {
   "projects": ["AI线索开发", "商业沙盘"]
+}
+```
+
+### Task Tag Options
+
+`GET /api/v1/tasks/tags`
+
+Response `200`:
+
+```json
+{
+  "tags": ["用户研究", "访谈"]
 }
 ```
 
@@ -311,6 +326,7 @@ Request fields are optional:
   "project": "AI线索开发",
   "status": "completed",
   "priority": "high",
+  "tags": ["用户研究", "已完成"],
   "due_at": "2026-06-30T12:00:00Z",
   "clear_due_at": false,
   "tools": ["CRM"],
@@ -322,6 +338,7 @@ Validation:
 
 - If present, `title` and `project` must be non-empty after trimming.
 - If present, `title` and `assignee` support at most 100 characters; `description` supports at most 1000 characters.
+- If present, `tags` supports at most 10 entries and each tag supports at most 30 characters.
 - If present, `status` and `priority` must match their enum values.
 - Set `clear_due_at` to `true` to remove the current due date. It cannot be combined with `due_at`.
 

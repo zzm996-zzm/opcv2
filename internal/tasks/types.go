@@ -28,6 +28,7 @@ type CreateInput struct {
 	Assignee    string     `json:"assignee"`
 	Project     string     `json:"project"`
 	Priority    string     `json:"priority"`
+	Tags        []string   `json:"tags"`
 	DueAt       *time.Time `json:"due_at,omitempty"`
 	Tools       []string   `json:"tools"`
 	Learning    string     `json:"learning"`
@@ -40,6 +41,7 @@ type TaskUpdate struct {
 	Project     *string    `json:"project,omitempty"`
 	Status      *string    `json:"status,omitempty"`
 	Priority    *string    `json:"priority,omitempty"`
+	Tags        *[]string  `json:"tags,omitempty"`
 	DueAt       *time.Time `json:"due_at,omitempty"`
 	ClearDueAt  bool       `json:"clear_due_at,omitempty"`
 	Tools       *[]string  `json:"tools,omitempty"`
@@ -50,6 +52,7 @@ type ListFilters struct {
 	Status   string
 	Project  string
 	Priority string
+	Tag      string
 	Query    string
 	Limit    int
 	Offset   int
@@ -80,6 +83,7 @@ type Task struct {
 	Project     string     `json:"project"`
 	Status      string     `json:"status"`
 	Priority    string     `json:"priority"`
+	Tags        []string   `json:"tags"`
 	DueAt       *time.Time `json:"due_at,omitempty"`
 	Tools       []string   `json:"tools"`
 	Learning    string     `json:"learning"`

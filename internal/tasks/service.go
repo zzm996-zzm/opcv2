@@ -11,6 +11,7 @@ type Repository interface {
 	ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error)
 	CountTasks(ctx context.Context, userID int64, filters ListFilters) (int, error)
 	ListTaskProjects(ctx context.Context, userID int64) ([]string, error)
+	ListTaskTags(ctx context.Context, userID int64) ([]string, error)
 	TaskStats(ctx context.Context, userID int64, now time.Time) (Stats, error)
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
@@ -38,6 +39,7 @@ func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, erro
 		Project:     strings.TrimSpace(input.Project),
 		Status:      StatusTodo,
 		Priority:    normalizePriority(input.Priority),
+		Tags:        normalizeUniqueStrings(input.Tags),
 		DueAt:       input.DueAt,
 		Tools:       normalizeStrings(input.Tools),
 		Learning:    strings.TrimSpace(input.Learning),
@@ -73,6 +75,7 @@ func normalizeListFilters(filters ListFilters) ListFilters {
 	filters.Status = strings.TrimSpace(filters.Status)
 	filters.Project = strings.TrimSpace(filters.Project)
 	filters.Priority = strings.TrimSpace(filters.Priority)
+	filters.Tag = strings.TrimSpace(filters.Tag)
 	filters.Query = strings.TrimSpace(filters.Query)
 	if filters.Status != "" {
 		filters.Status = normalizeStatus(filters.Status)
@@ -97,6 +100,13 @@ func (s *Service) ListTaskProjects(ctx context.Context, userID int64) ([]string,
 		return nil, ErrServiceNotReady
 	}
 	return s.repository.ListTaskProjects(ctx, userID)
+}
+
+func (s *Service) ListTaskTags(ctx context.Context, userID int64) ([]string, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	return s.repository.ListTaskTags(ctx, userID)
 }
 
 func (s *Service) TaskStats(ctx context.Context, userID int64) (Stats, error) {
@@ -145,6 +155,10 @@ func (s *Service) UpdateTask(ctx context.Context, userID, id int64, update TaskU
 		tools := normalizeStrings(*update.Tools)
 		update.Tools = &tools
 	}
+	if update.Tags != nil {
+		tags := normalizeUniqueStrings(*update.Tags)
+		update.Tags = &tags
+	}
 	if update.Learning != nil {
 		learning := strings.TrimSpace(*update.Learning)
 		update.Learning = &learning
@@ -184,6 +198,23 @@ func normalizeStrings(values []string) []string {
 		if value != "" {
 			normalized = append(normalized, value)
 		}
+	}
+	return normalized
+}
+
+func normalizeUniqueStrings(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		normalized = append(normalized, value)
 	}
 	return normalized
 }

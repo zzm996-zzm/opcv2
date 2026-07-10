@@ -12,6 +12,7 @@ export type Task = {
   project: string;
   status: TaskStatus;
   priority: TaskPriority;
+  tags?: string[];
   due_at?: string;
   tools: string[];
   learning: string;
@@ -23,6 +24,7 @@ export type TaskFilters = {
   status?: TaskStatus;
   project?: string;
   priority?: TaskPriority;
+  tag?: string;
   q?: string;
   limit?: number;
   offset?: number;
@@ -50,6 +52,7 @@ export type CreateTaskInput = {
   assignee?: string;
   project: string;
   priority: TaskPriority;
+  tags?: string[];
   dueAt?: string;
   tools: string[];
   learning: string;
@@ -62,6 +65,7 @@ export type UpdateTaskInput = Partial<{
   project: string;
   status: TaskStatus;
   priority: TaskPriority;
+  tags: string[];
   dueAt: string;
   clearDueAt: boolean;
   tools: string[];
@@ -75,6 +79,7 @@ function toCreatePayload(input: CreateTaskInput) {
     assignee: input.assignee,
     project: input.project,
     priority: input.priority,
+    tags: input.tags,
     due_at: input.dueAt,
     tools: input.tools,
     learning: input.learning
@@ -89,6 +94,7 @@ function toUpdatePayload(input: UpdateTaskInput) {
     project: input.project,
     status: input.status,
     priority: input.priority,
+    tags: input.tags,
     due_at: input.dueAt,
     clear_due_at: input.clearDueAt,
     tools: input.tools,
@@ -124,6 +130,12 @@ export const tasksApi = {
 
   listProjects() {
     return apiRequest<{ projects: string[] }>("/api/v1/tasks/projects", {
+      method: "GET"
+    });
+  },
+
+  listTags() {
+    return apiRequest<{ tags: string[] }>("/api/v1/tasks/tags", {
       method: "GET"
     });
   },

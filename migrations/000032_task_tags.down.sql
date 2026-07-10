@@ -1,0 +1,4 @@
+DROP INDEX IF EXISTS tasks_tags_idx;
+
+ALTER TABLE tasks
+    DROP COLUMN IF EXISTS tags;

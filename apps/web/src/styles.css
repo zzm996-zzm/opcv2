@@ -9653,6 +9653,22 @@ a {
   font-weight: 760;
 }
 
+.task-label-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.task-label-list span {
+  padding: 3px 8px;
+  color: #3156a4;
+  background: #edf4ff;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 820;
+}
+
 .task-priority,
 .task-state {
   justify-self: start;
@@ -24754,7 +24770,7 @@ a {
 
 .task-filter-bar {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(140px, 190px) minmax(130px, 170px) auto;
+  grid-template-columns: minmax(220px, 1fr) minmax(130px, 170px) minmax(120px, 150px) minmax(120px, 150px) auto;
   gap: 10px;
 }
 

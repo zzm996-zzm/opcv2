@@ -14,6 +14,7 @@ type fakeRepository struct {
 	task     Task
 	tasks    []Task
 	projects []string
+	tags     []string
 	filters  ListFilters
 	err      error
 }
@@ -57,6 +58,10 @@ func (r *fakeRepository) CountTasks(_ context.Context, userID int64, _ ListFilte
 
 func (r *fakeRepository) ListTaskProjects(_ context.Context, _ int64) ([]string, error) {
 	return r.projects, r.err
+}
+
+func (r *fakeRepository) ListTaskTags(_ context.Context, _ int64) ([]string, error) {
+	return r.tags, r.err
 }
 
 func (r *fakeRepository) TaskStats(_ context.Context, userID int64, now time.Time) (Stats, error) {
@@ -115,6 +120,9 @@ func (r *fakeRepository) UpdateTask(_ context.Context, userID, id int64, update 
 	if update.Assignee != nil {
 		r.task.Assignee = *update.Assignee
 	}
+	if update.Tags != nil {
+		r.task.Tags = *update.Tags
+	}
 	r.updated = r.task
 	return r.task, nil
 }
@@ -143,6 +151,7 @@ func TestServiceCreatesTaskWithDefaults(t *testing.T) {
 		Assignee:    " 李明 ",
 		Project:     "AI线索开发",
 		Priority:    PriorityHigh,
+		Tags:        []string{" 用户研究 ", "访谈", "用户研究", " "},
 		Tools:       []string{"CRM", "表格助手"},
 		Learning:    "线索评分",
 	})
@@ -155,6 +164,9 @@ func TestServiceCreatesTaskWithDefaults(t *testing.T) {
 	}
 	if repository.created.UserID != 42 || repository.created.Title == "" || repository.created.Description != "明确客户范围和访谈目标" || repository.created.Assignee != "李明" || repository.created.CreatedAt != now {
 		t.Fatalf("created = %+v", repository.created)
+	}
+	if len(repository.created.Tags) != 2 || repository.created.Tags[0] != "用户研究" || repository.created.Tags[1] != "访谈" {
+		t.Fatalf("created.Tags = %+v", repository.created.Tags)
 	}
 }
 
@@ -183,6 +195,7 @@ func TestServiceNormalizesTaskFilters(t *testing.T) {
 		Status:   " in_progress ",
 		Project:  " 商业沙盘 ",
 		Priority: " high ",
+		Tag:      " 用户研究 ",
 		Query:    " 接口 ",
 		Limit:    500,
 		Offset:   -10,
@@ -191,7 +204,7 @@ func TestServiceNormalizesTaskFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
-	if repository.filters.Status != StatusInProgress || repository.filters.Project != "商业沙盘" || repository.filters.Priority != PriorityHigh || repository.filters.Query != "接口" || repository.filters.Limit != 100 || repository.filters.Offset != 0 {
+	if repository.filters.Status != StatusInProgress || repository.filters.Project != "商业沙盘" || repository.filters.Priority != PriorityHigh || repository.filters.Tag != "用户研究" || repository.filters.Query != "接口" || repository.filters.Limit != 100 || repository.filters.Offset != 0 {
 		t.Fatalf("filters = %+v", repository.filters)
 	}
 }
@@ -207,6 +220,20 @@ func TestServiceListsTaskProjects(t *testing.T) {
 	}
 	if len(projects) != 2 || projects[1] != "商业沙盘" {
 		t.Fatalf("projects = %+v", projects)
+	}
+}
+
+func TestServiceListsTaskTags(t *testing.T) {
+	repository := &fakeRepository{tags: []string{"用户研究", "访谈"}}
+	service := NewService(repository)
+
+	tags, err := service.ListTaskTags(context.Background(), 42)
+
+	if err != nil {
+		t.Fatalf("ListTaskTags() error = %v", err)
+	}
+	if len(tags) != 2 || tags[1] != "访谈" {
+		t.Fatalf("tags = %+v", tags)
 	}
 }
 
@@ -246,18 +273,22 @@ func TestServiceUpdatesOwnedTask(t *testing.T) {
 	}
 }
 
-func TestServiceNormalizesUpdatedTaskAssignee(t *testing.T) {
+func TestServiceNormalizesUpdatedTaskFields(t *testing.T) {
 	repository := &fakeRepository{task: Task{ID: 99, UserID: 42, Title: "整理客户", Status: StatusTodo}}
 	service := NewService(repository)
 	assignee := " 李明 "
+	tags := []string{" 用户研究 ", "访谈", "用户研究"}
 
-	_, err := service.UpdateTask(context.Background(), 42, 99, TaskUpdate{Assignee: &assignee})
+	_, err := service.UpdateTask(context.Background(), 42, 99, TaskUpdate{Assignee: &assignee, Tags: &tags})
 
 	if err != nil {
 		t.Fatalf("UpdateTask() error = %v", err)
 	}
 	if repository.updated.Assignee != "李明" {
 		t.Fatalf("updated.Assignee = %q, want 李明", repository.updated.Assignee)
+	}
+	if len(repository.updated.Tags) != 2 || repository.updated.Tags[0] != "用户研究" {
+		t.Fatalf("updated.Tags = %+v", repository.updated.Tags)
 	}
 }
 

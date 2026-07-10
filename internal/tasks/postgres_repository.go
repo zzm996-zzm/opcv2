@@ -25,13 +25,17 @@ func NewPostgresRepository(db postgresDB) *PostgresRepository {
 }
 
 func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, error) {
+	tags, err := json.Marshal(task.Tags)
+	if err != nil {
+		return Task{}, err
+	}
 	tools, err := json.Marshal(task.Tools)
 	if err != nil {
 		return Task{}, err
 	}
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
 		RETURNING id
 	`,
 		task.UserID,
@@ -41,6 +45,7 @@ func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, e
 		task.Project,
 		task.Status,
 		task.Priority,
+		tags,
 		task.DueAt,
 		tools,
 		task.Learning,
@@ -51,17 +56,18 @@ func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, e
 
 func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR project = $3)
 		  AND ($4 = '' OR priority = $4)
-		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR description ILIKE '%' || $5 || '%' OR assignee ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
+		  AND ($5 = '' OR tags ? $5)
+		  AND ($6 = '' OR title ILIKE '%' || $6 || '%' OR description ILIKE '%' || $6 || '%' OR assignee ILIKE '%' || $6 || '%' OR project ILIKE '%' || $6 || '%' OR tags::TEXT ILIKE '%' || $6 || '%' OR learning ILIKE '%' || $6 || '%')
 		ORDER BY created_at DESC
-		LIMIT $6
-		OFFSET $7
-	`, userID, filters.Status, filters.Project, filters.Priority, filters.Query, filters.Limit, filters.Offset)
+		LIMIT $7
+		OFFSET $8
+	`, userID, filters.Status, filters.Project, filters.Priority, filters.Tag, filters.Query, filters.Limit, filters.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +96,9 @@ func (r *PostgresRepository) CountTasks(ctx context.Context, userID int64, filte
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR project = $3)
 		  AND ($4 = '' OR priority = $4)
-		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR description ILIKE '%' || $5 || '%' OR assignee ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
-	`, userID, filters.Status, filters.Project, filters.Priority, filters.Query).Scan(&total)
+		  AND ($5 = '' OR tags ? $5)
+		  AND ($6 = '' OR title ILIKE '%' || $6 || '%' OR description ILIKE '%' || $6 || '%' OR assignee ILIKE '%' || $6 || '%' OR project ILIKE '%' || $6 || '%' OR tags::TEXT ILIKE '%' || $6 || '%' OR learning ILIKE '%' || $6 || '%')
+	`, userID, filters.Status, filters.Project, filters.Priority, filters.Tag, filters.Query).Scan(&total)
 	return total, err
 }
 
@@ -120,6 +127,32 @@ func (r *PostgresRepository) ListTaskProjects(ctx context.Context, userID int64)
 	return projects, nil
 }
 
+func (r *PostgresRepository) ListTaskTags(ctx context.Context, userID int64) ([]string, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT DISTINCT tag.value
+		FROM tasks
+		CROSS JOIN LATERAL jsonb_array_elements_text(tags) AS tag(value)
+		WHERE user_id = $1
+		ORDER BY tag.value
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tags, nil
+}
+
 func (r *PostgresRepository) TaskStats(ctx context.Context, userID int64, now time.Time) (Stats, error) {
 	var stats Stats
 	err := r.db.QueryRow(ctx, `
@@ -145,7 +178,7 @@ func (r *PostgresRepository) TaskStats(ctx context.Context, userID int64, now ti
 
 func (r *PostgresRepository) GetTask(ctx context.Context, userID, id int64) (Task, error) {
 	task, err := scanTask(r.db.QueryRow(ctx, `
-		SELECT id, user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1 AND id = $2
 	`, userID, id))
@@ -156,6 +189,14 @@ func (r *PostgresRepository) GetTask(ctx context.Context, userID, id int64) (Tas
 }
 
 func (r *PostgresRepository) UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error) {
+	var tags any
+	if update.Tags != nil {
+		payload, err := json.Marshal(*update.Tags)
+		if err != nil {
+			return Task{}, err
+		}
+		tags = payload
+	}
 	var tools any
 	if update.Tools != nil {
 		payload, err := json.Marshal(*update.Tools)
@@ -172,12 +213,13 @@ func (r *PostgresRepository) UpdateTask(ctx context.Context, userID, id int64, u
 		    project = COALESCE($4, project),
 		    status = COALESCE($5, status),
 		    priority = COALESCE($6, priority),
-		    due_at = CASE WHEN $8 THEN NULL ELSE COALESCE($7, due_at) END,
-		    tools = COALESCE($9, tools),
-		    learning = COALESCE($10, learning),
+		    tags = COALESCE($7, tags),
+		    due_at = CASE WHEN $9 THEN NULL ELSE COALESCE($8, due_at) END,
+		    tools = COALESCE($10, tools),
+		    learning = COALESCE($11, learning),
 		    updated_at = NOW()
-		WHERE user_id = $11 AND id = $12
-		RETURNING id, user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at
+		WHERE user_id = $12 AND id = $13
+		RETURNING id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
 	`,
 		optionalString(update.Title),
 		optionalString(update.Description),
@@ -185,6 +227,7 @@ func (r *PostgresRepository) UpdateTask(ctx context.Context, userID, id int64, u
 		optionalString(update.Project),
 		optionalString(update.Status),
 		optionalString(update.Priority),
+		tags,
 		optionalTime(update.DueAt),
 		update.ClearDueAt,
 		tools,
@@ -232,6 +275,7 @@ type taskScanner interface {
 
 func scanTask(scanner taskScanner) (Task, error) {
 	var task Task
+	var tags []byte
 	var tools []byte
 	if err := scanner.Scan(
 		&task.ID,
@@ -242,12 +286,16 @@ func scanTask(scanner taskScanner) (Task, error) {
 		&task.Project,
 		&task.Status,
 		&task.Priority,
+		&tags,
 		&task.DueAt,
 		&tools,
 		&task.Learning,
 		&task.CreatedAt,
 		&task.UpdatedAt,
 	); err != nil {
+		return Task{}, err
+	}
+	if err := json.Unmarshal(tags, &task.Tags); err != nil {
 		return Task{}, err
 	}
 	if err := json.Unmarshal(tools, &task.Tools); err != nil {

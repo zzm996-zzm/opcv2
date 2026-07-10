@@ -13,6 +13,7 @@ type ManualTaskForm = {
   assignee: string;
   dueAt: string;
   priority: TaskPriority;
+  tags: string;
   tools: string;
   learning: string;
 };
@@ -25,16 +26,17 @@ function emptyManualTask(assignee = ""): ManualTaskForm {
     assignee,
     dueAt: "",
     priority: "medium",
+    tags: "",
     tools: "",
     learning: ""
   };
 }
 
-function parseTools(value: string) {
-  return value
+function parseList(value: string) {
+  return Array.from(new Set(value
     .split(/[,，]/)
     .map((tool) => tool.trim())
-    .filter(Boolean);
+    .filter(Boolean)));
 }
 
 function TaskCreatePage() {
@@ -85,7 +87,8 @@ function TaskCreatePage() {
         assignee,
         priority: form.priority,
         dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined,
-        tools: parseTools(form.tools),
+        tags: parseList(form.tags),
+        tools: parseList(form.tools),
         learning: form.learning.trim()
       });
       if (continueAdding) {
@@ -155,6 +158,10 @@ function TaskCreatePage() {
               <label>
                 <span>初始状态</span>
                 <input disabled value="待开始" />
+              </label>
+              <label>
+                <span>标签</span>
+                <input aria-label="标签" onChange={(event) => updateField("tags", event.target.value)} placeholder="多个标签使用逗号分隔" value={form.tags} />
               </label>
             </div>
           </section>

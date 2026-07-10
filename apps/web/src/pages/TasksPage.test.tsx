@@ -542,6 +542,7 @@ describe("TasksPage", () => {
       project: "客户验证",
       status: "todo",
       priority: "medium",
+      tags: ["客户", "访谈"],
       due_at: "2026-07-18T10:00:00Z",
       tools: ["CRM"],
       learning: "访谈方法",
@@ -578,12 +579,14 @@ describe("TasksPage", () => {
 
     const taskHeading = await screen.findByRole("heading", { name: "准备客户访谈" });
     expect(screen.getByText(/负责人 张晨/)).toBeInTheDocument();
+    expect(within(taskHeading.closest("article") as HTMLElement).getByText("客户")).toBeInTheDocument();
     fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "查看任务详情" }));
 
     const dialog = await screen.findByRole("dialog", { name: "任务详情" });
     expect(await within(dialog).findByDisplayValue("准备首轮客户访谈")).toBeInTheDocument();
     fireEvent.change(within(dialog).getByLabelText("任务标题"), { target: { value: "完成客户访谈提纲" } });
     fireEvent.change(within(dialog).getByLabelText("负责人"), { target: { value: "李明" } });
+    fireEvent.change(within(dialog).getByLabelText("标签"), { target: { value: "客户，执行" } });
     fireEvent.change(within(dialog).getByLabelText("任务状态"), { target: { value: "in_progress" } });
     fireEvent.change(within(dialog).getByLabelText("优先级"), { target: { value: "high" } });
     fireEvent.change(within(dialog).getByLabelText("截止时间"), { target: { value: "" } });
@@ -601,6 +604,7 @@ describe("TasksPage", () => {
           project: "客户验证",
           status: "in_progress",
           priority: "high",
+          tags: ["客户", "执行"],
           clear_due_at: true,
           tools: ["CRM", "任务中心"],
           learning: "访谈复盘"
@@ -679,6 +683,9 @@ describe("TasksPage", () => {
       if (url === "/api/v1/tasks/projects") {
         return Promise.resolve(new Response(JSON.stringify({ projects: ["商业沙盘", "客户验证"] }), { status: 200 }));
       }
+      if (url === "/api/v1/tasks/tags") {
+        return Promise.resolve(new Response(JSON.stringify({ tags: ["用户研究", "访谈"] }), { status: 200 }));
+      }
       if (url === "/api/v1/tasks?q=%E5%AE%A2%E6%88%B7&limit=20") {
         return Promise.resolve(new Response(JSON.stringify({ tasks: [], total: 0, limit: 20, offset: 0 }), { status: 200 }));
       }
@@ -686,6 +693,9 @@ describe("TasksPage", () => {
         return Promise.resolve(new Response(JSON.stringify({ tasks: [], total: 0, limit: 20, offset: 0 }), { status: 200 }));
       }
       if (url === "/api/v1/tasks?project=%E5%95%86%E4%B8%9A%E6%B2%99%E7%9B%98&priority=high&q=%E5%AE%A2%E6%88%B7&limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [], total: 0, limit: 20, offset: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks?project=%E5%95%86%E4%B8%9A%E6%B2%99%E7%9B%98&priority=high&tag=%E7%94%A8%E6%88%B7%E7%A0%94%E7%A9%B6&q=%E5%AE%A2%E6%88%B7&limit=20") {
         return Promise.resolve(new Response(JSON.stringify({
           tasks: [{
             id: 101,
@@ -694,6 +704,7 @@ describe("TasksPage", () => {
             project: "商业沙盘",
             status: "todo",
             priority: "high",
+            tags: ["用户研究"],
             tools: ["商业沙盘"],
             learning: "客户分析",
             created_at: "2026-07-10T08:00:00Z",
@@ -725,8 +736,13 @@ describe("TasksPage", () => {
     fireEvent.change(projectFilter, { target: { value: "商业沙盘" } });
     fireEvent.change(screen.getByRole("combobox", { name: "按优先级筛选" }), { target: { value: "high" } });
 
+    const tagFilter = screen.getByRole("combobox", { name: "按标签筛选" });
+    fireEvent.focus(tagFilter);
+    expect(await screen.findByRole("option", { name: "用户研究" })).toBeInTheDocument();
+    fireEvent.change(tagFilter, { target: { value: "用户研究" } });
+
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/tasks?project=%E5%95%86%E4%B8%9A%E6%B2%99%E7%9B%98&priority=high&q=%E5%AE%A2%E6%88%B7&limit=20",
+      "/api/v1/tasks?project=%E5%95%86%E4%B8%9A%E6%B2%99%E7%9B%98&priority=high&tag=%E7%94%A8%E6%88%B7%E7%A0%94%E7%A9%B6&q=%E5%AE%A2%E6%88%B7&limit=20",
       expect.objectContaining({ method: "GET" })
     ));
     expect(await screen.findByRole("heading", { name: "高优先级客户沙盘任务" })).toBeInTheDocument();

@@ -16,6 +16,7 @@ type Application interface {
 	CreateTask(ctx context.Context, input CreateInput) (Task, error)
 	ListTaskPage(ctx context.Context, userID int64, filters ListFilters) (TaskPage, error)
 	ListTaskProjects(ctx context.Context, userID int64) ([]string, error)
+	ListTaskTags(ctx context.Context, userID int64) ([]string, error)
 	TaskStats(ctx context.Context, userID int64) (Stats, error)
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
@@ -35,6 +36,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks", h.listTasks)
 	router.GET("/tasks/stats", h.taskStats)
 	router.GET("/tasks/projects", h.listTaskProjects)
+	router.GET("/tasks/tags", h.listTaskTags)
 	router.GET("/tasks/:id", h.getTask)
 	router.PATCH("/tasks/:id", h.updateTask)
 	router.DELETE("/tasks/:id", h.deleteTask)
@@ -65,6 +67,7 @@ func validCreateInput(input CreateInput) bool {
 		len([]rune(strings.TrimSpace(input.Title))) <= 100 &&
 		len([]rune(strings.TrimSpace(input.Description))) <= 1000 &&
 		len([]rune(strings.TrimSpace(input.Assignee))) <= 100 &&
+		validTags(input.Tags) &&
 		validPriority(input.Priority)
 }
 
@@ -91,6 +94,7 @@ func (h *HTTPHandler) listTasks(c *gin.Context) {
 		Status:   status,
 		Project:  c.Query("project"),
 		Priority: priority,
+		Tag:      c.Query("tag"),
 		Query:    c.Query("q"),
 		Limit:    limit,
 		Offset:   offset,
@@ -101,6 +105,15 @@ func (h *HTTPHandler) listTasks(c *gin.Context) {
 	}
 	page.Tasks = httpapi.EnsureSlice(page.Tasks)
 	c.JSON(http.StatusOK, page)
+}
+
+func (h *HTTPHandler) listTaskTags(c *gin.Context) {
+	tags, err := h.app.ListTaskTags(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"tags": httpapi.EnsureSlice(tags)})
 }
 
 func (h *HTTPHandler) listTaskProjects(c *gin.Context) {
@@ -184,6 +197,9 @@ func validTaskUpdate(update TaskUpdate) bool {
 	if update.Assignee != nil && len([]rune(strings.TrimSpace(*update.Assignee))) > 100 {
 		return false
 	}
+	if update.Tags != nil && !validTags(*update.Tags) {
+		return false
+	}
 	if update.Status != nil && !validStatus(*update.Status) {
 		return false
 	}
@@ -192,6 +208,18 @@ func validTaskUpdate(update TaskUpdate) bool {
 	}
 	if update.ClearDueAt && update.DueAt != nil {
 		return false
+	}
+	return true
+}
+
+func validTags(tags []string) bool {
+	if len(tags) > 10 {
+		return false
+	}
+	for _, tag := range tags {
+		if len([]rune(strings.TrimSpace(tag))) > 30 {
+			return false
+		}
 	}
 	return true
 }

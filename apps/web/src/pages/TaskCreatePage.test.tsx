@@ -62,6 +62,7 @@ describe("TaskCreatePage", () => {
     fireEvent.change(screen.getByLabelText("负责人"), { target: { value: "李明" } });
     fireEvent.change(screen.getByLabelText("截止时间"), { target: { value: "2026-07-20T10:00" } });
     fireEvent.change(screen.getByLabelText("优先级"), { target: { value: "high" } });
+    fireEvent.change(screen.getByLabelText("标签"), { target: { value: "用户研究，访谈, 用户研究" } });
     fireEvent.change(screen.getByLabelText("建议工具"), { target: { value: "CRM，任务中心" } });
     fireEvent.change(screen.getByLabelText("补课内容"), { target: { value: "客户访谈方法" } });
     fireEvent.click(screen.getByRole("button", { name: "保存并继续添加" }));
@@ -77,6 +78,7 @@ describe("TaskCreatePage", () => {
       assignee: "李明",
       priority: "high",
       due_at: new Date("2026-07-20T10:00").toISOString(),
+      tags: ["用户研究", "访谈"],
       tools: ["CRM", "任务中心"],
       learning: "客户访谈方法"
     });

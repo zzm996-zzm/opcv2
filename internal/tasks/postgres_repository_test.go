@@ -20,8 +20,8 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
 	due := now.Add(2 * time.Hour)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
 		RETURNING id
 	`)).
 		WithArgs(
@@ -32,6 +32,7 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 			"AI线索开发",
 			StatusTodo,
 			PriorityHigh,
+			[]byte(`["用户研究","访谈"]`),
 			&due,
 			[]byte(`["CRM"]`),
 			"线索评分",
@@ -48,6 +49,7 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 		Project:     "AI线索开发",
 		Status:      StatusTodo,
 		Priority:    PriorityHigh,
+		Tags:        []string{"用户研究", "访谈"},
 		DueAt:       &due,
 		Tools:       []string{"CRM"},
 		Learning:    "线索评分",
@@ -73,20 +75,21 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR project = $3)
 		  AND ($4 = '' OR priority = $4)
-		  AND ($5 = '' OR title ILIKE '%' || $5 || '%' OR description ILIKE '%' || $5 || '%' OR assignee ILIKE '%' || $5 || '%' OR project ILIKE '%' || $5 || '%' OR learning ILIKE '%' || $5 || '%')
+		  AND ($5 = '' OR tags ? $5)
+		  AND ($6 = '' OR title ILIKE '%' || $6 || '%' OR description ILIKE '%' || $6 || '%' OR assignee ILIKE '%' || $6 || '%' OR project ILIKE '%' || $6 || '%' OR tags::TEXT ILIKE '%' || $6 || '%' OR learning ILIKE '%' || $6 || '%')
 		ORDER BY created_at DESC
-		LIMIT $6
-		OFFSET $7
+		LIMIT $7
+		OFFSET $8
 	`)).
-		WithArgs(int64(42), StatusTodo, "AI线索开发", PriorityHigh, "客户", 20, 10).
+		WithArgs(int64(42), StatusTodo, "AI线索开发", PriorityHigh, "用户研究", "客户", 20, 10).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "due_at", "tools", "learning", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -96,6 +99,7 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 			"AI线索开发",
 			StatusTodo,
 			PriorityHigh,
+			[]byte(`["用户研究","访谈"]`),
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",
@@ -108,6 +112,7 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 		Status:   StatusTodo,
 		Project:  "AI线索开发",
 		Priority: PriorityHigh,
+		Tag:      "用户研究",
 		Query:    "客户",
 		Limit:    20,
 		Offset:   10,
@@ -130,13 +135,13 @@ func TestPostgresRepositoryCountsFilteredTasks(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.ExpectQuery("(?s)SELECT COUNT\\(\\*\\).*assignee ILIKE").
-		WithArgs(int64(42), StatusTodo, "AI线索开发", PriorityHigh, "客户").
+	db.ExpectQuery("(?s)SELECT COUNT\\(\\*\\).*tags \\? \\$5.*tags::TEXT ILIKE").
+		WithArgs(int64(42), StatusTodo, "AI线索开发", PriorityHigh, "用户研究", "客户").
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(21))
 
 	repository := NewPostgresRepository(db)
 	total, err := repository.CountTasks(context.Background(), 42, ListFilters{
-		Status: StatusTodo, Project: "AI线索开发", Priority: PriorityHigh, Query: "客户",
+		Status: StatusTodo, Project: "AI线索开发", Priority: PriorityHigh, Tag: "用户研究", Query: "客户",
 	})
 	if err != nil {
 		t.Fatalf("CountTasks() error = %v", err)
@@ -164,6 +169,27 @@ func TestPostgresRepositoryListsTaskProjects(t *testing.T) {
 	}
 	if len(projects) != 2 || projects[0] != "AI线索开发" {
 		t.Fatalf("projects = %+v", projects)
+	}
+}
+
+func TestPostgresRepositoryListsTaskTags(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery("SELECT DISTINCT tag.value").
+		WithArgs(int64(42)).
+		WillReturnRows(pgxmock.NewRows([]string{"value"}).AddRow("用户研究").AddRow("访谈"))
+
+	repository := NewPostgresRepository(db)
+	tags, err := repository.ListTaskTags(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ListTaskTags() error = %v", err)
+	}
+	if len(tags) != 2 || tags[0] != "用户研究" {
+		t.Fatalf("tags = %+v", tags)
 	}
 }
 
@@ -220,12 +246,13 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 		    project = COALESCE($4, project),
 		    status = COALESCE($5, status),
 		    priority = COALESCE($6, priority),
-		    due_at = CASE WHEN $8 THEN NULL ELSE COALESCE($7, due_at) END,
-		    tools = COALESCE($9, tools),
-		    learning = COALESCE($10, learning),
+		    tags = COALESCE($7, tags),
+		    due_at = CASE WHEN $9 THEN NULL ELSE COALESCE($8, due_at) END,
+		    tools = COALESCE($10, tools),
+		    learning = COALESCE($11, learning),
 		    updated_at = NOW()
-		WHERE user_id = $11 AND id = $12
-		RETURNING id, user_id, title, description, assignee, project, status, priority, due_at, tools, learning, created_at, updated_at
+		WHERE user_id = $12 AND id = $13
+		RETURNING id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
 	`)).
 		WithArgs(
 			nil,
@@ -235,6 +262,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 			&status,
 			nil,
 			nil,
+			nil,
 			false,
 			nil,
 			nil,
@@ -242,7 +270,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 			int64(99),
 		).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "due_at", "tools", "learning", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -252,6 +280,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 			"AI线索开发",
 			StatusCompleted,
 			PriorityHigh,
+			[]byte(`["用户研究"]`),
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",
@@ -289,6 +318,7 @@ func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			nil,
 			true,
 			nil,
 			nil,
@@ -296,7 +326,7 @@ func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
 			int64(99),
 		).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "due_at", "tools", "learning", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -306,6 +336,7 @@ func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
 			"AI线索开发",
 			StatusTodo,
 			PriorityHigh,
+			[]byte(`[]`),
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",

@@ -14,6 +14,7 @@ type TaskRow = {
   statusCode?: TaskStatus;
   priority: string;
   due: string;
+  tags: string[];
   tools: string[];
   learning: string;
 };
@@ -30,6 +31,7 @@ type TaskEditForm = {
   status: TaskStatus;
   priority: TaskPriority;
   dueAt: string;
+  tags: string;
   tools: string;
   learning: string;
 };
@@ -116,16 +118,17 @@ function toTaskEditForm(task: Task): TaskEditForm {
     status: task.status,
     priority: task.priority,
     dueAt: toDateTimeLocal(task.due_at),
+    tags: (task.tags ?? []).join("，"),
     tools: task.tools.join("，"),
     learning: task.learning
   };
 }
 
-function parseTools(value: string) {
-  return value
+function parseList(value: string) {
+  return Array.from(new Set(value
     .split(/[,，]/)
     .map((tool) => tool.trim())
-    .filter(Boolean);
+    .filter(Boolean)));
 }
 
 function toTaskRow(task: Task): TaskRow {
@@ -138,6 +141,7 @@ function toTaskRow(task: Task): TaskRow {
     statusCode: task.status,
     priority: priorityLabels[task.priority],
     due: formatDueAt(task.due_at),
+    tags: task.tags ?? [],
     tools: task.tools,
     learning: task.learning
   };
@@ -187,6 +191,7 @@ function TasksPage() {
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>();
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedPriority, setSelectedPriority] = useState<TaskPriority | "">("");
+  const [selectedTag, setSelectedTag] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [taskPage, setTaskPage] = useState(1);
@@ -194,6 +199,9 @@ function TasksPage() {
   const [projectOptions, setProjectOptions] = useState<string[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
+  const [tagOptions, setTagOptions] = useState<string[]>([]);
+  const [tagsLoaded, setTagsLoaded] = useState(false);
+  const [tagsLoading, setTagsLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [activeView, setActiveView] = useState<TaskView>("list");
   const [listError, setListError] = useState("");
@@ -219,6 +227,7 @@ function TasksPage() {
         status: selectedStatus,
         project: selectedProject || undefined,
         priority: selectedPriority || undefined,
+        tag: selectedTag || undefined,
         q: searchQuery || undefined,
         limit: taskPageSize,
         offset: taskPage > 1 ? (taskPage - 1) * taskPageSize : undefined
@@ -241,7 +250,7 @@ function TasksPage() {
     return () => {
       active = false;
     };
-  }, [selectedStatus, selectedProject, selectedPriority, searchQuery, taskPage]);
+  }, [selectedStatus, selectedProject, selectedPriority, selectedTag, searchQuery, taskPage]);
 
   useEffect(() => {
     let active = true;
@@ -274,7 +283,7 @@ function TasksPage() {
   }, new Map()));
   const unscheduledTasks = apiTasks.filter((task) => !task.due_at);
   const totalPages = Math.max(1, Math.ceil(taskTotal / taskPageSize));
-  const hasActiveFilters = Boolean(selectedStatus || selectedProject || selectedPriority || searchQuery);
+  const hasActiveFilters = Boolean(selectedStatus || selectedProject || selectedPriority || selectedTag || searchQuery);
 
   useEffect(() => {
     if (taskPage > totalPages) setTaskPage(totalPages);
@@ -302,6 +311,20 @@ function TasksPage() {
     }
   }
 
+  async function loadTagOptions() {
+    if (tagsLoaded || tagsLoading) return;
+    setTagsLoading(true);
+    try {
+      const payload = await tasksApi.listTags();
+      setTagOptions(payload.tags);
+      setTagsLoaded(true);
+    } catch (error) {
+      setListError(apiErrorMessage(error, "暂时无法读取标签选项"));
+    } finally {
+      setTagsLoading(false);
+    }
+  }
+
   function selectStatus(status?: TaskStatus) {
     setTaskPage(1);
     setSelectedStatus(status);
@@ -318,6 +341,7 @@ function TasksPage() {
     setSelectedStatus(undefined);
     setSelectedProject("");
     setSelectedPriority("");
+    setSelectedTag("");
     setTaskPage(1);
   }
 
@@ -326,7 +350,8 @@ function TasksPage() {
     return (!selectedStatus || task.status === selectedStatus) &&
       (!selectedProject || task.project === selectedProject) &&
       (!selectedPriority || task.priority === selectedPriority) &&
-      (!normalizedQuery || [task.title, task.description ?? "", task.assignee ?? "", task.project, task.learning].some((value) => value.toLowerCase().includes(normalizedQuery)));
+      (!selectedTag || (task.tags ?? []).includes(selectedTag)) &&
+      (!normalizedQuery || [task.title, task.description ?? "", task.assignee ?? "", task.project, ...(task.tags ?? []), task.learning].some((value) => value.toLowerCase().includes(normalizedQuery)));
   }
 
   async function updateTaskStatus(taskID: number, currentStatus: TaskStatus) {
@@ -427,6 +452,7 @@ function TasksPage() {
     setDetailSaving(true);
     setDetailError("");
     try {
+      const tags = parseList(detailForm.tags);
       const updated = await tasksApi.updateTask(detailTask.id, {
         title,
         description: detailForm.description !== (detailTask.description ?? "") ? detailForm.description : undefined,
@@ -434,9 +460,10 @@ function TasksPage() {
         project,
         status: detailForm.status,
         priority: detailForm.priority,
+        tags: JSON.stringify(tags) !== JSON.stringify(detailTask.tags ?? []) ? tags : undefined,
         dueAt: detailForm.dueAt ? new Date(detailForm.dueAt).toISOString() : undefined,
         clearDueAt: !detailForm.dueAt && Boolean(detailTask.due_at) ? true : undefined,
-        tools: parseTools(detailForm.tools),
+        tools: parseList(detailForm.tools),
         learning: detailForm.learning.trim()
       });
       const remainsVisible = taskMatchesCurrentFilters(updated);
@@ -496,6 +523,11 @@ function TasksPage() {
           <span className="task-state">{statusLabels[task.status]}</span>
           <span>{task.due_at ? `截止 ${formatDueAt(task.due_at)}` : "待安排"}</span>
         </div>
+        {task.tags?.length ? (
+          <div aria-label="任务标签" className="task-label-list">
+            {task.tags.map((tag) => <span key={tag}>{tag}</span>)}
+          </div>
+        ) : null}
         <div className="task-view-card-links">
           <Link to="/tools">工具：{task.tools.join(" / ")}</Link>
           <Link to="/learning">补课：{task.learning}</Link>
@@ -602,7 +634,7 @@ function TasksPage() {
                 <input
                   id="task-search"
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="搜索标题、描述、负责人、项目或补课内容"
+                  placeholder="搜索标题、描述、负责人、标签、项目或补课内容"
                   value={searchInput}
                 />
                 <button type="submit">搜索</button>
@@ -634,6 +666,19 @@ function TasksPage() {
                 <option value="medium">中优先级</option>
                 <option value="low">低优先级</option>
               </select>
+              <label className="sr-only" htmlFor="task-tag-filter">按标签筛选</label>
+              <select
+                id="task-tag-filter"
+                onChange={(event) => {
+                  setTaskPage(1);
+                  setSelectedTag(event.target.value);
+                }}
+                onFocus={() => void loadTagOptions()}
+                value={selectedTag}
+              >
+                <option value="">{tagsLoading ? "读取标签中..." : "全部标签"}</option>
+                {tagOptions.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+              </select>
               {hasActiveFilters ? <button className="task-filter-clear" onClick={clearTaskFilters} type="button">清除筛选</button> : null}
             </form>
             {activeView === "list" ? (
@@ -646,6 +691,11 @@ function TasksPage() {
                     <div>
                       <h3>{task.title}</h3>
                       <small>{task.project} · 负责人 {task.assignee || "未指定"} · 截止 {task.due}</small>
+                      {task.tags.length ? (
+                        <div aria-label="任务标签" className="task-label-list">
+                          {task.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                        </div>
+                      ) : null}
                     </div>
                     <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>
                     <span className="task-state">{task.status}</span>
@@ -780,6 +830,10 @@ function TasksPage() {
                     <label>
                       <span>负责人</span>
                       <input maxLength={100} onChange={(event) => updateDetailField("assignee", event.target.value)} placeholder="输入负责人或外部协作人" value={detailForm.assignee} />
+                    </label>
+                    <label>
+                      <span>标签</span>
+                      <input onChange={(event) => updateDetailField("tags", event.target.value)} placeholder="多个标签使用逗号分隔" value={detailForm.tags} />
                     </label>
                     <label>
                       <span>截止时间</span>

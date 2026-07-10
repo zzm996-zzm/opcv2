@@ -22,6 +22,7 @@ type fakeApplication struct {
 	tasks    []Task
 	total    int
 	projects []string
+	tags     []string
 	stats    Stats
 	err      error
 }
@@ -40,6 +41,11 @@ func (a *fakeApplication) ListTaskPage(_ context.Context, userID int64, filters 
 func (a *fakeApplication) ListTaskProjects(_ context.Context, userID int64) ([]string, error) {
 	a.userID = userID
 	return a.projects, a.err
+}
+
+func (a *fakeApplication) ListTaskTags(_ context.Context, userID int64) ([]string, error) {
+	a.userID = userID
+	return a.tags, a.err
 }
 
 func (a *fakeApplication) TaskStats(_ context.Context, userID int64) (Stats, error) {
@@ -88,6 +94,7 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 		"assignee":"李明",
 		"project":"AI线索开发",
 		"priority":"high",
+		"tags":["用户研究","访谈"],
 		"tools":["CRM"],
 		"learning":"线索评分"
 	}`))
@@ -99,7 +106,7 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" || app.input.Assignee != "李明" {
+	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" || app.input.Assignee != "李明" || len(app.input.Tags) != 2 {
 		t.Fatalf("input = %+v", app.input)
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"todo"`) {
@@ -172,6 +179,25 @@ func TestCreateTaskEndpointRejectsOversizedAssignee(t *testing.T) {
 	}
 }
 
+func TestCreateTaskEndpointRejectsTooManyTags(t *testing.T) {
+	app := &fakeApplication{task: Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: StatusTodo}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", strings.NewReader(`{
+		"title":"整理客户名单",
+		"project":"AI线索开发",
+		"priority":"high",
+		"tags":["1","2","3","4","5","6","7","8","9","10","11"]
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestListTasksEndpointUsesAuthenticatedUser(t *testing.T) {
 	app := &fakeApplication{tasks: []Task{{ID: 99, UserID: 42, Title: "我的任务"}}}
 	router := tasksTestRouter(app)
@@ -191,10 +217,26 @@ func TestListTasksEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 }
 
+func TestListTaskTagsEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{tags: []string{"用户研究", "访谈"}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/tags", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.userID != 42 {
+		t.Fatalf("status = %d userID = %d body=%s", recorder.Code, app.userID, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"tags":["用户研究","访谈"]`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
 func TestListTasksEndpointPassesFilters(t *testing.T) {
 	app := &fakeApplication{tasks: []Task{{ID: 99, UserID: 42, Title: "我的任务"}}, total: 21}
 	router := tasksTestRouter(app)
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&q=接口&limit=10&offset=20", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&tag=用户研究&q=接口&limit=10&offset=20", nil)
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -202,7 +244,7 @@ func TestListTasksEndpointPassesFilters(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.filters.Status != StatusInProgress || app.filters.Project != "商业沙盘" || app.filters.Priority != PriorityHigh || app.filters.Query != "接口" || app.filters.Limit != 10 || app.filters.Offset != 20 {
+	if app.filters.Status != StatusInProgress || app.filters.Project != "商业沙盘" || app.filters.Priority != PriorityHigh || app.filters.Tag != "用户研究" || app.filters.Query != "接口" || app.filters.Limit != 10 || app.filters.Offset != 20 {
 		t.Fatalf("filters = %+v", app.filters)
 	}
 	if !strings.Contains(recorder.Body.String(), `"total":21`) || !strings.Contains(recorder.Body.String(), `"offset":20`) {
@@ -299,6 +341,13 @@ func TestValidTaskUpdateRejectsOversizedTitle(t *testing.T) {
 	title := strings.Repeat("任", 101)
 	if validTaskUpdate(TaskUpdate{Title: &title}) {
 		t.Fatal("validTaskUpdate() accepted a title longer than 100 characters")
+	}
+}
+
+func TestValidTaskUpdateRejectsOversizedTag(t *testing.T) {
+	tags := []string{strings.Repeat("标", 31)}
+	if validTaskUpdate(TaskUpdate{Tags: &tags}) {
+		t.Fatal("validTaskUpdate() accepted a tag longer than 30 characters")
 	}
 }
 
