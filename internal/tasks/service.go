@@ -12,6 +12,7 @@ type Repository interface {
 	TaskStats(ctx context.Context, userID int64, now time.Time) (Stats, error)
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
+	DeleteTask(ctx context.Context, userID, id int64) error
 }
 
 type Service struct {
@@ -103,6 +104,13 @@ func (s *Service) UpdateTask(ctx context.Context, userID, id int64, update TaskU
 		update.Learning = &learning
 	}
 	return s.repository.UpdateTask(ctx, userID, id, update)
+}
+
+func (s *Service) DeleteTask(ctx context.Context, userID, id int64) error {
+	if s.repository == nil {
+		return ErrServiceNotReady
+	}
+	return s.repository.DeleteTask(ctx, userID, id)
 }
 
 func normalizeStatus(status string) string {

@@ -289,6 +289,7 @@ Request fields are optional:
   "status": "completed",
   "priority": "high",
   "due_at": "2026-06-30T12:00:00Z",
+  "clear_due_at": false,
   "tools": ["CRM"],
   "learning": "线索评分"
 }
@@ -298,8 +299,20 @@ Validation:
 
 - If present, `title` and `project` must be non-empty after trimming.
 - If present, `status` and `priority` must match their enum values.
+- Set `clear_due_at` to `true` to remove the current due date. It cannot be combined with `due_at`.
 
 Response `200`: `Task`
+
+### Delete Task
+
+`DELETE /api/v1/tasks/{id}`
+
+Response `204`: empty body.
+
+Errors:
+
+- `400 invalid_task_id`
+- `404 task_not_found`
 
 ## Dashboard
 

@@ -15,6 +15,7 @@ type fakeApplication struct {
 	input   CreateInput
 	userID  int64
 	taskID  int64
+	deleted bool
 	filters ListFilters
 	update  TaskUpdate
 	task    Task
@@ -50,6 +51,13 @@ func (a *fakeApplication) UpdateTask(_ context.Context, userID, id int64, update
 	a.taskID = id
 	a.update = update
 	return a.task, a.err
+}
+
+func (a *fakeApplication) DeleteTask(_ context.Context, userID, id int64) error {
+	a.userID = userID
+	a.taskID = id
+	a.deleted = true
+	return a.err
 }
 
 func tasksTestRouter(app Application) *gin.Engine {
@@ -241,6 +249,35 @@ func TestGetTaskEndpointReturnsNotFoundForOtherUser(t *testing.T) {
 	app := &fakeApplication{err: ErrTaskNotFound}
 	router := tasksTestRouter(app)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/99", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestDeleteTaskEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/99", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !app.deleted || app.userID != 42 || app.taskID != 99 {
+		t.Fatalf("deleted/user/task = %t/%d/%d", app.deleted, app.userID, app.taskID)
+	}
+}
+
+func TestDeleteTaskEndpointReturnsNotFoundForOtherUser(t *testing.T) {
+	app := &fakeApplication{err: ErrTaskNotFound}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/99", nil)
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)

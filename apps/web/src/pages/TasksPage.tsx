@@ -19,6 +19,16 @@ type TaskRow = {
 
 type TaskView = "list" | "board" | "calendar";
 
+type TaskEditForm = {
+  title: string;
+  project: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  dueAt: string;
+  tools: string;
+  learning: string;
+};
+
 const emptyTaskStats = [
   ["今日待办", "0"],
   ["进行中", "0"],
@@ -85,6 +95,32 @@ function formatCalendarDate(dueAt: string) {
   });
 }
 
+function toDateTimeLocal(dueAt?: string) {
+  if (!dueAt) return "";
+  const date = new Date(dueAt);
+  const localTime = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localTime.toISOString().slice(0, 16);
+}
+
+function toTaskEditForm(task: Task): TaskEditForm {
+  return {
+    title: task.title,
+    project: task.project,
+    status: task.status,
+    priority: task.priority,
+    dueAt: toDateTimeLocal(task.due_at),
+    tools: task.tools.join("，"),
+    learning: task.learning
+  };
+}
+
+function parseTools(value: string) {
+  return value
+    .split(/[,，]/)
+    .map((tool) => tool.trim())
+    .filter(Boolean);
+}
+
 function toTaskRow(task: Task): TaskRow {
   return {
     id: task.id,
@@ -148,6 +184,14 @@ function TasksPage() {
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [createMessage, setCreateMessage] = useState("");
   const [createError, setCreateError] = useState("");
+  const [detailTaskID, setDetailTaskID] = useState<number | null>(null);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [detailForm, setDetailForm] = useState<TaskEditForm | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailSaving, setDetailSaving] = useState(false);
+  const [detailDeleting, setDetailDeleting] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -261,6 +305,95 @@ function TasksPage() {
     taskGoalRef.current?.focus();
   }
 
+  async function openTaskDetail(taskID: number) {
+    setDetailTaskID(taskID);
+    setDetailTask(null);
+    setDetailForm(null);
+    setDetailLoading(true);
+    setDetailError("");
+    setConfirmDelete(false);
+    try {
+      const task = await tasksApi.getTask(taskID);
+      setDetailTask(task);
+      setDetailForm(toTaskEditForm(task));
+    } catch (error) {
+      setDetailError(apiErrorMessage(error, "暂时无法读取任务详情"));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeTaskDetail() {
+    if (detailSaving || detailDeleting) return;
+    setDetailTaskID(null);
+    setDetailTask(null);
+    setDetailForm(null);
+    setDetailError("");
+    setConfirmDelete(false);
+  }
+
+  function updateDetailField<Key extends keyof TaskEditForm>(key: Key, value: TaskEditForm[Key]) {
+    setDetailForm((current) => current ? { ...current, [key]: value } : current);
+  }
+
+  async function saveTaskDetail() {
+    if (!detailTask || !detailForm || detailSaving) return;
+    const title = detailForm.title.trim();
+    const project = detailForm.project.trim();
+    if (!title || !project) {
+      setDetailError("任务标题和所属项目不能为空");
+      return;
+    }
+    setDetailSaving(true);
+    setDetailError("");
+    try {
+      const updated = await tasksApi.updateTask(detailTask.id, {
+        title,
+        project,
+        status: detailForm.status,
+        priority: detailForm.priority,
+        dueAt: detailForm.dueAt ? new Date(detailForm.dueAt).toISOString() : undefined,
+        clearDueAt: !detailForm.dueAt && Boolean(detailTask.due_at) ? true : undefined,
+        tools: parseTools(detailForm.tools),
+        learning: detailForm.learning.trim()
+      });
+      setApiTasks((current) => selectedStatus && updated.status !== selectedStatus
+        ? current.filter((task) => task.id !== updated.id)
+        : current.map((task) => task.id === updated.id ? updated : task));
+      await refreshTaskStats();
+      setCreateMessage(`已更新任务：${updated.title}`);
+      setListError("");
+      setDetailTaskID(null);
+      setDetailTask(null);
+      setDetailForm(null);
+    } catch (error) {
+      setDetailError(apiErrorMessage(error, "暂时无法保存任务"));
+    } finally {
+      setDetailSaving(false);
+    }
+  }
+
+  async function deleteTaskDetail() {
+    if (!detailTask || detailDeleting) return;
+    setDetailDeleting(true);
+    setDetailError("");
+    try {
+      await tasksApi.deleteTask(detailTask.id);
+      setApiTasks((current) => current.filter((task) => task.id !== detailTask.id));
+      await refreshTaskStats();
+      setCreateMessage(`已删除任务：${detailTask.title}`);
+      setListError("");
+      setDetailTaskID(null);
+      setDetailTask(null);
+      setDetailForm(null);
+      setConfirmDelete(false);
+    } catch (error) {
+      setDetailError(apiErrorMessage(error, "暂时无法删除任务"));
+    } finally {
+      setDetailDeleting(false);
+    }
+  }
+
   function renderTaskCard(task: Task) {
     const action = taskStatusAction(task.status);
     return (
@@ -282,13 +415,16 @@ function TasksPage() {
           <Link to="/tools">工具：{task.tools.join(" / ")}</Link>
           <Link to="/learning">补课：{task.learning}</Link>
         </div>
-        <button
-          disabled={savingTaskID === task.id}
-          onClick={() => void updateTaskStatus(task.id, task.status)}
-          type="button"
-        >
-          {savingTaskID === task.id ? "更新中..." : action.label}
-        </button>
+        <div className="task-view-card-actions">
+          <button
+            disabled={savingTaskID === task.id}
+            onClick={() => void updateTaskStatus(task.id, task.status)}
+            type="button"
+          >
+            {savingTaskID === task.id ? "更新中..." : action.label}
+          </button>
+          <button onClick={() => void openTaskDetail(task.id)} type="button">查看任务详情</button>
+        </div>
       </article>
     );
   }
@@ -386,13 +522,16 @@ function TasksPage() {
                     <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>
                     <span className="task-state">{task.status}</span>
                     {task.id && task.statusCode ? (
-                      <button
-                        disabled={savingTaskID === task.id}
-                        onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus)}
-                        type="button"
-                      >
-                        {savingTaskID === task.id ? "更新中..." : taskStatusAction(task.statusCode).label}
-                      </button>
+                      <div className="task-row-actions">
+                        <button
+                          disabled={savingTaskID === task.id}
+                          onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus)}
+                          type="button"
+                        >
+                          {savingTaskID === task.id ? "更新中..." : taskStatusAction(task.statusCode).label}
+                        </button>
+                        <button onClick={() => void openTaskDetail(task.id as number)} type="button">查看任务详情</button>
+                      </div>
                     ) : null}
                     <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
                     <Link to="/learning">补课：{task.learning}</Link>
@@ -460,6 +599,85 @@ function TasksPage() {
             </aside>
           ) : null}
         </section>
+        {detailTaskID !== null ? (
+          <div className="task-modal-backdrop">
+            <section aria-label="任务详情" aria-modal="true" className="task-detail-dialog" role="dialog">
+              <button aria-label="关闭任务详情" className="task-detail-close" onClick={closeTaskDetail} type="button">×</button>
+              <header>
+                <span>任务 #{detailTaskID}</span>
+                <h2>任务详情</h2>
+                <p>查看并更新任务的执行信息</p>
+              </header>
+              {detailLoading ? <div className="module-empty-state" role="status">正在读取任务详情...</div> : null}
+              {!detailLoading && detailError && !detailForm ? <p className="form-error" role="alert">{detailError}</p> : null}
+              {detailForm && detailTask ? (
+                <form onSubmit={(event) => {
+                  event.preventDefault();
+                  void saveTaskDetail();
+                }}>
+                  <div className="task-detail-form-grid">
+                    <label className="wide">
+                      <span>任务标题</span>
+                      <input onChange={(event) => updateDetailField("title", event.target.value)} value={detailForm.title} />
+                    </label>
+                    <label>
+                      <span>所属项目</span>
+                      <input onChange={(event) => updateDetailField("project", event.target.value)} value={detailForm.project} />
+                    </label>
+                    <label>
+                      <span>截止时间</span>
+                      <input onChange={(event) => updateDetailField("dueAt", event.target.value)} type="datetime-local" value={detailForm.dueAt} />
+                    </label>
+                    <label>
+                      <span>任务状态</span>
+                      <select onChange={(event) => updateDetailField("status", event.target.value as TaskStatus)} value={detailForm.status}>
+                        {statusFilters.filter((item) => item.value).map((item) => (
+                          <option key={item.value} value={item.value}>{item.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span>优先级</span>
+                      <select onChange={(event) => updateDetailField("priority", event.target.value as TaskPriority)} value={detailForm.priority}>
+                        <option value="low">低</option>
+                        <option value="medium">中</option>
+                        <option value="high">高</option>
+                      </select>
+                    </label>
+                    <label className="wide">
+                      <span>建议工具</span>
+                      <input onChange={(event) => updateDetailField("tools", event.target.value)} value={detailForm.tools} />
+                    </label>
+                    <label className="wide">
+                      <span>补课内容</span>
+                      <textarea onChange={(event) => updateDetailField("learning", event.target.value)} value={detailForm.learning} />
+                    </label>
+                  </div>
+                  {detailError ? <p className="form-error" role="alert">{detailError}</p> : null}
+                  {confirmDelete ? (
+                    <div className="task-delete-confirm" role="alert">
+                      <span>删除后无法恢复，请确认当前任务不再需要。</span>
+                      <button disabled={detailDeleting} onClick={() => void deleteTaskDetail()} type="button">
+                        {detailDeleting ? "删除中..." : "确认删除"}
+                      </button>
+                    </div>
+                  ) : null}
+                  <footer>
+                    <button className="danger" disabled={detailSaving || detailDeleting} onClick={() => setConfirmDelete((current) => !current)} type="button">
+                      {confirmDelete ? "取消删除" : "删除任务"}
+                    </button>
+                    <div>
+                      <button disabled={detailSaving || detailDeleting} onClick={closeTaskDetail} type="button">取消</button>
+                      <button className="primary" disabled={detailSaving || detailDeleting} type="submit">
+                        {detailSaving ? "保存中..." : "保存修改"}
+                      </button>
+                    </div>
+                  </footer>
+                </form>
+              ) : null}
+            </section>
+          </div>
+        ) : null}
       </section>
     </V4PageShell>
   );

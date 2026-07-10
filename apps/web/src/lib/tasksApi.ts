@@ -48,6 +48,7 @@ export type UpdateTaskInput = Partial<{
   status: TaskStatus;
   priority: TaskPriority;
   dueAt: string;
+  clearDueAt: boolean;
   tools: string[];
   learning: string;
 }>;
@@ -70,6 +71,7 @@ function toUpdatePayload(input: UpdateTaskInput) {
     status: input.status,
     priority: input.priority,
     due_at: input.dueAt,
+    clear_due_at: input.clearDueAt,
     tools: input.tools,
     learning: input.learning
   };
@@ -117,6 +119,12 @@ export const tasksApi = {
     return apiRequest<Task>(`/api/v1/tasks/${id}`, {
       method: "PATCH",
       body: JSON.stringify(toUpdatePayload(input))
+    });
+  },
+
+  deleteTask(id: number) {
+    return apiRequest<void>(`/api/v1/tasks/${id}`, {
+      method: "DELETE"
     });
   }
 };

@@ -18,6 +18,7 @@ type Application interface {
 	TaskStats(ctx context.Context, userID int64) (Stats, error)
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
+	DeleteTask(ctx context.Context, userID, id int64) error
 }
 
 type HTTPHandler struct {
@@ -34,6 +35,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/stats", h.taskStats)
 	router.GET("/tasks/:id", h.getTask)
 	router.PATCH("/tasks/:id", h.updateTask)
+	router.DELETE("/tasks/:id", h.deleteTask)
 }
 
 func (h *HTTPHandler) createTask(c *gin.Context) {
@@ -128,6 +130,18 @@ func (h *HTTPHandler) updateTask(c *gin.Context) {
 	c.JSON(http.StatusOK, task)
 }
 
+func (h *HTTPHandler) deleteTask(c *gin.Context) {
+	id, ok := taskID(c)
+	if !ok {
+		return
+	}
+	if err := h.app.DeleteTask(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func validTaskUpdate(update TaskUpdate) bool {
 	if update.Title != nil && strings.TrimSpace(*update.Title) == "" {
 		return false
@@ -139,6 +153,9 @@ func validTaskUpdate(update TaskUpdate) bool {
 		return false
 	}
 	if update.Priority != nil && !validPriority(*update.Priority) {
+		return false
+	}
+	if update.ClearDueAt && update.DueAt != nil {
 		return false
 	}
 	return true

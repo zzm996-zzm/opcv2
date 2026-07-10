@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type postgresDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 type PostgresRepository struct {
@@ -125,11 +127,11 @@ func (r *PostgresRepository) UpdateTask(ctx context.Context, userID, id int64, u
 		    project = COALESCE($2, project),
 		    status = COALESCE($3, status),
 		    priority = COALESCE($4, priority),
-		    due_at = COALESCE($5, due_at),
-		    tools = COALESCE($6, tools),
-		    learning = COALESCE($7, learning),
+		    due_at = CASE WHEN $6 THEN NULL ELSE COALESCE($5, due_at) END,
+		    tools = COALESCE($7, tools),
+		    learning = COALESCE($8, learning),
 		    updated_at = NOW()
-		WHERE user_id = $8 AND id = $9
+		WHERE user_id = $9 AND id = $10
 		RETURNING id, user_id, title, project, status, priority, due_at, tools, learning, created_at, updated_at
 	`,
 		optionalString(update.Title),
@@ -137,6 +139,7 @@ func (r *PostgresRepository) UpdateTask(ctx context.Context, userID, id int64, u
 		optionalString(update.Status),
 		optionalString(update.Priority),
 		optionalTime(update.DueAt),
+		update.ClearDueAt,
 		tools,
 		optionalString(update.Learning),
 		userID,
@@ -146,6 +149,20 @@ func (r *PostgresRepository) UpdateTask(ctx context.Context, userID, id int64, u
 		return Task{}, ErrTaskNotFound
 	}
 	return task, err
+}
+
+func (r *PostgresRepository) DeleteTask(ctx context.Context, userID, id int64) error {
+	tag, err := r.db.Exec(ctx, `
+		DELETE FROM tasks
+		WHERE user_id = $1 AND id = $2
+	`, userID, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrTaskNotFound
+	}
+	return nil
 }
 
 func optionalString(value *string) any {

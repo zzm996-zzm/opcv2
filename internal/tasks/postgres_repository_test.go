@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"testing"
 	"time"
@@ -163,11 +164,11 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 		    project = COALESCE($2, project),
 		    status = COALESCE($3, status),
 		    priority = COALESCE($4, priority),
-		    due_at = COALESCE($5, due_at),
-		    tools = COALESCE($6, tools),
-		    learning = COALESCE($7, learning),
+		    due_at = CASE WHEN $6 THEN NULL ELSE COALESCE($5, due_at) END,
+		    tools = COALESCE($7, tools),
+		    learning = COALESCE($8, learning),
 		    updated_at = NOW()
-		WHERE user_id = $8 AND id = $9
+		WHERE user_id = $9 AND id = $10
 		RETURNING id, user_id, title, project, status, priority, due_at, tools, learning, created_at, updated_at
 	`)).
 		WithArgs(
@@ -176,6 +177,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 			&status,
 			nil,
 			nil,
+			false,
 			nil,
 			nil,
 			int64(42),
@@ -207,5 +209,96 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
+	db.ExpectQuery("UPDATE tasks").
+		WithArgs(
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			true,
+			nil,
+			nil,
+			int64(42),
+			int64(99),
+		).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "title", "project", "status", "priority", "due_at", "tools", "learning", "created_at", "updated_at",
+		}).AddRow(
+			int64(99),
+			int64(42),
+			"整理客户名单",
+			"AI线索开发",
+			StatusTodo,
+			PriorityHigh,
+			nil,
+			[]byte(`["CRM"]`),
+			"线索评分",
+			now,
+			now,
+		))
+
+	repository := NewPostgresRepository(db)
+	task, err := repository.UpdateTask(context.Background(), 42, 99, TaskUpdate{ClearDueAt: true})
+	if err != nil {
+		t.Fatalf("UpdateTask() error = %v", err)
+	}
+	if task.DueAt != nil {
+		t.Fatalf("task.DueAt = %v, want nil", task.DueAt)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryDeletesOwnedTask(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec(regexp.QuoteMeta(`
+		DELETE FROM tasks
+		WHERE user_id = $1 AND id = $2
+	`)).
+		WithArgs(int64(42), int64(99)).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+	repository := NewPostgresRepository(db)
+	if err := repository.DeleteTask(context.Background(), 42, 99); err != nil {
+		t.Fatalf("DeleteTask() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryReturnsNotFoundWhenDeleteMisses(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec("DELETE FROM tasks").
+		WithArgs(int64(42), int64(99)).
+		WillReturnResult(pgxmock.NewResult("DELETE", 0))
+
+	repository := NewPostgresRepository(db)
+	err = repository.DeleteTask(context.Background(), 42, 99)
+	if !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("err = %v, want ErrTaskNotFound", err)
 	}
 }

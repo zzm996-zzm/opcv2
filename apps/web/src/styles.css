@@ -9681,7 +9681,13 @@ a {
   font-weight: 820;
 }
 
-.task-table article > button {
+.task-row-actions {
+  display: flex;
+  justify-self: end;
+  gap: 8px;
+}
+
+.task-row-actions button {
   justify-self: end;
   min-height: 32px;
   padding: 0 11px;
@@ -9694,7 +9700,7 @@ a {
   cursor: pointer;
 }
 
-.task-table article > button:disabled {
+.task-row-actions button:disabled {
   color: #9aa7c0;
   cursor: not-allowed;
 }
@@ -24662,7 +24668,13 @@ a {
   font-weight: 800;
 }
 
-.task-view-card > button {
+.task-view-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.task-view-card-actions button {
   justify-self: start;
   min-height: 32px;
   padding: 0 11px;
@@ -24675,9 +24687,15 @@ a {
   cursor: pointer;
 }
 
-.task-view-card > button:disabled {
+.task-view-card-actions button:disabled {
   color: #9aa7c0;
   cursor: not-allowed;
+}
+
+.task-row-actions button:last-child,
+.task-view-card-actions button:last-child {
+  color: #435b93;
+  background: #f7faff;
 }
 
 .task-calendar-view {
@@ -24705,6 +24723,187 @@ a {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
+}
+
+.task-modal-backdrop {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: grid;
+  padding: 20px;
+  background: rgba(4, 13, 38, 0.52);
+  place-items: center;
+}
+
+.task-detail-dialog {
+  position: relative;
+  width: min(720px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 28px;
+  color: #0b1b4b;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 30px 90px rgba(4, 13, 38, 0.28);
+}
+
+.task-detail-close {
+  position: absolute;
+  top: 20px;
+  right: 22px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #7182ae;
+  background: transparent;
+  border: 0;
+  font-size: 27px;
+  line-height: 1;
+  cursor: pointer;
+  place-items: center;
+}
+
+.task-detail-dialog > header > span {
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.task-detail-dialog > header h2 {
+  margin: 7px 44px 5px 0;
+  color: #071637;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.task-detail-dialog > header p {
+  margin: 0 0 22px;
+  color: #7184ad;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.task-detail-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.task-detail-form-grid label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.task-detail-form-grid label.wide {
+  grid-column: 1 / -1;
+}
+
+.task-detail-form-grid label > span {
+  color: #435b93;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.task-detail-form-grid input,
+.task-detail-form-grid select,
+.task-detail-form-grid textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 10px 12px;
+  color: #10265f;
+  background: #fbfcff;
+  border: 1px solid rgba(31, 68, 140, 0.16);
+  border-radius: 8px;
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.task-detail-form-grid textarea {
+  min-height: 78px;
+  resize: vertical;
+}
+
+.task-detail-form-grid input:focus,
+.task-detail-form-grid select:focus,
+.task-detail-form-grid textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(21, 87, 255, 0.1);
+}
+
+.task-delete-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  color: #9f2b20;
+  background: #fff3f1;
+  border: 1px solid rgba(220, 56, 44, 0.16);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.task-delete-confirm button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  color: #fff;
+  background: #d9362b;
+  border: 0;
+  border-radius: 7px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-detail-dialog form > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(31, 68, 140, 0.08);
+}
+
+.task-detail-dialog form > footer > div {
+  display: flex;
+  gap: 10px;
+}
+
+.task-detail-dialog form > footer button {
+  min-height: 42px;
+  padding: 0 18px;
+  color: #435b93;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.16);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-detail-dialog form > footer button.primary {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.task-detail-dialog form > footer button.danger {
+  color: #d9362b;
+  border-color: rgba(217, 54, 43, 0.25);
+}
+
+.task-detail-dialog button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .billing-layout {
@@ -28946,8 +29145,9 @@ a {
     grid-column: 1;
   }
 
-  .task-table article > button {
+  .task-row-actions {
     justify-self: start;
+    flex-wrap: wrap;
   }
 
   .task-view-board {
@@ -28971,6 +29171,36 @@ a {
 
   .task-view-card-meta {
     flex-direction: column;
+  }
+
+  .task-detail-dialog {
+    width: min(100%, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    padding: 22px 16px 18px;
+  }
+
+  .task-detail-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .task-detail-form-grid label.wide {
+    grid-column: 1;
+  }
+
+  .task-delete-confirm,
+  .task-detail-dialog form > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .task-detail-dialog form > footer > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .task-detail-dialog form > footer button,
+  .task-delete-confirm button {
+    width: 100%;
   }
 
   .module-section-head,

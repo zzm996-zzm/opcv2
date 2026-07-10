@@ -32,13 +32,14 @@ type CreateInput struct {
 }
 
 type TaskUpdate struct {
-	Title    *string    `json:"title,omitempty"`
-	Project  *string    `json:"project,omitempty"`
-	Status   *string    `json:"status,omitempty"`
-	Priority *string    `json:"priority,omitempty"`
-	DueAt    *time.Time `json:"due_at,omitempty"`
-	Tools    *[]string  `json:"tools,omitempty"`
-	Learning *string    `json:"learning,omitempty"`
+	Title      *string    `json:"title,omitempty"`
+	Project    *string    `json:"project,omitempty"`
+	Status     *string    `json:"status,omitempty"`
+	Priority   *string    `json:"priority,omitempty"`
+	DueAt      *time.Time `json:"due_at,omitempty"`
+	ClearDueAt bool       `json:"clear_due_at,omitempty"`
+	Tools      *[]string  `json:"tools,omitempty"`
+	Learning   *string    `json:"learning,omitempty"`
 }
 
 type ListFilters struct {

@@ -426,6 +426,7 @@ func (fakeTasksApp) GetTask(context.Context, int64, int64) (tasks.Task, error) {
 func (fakeTasksApp) UpdateTask(context.Context, int64, int64, tasks.TaskUpdate) (tasks.Task, error) {
 	return tasks.Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusCompleted}, nil
 }
+func (fakeTasksApp) DeleteTask(context.Context, int64, int64) error { return nil }
 
 func TestTaskRoutesAreMountedBehindAuth(t *testing.T) {
 	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)

@@ -10,6 +10,7 @@ import (
 type fakeRepository struct {
 	created Task
 	updated Task
+	deleted Task
 	task    Task
 	tasks   []Task
 	filters ListFilters
@@ -93,6 +94,17 @@ func (r *fakeRepository) UpdateTask(_ context.Context, userID, id int64, update 
 	}
 	r.updated = r.task
 	return r.task, nil
+}
+
+func (r *fakeRepository) DeleteTask(_ context.Context, userID, id int64) error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.task.UserID != userID || r.task.ID != id {
+		return ErrTaskNotFound
+	}
+	r.deleted = r.task
+	return nil
 }
 
 func TestServiceCreatesTaskWithDefaults(t *testing.T) {
@@ -199,6 +211,31 @@ func TestServiceRejectsOtherUsersTask(t *testing.T) {
 	status := StatusCompleted
 
 	_, err := service.UpdateTask(context.Background(), 42, 99, TaskUpdate{Status: &status})
+
+	if !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("err = %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestServiceDeletesOwnedTask(t *testing.T) {
+	repository := &fakeRepository{task: Task{ID: 99, UserID: 42, Title: "整理客户"}}
+	service := NewService(repository)
+
+	err := service.DeleteTask(context.Background(), 42, 99)
+
+	if err != nil {
+		t.Fatalf("DeleteTask() error = %v", err)
+	}
+	if repository.deleted.ID != 99 {
+		t.Fatalf("deleted = %+v", repository.deleted)
+	}
+}
+
+func TestServiceRejectsDeletingOtherUsersTask(t *testing.T) {
+	repository := &fakeRepository{task: Task{ID: 99, UserID: 7, Title: "别人的任务"}}
+	service := NewService(repository)
+
+	err := service.DeleteTask(context.Background(), 42, 99)
 
 	if !errors.Is(err, ErrTaskNotFound) {
 		t.Fatalf("err = %v, want ErrTaskNotFound", err)

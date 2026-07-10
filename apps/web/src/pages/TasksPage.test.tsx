@@ -534,4 +534,137 @@ describe("TasksPage", () => {
     expect(screen.getByLabelText("任务看板预览")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "任务日历" })).not.toBeInTheDocument();
   });
+
+  it("loads the latest task detail and saves edited fields", async () => {
+    const task = {
+      id: 95,
+      user_id: 7,
+      title: "准备客户访谈",
+      project: "客户验证",
+      status: "todo",
+      priority: "medium",
+      due_at: "2026-07-18T10:00:00Z",
+      tools: ["CRM"],
+      learning: "访谈方法",
+      created_at: "2026-07-10T08:00:00Z",
+      updated_at: "2026-07-10T08:00:00Z"
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [task] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 1, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/95" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({ ...task, title: "准备首轮客户访谈" }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/95" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({
+          ...task,
+          title: "完成客户访谈提纲",
+          status: "in_progress",
+          priority: "high",
+          due_at: undefined,
+          tools: ["CRM", "任务中心"],
+          learning: "访谈复盘",
+          updated_at: "2026-07-10T10:00:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    const taskHeading = await screen.findByRole("heading", { name: "准备客户访谈" });
+    fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "查看任务详情" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "任务详情" });
+    expect(await within(dialog).findByDisplayValue("准备首轮客户访谈")).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("任务标题"), { target: { value: "完成客户访谈提纲" } });
+    fireEvent.change(within(dialog).getByLabelText("任务状态"), { target: { value: "in_progress" } });
+    fireEvent.change(within(dialog).getByLabelText("优先级"), { target: { value: "high" } });
+    fireEvent.change(within(dialog).getByLabelText("截止时间"), { target: { value: "" } });
+    fireEvent.change(within(dialog).getByLabelText("建议工具"), { target: { value: "CRM，任务中心" } });
+    fireEvent.change(within(dialog).getByLabelText("补课内容"), { target: { value: "访谈复盘" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存修改" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/95",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({
+          title: "完成客户访谈提纲",
+          project: "客户验证",
+          status: "in_progress",
+          priority: "high",
+          clear_due_at: true,
+          tools: ["CRM", "任务中心"],
+          learning: "访谈复盘"
+        })
+      })
+    ));
+    expect(await screen.findByText("已更新任务：完成客户访谈提纲")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "完成客户访谈提纲" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "任务详情" })).not.toBeInTheDocument();
+  });
+
+  it("deletes a task after a second confirmation", async () => {
+    let deleted = false;
+    const task = {
+      id: 96,
+      user_id: 7,
+      title: "清理过期跟进任务",
+      project: "客户验证",
+      status: "todo",
+      priority: "low",
+      tools: ["CRM"],
+      learning: "客户跟进",
+      created_at: "2026-07-10T08:00:00Z",
+      updated_at: "2026-07-10T08:00:00Z"
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [task] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({
+          total: deleted ? 0 : 1,
+          todo: deleted ? 0 : 1,
+          in_progress: 0,
+          completed: 0,
+          reminder: 0,
+          overdue: 0
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/96" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify(task), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/96" && init?.method === "DELETE") {
+        deleted = true;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    const taskHeading = await screen.findByRole("heading", { name: "清理过期跟进任务" });
+    fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "查看任务详情" }));
+    const dialog = await screen.findByRole("dialog", { name: "任务详情" });
+    expect(await within(dialog).findByDisplayValue("清理过期跟进任务")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "删除任务" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "确认删除" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/96",
+      expect.objectContaining({ method: "DELETE" })
+    ));
+    expect(await screen.findByText("已删除任务：清理过期跟进任务")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "清理过期跟进任务" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "任务详情" })).not.toBeInTheDocument();
+  });
 });
