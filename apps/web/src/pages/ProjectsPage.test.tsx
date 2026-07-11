@@ -240,13 +240,28 @@ describe("ProjectsPage", () => {
     expect(screen.getByText("综合可做度 81分")).toBeInTheDocument();
   });
 
-  it("renders project comparison and export modal states", () => {
+  it("creates a persisted project comparison", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      const items = [
+        { id: 1, slug: "ai-sales", title: "AI销售", summary: "销售流程", industry: "企业服务", tags: [], budget_band: "1万", difficulty: "中等", resource_requirements: [] },
+        { id: 2, slug: "ai-content", title: "AI内容", summary: "内容生产", industry: "内容", tags: [], budget_band: "5000", difficulty: "低", resource_requirements: [] }
+      ];
+      if (url === "/api/v1/projects/opportunities") return Promise.resolve(new Response(JSON.stringify({ opportunities: items }), { status: 200 }));
+      if (url === "/api/v1/projects/comparisons" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 61, items }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
     renderProjectRoute("/projects/compare");
 
     expect(screen.getByRole("heading", { name: "项目对比" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "AI短视频脚本工作室" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "导出对比报告" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "AI销售" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "AI内容" }));
+    fireEvent.click(screen.getByRole("button", { name: "开始对比" }));
+    expect(await screen.findByRole("heading", { name: "AI销售" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI内容" })).toBeInTheDocument();
+  });
 
+  it("renders export modal state", () => {
     authSession.clear();
     renderProjectRoute("/projects/export");
 

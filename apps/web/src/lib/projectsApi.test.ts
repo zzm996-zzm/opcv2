@@ -82,6 +82,16 @@ describe("projectsApi", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/matches/99/answers", expect.objectContaining({ method:"POST", body:JSON.stringify({ answers:[{ key:"background", value:"销售经验" }] }) }));
   });
 
+  it("creates and gets a project comparison", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 61, items: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 61, items: [] }), { status: 200 }));
+    await projectsApi.createComparison(["ai-sales", "ai-content"]);
+    await projectsApi.getComparison(61);
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/projects/comparisons", expect.objectContaining({ method: "POST", body: JSON.stringify({ opportunity_slugs: ["ai-sales", "ai-content"] }) }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/projects/comparisons/61", expect.objectContaining({ method: "GET" }));
+  });
+
   it("favorites a project match", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: 7, user_id: 42, session_id: 99 }), { status: 200 })

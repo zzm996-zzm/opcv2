@@ -21,7 +21,20 @@ var (
 	ErrOpportunityNotFound = errors.New("project opportunity not found")
 	ErrCaseNotFound        = errors.New("project case not found")
 	ErrInvalidMatchAnswers = errors.New("invalid project match answers")
+	ErrComparisonNotFound  = errors.New("project comparison not found")
+	ErrInvalidComparison   = errors.New("invalid project comparison")
 )
+
+type CreateComparisonInput struct {
+	UserID           int64    `json:"-"`
+	OpportunitySlugs []string `json:"opportunity_slugs"`
+}
+type Comparison struct {
+	ID        int64         `json:"id"`
+	UserID    int64         `json:"user_id"`
+	Items     []Opportunity `json:"items"`
+	CreatedAt time.Time     `json:"created_at"`
+}
 
 type AnswerMatchInput struct {
 	UserID    int64    `json:"-"`

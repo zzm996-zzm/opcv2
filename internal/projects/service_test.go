@@ -17,7 +17,23 @@ type memoryRepository struct {
 	favorites     map[int64]map[int64]Favorite
 	opportunities []Opportunity
 	cases         []CaseStudy
+	comparisons   []Comparison
 	nextID        int64
+}
+
+func (r *memoryRepository) CreateComparison(_ context.Context, comparison Comparison) (Comparison, error) {
+	comparison.ID = int64(len(r.comparisons) + 1)
+	r.comparisons = append(r.comparisons, comparison)
+	return comparison, nil
+}
+
+func (r *memoryRepository) GetComparison(_ context.Context, userID, id int64) (Comparison, error) {
+	for _, item := range r.comparisons {
+		if item.UserID == userID && item.ID == id {
+			return item, nil
+		}
+	}
+	return Comparison{}, ErrComparisonNotFound
 }
 
 func (r *memoryRepository) ListCases(_ context.Context, filters CaseFilters) ([]CaseStudy, error) {

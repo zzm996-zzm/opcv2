@@ -89,6 +89,30 @@ func (r *PostgresRepository) GetCase(ctx context.Context, slug string) (CaseStud
 	return item, err
 }
 
+func (r *PostgresRepository) CreateComparison(ctx context.Context, comparison Comparison) (Comparison, error) {
+	items, err := json.Marshal(comparison.Items)
+	if err != nil {
+		return Comparison{}, err
+	}
+	err = r.db.QueryRow(ctx, `INSERT INTO project_comparisons (user_id, items, created_at) VALUES ($1, $2, $3) RETURNING id`, comparison.UserID, items, comparison.CreatedAt).Scan(&comparison.ID)
+	return comparison, err
+}
+func (r *PostgresRepository) GetComparison(ctx context.Context, userID, id int64) (Comparison, error) {
+	var comparison Comparison
+	var items []byte
+	err := r.db.QueryRow(ctx, `SELECT id, user_id, items, created_at FROM project_comparisons WHERE user_id = $1 AND id = $2`, userID, id).Scan(&comparison.ID, &comparison.UserID, &items, &comparison.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Comparison{}, ErrComparisonNotFound
+	}
+	if err != nil {
+		return Comparison{}, err
+	}
+	if err := json.Unmarshal(items, &comparison.Items); err != nil {
+		return Comparison{}, err
+	}
+	return comparison, nil
+}
+
 func (r *PostgresRepository) CreateSession(ctx context.Context, session MatchSession) (MatchSession, error) {
 	questions, err := json.Marshal(session.Questions)
 	if err != nil {

@@ -62,6 +62,12 @@ func (a *fakeApplication) AnswerMatch(_ context.Context, input AnswerMatchInput)
 	a.matchID = input.SessionID
 	return a.result, a.err
 }
+func (a *fakeApplication) CreateComparison(_ context.Context, input CreateComparisonInput) (Comparison, error) {
+	return Comparison{ID: 61, UserID: input.UserID}, a.err
+}
+func (a *fakeApplication) GetComparison(_ context.Context, userID, id int64) (Comparison, error) {
+	return Comparison{ID: id, UserID: userID}, a.err
+}
 
 func (a *fakeApplication) FavoriteMatch(_ context.Context, userID, id int64) (Favorite, error) {
 	a.userID = userID

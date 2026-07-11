@@ -873,6 +873,18 @@ function DetailDashboard() {
 }
 
 function ProjectCompare() {
+  const [options, setOptions] = useState<ProjectOpportunity[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [comparison, setComparison] = useState<ProjectOpportunity[]>([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    projectsApi.listOpportunities().then((payload) => { if (active) setOptions(payload.opportunities); })
+      .catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取项目目录")); });
+    return () => { active = false; };
+  }, []);
+  function toggle(slug: string) { setSelected((current) => current.includes(slug) ? current.filter((item) => item !== slug) : current.length < 4 ? [...current, slug] : current); }
+  async function createComparison() { try { const result = await projectsApi.createComparison(selected); setComparison(result.items); setError(""); } catch (createError) { setError(apiErrorMessage(createError, "暂时无法创建项目对比")); } }
   return (
     <>
       <div className="pm-result-head">
@@ -881,25 +893,24 @@ function ProjectCompare() {
           <h1>项目对比</h1>
           <small>从预算、能力、增长潜力和风险维度横向比较候选项目。</small>
         </div>
-        <button type="button">导出对比报告</button>
+        <button disabled={selected.length < 2} onClick={() => void createComparison()} type="button">开始对比</button>
       </div>
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {comparison.length === 0 ? <section className="pm-panel"><h2>选择 2-4 个项目</h2>{options.map((item) => <label key={item.id}><input aria-label={item.title} checked={selected.includes(item.slug)} onChange={() => toggle(item.slug)} type="checkbox" />{item.title}</label>)}</section> : null}
       <section className="pm-compare-grid">
-        {resultProjects.slice(0, 3).map((project) => (
-          <article key={project.title}>
+        {comparison.map((project) => (
+          <article key={project.id}>
             <div className="pm-result-image" />
             <h2>{project.title}</h2>
-            <strong>{project.score}</strong>
-            <p>{project.risk}</p>
+            <strong>{project.budget_band || "预算待补充"}</strong>
+            <p>{project.summary}</p>
             <ul>
-              {project.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+              {[project.industry, project.difficulty, ...project.resource_requirements].filter(Boolean).map((reason) => <li key={reason}>{reason}</li>)}
             </ul>
           </article>
         ))}
       </section>
-      <section className="pm-panel pm-compare-summary">
-        <h2>AI对比建议</h2>
-        <p>优先选择 AI短视频脚本工作室作为第一阶段验证项目，同时保留 Excel 自动化作为 B 端稳定现金流备选。</p>
-      </section>
+      {comparison.length > 0 ? <section className="pm-panel pm-compare-summary"><h2>对比说明</h2><p>以上内容来自已发布项目目录快照，不包含未经验证的收益预测。</p></section> : null}
     </>
   );
 }

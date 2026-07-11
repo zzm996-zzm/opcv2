@@ -18,11 +18,46 @@ type Repository interface {
 	GetOpportunity(ctx context.Context, slug string) (Opportunity, error)
 	ListCases(ctx context.Context, filters CaseFilters) ([]CaseStudy, error)
 	GetCase(ctx context.Context, slug string) (CaseStudy, error)
+	CreateComparison(ctx context.Context, comparison Comparison) (Comparison, error)
+	GetComparison(ctx context.Context, userID, id int64) (Comparison, error)
 	CreateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetSession(ctx context.Context, userID, id int64) (MatchSession, error)
 	UpdateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	SaveFavorite(ctx context.Context, favorite Favorite) (Favorite, error)
+}
+
+func (s *Service) CreateComparison(ctx context.Context, input CreateComparisonInput) (Comparison, error) {
+	if s.repository == nil {
+		return Comparison{}, ErrServiceNotReady
+	}
+	seen := map[string]bool{}
+	slugs := make([]string, 0, len(input.OpportunitySlugs))
+	for _, raw := range input.OpportunitySlugs {
+		slug := strings.TrimSpace(raw)
+		if slug != "" && !seen[slug] {
+			seen[slug] = true
+			slugs = append(slugs, slug)
+		}
+	}
+	if len(slugs) < 2 || len(slugs) > 4 {
+		return Comparison{}, ErrInvalidComparison
+	}
+	items := make([]Opportunity, 0, len(slugs))
+	for _, slug := range slugs {
+		item, err := s.repository.GetOpportunity(ctx, slug)
+		if err != nil {
+			return Comparison{}, err
+		}
+		items = append(items, item)
+	}
+	return s.repository.CreateComparison(ctx, Comparison{UserID: input.UserID, Items: items, CreatedAt: s.now()})
+}
+func (s *Service) GetComparison(ctx context.Context, userID, id int64) (Comparison, error) {
+	if s.repository == nil {
+		return Comparison{}, ErrServiceNotReady
+	}
+	return s.repository.GetComparison(ctx, userID, id)
 }
 
 func (s *Service) AnswerMatch(ctx context.Context, input AnswerMatchInput) (MatchResult, error) {

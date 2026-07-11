@@ -56,6 +56,7 @@ export type ProjectOpportunity = {
   updated_at?: string;
 };
 export type ProjectCase = { id:number; slug:string; title:string; summary:string; case_type:string; outcome:string; key_actions:string[]; lessons:string[]; pitfalls:string[]; source_title:string; source_url:string; captured_at:string };
+export type ProjectComparison = { id:number; user_id:number; items:ProjectOpportunity[]; created_at:string };
 
 export const projectsApi = {
   listOpportunities(filters: { query?: string; industry?: string } = {}) {
@@ -94,6 +95,8 @@ export const projectsApi = {
   answerMatch(id: number, answers: { key:string; value:string }[]) {
     return apiRequest<ProjectMatchResult>(`/api/v1/projects/matches/${id}/answers`, { method:"POST", body:JSON.stringify({ answers }) });
   },
+  createComparison(opportunitySlugs: string[]) { return apiRequest<ProjectComparison>("/api/v1/projects/comparisons", { method:"POST", body:JSON.stringify({ opportunity_slugs:opportunitySlugs }) }); },
+  getComparison(id: number) { return apiRequest<ProjectComparison>(`/api/v1/projects/comparisons/${id}`, { method:"GET" }); },
 
   favoriteMatch(id: number) {
     return apiRequest<ProjectFavorite>(`/api/v1/projects/matches/${id}/favorite`, {

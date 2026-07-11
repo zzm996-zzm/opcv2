@@ -19,6 +19,8 @@ type Application interface {
 	ListMatches(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetMatch(ctx context.Context, userID, id int64) (MatchSession, error)
 	AnswerMatch(ctx context.Context, input AnswerMatchInput) (MatchResult, error)
+	CreateComparison(ctx context.Context, input CreateComparisonInput) (Comparison, error)
+	GetComparison(ctx context.Context, userID, id int64) (Comparison, error)
 	FavoriteMatch(ctx context.Context, userID, id int64) (Favorite, error)
 }
 
@@ -40,6 +42,35 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/projects/matches/:id", h.getMatch)
 	router.POST("/projects/matches/:id/answers", h.answerMatch)
 	router.POST("/projects/matches/:id/favorite", h.favoriteMatch)
+	router.POST("/projects/comparisons", h.createComparison)
+	router.GET("/projects/comparisons/:id", h.getComparison)
+}
+
+func (h *HTTPHandler) createComparison(c *gin.Context) {
+	var request CreateComparisonInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	result, err := h.app.CreateComparison(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+func (h *HTTPHandler) getComparison(c *gin.Context) {
+	id, ok := matchID(c)
+	if !ok {
+		return
+	}
+	result, err := h.app.GetComparison(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *HTTPHandler) answerMatch(c *gin.Context) {
@@ -190,6 +221,10 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "case_not_found"})
 	case errors.Is(err, ErrInvalidMatchAnswers):
 		c.JSON(http.StatusConflict, gin.H{"error": "invalid_match_answers"})
+	case errors.Is(err, ErrComparisonNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "comparison_not_found"})
+	case errors.Is(err, ErrInvalidComparison):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_comparison"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	case errors.Is(err, ErrInvalidAIResult):
