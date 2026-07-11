@@ -18,6 +18,7 @@ type Application interface {
 	CreateMatch(ctx context.Context, input MatchInput) (MatchResult, error)
 	ListMatches(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetMatch(ctx context.Context, userID, id int64) (MatchSession, error)
+	AnswerMatch(ctx context.Context, input AnswerMatchInput) (MatchResult, error)
 	FavoriteMatch(ctx context.Context, userID, id int64) (Favorite, error)
 }
 
@@ -37,7 +38,28 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/projects/matches", h.createMatch)
 	router.GET("/projects/matches", h.listMatches)
 	router.GET("/projects/matches/:id", h.getMatch)
+	router.POST("/projects/matches/:id/answers", h.answerMatch)
 	router.POST("/projects/matches/:id/favorite", h.favoriteMatch)
+}
+
+func (h *HTTPHandler) answerMatch(c *gin.Context) {
+	id, ok := matchID(c)
+	if !ok {
+		return
+	}
+	var request AnswerMatchInput
+	if err := c.ShouldBindJSON(&request); err != nil || len(request.Answers) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.SessionID = id
+	result, err := h.app.AnswerMatch(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *HTTPHandler) listCases(c *gin.Context) {
@@ -166,6 +188,8 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "opportunity_not_found"})
 	case errors.Is(err, ErrCaseNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "case_not_found"})
+	case errors.Is(err, ErrInvalidMatchAnswers):
+		c.JSON(http.StatusConflict, gin.H{"error": "invalid_match_answers"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	case errors.Is(err, ErrInvalidAIResult):

@@ -90,6 +90,16 @@ func (r *memoryRepository) GetSession(_ context.Context, userID, id int64) (Matc
 	return MatchSession{}, ErrSessionNotFound
 }
 
+func (r *memoryRepository) UpdateSession(_ context.Context, session MatchSession) (MatchSession, error) {
+	for index, item := range r.sessions {
+		if item.UserID == session.UserID && item.ID == session.ID {
+			r.sessions[index] = session
+			return session, nil
+		}
+	}
+	return MatchSession{}, ErrSessionNotFound
+}
+
 func (r *memoryRepository) SaveFavorite(_ context.Context, favorite Favorite) (Favorite, error) {
 	if r.favorites == nil {
 		r.favorites = map[int64]map[int64]Favorite{}
@@ -144,6 +154,18 @@ func TestServiceAsksFollowUpForThinMatchRequest(t *testing.T) {
 	}
 	if repository.sessions[0].UserID != 42 || repository.sessions[0].Status != StatusNeedsInput {
 		t.Fatalf("stored session = %+v", repository.sessions[0])
+	}
+}
+
+func TestServiceAnswersFollowUpAndCompletesExistingSession(t *testing.T) {
+	payload := MatchResult{Status: StatusCompleted, Projects: []ProjectMatch{{Rank: 1, Title: "AI销售顾问", Score: 90, Tags: []string{"B端"}, Budget: "1万", Reasons: []string{"经验匹配"}, Risk: "需验证获客"}}}
+	content, _ := json.Marshal(payload)
+	repository := &memoryRepository{sessions: []MatchSession{{ID: 99, UserID: 42, Intent: "想找项目", Status: StatusNeedsInput, Questions: []Question{{Key: "background", Text: "能力", Options: []string{"销售"}}}}}}
+	service := NewService(repository, &fakeJSONGenerator{result: ai.GenerateJSONResult{Content: content}})
+
+	result, err := service.AnswerMatch(context.Background(), AnswerMatchInput{UserID: 42, SessionID: 99, Answers: []Answer{{Key: "background", Value: "销售经验"}}})
+	if err != nil || result.SessionID != 99 || repository.sessions[0].Status != StatusCompleted || len(repository.sessions[0].Result.Projects) != 1 {
+		t.Fatalf("result/session = %+v/%+v err=%v", result, repository.sessions[0], err)
 	}
 }
 

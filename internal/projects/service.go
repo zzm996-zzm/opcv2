@@ -21,7 +21,47 @@ type Repository interface {
 	CreateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetSession(ctx context.Context, userID, id int64) (MatchSession, error)
+	UpdateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	SaveFavorite(ctx context.Context, favorite Favorite) (Favorite, error)
+}
+
+func (s *Service) AnswerMatch(ctx context.Context, input AnswerMatchInput) (MatchResult, error) {
+	if s.repository == nil || s.generator == nil {
+		return MatchResult{}, ErrServiceNotReady
+	}
+	session, err := s.repository.GetSession(ctx, input.UserID, input.SessionID)
+	if err != nil {
+		return MatchResult{}, err
+	}
+	if session.Status != StatusNeedsInput || !answersCoverQuestions(session.Questions, input.Answers) {
+		return MatchResult{}, ErrInvalidMatchAnswers
+	}
+	result, err := s.generateMatch(ctx, MatchInput{UserID: input.UserID, Intent: session.Intent, Answers: input.Answers})
+	if err != nil {
+		return MatchResult{}, err
+	}
+	result.SessionID = session.ID
+	session.Status = StatusCompleted
+	session.Questions = []Question{}
+	session.Result = result
+	session.UpdatedAt = s.now()
+	if _, err := s.repository.UpdateSession(ctx, session); err != nil {
+		return MatchResult{}, err
+	}
+	return result, nil
+}
+
+func answersCoverQuestions(questions []Question, answers []Answer) bool {
+	values := map[string]string{}
+	for _, answer := range answers {
+		values[strings.TrimSpace(answer.Key)] = strings.TrimSpace(answer.Value)
+	}
+	for _, question := range questions {
+		if values[question.Key] == "" {
+			return false
+		}
+	}
+	return len(questions) > 0
 }
 
 func (s *Service) ListCases(ctx context.Context, filters CaseFilters) ([]CaseStudy, error) {

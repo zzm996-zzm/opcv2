@@ -313,6 +313,7 @@ function MatchRequest() {
   const [result, setResult] = useState<ProjectMatchResult | null>(null);
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState("");
+  const [answers, setAnswers] = useState<Record<string, string>>({});
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -330,6 +331,14 @@ function MatchRequest() {
   }
 
   const matchedProjects = result?.projects?.map(toDisplayProject) ?? [];
+
+  async function submitAnswers() {
+    if (!result || result.status !== "needs_input" || status === "submitting") return;
+    const payload = (result.questions ?? []).map((question) => ({ key:question.key, value:answers[question.key] ?? "" }));
+    if (payload.some((answer) => !answer.value)) { setError("请回答全部补充问题"); return; }
+    setStatus("submitting"); setError("");
+    try { setResult(await projectsApi.answerMatch(result.session_id, payload)); } catch (submitError) { setError(apiErrorMessage(submitError, "暂时无法生成匹配结果")); } finally { setStatus("idle"); }
+  }
 
   return (
     <>
@@ -381,10 +390,11 @@ function MatchRequest() {
                 <small>补充后可以提升项目匹配准确度</small>
               </span>
               <div>
-                {question.options.map((option) => <button key={option} type="button">{option}</button>)}
+                {question.options.map((option) => <button className={answers[question.key] === option ? "active" : ""} key={option} onClick={() => setAnswers((current) => ({ ...current, [question.key]:option }))} type="button">{option}</button>)}
               </div>
             </article>
           ))}
+          <button className="pm-primary-button" disabled={status === "submitting"} onClick={() => void submitAnswers()} type="button">{status === "submitting" ? "生成中..." : "生成匹配结果"}</button>
         </section>
       )}
       {result?.status === "completed" && matchedProjects.length > 0 && (

@@ -152,6 +152,22 @@ func (r *PostgresRepository) GetSession(ctx context.Context, userID, id int64) (
 	return session, err
 }
 
+func (r *PostgresRepository) UpdateSession(ctx context.Context, session MatchSession) (MatchSession, error) {
+	questions, err := json.Marshal(session.Questions)
+	if err != nil {
+		return MatchSession{}, err
+	}
+	result, err := json.Marshal(session.Result)
+	if err != nil {
+		return MatchSession{}, err
+	}
+	err = r.db.QueryRow(ctx, `UPDATE project_match_sessions SET status = $3, questions = $4, result = $5, updated_at = $6 WHERE user_id = $1 AND id = $2 RETURNING id`, session.UserID, session.ID, session.Status, questions, result, session.UpdatedAt).Scan(&session.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MatchSession{}, ErrSessionNotFound
+	}
+	return session, err
+}
+
 func (r *PostgresRepository) SaveFavorite(ctx context.Context, favorite Favorite) (Favorite, error) {
 	err := r.db.QueryRow(ctx, `
 		INSERT INTO project_match_favorites (user_id, session_id, created_at)

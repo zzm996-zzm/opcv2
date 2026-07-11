@@ -20,7 +20,14 @@ var (
 	ErrSessionNotFound     = errors.New("project match session not found")
 	ErrOpportunityNotFound = errors.New("project opportunity not found")
 	ErrCaseNotFound        = errors.New("project case not found")
+	ErrInvalidMatchAnswers = errors.New("invalid project match answers")
 )
+
+type AnswerMatchInput struct {
+	UserID    int64    `json:"-"`
+	SessionID int64    `json:"-"`
+	Answers   []Answer `json:"answers"`
+}
 
 type CaseFilters struct {
 	CaseType string

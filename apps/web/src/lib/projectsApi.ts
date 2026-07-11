@@ -91,6 +91,9 @@ export const projectsApi = {
       method: "GET"
     });
   },
+  answerMatch(id: number, answers: { key:string; value:string }[]) {
+    return apiRequest<ProjectMatchResult>(`/api/v1/projects/matches/${id}/answers`, { method:"POST", body:JSON.stringify({ answers }) });
+  },
 
   favoriteMatch(id: number) {
     return apiRequest<ProjectFavorite>(`/api/v1/projects/matches/${id}/favorite`, {

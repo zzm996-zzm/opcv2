@@ -87,6 +87,19 @@ describe("ProjectsPage", () => {
     expect(screen.getByText("91分")).toBeInTheDocument();
   });
 
+  it("answers dynamic match questions and renders the persisted result", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ session_id:99, status:"needs_input", questions:[{ key:"background", text:"你擅长什么？", options:["销售经验","内容创作"] }] }), { status:200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ session_id:99, status:"completed", projects:[{ rank:1, title:"AI销售顾问", score:90, tags:["B端"], budget:"1万", reasons:["经验匹配"], risk:"需验证获客" }] }), { status:200 }));
+    renderProjectRoute("/projects/match");
+    fireEvent.change(screen.getByLabelText("项目匹配需求"), { target:{ value:"想找项目" } });
+    fireEvent.click(screen.getByRole("button", { name:"提交给 AI 分析" }));
+    fireEvent.click(await screen.findByRole("button", { name:"销售经验" }));
+    fireEvent.click(screen.getByRole("button", { name:"生成匹配结果" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith("/api/v1/projects/matches/99/answers", expect.objectContaining({ method:"POST" })));
+    expect(await screen.findByRole("heading", { name:"AI销售顾问" })).toBeInTheDocument();
+  });
+
   it("renders opportunity exploration from API", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ opportunities: [{
       id: 42,

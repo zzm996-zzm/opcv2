@@ -76,6 +76,12 @@ describe("projectsApi", () => {
     );
   });
 
+  it("answers project match follow-up questions", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ session_id:99, status:"completed" }), { status:200 }));
+    await projectsApi.answerMatch(99, [{ key:"background", value:"销售经验" }]);
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/matches/99/answers", expect.objectContaining({ method:"POST", body:JSON.stringify({ answers:[{ key:"background", value:"销售经验" }] }) }));
+  });
+
   it("favorites a project match", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: 7, user_id: 42, session_id: 99 }), { status: 200 })

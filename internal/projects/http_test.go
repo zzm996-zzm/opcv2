@@ -57,6 +57,11 @@ func (a *fakeApplication) GetMatch(_ context.Context, userID, id int64) (MatchSe
 	a.matchID = id
 	return a.session, a.err
 }
+func (a *fakeApplication) AnswerMatch(_ context.Context, input AnswerMatchInput) (MatchResult, error) {
+	a.input.UserID = input.UserID
+	a.matchID = input.SessionID
+	return a.result, a.err
+}
 
 func (a *fakeApplication) FavoriteMatch(_ context.Context, userID, id int64) (Favorite, error) {
 	a.userID = userID
