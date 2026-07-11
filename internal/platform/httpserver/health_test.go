@@ -373,7 +373,12 @@ func TestContentRoutesExposePublicReadsAndProtectAdminWrites(t *testing.T) {
 
 type fakeSandboxApp struct{}
 
+func (fakeSandboxApp) ListRoles() []sandbox.Role { return sandbox.DefaultRoles() }
+
 func (fakeSandboxApp) CreateSession(context.Context, sandbox.CreateInput) (sandbox.Session, error) {
+	return sandbox.Session{ID: 99, UserID: 42, Status: sandbox.StatusDraft}, nil
+}
+func (fakeSandboxApp) UpdateSessionDraft(context.Context, int64, int64, sandbox.DraftUpdate) (sandbox.Session, error) {
 	return sandbox.Session{ID: 99, UserID: 42, Status: sandbox.StatusDraft}, nil
 }
 func (fakeSandboxApp) RunSession(context.Context, int64, int64) (sandbox.Session, error) {

@@ -16,9 +16,14 @@ import (
 
 type Repository interface {
 	CreateSession(ctx context.Context, session Session) (Session, error)
+	UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error)
 	UpdateSessionResult(ctx context.Context, userID, id int64, result Report) (Session, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error)
 	GetSession(ctx context.Context, userID, id int64) (Session, error)
+}
+
+func (s *Service) ListRoles() []Role {
+	return DefaultRoles()
 }
 
 type JSONGenerator interface {
@@ -79,6 +84,38 @@ func (s *Service) CreateSession(ctx context.Context, input CreateInput) (Session
 	return s.repository.CreateSession(ctx, session)
 }
 
+func (s *Service) UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error) {
+	if s.repository == nil {
+		return Session{}, ErrServiceNotReady
+	}
+	session, err := s.repository.GetSession(ctx, userID, id)
+	if err != nil {
+		return Session{}, err
+	}
+	if session.Status != StatusDraft {
+		return Session{}, ErrInvalidSession
+	}
+	goal, targetUsers, product, roles := session.Goal, session.TargetUsers, session.Product, session.Roles
+	if update.Goal != nil {
+		goal = strings.TrimSpace(*update.Goal)
+	}
+	if update.TargetUsers != nil {
+		targetUsers = strings.TrimSpace(*update.TargetUsers)
+	}
+	if update.Product != nil {
+		product = strings.TrimSpace(*update.Product)
+	}
+	if update.Roles != nil {
+		roles = normalizeRoles(*update.Roles)
+	}
+	if goal == "" || targetUsers == "" || product == "" {
+		return Session{}, ErrInvalidSession
+	}
+	return s.repository.UpdateSessionDraft(ctx, userID, id, DraftUpdate{
+		Goal: &goal, TargetUsers: &targetUsers, Product: &product, Roles: &roles,
+	})
+}
+
 func (s *Service) RunSession(ctx context.Context, userID, id int64) (Session, error) {
 	if s.repository == nil || s.generator == nil {
 		return Session{}, ErrServiceNotReady
@@ -86,6 +123,9 @@ func (s *Service) RunSession(ctx context.Context, userID, id int64) (Session, er
 	session, err := s.repository.GetSession(ctx, userID, id)
 	if err != nil {
 		return Session{}, err
+	}
+	if session.Status != StatusDraft || session.Goal == "" || session.TargetUsers == "" || session.Product == "" || len(session.Roles) == 0 {
+		return Session{}, ErrInvalidSession
 	}
 	if s.quota != nil {
 		if _, err := s.quota.CheckAndConsume(ctx, membership.ConsumeInput{
@@ -239,11 +279,17 @@ func validateReport(report Report) error {
 
 func normalizeRoles(roles []string) []string {
 	normalized := make([]string, 0, len(roles))
+	seen := make(map[string]struct{}, len(roles))
 	for _, role := range roles {
 		role = strings.TrimSpace(role)
-		if role != "" {
-			normalized = append(normalized, role)
+		if role == "" {
+			continue
 		}
+		if _, exists := seen[role]; exists {
+			continue
+		}
+		seen[role] = struct{}{}
+		normalized = append(normalized, role)
 	}
 	return normalized
 }

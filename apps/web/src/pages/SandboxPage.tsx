@@ -6,7 +6,7 @@ import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
 import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
-import { sandboxApi, type SandboxSession } from "../lib/sandboxApi";
+import { sandboxApi, type SandboxRole, type SandboxSession } from "../lib/sandboxApi";
 
 type SandboxVariant =
   | "home"
@@ -28,14 +28,6 @@ const sandboxPillars = [
   ["机会与风险识别", "推演发现关键影响因素"],
   ["科学决策支持", "数据驱动更优决策"],
   ["推演历史沉淀", "复盘迭代持续优化"]
-] as const;
-
-const setupFacts = [
-  ["项目设想", "做一款面向上班族的 AI 低卡代餐奶昔，通过 AI 用户规划每天的营养和饮食计划。"],
-  ["所属行业", "人工智能 / 健康轻食"],
-  ["目标用户", "上班族"],
-  ["定价区间", "30元 / 杯"],
-  ["销售场景", "写字楼附近线下门店"]
 ] as const;
 
 const roles = [
@@ -106,8 +98,6 @@ const historyRows = [
   ["智能硬件IoT解决方案", "智能家居硬件及物联网平台方案", "用户 工程师 投资人 +2", "2024-05-10 09:50", "已完成", "7.6", "较高"]
 ] as const;
 
-const selectedRoleIndexes = new Set([0, 1, 3, 4]);
-
 type SandboxHistoryRow = {
   title: string;
   detail: string;
@@ -125,6 +115,7 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
   const { sessionId } = useParams();
   const [sessions, setSessions] = useState<SandboxSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<SandboxSession | null>(null);
+  const [roleCatalog, setRoleCatalog] = useState<SandboxRole[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
   const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
@@ -146,14 +137,23 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
       .catch(() => {
         if (active) setUsage([]);
       });
+    void sandboxApi.listRoles()
+      .then((payload) => {
+        if (active) setRoleCatalog(payload.roles);
+      })
+      .catch(() => {
+        if (active) setRoleCatalog([]);
+      });
     return () => {
       active = false;
     };
   }, []);
 
   useEffect(() => {
-    if (!sessionId) return;
-    const id = Number(sessionId);
+    const querySessionId = new URLSearchParams(location.search).get("session");
+    const rawSessionId = sessionId ?? querySessionId;
+    if (!rawSessionId) return;
+    const id = Number(rawSessionId);
     if (!Number.isFinite(id) || id <= 0) return;
     let active = true;
     sandboxApi
@@ -167,7 +167,7 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
     return () => {
       active = false;
     };
-  }, [sessionId]);
+  }, [location.search, sessionId]);
 
   const routedSession = (location.state as { sandboxSession?: SandboxSession } | null)?.sandboxSession ?? null;
   const reportSession = routedSession ?? selectedSession ?? sessions.find((session) => session.status === "completed" && session.report) ?? sessions.find((session) => session.report) ?? null;
@@ -182,13 +182,11 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
     setIsStarting(true);
     setStartError("");
     try {
-      const draft = await sandboxApi.createSession({
-        goal: "验证 AI 低卡代餐奶昔",
-        targetUsers: "上班族",
-        product: "AI 低卡代餐奶昔",
-        roles: [roles[0][0], roles[1][0], roles[3][0], roles[4][0]]
-      });
-      const completed = await sandboxApi.runSession(draft.id);
+      if (!selectedSession) {
+        setStartError("请先完成推演配置和角色选择。");
+        return;
+      }
+      const completed = await sandboxApi.runSession(selectedSession.id);
       setSessions((current) => [completed, ...current.filter((session) => session.id !== completed.id)]);
       const usagePayload = await membershipApi.usage().catch(() => null);
       if (usagePayload) setUsage(usagePayload.usage ?? []);
@@ -205,8 +203,8 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
       <section className={`sandbox-v2 sandbox-${variant}`} aria-label="商业沙盘">
         {variant === "home" && <SandboxHome />}
         {variant === "setup" && <SetupPage />}
-        {variant === "roles" && <RolesPage />}
-        {variant === "start" && <StartPage isStarting={isStarting} onStart={startSandbox} quota={sandboxQuota} startError={startError} />}
+        {variant === "roles" && <RolesPage roleCatalog={roleCatalog} session={selectedSession} />}
+        {variant === "start" && <StartPage isStarting={isStarting} onStart={startSandbox} quota={sandboxQuota} session={selectedSession} startError={startError} />}
         {variant === "questions" && <QuestionsPage />}
         {variant === "run" && <RunPage />}
         {variant === "report" && <ReportPage session={reportSession} />}
@@ -256,6 +254,27 @@ function SandboxHome() {
 }
 
 function SetupPage() {
+  const navigate = useNavigate();
+  const [goal, setGoal] = useState("验证面向上班族的 AI 低卡代餐产品是否值得启动");
+  const [targetUsers, setTargetUsers] = useState("上班族");
+  const [product, setProduct] = useState("AI 低卡代餐奶昔");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  async function saveDraft() {
+    if (saving) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const session = await sandboxApi.createSession({ goal, targetUsers, product, roles: [] });
+      navigate(`/sandbox/roles?session=${session.id}`);
+    } catch (error) {
+      setSaveError(apiErrorMessage(error, "沙盘配置保存失败，请稍后重试。"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <SandboxWorkLayout mode="setup">
       <SandboxStepper active={1} />
@@ -269,9 +288,9 @@ function SetupPage() {
         </header>
         <p>已识别你提供的信息，AI 正在分析并为你生成需要补充的关键信息，帮助构建更精准的沙盘模型。</p>
         <article className="setup-input-preview">
-          <strong>你已输入的信息</strong>
-          <p>我想做一款面向上班族的低卡代餐奶昔，通过 AI 帮用户规划每天的营养和饮食计划，按月订阅收费，大概定价在 30 元左右。</p>
-          <button type="button">编辑</button>
+          <label><strong>推演目标</strong><textarea aria-label="推演目标" onChange={(event) => setGoal(event.target.value)} value={goal} /></label>
+          <label><strong>目标用户</strong><input aria-label="目标用户" onChange={(event) => setTargetUsers(event.target.value)} value={targetUsers} /></label>
+          <label><strong>产品或方案</strong><input aria-label="产品或方案" onChange={(event) => setProduct(event.target.value)} value={product} /></label>
         </article>
         <h3>为了更准确地推演，我们还需要了解以下关键信息</h3>
         <div className="setup-question-grid">
@@ -283,13 +302,44 @@ function SetupPage() {
             </article>
           ))}
         </div>
-        <Link className="sandbox-primary-wide" to="/sandbox/roles">确认以上信息，选择推演角色 →</Link>
+        <button className="sandbox-primary-wide" disabled={saving || !goal.trim() || !targetUsers.trim() || !product.trim()} onClick={saveDraft} type="button">
+          {saving ? "保存中..." : "保存并选择角色 →"}
+        </button>
+        {saveError ? <p role="alert">{saveError}</p> : null}
       </section>
     </SandboxWorkLayout>
   );
 }
 
-function RolesPage() {
+function RolesPage({ roleCatalog, session }: { roleCatalog: SandboxRole[]; session: SandboxSession | null }) {
+  const navigate = useNavigate();
+  const visibleRoles = roleCatalog.length ? roleCatalog : roles.map(([label, description, badge, key]) => ({ key, label, description, badge }));
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    if (session) setSelectedRoles(session.roles);
+  }, [session]);
+
+  function toggleRole(label: string) {
+    setSelectedRoles((current) => current.includes(label) ? current.filter((role) => role !== label) : [...current, label]);
+  }
+
+  async function saveRoles() {
+    if (!session || selectedRoles.length === 0 || saving) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      await sandboxApi.updateDraft(session.id, { roles: selectedRoles });
+      navigate(`/sandbox/start?session=${session.id}`);
+    } catch (error) {
+      setSaveError(apiErrorMessage(error, "角色保存失败，请稍后重试。"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <SandboxWorkLayout mode="roles">
       <SandboxStepper active={2} />
@@ -297,14 +347,14 @@ function RolesPage() {
         <h2>你希望从谁的视角进行推演？</h2>
         <p>选择一个或多个角色，AI 将基于该角色的立场对话并给出建议。</p>
         <div className="role-select-grid">
-          {roles.map(([title, detail, badge, kind], index) => (
-            <article className={selectedRoleIndexes.has(index) ? "selected" : ""} key={title}>
-              <i className={`role-avatar ${kind}`} />
-              <b>{selectedRoleIndexes.has(index) ? "✓" : ""}</b>
-              <strong>{title}</strong>
-              <small>{detail}</small>
-              <span>{badge}</span>
-            </article>
+          {visibleRoles.map((role) => (
+            <button className={selectedRoles.includes(role.label) ? "selected" : ""} key={role.key} onClick={() => toggleRole(role.label)} type="button">
+              <i className={`role-avatar ${role.key}`} />
+              <b>{selectedRoles.includes(role.label) ? "✓" : ""}</b>
+              <strong>{role.label}</strong>
+              <small>{role.description}</small>
+              <span>{role.badge}</span>
+            </button>
           ))}
         </div>
         <aside className="role-help-band">
@@ -313,8 +363,10 @@ function RolesPage() {
         </aside>
         <footer>
           <Link to="/sandbox/setup">上一步</Link>
-          <Link to="/sandbox/start">确认角色，进入下一步 →</Link>
+          <button disabled={!session || selectedRoles.length === 0 || saving} onClick={saveRoles} type="button">{saving ? "保存中..." : "确认角色，进入下一步 →"}</button>
         </footer>
+        {!session ? <p role="alert">请先从推演配置页创建沙盘草稿。</p> : null}
+        {saveError ? <p role="alert">{saveError}</p> : null}
       </section>
     </SandboxWorkLayout>
   );
@@ -324,11 +376,13 @@ function StartPage({
   isStarting,
   onStart,
   quota,
+  session,
   startError
 }: {
   isStarting: boolean;
   onStart: (event: MouseEvent<HTMLAnchorElement>) => void;
   quota: ReturnType<typeof quotaSummary>;
+  session: SandboxSession | null;
   startError: string;
 }) {
   return (
@@ -341,7 +395,11 @@ function StartPage({
               <h2>推演设置信息</h2>
               <button type="button">编辑</button>
             </header>
-            {setupFacts.map(([label, value]) => (
+            {[
+              ["推演目标", session?.goal ?? "尚未配置"],
+              ["目标用户", session?.target_users ?? "尚未配置"],
+              ["产品 / 方案", session?.product ?? "尚未配置"]
+            ].map(([label, value]) => (
               <article key={label}>
                 <b>{label}</b>
                 <span>{value}</span>
@@ -350,14 +408,14 @@ function StartPage({
             <Link to="/sandbox/setup">查看完整信息 ›</Link>
           </section>
           <section>
-            <h2>参与推演角色 <small>已选 4 个</small></h2>
+            <h2>参与推演角色 <small>已选 {session?.roles.length ?? 0} 个</small></h2>
             <div className="start-role-grid">
-              {[roles[0], roles[1], roles[3], roles[4]].map(([title, detail, , kind]) => (
+              {(session?.roles ?? []).map((title) => (
                 <article key={title}>
-                  <i className={`role-avatar ${kind}`} />
+                  <i className="role-avatar user" />
                   <b>✓</b>
                   <strong>{title}</strong>
-                  <small>{detail}</small>
+                  <small>参与本轮多角色推演</small>
                 </article>
               ))}
             </div>

@@ -51,4 +51,19 @@ describe("sandboxApi", () => {
       expect.objectContaining({ method: "GET" })
     );
   });
+
+  it("loads roles and updates a sandbox draft", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ roles: [{ key: "user", label: "用户视角" }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, roles: ["用户视角"] }), { status: 200 }));
+
+    await sandboxApi.listRoles();
+    await sandboxApi.updateDraft(99, { roles: ["用户视角"] });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/sandbox/roles", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/sandbox/sessions/99/draft", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ roles: ["用户视角"] })
+    }));
+  });
 });

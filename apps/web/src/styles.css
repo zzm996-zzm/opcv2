@@ -33103,10 +33103,28 @@ a {
   position: relative;
   display: grid;
   gap: 10px;
-  padding: 18px 120px 18px 20px;
+  padding: 18px 20px;
   background: linear-gradient(135deg, #f7f8ff, #ffffff);
   border: 1px solid rgba(92, 103, 190, 0.1);
   border-radius: 12px;
+}
+
+.setup-input-preview label {
+  display: grid;
+  gap: 7px;
+}
+
+.setup-input-preview input,
+.setup-input-preview textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  color: #11185c;
+  background: #fff;
+  border: 1px solid rgba(92, 103, 190, 0.16);
+  border-radius: 8px;
+  font: inherit;
+  resize: vertical;
 }
 
 .setup-input-preview strong {
@@ -33158,7 +33176,7 @@ a {
 }
 
 .sandbox-primary-wide,
-.roles-work footer a:last-child,
+.roles-work footer button:last-child,
 .start-work > footer > a,
 .question-focus-card footer button,
 .run-dialog footer a:last-child,
@@ -33190,7 +33208,7 @@ a {
   gap: 22px;
 }
 
-.role-select-grid article,
+.role-select-grid > button,
 .start-role-grid article {
   position: relative;
   display: grid;
@@ -33204,16 +33222,17 @@ a {
   border: 1px solid rgba(92, 103, 190, 0.1);
   border-radius: 12px;
   box-shadow: 0 15px 34px rgba(55, 65, 153, 0.07);
+  font: inherit;
 }
 
-.role-select-grid article.selected,
+.role-select-grid > button.selected,
 .start-role-grid article {
   background: linear-gradient(180deg, rgba(251, 250, 255, 0.95), rgba(255, 255, 255, 0.92));
   border-color: rgba(95, 63, 255, 0.62);
   box-shadow: 0 18px 38px rgba(89, 79, 210, 0.12);
 }
 
-.role-select-grid article > b,
+.role-select-grid > button > b,
 .start-role-grid article > b {
   position: absolute;
   right: 14px;
@@ -33230,7 +33249,7 @@ a {
   font-weight: 950;
 }
 
-.role-select-grid article:not(.selected) > b {
+.role-select-grid > button:not(.selected) > b {
   background: #ffffff;
 }
 

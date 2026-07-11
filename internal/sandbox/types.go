@@ -13,8 +13,16 @@ const (
 var (
 	ErrServiceNotReady = errors.New("sandbox service is not configured")
 	ErrInvalidAIResult = errors.New("invalid sandbox ai result")
+	ErrInvalidSession  = errors.New("invalid sandbox session")
 	ErrSessionNotFound = errors.New("sandbox session not found")
 )
+
+type Role struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Badge       string `json:"badge"`
+}
 
 type CreateInput struct {
 	UserID      int64    `json:"-"`
@@ -22,6 +30,25 @@ type CreateInput struct {
 	TargetUsers string   `json:"target_users"`
 	Product     string   `json:"product"`
 	Roles       []string `json:"roles"`
+}
+
+type DraftUpdate struct {
+	Goal        *string   `json:"goal,omitempty"`
+	TargetUsers *string   `json:"target_users,omitempty"`
+	Product     *string   `json:"product,omitempty"`
+	Roles       *[]string `json:"roles,omitempty"`
+}
+
+func DefaultRoles() []Role {
+	return []Role{
+		{Key: "user", Label: "用户视角", Description: "评估产品体验与价值", Badge: "推荐优先"},
+		{Key: "investor", Label: "投资人视角", Description: "评估市场潜力与回报", Badge: "热门选择"},
+		{Key: "channel", Label: "代理商 / 渠道方视角", Description: "评估项目落地可行性", Badge: "渠道必选"},
+		{Key: "competitor", Label: "竞争对手视角", Description: "评估竞争格局与策略", Badge: "深度分析"},
+		{Key: "operator", Label: "运营视角", Description: "评估执行与增长策略", Badge: "运营必选"},
+		{Key: "growth", Label: "增长策略", Description: "评估获客与规模化路径", Badge: "增长视角"},
+		{Key: "risk", Label: "风险研判", Description: "识别合规、交付与经营风险", Badge: "风险视角"},
+	}
 }
 
 type Session struct {

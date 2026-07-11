@@ -21,6 +21,17 @@ type fakeApplication struct {
 	err       error
 }
 
+func (a *fakeApplication) ListRoles() []Role { return DefaultRoles() }
+func (a *fakeApplication) UpdateSessionDraft(_ context.Context, userID, id int64, update DraftUpdate) (Session, error) {
+	a.userID = userID
+	a.sessionID = id
+	a.session.Roles = nil
+	if update.Roles != nil {
+		a.session.Roles = *update.Roles
+	}
+	return a.session, a.err
+}
+
 func (a *fakeApplication) CreateSession(_ context.Context, input CreateInput) (Session, error) {
 	a.input = input
 	return a.session, a.err
@@ -114,8 +125,27 @@ func TestCreateSessionEndpointRejectsBlankRoles(t *testing.T) {
 
 	router.ServeHTTP(recorder, request)
 
-	if recorder.Code != http.StatusBadRequest {
+	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestRolesAndDraftUpdateEndpoints(t *testing.T) {
+	app := &fakeApplication{session: Session{ID: 99, UserID: 42, Status: StatusDraft}}
+	router := sandboxTestRouter(app)
+
+	rolesRecorder := httptest.NewRecorder()
+	router.ServeHTTP(rolesRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/sandbox/roles", nil))
+	if rolesRecorder.Code != http.StatusOK || !strings.Contains(rolesRecorder.Body.String(), `"key":"user"`) {
+		t.Fatalf("roles status/body = %d/%s", rolesRecorder.Code, rolesRecorder.Body.String())
+	}
+
+	updateRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/sandbox/sessions/99/draft", strings.NewReader(`{"roles":["用户视角","投资人视角"]}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(updateRecorder, request)
+	if updateRecorder.Code != http.StatusOK || app.userID != 42 || app.sessionID != 99 || len(app.session.Roles) != 2 {
+		t.Fatalf("update status/app/body = %d/%+v/%s", updateRecorder.Code, app, updateRecorder.Body.String())
 	}
 }
 

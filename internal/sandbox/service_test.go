@@ -20,6 +20,28 @@ type fakeRepository struct {
 	err      error
 }
 
+func (r *fakeRepository) UpdateSessionDraft(_ context.Context, userID, id int64, update DraftUpdate) (Session, error) {
+	if r.err != nil {
+		return Session{}, r.err
+	}
+	if r.session.UserID != userID || r.session.ID != id || r.session.Status != StatusDraft {
+		return Session{}, ErrSessionNotFound
+	}
+	if update.Goal != nil {
+		r.session.Goal = *update.Goal
+	}
+	if update.TargetUsers != nil {
+		r.session.TargetUsers = *update.TargetUsers
+	}
+	if update.Product != nil {
+		r.session.Product = *update.Product
+	}
+	if update.Roles != nil {
+		r.session.Roles = *update.Roles
+	}
+	return r.session, nil
+}
+
 func (r *fakeRepository) CreateSession(_ context.Context, session Session) (Session, error) {
 	r.created = session
 	session.ID = 99
@@ -128,6 +150,35 @@ func TestServiceCreatesDraftSession(t *testing.T) {
 	}
 	if repository.created.UserID != 42 || repository.created.Goal == "" || len(repository.created.Roles) != 3 {
 		t.Fatalf("created = %+v", repository.created)
+	}
+}
+
+func TestServiceUpdatesOwnedDraftAndListsRoles(t *testing.T) {
+	repository := &fakeRepository{session: Session{ID: 99, UserID: 42, Goal: "旧目标", TargetUsers: "连锁门店", Product: "AI运营平台", Status: StatusDraft}}
+	service := NewService(repository, nil)
+	goal := " 验证企业AI项目 "
+	roles := []string{" 用户视角 ", "用户视角", "投资人视角"}
+
+	session, err := service.UpdateSessionDraft(context.Background(), 42, 99, DraftUpdate{Goal: &goal, Roles: &roles})
+	if err != nil {
+		t.Fatalf("UpdateSessionDraft() error = %v", err)
+	}
+	if session.Goal != "验证企业AI项目" || len(session.Roles) != 2 {
+		t.Fatalf("session = %+v", session)
+	}
+	roleCatalog := service.ListRoles()
+	if len(roleCatalog) < 7 || roleCatalog[0].Key == "" || roleCatalog[0].Label == "" {
+		t.Fatalf("roles = %+v", roleCatalog)
+	}
+}
+
+func TestServiceRejectsRunningIncompleteDraft(t *testing.T) {
+	service := NewService(&fakeRepository{session: Session{ID: 99, UserID: 42, Goal: "验证项目", Status: StatusDraft}}, &fakeGenerator{})
+
+	_, err := service.RunSession(context.Background(), 42, 99)
+
+	if !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("err = %v, want ErrInvalidSession", err)
 	}
 }
 

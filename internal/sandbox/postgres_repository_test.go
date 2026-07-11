@@ -109,3 +109,34 @@ func TestPostgresRepositoryUpdatesOwnedSessionResult(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryUpdatesOwnedDraft(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 7, 11, 18, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE sandbox_sessions
+		SET goal = $1, target_users = $2, product = $3, roles = $4, updated_at = NOW()
+		WHERE user_id = $5 AND id = $6 AND status = $7
+		RETURNING id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
+	`)).WithArgs("验证项目", "连锁门店", "AI运营平台", []byte(`["用户视角"]`), int64(42), int64(99), StatusDraft).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "goal", "target_users", "product", "roles", "status", "report", "created_at", "updated_at"}).AddRow(
+			int64(99), int64(42), "验证项目", "连锁门店", "AI运营平台", []byte(`["用户视角"]`), StatusDraft, []byte(`{}`), now, now,
+		))
+
+	repository := NewPostgresRepository(db)
+	session, err := repository.UpdateSessionDraft(context.Background(), 42, 99, DraftUpdate{
+		Goal: stringPointer("验证项目"), TargetUsers: stringPointer("连锁门店"), Product: stringPointer("AI运营平台"), Roles: &[]string{"用户视角"},
+	})
+	if err != nil || session.Product != "AI运营平台" {
+		t.Fatalf("session = %+v err = %v", session, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func stringPointer(value string) *string { return &value }

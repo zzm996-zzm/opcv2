@@ -44,7 +44,7 @@ describe("SandboxPage", () => {
 
     expect(screen.getByRole("heading", { name: "你希望从谁的视角进行推演？" })).toBeInTheDocument();
     expect(screen.getByText("用户视角")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /确认角色/ })).toHaveAttribute("href", "/sandbox/start");
+    expect(screen.getByRole("button", { name: /确认角色/ })).toBeDisabled();
   });
 
   it("renders sandbox questions, report, history and quota states", () => {
@@ -151,21 +151,21 @@ describe("SandboxPage", () => {
     expect(screen.getByText("AI运营平台具备清晰落地空间")).toBeInTheDocument();
   });
 
-  it("creates and runs a sandbox session from the start page", async () => {
+  it("runs the configured sandbox session from the start page", async () => {
     signIn();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/sandbox/sessions?limit=10") {
         return Promise.resolve(new Response(JSON.stringify({ sessions: [] }), { status: 200 }));
       }
-      if (url === "/api/v1/sandbox/sessions" && init?.method === "POST") {
+      if (url === "/api/v1/sandbox/sessions/123" && init?.method === "GET") {
         return Promise.resolve(new Response(JSON.stringify({
           id: 123,
           user_id: 7,
           goal: "验证 AI 低卡代餐奶昔",
           target_users: "上班族",
           product: "AI 低卡代餐奶昔",
-          roles: ["用户视角", "投资人视角", "竞争对手视角", "运营视角"],
+          roles: ["用户视角", "投资人视角"],
           status: "draft",
           created_at: "2026-06-30T08:00:00Z",
           updated_at: "2026-06-30T08:00:00Z"
@@ -195,26 +195,85 @@ describe("SandboxPage", () => {
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
 
-    render(<MemoryRouter initialEntries={["/sandbox/start"]}><App /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/sandbox/start?session=123"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("验证 AI 低卡代餐奶昔")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: /开始推演/ }));
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox/sessions", expect.objectContaining({ method: "POST" }));
+      expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox/sessions/123", expect.objectContaining({ method: "GET" }));
     });
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox/sessions/123/run", expect.objectContaining({ method: "POST" }));
     expect(await screen.findByRole("heading", { name: "AI 低卡代餐奶昔" })).toBeInTheDocument();
     expect(screen.getByText("代餐奶昔项目适合先做小范围验证")).toBeInTheDocument();
   });
 
-  it("shows backend error messages when starting a sandbox session fails", async () => {
+  it("creates a draft from editable setup fields", async () => {
     signIn();
-    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/sandbox/sessions?limit=10") {
         return Promise.resolve(new Response(JSON.stringify({ sessions: [] }), { status: 200 }));
       }
       if (url === "/api/v1/sandbox/sessions" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ error: "invalid_request" }), { status: 400 }));
+        return Promise.resolve(new Response(JSON.stringify({ id: 321, status: "draft", roles: [] }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ roles: [], usage: [] }), { status: 200 }));
+    });
+
+    render(<MemoryRouter initialEntries={["/sandbox/setup"]}><App /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("推演目标"), { target: { value: "验证企业AI运营服务" } });
+    fireEvent.change(screen.getByLabelText("目标用户"), { target: { value: "连锁门店老板" } });
+    fireEvent.change(screen.getByLabelText("产品或方案"), { target: { value: "企业AI运营平台" } });
+    fireEvent.click(screen.getByRole("button", { name: /保存并选择角色/ }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/sandbox/sessions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          goal: "验证企业AI运营服务",
+          target_users: "连锁门店老板",
+          product: "企业AI运营平台",
+          roles: []
+        })
+      })
+    ));
+  });
+
+  it("loads the role catalog and saves selected roles to the draft", async () => {
+    signIn();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/sandbox/sessions?limit=10") return Promise.resolve(new Response(JSON.stringify({ sessions: [] }), { status: 200 }));
+      if (url === "/api/v1/membership/usage") return Promise.resolve(new Response(JSON.stringify({ usage: [] }), { status: 200 }));
+      if (url === "/api/v1/sandbox/roles") return Promise.resolve(new Response(JSON.stringify({ roles: [
+        { key: "user", label: "用户视角", description: "评估产品体验", badge: "推荐优先" },
+        { key: "investor", label: "投资人视角", description: "评估市场回报", badge: "热门选择" }
+      ] }), { status: 200 }));
+      if (url === "/api/v1/sandbox/sessions/321" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({
+        id: 321, user_id: 7, goal: "验证企业AI运营服务", target_users: "连锁门店老板", product: "企业AI运营平台", roles: [], status: "draft"
+      }), { status: 200 }));
+      if (url === "/api/v1/sandbox/sessions/321/draft" && init?.method === "PATCH") return Promise.resolve(new Response(JSON.stringify({ id: 321, roles: ["用户视角"] }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    render(<MemoryRouter initialEntries={["/sandbox/roles?session=321"]}><App /></MemoryRouter>);
+    const userRole = await screen.findByRole("button", { name: /用户视角/ });
+    fireEvent.click(userRole);
+    fireEvent.click(screen.getByRole("button", { name: /确认角色/ }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/sandbox/sessions/321/draft",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ roles: ["用户视角"] }) })
+    ));
+  });
+
+  it("requires a configured session before starting a sandbox run", async () => {
+    signIn();
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/sandbox/sessions?limit=10") {
+        return Promise.resolve(new Response(JSON.stringify({ sessions: [] }), { status: 200 }));
       }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
@@ -222,7 +281,8 @@ describe("SandboxPage", () => {
     render(<MemoryRouter initialEntries={["/sandbox/start"]}><App /></MemoryRouter>);
     fireEvent.click(screen.getByRole("link", { name: /开始推演/ }));
 
-    expect(await screen.findByText("请求参数有误，请检查后重试")).toBeInTheDocument();
+    expect(await screen.findByText("请先完成推演配置和角色选择。")).toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalledWith("/api/v1/sandbox/sessions", expect.any(Object));
   });
 
   it("blocks sandbox runs when monthly quota is depleted", async () => {

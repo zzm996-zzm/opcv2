@@ -43,6 +43,14 @@ be treated as available until the matching backend handlers and tests land.
 
 All sandbox endpoints are protected.
 
+### List Simulation Roles
+
+`GET /api/v1/sandbox/roles`
+
+Returns the stable role catalog used by setup and follow-up conversations,
+including user, investor, channel, competitor, operator, growth, and risk
+perspectives.
+
 ### Create Session
 
 `POST /api/v1/sandbox/sessions`
@@ -61,7 +69,8 @@ Request:
 Validation:
 
 - `goal`, `target_users`, and `product` must be non-empty after trimming.
-- `roles` must contain at least one non-empty role.
+- `roles` may be empty while the session is a setup draft. Running a session
+  still requires at least one selected role.
 - Client-supplied `user_id` is ignored.
 
 Response `200`: `SandboxSession`
@@ -87,6 +96,30 @@ Response `200`: `SandboxSession`
   "updated_at": "2026-06-30T10:00:00Z"
 }
 ```
+
+### Update Session Draft
+
+`PATCH /api/v1/sandbox/sessions/{id}/draft`
+
+Updates one or more setup fields for a draft owned by the authenticated user.
+Completed sessions cannot be edited.
+
+Request:
+
+```json
+{
+  "goal": "验证企业AI运营服务",
+  "target_users": "连锁门店老板",
+  "product": "企业AI运营平台",
+  "roles": ["用户视角", "投资人视角"]
+}
+```
+
+Errors:
+
+- `400 invalid_request`
+- `400 invalid_session`
+- `404 session_not_found`
 
 ### Run Session
 

@@ -22,7 +22,25 @@ export type SandboxSession = {
   updated_at: string;
 };
 
+export type SandboxRole = {
+  key: string;
+  label: string;
+  description: string;
+  badge: string;
+};
+
+export type SandboxDraftUpdate = Partial<{
+  goal: string;
+  target_users: string;
+  product: string;
+  roles: string[];
+}>;
+
 export const sandboxApi = {
+  listRoles() {
+    return apiRequest<{ roles: SandboxRole[] }>("/api/v1/sandbox/roles", { method: "GET" });
+  },
+
   createSession(input: { goal: string; targetUsers: string; product: string; roles: string[] }) {
     return apiRequest<SandboxSession>("/api/v1/sandbox/sessions", {
       method: "POST",
@@ -38,6 +56,13 @@ export const sandboxApi = {
   runSession(id: number) {
     return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/run`, {
       method: "POST"
+    });
+  },
+
+  updateDraft(id: number, input: SandboxDraftUpdate) {
+    return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/draft`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
     });
   },
 

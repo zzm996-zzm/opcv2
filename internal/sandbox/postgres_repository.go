@@ -47,6 +47,23 @@ func (r *PostgresRepository) CreateSession(ctx context.Context, session Session)
 	return session, err
 }
 
+func (r *PostgresRepository) UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error) {
+	roles, err := json.Marshal(*update.Roles)
+	if err != nil {
+		return Session{}, err
+	}
+	session, err := scanSession(r.db.QueryRow(ctx, `
+		UPDATE sandbox_sessions
+		SET goal = $1, target_users = $2, product = $3, roles = $4, updated_at = NOW()
+		WHERE user_id = $5 AND id = $6 AND status = $7
+		RETURNING id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
+	`, *update.Goal, *update.TargetUsers, *update.Product, roles, userID, id, StatusDraft))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrSessionNotFound
+	}
+	return session, err
+}
+
 func (r *PostgresRepository) UpdateSessionResult(ctx context.Context, userID, id int64, result Report) (Session, error) {
 	report, err := marshalReport(result)
 	if err != nil {

@@ -14,7 +14,9 @@ import (
 )
 
 type Application interface {
+	ListRoles() []Role
 	CreateSession(ctx context.Context, input CreateInput) (Session, error)
+	UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error)
 	RunSession(ctx context.Context, userID, id int64) (Session, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error)
 	GetSession(ctx context.Context, userID, id int64) (Session, error)
@@ -29,10 +31,16 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 }
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
+	router.GET("/sandbox/roles", h.listRoles)
 	router.POST("/sandbox/sessions", h.createSession)
+	router.PATCH("/sandbox/sessions/:id/draft", h.updateSessionDraft)
 	router.POST("/sandbox/sessions/:id/run", h.runSession)
 	router.GET("/sandbox/sessions", h.listSessions)
 	router.GET("/sandbox/sessions/:id", h.getSession)
+}
+
+func (h *HTTPHandler) listRoles(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"roles": httpapi.EnsureSlice(h.app.ListRoles())})
 }
 
 func (h *HTTPHandler) createSession(c *gin.Context) {
@@ -57,8 +65,25 @@ func (h *HTTPHandler) createSession(c *gin.Context) {
 func validCreateInput(input CreateInput) bool {
 	return strings.TrimSpace(input.Goal) != "" &&
 		strings.TrimSpace(input.TargetUsers) != "" &&
-		strings.TrimSpace(input.Product) != "" &&
-		len(normalizeRoles(input.Roles)) > 0
+		strings.TrimSpace(input.Product) != ""
+}
+
+func (h *HTTPHandler) updateSessionDraft(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request DraftUpdate
+	if err := c.ShouldBindJSON(&request); err != nil || (request.Goal == nil && request.TargetUsers == nil && request.Product == nil && request.Roles == nil) {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	session, err := h.app.UpdateSessionDraft(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, session)
 }
 
 func (h *HTTPHandler) runSession(c *gin.Context) {
@@ -117,6 +142,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	case errors.Is(err, ErrInvalidAIResult):
 		httpapi.Error(c, http.StatusInternalServerError, "invalid_ai_result")
+	case errors.Is(err, ErrInvalidSession):
+		httpapi.BadRequest(c, "invalid_session")
 	case errors.Is(err, membership.ErrQuotaExceeded):
 		httpapi.Error(c, http.StatusPaymentRequired, "quota_exceeded")
 	case errors.Is(err, membership.ErrQuotaNotFound):
