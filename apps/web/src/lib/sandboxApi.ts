@@ -36,6 +36,16 @@ export type SandboxDraftUpdate = Partial<{
   roles: string[];
 }>;
 
+export type SandboxMessage = {
+  id: number;
+  session_id: number;
+  user_id: number;
+  role: string;
+  question: string;
+  answer: string;
+  created_at: string;
+};
+
 export const sandboxApi = {
   listRoles() {
     return apiRequest<{ roles: SandboxRole[] }>("/api/v1/sandbox/roles", { method: "GET" });
@@ -62,6 +72,17 @@ export const sandboxApi = {
   updateDraft(id: number, input: SandboxDraftUpdate) {
     return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/draft`, {
       method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  },
+
+  listMessages(id: number) {
+    return apiRequest<{ messages: SandboxMessage[] }>(`/api/v1/sandbox/sessions/${id}/messages`, { method: "GET" });
+  },
+
+  askRole(id: number, input: { role: string; question: string }) {
+    return apiRequest<SandboxMessage>(`/api/v1/sandbox/sessions/${id}/messages`, {
+      method: "POST",
       body: JSON.stringify(input)
     });
   },

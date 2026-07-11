@@ -64,6 +64,37 @@ func (r *PostgresRepository) UpdateSessionDraft(ctx context.Context, userID, id 
 	return session, err
 }
 
+func (r *PostgresRepository) CreateMessage(ctx context.Context, message Message) (Message, error) {
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO sandbox_messages (session_id, user_id, role, question, answer, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id
+	`, message.SessionID, message.UserID, message.Role, message.Question, message.Answer, message.CreatedAt).Scan(&message.ID)
+	return message, err
+}
+
+func (r *PostgresRepository) ListMessages(ctx context.Context, userID, sessionID int64) ([]Message, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, session_id, user_id, role, question, answer, created_at
+		FROM sandbox_messages
+		WHERE user_id = $1 AND session_id = $2
+		ORDER BY created_at ASC, id ASC
+	`, userID, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	messages := make([]Message, 0)
+	for rows.Next() {
+		var message Message
+		if err := rows.Scan(&message.ID, &message.SessionID, &message.UserID, &message.Role, &message.Question, &message.Answer, &message.CreatedAt); err != nil {
+			return nil, err
+		}
+		messages = append(messages, message)
+	}
+	return messages, rows.Err()
+}
+
 func (r *PostgresRepository) UpdateSessionResult(ctx context.Context, userID, id int64, result Report) (Session, error) {
 	report, err := marshalReport(result)
 	if err != nil {

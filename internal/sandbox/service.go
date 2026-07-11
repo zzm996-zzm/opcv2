@@ -17,9 +17,15 @@ import (
 type Repository interface {
 	CreateSession(ctx context.Context, session Session) (Session, error)
 	UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error)
+	CreateMessage(ctx context.Context, message Message) (Message, error)
+	ListMessages(ctx context.Context, userID, sessionID int64) ([]Message, error)
 	UpdateSessionResult(ctx context.Context, userID, id int64, result Report) (Session, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error)
 	GetSession(ctx context.Context, userID, id int64) (Session, error)
+}
+
+type roleAnswer struct {
+	Answer string `json:"answer"`
 }
 
 func (s *Service) ListRoles() []Role {
@@ -159,6 +165,71 @@ func (s *Service) GetSession(ctx context.Context, userID, id int64) (Session, er
 		return Session{}, ErrServiceNotReady
 	}
 	return s.repository.GetSession(ctx, userID, id)
+}
+
+func (s *Service) ListMessages(ctx context.Context, userID, sessionID int64) ([]Message, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	if _, err := s.repository.GetSession(ctx, userID, sessionID); err != nil {
+		return nil, err
+	}
+	return s.repository.ListMessages(ctx, userID, sessionID)
+}
+
+func (s *Service) AskRole(ctx context.Context, input AskRoleInput) (Message, error) {
+	if s.repository == nil || s.generator == nil {
+		return Message{}, ErrServiceNotReady
+	}
+	input.Role = strings.TrimSpace(input.Role)
+	input.Question = strings.TrimSpace(input.Question)
+	if input.UserID <= 0 || input.SessionID <= 0 || input.Role == "" || input.Question == "" || len([]rune(input.Question)) > 2000 {
+		return Message{}, ErrInvalidSession
+	}
+	session, err := s.repository.GetSession(ctx, input.UserID, input.SessionID)
+	if err != nil {
+		return Message{}, err
+	}
+	if !containsRole(session.Roles, input.Role) {
+		return Message{}, ErrInvalidSession
+	}
+	result, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
+		UserID: input.UserID, Feature: "sandbox.follow_up", PromptVersion: "sandbox_role_follow_up_v1",
+		SystemPrompt: "你正在商业沙盘中扮演指定角色。只返回JSON，格式为{\"answer\":\"...\"}。",
+		UserPrompt:   fmt.Sprintf("产品：%s\n角色：%s\n问题：%s", session.Product, input.Role, input.Question),
+		SchemaName:   "sandbox_role_answer", Validate: validateRoleAnswerJSON, RepairAttempts: 1,
+	})
+	if err != nil {
+		return Message{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
+	}
+	var answer roleAnswer
+	if err := json.Unmarshal(result.Content, &answer); err != nil || strings.TrimSpace(answer.Answer) == "" {
+		return Message{}, ErrInvalidAIResult
+	}
+	return s.repository.CreateMessage(ctx, Message{
+		SessionID: input.SessionID, UserID: input.UserID, Role: input.Role,
+		Question: input.Question, Answer: strings.TrimSpace(answer.Answer), CreatedAt: s.now(),
+	})
+}
+
+func validateRoleAnswerJSON(data []byte) error {
+	var answer roleAnswer
+	if err := json.Unmarshal(data, &answer); err != nil {
+		return err
+	}
+	if strings.TrimSpace(answer.Answer) == "" {
+		return errors.New("sandbox role answer is empty")
+	}
+	return nil
+}
+
+func containsRole(roles []string, role string) bool {
+	for _, candidate := range roles {
+		if candidate == role {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) generateReport(ctx context.Context, session Session) (Report, error) {

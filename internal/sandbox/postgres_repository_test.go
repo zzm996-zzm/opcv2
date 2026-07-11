@@ -140,3 +140,39 @@ func TestPostgresRepositoryUpdatesOwnedDraft(t *testing.T) {
 }
 
 func stringPointer(value string) *string { return &value }
+
+func TestPostgresRepositoryCreatesAndListsMessages(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 7, 11, 18, 30, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO sandbox_messages (session_id, user_id, role, question, answer, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id
+	`)).WithArgs(int64(99), int64(42), "投资人视角", "关注什么", "关注留存", now).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(int64(1)))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, session_id, user_id, role, question, answer, created_at
+		FROM sandbox_messages
+		WHERE user_id = $1 AND session_id = $2
+		ORDER BY created_at ASC, id ASC
+	`)).WithArgs(int64(42), int64(99)).WillReturnRows(pgxmock.NewRows([]string{"id", "session_id", "user_id", "role", "question", "answer", "created_at"}).AddRow(
+		int64(1), int64(99), int64(42), "投资人视角", "关注什么", "关注留存", now,
+	))
+
+	repository := NewPostgresRepository(db)
+	created, err := repository.CreateMessage(context.Background(), Message{SessionID: 99, UserID: 42, Role: "投资人视角", Question: "关注什么", Answer: "关注留存", CreatedAt: now})
+	if err != nil || created.ID != 1 {
+		t.Fatalf("created = %+v err = %v", created, err)
+	}
+	messages, err := repository.ListMessages(context.Background(), 42, 99)
+	if err != nil || len(messages) != 1 || messages[0].Answer != "关注留存" {
+		t.Fatalf("messages = %+v err = %v", messages, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

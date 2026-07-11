@@ -381,6 +381,12 @@ func (fakeSandboxApp) CreateSession(context.Context, sandbox.CreateInput) (sandb
 func (fakeSandboxApp) UpdateSessionDraft(context.Context, int64, int64, sandbox.DraftUpdate) (sandbox.Session, error) {
 	return sandbox.Session{ID: 99, UserID: 42, Status: sandbox.StatusDraft}, nil
 }
+func (fakeSandboxApp) AskRole(context.Context, sandbox.AskRoleInput) (sandbox.Message, error) {
+	return sandbox.Message{ID: 1, SessionID: 99, UserID: 42, Role: "用户视角", Answer: "关注效率"}, nil
+}
+func (fakeSandboxApp) ListMessages(context.Context, int64, int64) ([]sandbox.Message, error) {
+	return []sandbox.Message{}, nil
+}
 func (fakeSandboxApp) RunSession(context.Context, int64, int64) (sandbox.Session, error) {
 	return sandbox.Session{ID: 99, UserID: 42, Status: sandbox.StatusCompleted, Report: sandbox.Report{Score: 83}}, nil
 }

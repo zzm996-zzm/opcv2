@@ -19,6 +19,8 @@ type fakeApplication struct {
 	session   Session
 	sessions  []Session
 	err       error
+	messages  []Message
+	askInput  AskRoleInput
 }
 
 func (a *fakeApplication) ListRoles() []Role { return DefaultRoles() }
@@ -30,6 +32,15 @@ func (a *fakeApplication) UpdateSessionDraft(_ context.Context, userID, id int64
 		a.session.Roles = *update.Roles
 	}
 	return a.session, a.err
+}
+func (a *fakeApplication) AskRole(_ context.Context, input AskRoleInput) (Message, error) {
+	a.askInput = input
+	return Message{ID: 1, SessionID: input.SessionID, UserID: input.UserID, Role: input.Role, Question: input.Question, Answer: "关注留存"}, a.err
+}
+func (a *fakeApplication) ListMessages(_ context.Context, userID, sessionID int64) ([]Message, error) {
+	a.userID = userID
+	a.sessionID = sessionID
+	return a.messages, a.err
 }
 
 func (a *fakeApplication) CreateSession(_ context.Context, input CreateInput) (Session, error) {
@@ -202,5 +213,24 @@ func TestGetSessionEndpointReturnsNotFoundForOtherUser(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestSandboxRoleMessageEndpointsUseAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{messages: []Message{{ID: 1, SessionID: 99, UserID: 42, Role: "用户视角", Question: "会买吗", Answer: "会先试用"}}}
+	router := sandboxTestRouter(app)
+
+	listRecorder := httptest.NewRecorder()
+	router.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/sandbox/sessions/99/messages", nil))
+	if listRecorder.Code != http.StatusOK || !strings.Contains(listRecorder.Body.String(), `"messages"`) {
+		t.Fatalf("list status/body = %d/%s", listRecorder.Code, listRecorder.Body.String())
+	}
+
+	createRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/sandbox/sessions/99/messages", strings.NewReader(`{"role":"投资人视角","question":"最关注什么？"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(createRecorder, request)
+	if createRecorder.Code != http.StatusOK || app.askInput.UserID != 42 || app.askInput.SessionID != 99 || app.askInput.Role != "投资人视角" {
+		t.Fatalf("create status/input/body = %d/%+v/%s", createRecorder.Code, app.askInput, createRecorder.Body.String())
 	}
 }

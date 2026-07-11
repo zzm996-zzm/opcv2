@@ -204,7 +204,8 @@ describe("SandboxPage", () => {
     });
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox/sessions/123/run", expect.objectContaining({ method: "POST" }));
     expect(await screen.findByRole("heading", { name: "AI 低卡代餐奶昔" })).toBeInTheDocument();
-    expect(screen.getByText("代餐奶昔项目适合先做小范围验证")).toBeInTheDocument();
+    expect(screen.getByText("用户需要口味和饱腹感双验证")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "生成推演报告" })).toHaveAttribute("href", "/sandbox/sessions/123/report");
   });
 
   it("creates a draft from editable setup fields", async () => {
@@ -266,6 +267,36 @@ describe("SandboxPage", () => {
       "/api/v1/sandbox/sessions/321/draft",
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ roles: ["用户视角"] }) })
     ));
+  });
+
+  it("asks a selected role and displays the persisted answer", async () => {
+    signIn();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/sandbox/sessions?limit=10") return Promise.resolve(new Response(JSON.stringify({ sessions: [] }), { status: 200 }));
+      if (url === "/api/v1/membership/usage") return Promise.resolve(new Response(JSON.stringify({ usage: [] }), { status: 200 }));
+      if (url === "/api/v1/sandbox/roles") return Promise.resolve(new Response(JSON.stringify({ roles: [] }), { status: 200 }));
+      if (url === "/api/v1/sandbox/sessions/99" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({
+        id: 99, user_id: 7, goal: "验证企业AI运营平台", target_users: "连锁门店老板", product: "企业AI运营平台",
+        roles: ["用户视角", "投资人视角"], status: "completed", report: { score: 88, summary: "可以试点", metrics: [], role_summaries: [{ role: "用户视角", view: "关注降本" }], risks: [], next_actions: [] }
+      }), { status: 200 }));
+      if (url === "/api/v1/sandbox/sessions/99/messages" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({ messages: [] }), { status: 200 }));
+      if (url === "/api/v1/sandbox/sessions/99/messages" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({
+        id: 1, session_id: 99, user_id: 7, role: "投资人视角", question: "你最关注什么？", answer: "我最关注客户留存和单位经济模型。", created_at: "2026-07-11T10:00:00Z"
+      }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    render(<MemoryRouter initialEntries={["/sandbox/run?session=99"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "投资人视角" }));
+    fireEvent.change(screen.getByLabelText("追加追问"), { target: { value: "你最关注什么？" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送追问" }));
+
+    expect(await screen.findByText(/我最关注客户留存和单位经济模型/)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox/sessions/99/messages", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ role: "投资人视角", question: "你最关注什么？" })
+    }));
   });
 
   it("requires a configured session before starting a sandbox run", async () => {

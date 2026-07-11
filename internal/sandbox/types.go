@@ -39,6 +39,23 @@ type DraftUpdate struct {
 	Roles       *[]string `json:"roles,omitempty"`
 }
 
+type AskRoleInput struct {
+	UserID    int64  `json:"-"`
+	SessionID int64  `json:"-"`
+	Role      string `json:"role"`
+	Question  string `json:"question"`
+}
+
+type Message struct {
+	ID        int64     `json:"id"`
+	SessionID int64     `json:"session_id"`
+	UserID    int64     `json:"user_id"`
+	Role      string    `json:"role"`
+	Question  string    `json:"question"`
+	Answer    string    `json:"answer"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 func DefaultRoles() []Role {
 	return []Role{
 		{Key: "user", Label: "用户视角", Description: "评估产品体验与价值", Badge: "推荐优先"},

@@ -17,6 +17,8 @@ type Application interface {
 	ListRoles() []Role
 	CreateSession(ctx context.Context, input CreateInput) (Session, error)
 	UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error)
+	AskRole(ctx context.Context, input AskRoleInput) (Message, error)
+	ListMessages(ctx context.Context, userID, sessionID int64) ([]Message, error)
 	RunSession(ctx context.Context, userID, id int64) (Session, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error)
 	GetSession(ctx context.Context, userID, id int64) (Session, error)
@@ -35,8 +37,43 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/sandbox/sessions", h.createSession)
 	router.PATCH("/sandbox/sessions/:id/draft", h.updateSessionDraft)
 	router.POST("/sandbox/sessions/:id/run", h.runSession)
+	router.GET("/sandbox/sessions/:id/messages", h.listMessages)
+	router.POST("/sandbox/sessions/:id/messages", h.askRole)
 	router.GET("/sandbox/sessions", h.listSessions)
 	router.GET("/sandbox/sessions/:id", h.getSession)
+}
+
+func (h *HTTPHandler) listMessages(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	messages, err := h.app.ListMessages(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"messages": httpapi.EnsureSlice(messages)})
+}
+
+func (h *HTTPHandler) askRole(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request AskRoleInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.SessionID = id
+	message, err := h.app.AskRole(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, message)
 }
 
 func (h *HTTPHandler) listRoles(c *gin.Context) {

@@ -138,6 +138,34 @@ Errors:
 - `500 invalid_ai_result`
 - `500 quota_not_configured`
 
+### List Role Follow-ups
+
+`GET /api/v1/sandbox/sessions/{id}/messages`
+
+Returns persisted role-specific questions and AI answers for an owned session.
+
+### Ask Simulation Role
+
+`POST /api/v1/sandbox/sessions/{id}/messages`
+
+Request:
+
+```json
+{
+  "role": "投资人视角",
+  "question": "你最关注哪些经营指标？"
+}
+```
+
+The role must be selected on the session. The answer is generated using the
+session's product context and stored with the question.
+
+Errors:
+
+- `400 invalid_session`
+- `404 session_not_found`
+- `500 invalid_ai_result`
+
 ### List Sessions
 
 `GET /api/v1/sandbox/sessions?limit=20`

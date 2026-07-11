@@ -6,7 +6,7 @@ import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
 import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
-import { sandboxApi, type SandboxRole, type SandboxSession } from "../lib/sandboxApi";
+import { sandboxApi, type SandboxMessage, type SandboxRole, type SandboxSession } from "../lib/sandboxApi";
 
 type SandboxVariant =
   | "home"
@@ -190,7 +190,7 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
       setSessions((current) => [completed, ...current.filter((session) => session.id !== completed.id)]);
       const usagePayload = await membershipApi.usage().catch(() => null);
       if (usagePayload) setUsage(usagePayload.usage ?? []);
-      navigate("/sandbox/report", { state: { sandboxSession: completed } });
+      navigate(`/sandbox/run?session=${completed.id}`, { state: { sandboxSession: completed } });
     } catch (error) {
       setStartError(apiErrorMessage(error, "推演启动失败，请稍后重试。"));
     } finally {
@@ -206,7 +206,7 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
         {variant === "roles" && <RolesPage roleCatalog={roleCatalog} session={selectedSession} />}
         {variant === "start" && <StartPage isStarting={isStarting} onStart={startSandbox} quota={sandboxQuota} session={selectedSession} startError={startError} />}
         {variant === "questions" && <QuestionsPage />}
-        {variant === "run" && <RunPage />}
+        {variant === "run" && <RunPage session={routedSession ?? selectedSession} />}
         {variant === "report" && <ReportPage session={reportSession} />}
         {variant === "history" && <HistoryPage sessions={sessions} />}
         {variant === "quota" && (
@@ -484,36 +484,82 @@ function QuestionsPage() {
   );
 }
 
-function RunPage() {
+function RunPage({ session }: { session: SandboxSession | null }) {
+  const [messages, setMessages] = useState<SandboxMessage[]>([]);
+  const [selectedRole, setSelectedRole] = useState("");
+  const [question, setQuestion] = useState("");
+  const [sending, setSending] = useState(false);
+  const [messageError, setMessageError] = useState("");
+
+  useEffect(() => {
+    if (!session) return;
+    setSelectedRole((current) => current || session.roles[0] || "");
+    let active = true;
+    sandboxApi.listMessages(session.id)
+      .then((payload) => {
+        if (active) setMessages(payload.messages);
+      })
+      .catch(() => {
+        if (active) setMessages([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [session]);
+
+  async function sendQuestion() {
+    if (!session || !selectedRole || !question.trim() || sending) return;
+    setSending(true);
+    setMessageError("");
+    try {
+      const message = await sandboxApi.askRole(session.id, { role: selectedRole, question: question.trim() });
+      setMessages((current) => [...current, message]);
+      setQuestion("");
+    } catch (error) {
+      setMessageError(apiErrorMessage(error, "追问失败，请稍后重试。"));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const initialRows = session?.report?.role_summaries.map((summary) => ["本轮", summary.role, summary.view] as const) ?? conversationRows;
+
   return (
     <SandboxWorkLayout mode="run">
       <section className="run-work">
         <header>
           <div>
-            <h1>AI 驱动中小企业知识管理平台</h1>
-            <span>推演中</span>
+            <h1>{session?.product ?? "商业沙盘推演"}</h1>
+            <span>{session?.status === "completed" ? "推演完成" : "推演中"}</span>
             <span>标准深度</span>
           </div>
           <small>本轮推演 · 第 1 轮</small>
         </header>
         <nav className="run-role-tabs">
-          {["用户视角", "投资人视角", "代理商/渠道方", "竞争对手", "运营策略", "增长路径", "风险研判"].map((item) => (
-            <button key={item} type="button">{item}</button>
+          {(session?.roles ?? []).map((item) => (
+            <button className={selectedRole === item ? "active" : ""} key={item} onClick={() => setSelectedRole(item)} type="button">{item}</button>
           ))}
         </nav>
         <div className="run-grid">
           <section className="run-dialog">
-            {conversationRows.map(([time, role, text]) => (
+            {initialRows.map(([time, role, text]) => (
               <article key={`${time}-${role}`}>
                 <time>{time}</time>
                 <strong>{role}</strong>
                 <p>{text}</p>
               </article>
             ))}
+            {messages.map((message) => (
+              <article key={message.id}>
+                <time>{new Date(message.created_at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false })}</time>
+                <strong>{message.role}</strong>
+                <p><b>问：{message.question}</b><br />{message.answer}</p>
+              </article>
+            ))}
             <footer>
               <Link to="/sandbox/run">继续推演</Link>
               <button type="button">调整变量后重跑</button>
-              <Link to="/sandbox/report">生成推演报告</Link>
+              <Link to={session ? `/sandbox/sessions/${session.id}/report` : "/sandbox/report"}>生成推演报告</Link>
             </footer>
           </section>
           <aside className="run-variable-panel">
@@ -527,8 +573,9 @@ function RunPage() {
               </label>
             ))}
             <h2>追加追问</h2>
-            <textarea aria-label="追加追问" placeholder="输入你的问题，进一步追问任意角色..." />
-            <button type="button">发送追问</button>
+            <textarea aria-label="追加追问" onChange={(event) => setQuestion(event.target.value)} placeholder="输入你的问题，进一步追问任意角色..." value={question} />
+            <button disabled={!session || !selectedRole || !question.trim() || sending} onClick={sendQuestion} type="button">{sending ? "发送中..." : "发送追问"}</button>
+            {messageError ? <p role="alert">{messageError}</p> : null}
           </aside>
         </div>
       </section>

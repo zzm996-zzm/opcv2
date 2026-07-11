@@ -18,6 +18,23 @@ type fakeRepository struct {
 	session  Session
 	sessions []Session
 	err      error
+	messages []Message
+}
+
+func (r *fakeRepository) CreateMessage(_ context.Context, message Message) (Message, error) {
+	message.ID = int64(len(r.messages) + 1)
+	r.messages = append(r.messages, message)
+	return message, r.err
+}
+
+func (r *fakeRepository) ListMessages(_ context.Context, userID, sessionID int64) ([]Message, error) {
+	rows := make([]Message, 0, len(r.messages))
+	for _, message := range r.messages {
+		if message.UserID == userID && message.SessionID == sessionID {
+			rows = append(rows, message)
+		}
+	}
+	return rows, r.err
 }
 
 func (r *fakeRepository) UpdateSessionDraft(_ context.Context, userID, id int64, update DraftUpdate) (Session, error) {
@@ -342,5 +359,22 @@ func TestServiceReturnsSafeErrorForInvalidAIReport(t *testing.T) {
 
 	if !errors.Is(err, ErrInvalidAIResult) {
 		t.Fatalf("err = %v, want ErrInvalidAIResult", err)
+	}
+}
+
+func TestServiceAsksSelectedSandboxRoleAndPersistsAnswer(t *testing.T) {
+	repository := &fakeRepository{session: Session{ID: 99, UserID: 42, Product: "AI运营平台", Roles: []string{"投资人视角"}, Status: StatusCompleted}}
+	generator := &fakeGenerator{content: []byte(`{"answer":"我会重点看客户留存与单位经济模型。"}`)}
+	service := NewService(repository, generator)
+
+	message, err := service.AskRole(context.Background(), AskRoleInput{UserID: 42, SessionID: 99, Role: " 投资人视角 ", Question: " 你最关注哪些指标？ "})
+	if err != nil {
+		t.Fatalf("AskRole() error = %v", err)
+	}
+	if message.Role != "投资人视角" || message.Question != "你最关注哪些指标？" || message.Answer == "" {
+		t.Fatalf("message = %+v", message)
+	}
+	if generator.request.Feature != "sandbox.follow_up" || !strings.Contains(generator.request.UserPrompt, "投资人视角") {
+		t.Fatalf("request = %+v", generator.request)
 	}
 }

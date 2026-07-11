@@ -66,4 +66,19 @@ describe("sandboxApi", () => {
       body: JSON.stringify({ roles: ["用户视角"] })
     }));
   });
+
+  it("lists and creates role follow-up messages", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ messages: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, role: "投资人视角", answer: "关注留存" }), { status: 200 }));
+
+    await sandboxApi.listMessages(99);
+    await sandboxApi.askRole(99, { role: "投资人视角", question: "最关注什么？" });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/sandbox/sessions/99/messages", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/sandbox/sessions/99/messages", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ role: "投资人视角", question: "最关注什么？" })
+    }));
+  });
 });
