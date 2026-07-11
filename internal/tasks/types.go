@@ -27,6 +27,7 @@ const (
 	SourceEnterpriseDiagnosis  = "enterprise_diagnosis"
 	SourceLeadTask             = "lead_task"
 	SourceCRMCustomer          = "crm_customer"
+	SourceLearningDiagnosis    = "learning_diagnosis"
 )
 
 var (
@@ -69,8 +70,12 @@ type CreateInput struct {
 }
 
 type GenerateTasksInput struct {
-	UserID int64  `json:"-"`
-	Goal   string `json:"goal"`
+	UserID      int64  `json:"-"`
+	Goal        string `json:"goal"`
+	SourceType  string `json:"source_type"`
+	SourceID    *int64 `json:"source_id,omitempty"`
+	SourceTitle string `json:"source_title"`
+	SourceURL   string `json:"source_url"`
 }
 
 type GeneratedTaskDraft struct {

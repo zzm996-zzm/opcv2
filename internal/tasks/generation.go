@@ -13,8 +13,14 @@ import (
 
 func (s *Service) GenerateTasks(ctx context.Context, input GenerateTasksInput) (GenerateTasksResult, error) {
 	input.Goal = strings.TrimSpace(input.Goal)
+	input.SourceType = strings.TrimSpace(input.SourceType)
+	input.SourceTitle = strings.TrimSpace(input.SourceTitle)
+	input.SourceURL = strings.TrimSpace(input.SourceURL)
 	if s.repository == nil || s.generator == nil {
 		return GenerateTasksResult{}, ErrServiceNotReady
+	}
+	if !validTaskSource(input.SourceType, input.SourceID, input.SourceTitle, input.SourceURL) {
+		return GenerateTasksResult{}, ErrInvalidTaskSource
 	}
 	result, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID:         input.UserID,
@@ -56,6 +62,10 @@ func (s *Service) GenerateTasks(ctx context.Context, input GenerateTasksInput) (
 			DueAt:       dueAt,
 			Tools:       normalizeStrings(draft.Tools),
 			Learning:    strings.TrimSpace(draft.Learning),
+			SourceType:  input.SourceType,
+			SourceID:    input.SourceID,
+			SourceTitle: input.SourceTitle,
+			SourceURL:   input.SourceURL,
 			CreatedAt:   now,
 		})
 	}

@@ -202,13 +202,30 @@ func TestCreateTaskEndpointRejectsUnsafeSourceURL(t *testing.T) {
 func TestGenerateTasksEndpointUsesAuthenticatedUser(t *testing.T) {
 	app := &fakeApplication{generated: GenerateTasksResult{Tasks: []Task{{ID: 101, UserID: 42, Title: "整理访谈名单", Status: StatusTodo}}}}
 	router := tasksTestRouter(app)
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/generate", strings.NewReader(`{"goal":"验证教培客户需求"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/generate", strings.NewReader(`{"goal":"验证教培客户需求","source_type":"learning_diagnosis","source_id":99,"source_title":"企业AI落地能力路径","source_url":"/learning/plan"}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK || app.generateInput.UserID != 42 || app.generateInput.Goal != "验证教培客户需求" || !strings.Contains(recorder.Body.String(), `"tasks"`) {
+		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.generateInput, recorder.Body.String())
+	}
+	if app.generateInput.SourceType != SourceLearningDiagnosis || app.generateInput.SourceID == nil || *app.generateInput.SourceID != 99 {
+		t.Fatalf("source input = %+v", app.generateInput)
+	}
+}
+
+func TestGenerateTasksEndpointRejectsInvalidSource(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/generate", strings.NewReader(`{"goal":"验证教培客户需求","source_type":"learning_diagnosis","source_title":"学习路径","source_url":"//evil.example"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || app.generateInput.UserID != 0 {
 		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.generateInput, recorder.Body.String())
 	}
 }

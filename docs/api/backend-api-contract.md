@@ -240,7 +240,8 @@ Validation:
   protocol-relative URLs such as `//example.com` are rejected.
 - Supported source types are `analysis_session`, `project_match`,
   `sandbox_session`, `competitor_scan`, `competitor_monitoring`,
-  `enterprise_diagnosis`, `lead_task`, and `crm_customer`.
+  `enterprise_diagnosis`, `lead_task`, `crm_customer`, and
+  `learning_diagnosis`.
 - Client-supplied `user_id` is ignored.
 
 Response `200`: `Task`
@@ -258,7 +259,11 @@ Request:
 
 ```json
 {
-  "goal": "验证成都教培机构对 AI 客服的真实需求"
+  "goal": "完成企业AI落地能力路径",
+  "source_type": "learning_diagnosis",
+  "source_id": 99,
+  "source_title": "企业AI落地能力路径",
+  "source_url": "/learning/plan"
 }
 ```
 
@@ -267,6 +272,10 @@ uses the configured AI provider to generate between 1 and 10 structured tasks.
 Each generated item contains a title, description, project, priority, tags,
 tools, learning recommendation, and `due_in_days` between 0 and 365. The model
 response is schema-validated and retried once when invalid.
+
+The optional source fields use the same validation as manual task creation.
+When provided, every generated task keeps the source metadata so task detail
+can navigate back to the originating workflow.
 
 All generated tasks are persisted in one database transaction. If any insert
 fails, no task from that generated plan is saved.

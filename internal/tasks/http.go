@@ -115,6 +115,13 @@ func (h *HTTPHandler) generateTasks(c *gin.Context) {
 		httpapi.BadRequest(c, "invalid_goal")
 		return
 	}
+	request.SourceType = strings.TrimSpace(request.SourceType)
+	request.SourceTitle = strings.TrimSpace(request.SourceTitle)
+	request.SourceURL = strings.TrimSpace(request.SourceURL)
+	if !validTaskSource(request.SourceType, request.SourceID, request.SourceTitle, request.SourceURL) {
+		httpapi.BadRequest(c, "invalid_task_source")
+		return
+	}
 	request.UserID = c.GetInt64(auth.UserIDContextKey)
 	result, err := h.app.GenerateTasks(c.Request.Context(), request)
 	if err != nil {

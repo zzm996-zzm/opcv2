@@ -47,11 +47,22 @@ describe("tasksApi", () => {
       new Response(JSON.stringify({ tasks: [{ id: 101, title: "整理访谈名单" }] }), { status: 200 })
     );
 
-    await tasksApi.generateTasks("验证教培客户需求");
+    await tasksApi.generateTasks("验证教培客户需求", {
+      sourceType: "learning_diagnosis",
+      sourceId: 99,
+      sourceTitle: "企业AI落地能力路径",
+      sourceUrl: "/learning/plan"
+    });
 
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/generate", expect.objectContaining({
       method: "POST",
-      body: JSON.stringify({ goal: "验证教培客户需求" })
+      body: JSON.stringify({
+        goal: "验证教培客户需求",
+        source_type: "learning_diagnosis",
+        source_id: 99,
+        source_title: "企业AI落地能力路径",
+        source_url: "/learning/plan"
+      })
     }));
   });
 

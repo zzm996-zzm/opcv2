@@ -32,7 +32,11 @@ func TestServiceGeneratesAndPersistsTaskPlan(t *testing.T) {
 	service := NewService(repository, WithTaskGenerator(generator))
 	service.now = func() time.Time { return now }
 
-	result, err := service.GenerateTasks(context.Background(), GenerateTasksInput{UserID: 42, Goal: "验证教培客户需求"})
+	sourceID := int64(99)
+	result, err := service.GenerateTasks(context.Background(), GenerateTasksInput{
+		UserID: 42, Goal: "验证教培客户需求", SourceType: SourceLearningDiagnosis,
+		SourceID: &sourceID, SourceTitle: "企业AI落地能力路径", SourceURL: "/learning/plan",
+	})
 
 	if err != nil {
 		t.Fatalf("GenerateTasks() error = %v", err)
@@ -45,6 +49,9 @@ func TestServiceGeneratesAndPersistsTaskPlan(t *testing.T) {
 	}
 	if result.Tasks[0].Status != StatusTodo || result.Tasks[0].UserID != 42 || result.Tasks[0].DueAt == nil || !result.Tasks[0].DueAt.Equal(now.Add(24*time.Hour)) {
 		t.Fatalf("first task = %+v", result.Tasks[0])
+	}
+	if result.Tasks[0].SourceType != SourceLearningDiagnosis || result.Tasks[0].SourceID == nil || *result.Tasks[0].SourceID != 99 || result.Tasks[0].SourceURL != "/learning/plan" {
+		t.Fatalf("first task source = %+v", result.Tasks[0])
 	}
 }
 

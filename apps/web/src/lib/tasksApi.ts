@@ -11,7 +11,8 @@ export type TaskSourceType =
   | "competitor_monitoring"
   | "enterprise_diagnosis"
   | "lead_task"
-  | "crm_customer";
+  | "crm_customer"
+  | "learning_diagnosis";
 
 export type Task = {
   id: number;
@@ -62,6 +63,13 @@ export type TaskStats = {
 
 export type GenerateTasksResult = {
   tasks: Task[];
+};
+
+export type GenerateTaskSource = {
+  sourceType: TaskSourceType;
+  sourceId?: number;
+  sourceTitle: string;
+  sourceUrl: string;
 };
 
 export type TaskSubtask = {
@@ -199,10 +207,18 @@ export const tasksApi = {
     });
   },
 
-  generateTasks(goal: string) {
+  generateTasks(goal: string, source?: GenerateTaskSource) {
     return apiRequest<GenerateTasksResult>("/api/v1/tasks/generate", {
       method: "POST",
-      body: JSON.stringify({ goal })
+      body: JSON.stringify({
+        goal,
+        ...(source ? {
+          source_type: source.sourceType,
+          source_id: source.sourceId,
+          source_title: source.sourceTitle,
+          source_url: source.sourceUrl
+        } : {})
+      })
     });
   },
 

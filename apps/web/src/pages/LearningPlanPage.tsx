@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningPlan, type LearningPlanStage } from "../lib/learningApi";
+import { tasksApi } from "../lib/tasksApi";
 
 const learningStages = [
   {
@@ -66,6 +67,9 @@ function stageState(stage: LearningPlanStage, index: number) {
 
 function LearningPlanPage() {
   const [plan, setPlan] = useState<LearningPlan | null>(null);
+  const [syncingTasks, setSyncingTasks] = useState(false);
+  const [taskSyncMessage, setTaskSyncMessage] = useState("");
+  const [taskSyncError, setTaskSyncError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -105,6 +109,30 @@ function LearningPlanPage() {
       ["学习目标产出", "掌握诊断推荐能力", "完成阶段练习与能力报告", "target"]
     ] as const
     : planMetrics;
+
+  async function syncToTaskCenter() {
+    if (!plan || syncingTasks) return;
+    setSyncingTasks(true);
+    setTaskSyncMessage("");
+    setTaskSyncError("");
+    const milestones = plan.stages.map((stage) => stage.milestone).filter(Boolean).join("；");
+    try {
+      const result = await tasksApi.generateTasks(
+        `完成${plan.title}${milestones ? `，重点里程碑：${milestones}` : ""}`,
+        {
+          sourceType: "learning_diagnosis",
+          sourceId: plan.diagnosis_id,
+          sourceTitle: plan.title,
+          sourceUrl: "/learning/plan"
+        }
+      );
+      setTaskSyncMessage(`已创建 ${result.tasks.length} 个学习任务`);
+    } catch {
+      setTaskSyncError("同步任务失败，请稍后重试。");
+    } finally {
+      setSyncingTasks(false);
+    }
+  }
 
   return (
     <V4PageShell>
@@ -195,6 +223,11 @@ function LearningPlanPage() {
             <p>路径将根据你的学习进度与测评结果动态调整，保持学习效果最优。</p>
             <span>上次更新：{plan ? new Date(plan.generated_at).toLocaleString("zh-CN", { hour12: false }) : "2024-05-20 10:30"}</span>
             <button type="button">刷新路径</button>
+            <button disabled={!plan || syncingTasks} onClick={syncToTaskCenter} type="button">
+              {syncingTasks ? "同步中..." : "同步到任务中心"}
+            </button>
+            {taskSyncMessage ? <span role="status">{taskSyncMessage}</span> : null}
+            {taskSyncError ? <span role="alert">{taskSyncError}</span> : null}
           </footer>
         </div>
 
