@@ -45,6 +45,18 @@ describe("projectsApi", () => {
     );
   });
 
+  it("lists and gets published opportunities", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ opportunities: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ slug: "ai-sales" }), { status: 200 }));
+
+    await projectsApi.listOpportunities({ query: "AI销售" });
+    await projectsApi.getOpportunity("ai-sales");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/projects/opportunities?q=AI%E9%94%80%E5%94%AE", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/projects/opportunities/ai-sales", expect.objectContaining({ method: "GET" }));
+  });
+
   it("gets project match detail", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: 99, user_id: 42, intent: "线上项目", status: "completed" }), { status: 200 })

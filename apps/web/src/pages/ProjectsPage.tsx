@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { projectsApi, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession } from "../lib/projectsApi";
+import { projectsApi, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
 
 type ProjectMarketVariant =
   | "home"
@@ -60,15 +60,6 @@ const opportunities = [
   ["功效护肤品电商", "专注科学功效护肤的 DTC 品牌", "轻资产", "SaaS", "可复制"],
   ["智能健身房", "AI+硬件驱动的智能健身新模式", "轻资产", "可复制", "低竞争"],
   ["AI短视频创作工具", "一键生成爆款短视频内容", "SaaS", "可复制", "低竞争"]
-] as const;
-
-const explorationCards = [
-  ["AI视频矩阵", "内容创作", "热度 96", "低成本", "一人可启动", "用脚本、剪辑和投放模板批量生产垂直短视频内容。"],
-  ["本地团购代运营", "本地生活", "热度 88", "现金流快", "渠道驱动", "帮助门店搭建套餐、短视频和私域转化闭环。"],
-  ["办公自动化服务", "企业服务", "热度 84", "复购稳定", "轻交付", "为中小团队定制报表、流程和 AI 助手。"],
-  ["垂直知识产品", "知识变现", "热度 81", "高毛利", "可复用", "将专业经验拆成课程、模板和社群陪跑产品。"],
-  ["宠物健康内容号", "消费内容", "热度 79", "长周期", "品牌潜力", "以科普内容切入，延展到用品、服务和会员。"],
-  ["跨境小工具站", "工具产品", "热度 75", "SaaS", "技术门槛", "围绕细分卖家痛点做轻量工具和订阅收费。"]
 ] as const;
 
 const caseCards = [
@@ -238,6 +229,19 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
 }
 
 function MarketHome() {
+  const [featured, setFeatured] = useState<ProjectOpportunity[]>([]);
+  const [featuredError, setFeaturedError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    projectsApi.listOpportunities().then((payload) => {
+      if (active) { setFeatured(payload.opportunities.slice(0, 4)); setFeaturedError(""); }
+    }).catch((loadError) => {
+      if (active) { setFeatured([]); setFeaturedError(apiErrorMessage(loadError, "暂时无法读取精选机会")); }
+    });
+    return () => { active = false; };
+  }, []);
+
   return (
     <>
       <section className="pm-hero home">
@@ -285,14 +289,17 @@ function MarketHome() {
           <Link to="/projects/results">查看全部</Link>
         </div>
         <div className="pm-opportunity-grid">
-          {opportunities.map(([title, detail, tagA, tagB, tagC]) => (
-            <article key={title}>
+          {featuredError ? <p className="form-error" role="alert">{featuredError}</p> : null}
+          {!featuredError && featured.length === 0 ? <div className="module-empty-state" role="status">暂无精选机会</div> : null}
+          {featured.map((item) => (
+            <article key={item.id}>
               <div className="pm-thumb" />
-              <h3>{title}</h3>
-              <p>{detail}</p>
+              <h3>{item.title}</h3>
+              <p>{item.summary}</p>
               <div>
-                {[tagA, tagB, tagC].map((tag) => <span key={tag}>{tag}</span>)}
+                {item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
               </div>
+              <Link to={`/projects/opportunities/${item.slug}`}>查看机会</Link>
             </article>
           ))}
         </div>
@@ -389,14 +396,33 @@ function MatchRequest() {
 }
 
 function OpportunityExplore() {
+  const [items, setItems] = useState<ProjectOpportunity[]>([]);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+
+  async function loadOpportunities(search = "") {
+    try {
+      const payload = await projectsApi.listOpportunities({ query: search.trim() || undefined });
+      setItems(payload.opportunities);
+      setError("");
+    } catch (loadError) {
+      setItems([]);
+      setError(apiErrorMessage(loadError, "暂时无法读取项目机会"));
+    }
+  }
+
+  useEffect(() => {
+    void loadOpportunities();
+  }, []);
+
   return (
     <>
       <ProjectHero title="机会探索" subtitle="按赛道热度、启动门槛、投入周期和个人适配度筛选项目机会" action="AI匹配" href="/projects/match" />
       <section className="pm-panel pm-explore-controls">
         <div className="pm-search wide">
           <span aria-hidden="true">⌕</span>
-          <input aria-label="搜索机会赛道" placeholder="搜索行业、项目、关键词" />
-          <button type="button" aria-label="搜索机会">⌕</button>
+          <input aria-label="搜索机会赛道" onChange={(event) => setQuery(event.target.value)} placeholder="搜索行业、项目、关键词" value={query} />
+          <button type="button" aria-label="搜索机会" onClick={() => void loadOpportunities(query)}>⌕</button>
         </div>
         <div className="pm-explore-tabs" aria-label="机会筛选">
           {["全部机会", "高潜力机会", "低竞争蓝海", "小成本启动", "近期爆发", "一人公司"].map((item, index) => (
@@ -406,28 +432,28 @@ function OpportunityExplore() {
       </section>
       <section className="pm-explore-layout">
         <div className="pm-explore-grid">
-          {explorationCards.map(([title, category, heat, tagA, tagB, detail], index) => (
-            <article className="pm-explore-card" key={title}>
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          {!error && items.length === 0 ? <div className="module-empty-state" role="status">暂无已发布项目机会</div> : null}
+          {items.map((item, index) => (
+            <article className="pm-explore-card" key={item.id}>
               <div className="pm-thumb" />
               <span>#{index + 1}</span>
-              <h2>{title}</h2>
-              <p>{detail}</p>
+              <h2>{item.title}</h2>
+              <p>{item.summary}</p>
               <div className="pm-mini-tags">
-                {[category, heat, tagA, tagB].map((tag) => <span key={tag}>{tag}</span>)}
+                {[item.industry, item.difficulty, ...item.tags].filter(Boolean).map((tag) => <span key={tag}>{tag}</span>)}
               </div>
               <footer>
-                <small>适合预算 1-3 万 · 验证周期 2-4 周</small>
-                <Link to="/projects/detail">查看机会</Link>
+                <small>{item.budget_band ? `适合预算 ${item.budget_band}` : "预算待运营补充"}</small>
+                <Link to={`/projects/opportunities/${item.slug}`}>查看机会</Link>
               </footer>
             </article>
           ))}
         </div>
         <aside className="pm-insight-panel">
           <h2>机会雷达</h2>
-          <p>当前更推荐轻服务、内容工具和本地生活转化型项目。</p>
-          {["需求上升：AI内容生产", "低门槛：办公自动化", "现金流快：本地团购", "长期价值：垂直知识产品"].map((item) => (
-            <article key={item}>{item}</article>
-          ))}
+          <p>基于当前已发布项目目录筛选，不展示无来源热度数据。</p>
+          <div className="module-empty-state">暂无机会洞察</div>
         </aside>
       </section>
     </>
@@ -627,11 +653,21 @@ function MatchHistory() {
 }
 
 function ProjectDetail() {
-  const { matchId } = useParams();
+  const { matchId, opportunitySlug } = useParams();
   const [session, setSession] = useState<ProjectMatchSession | null>(null);
+  const [opportunity, setOpportunity] = useState<ProjectOpportunity | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (opportunitySlug) {
+      let active = true;
+      projectsApi.getOpportunity(opportunitySlug).then((payload) => {
+        if (active) { setOpportunity(payload); setError(""); }
+      }).catch((loadError) => {
+        if (active) setError(apiErrorMessage(loadError, "暂时无法读取项目详情"));
+      });
+      return () => { active = false; };
+    }
     if (!matchId) return;
     const id = Number(matchId);
     if (!Number.isFinite(id) || id <= 0) {
@@ -653,14 +689,16 @@ function ProjectDetail() {
     return () => {
       active = false;
     };
-  }, [matchId]);
+  }, [matchId, opportunitySlug]);
 
   const project = session?.result?.projects?.[0];
-  const title = project?.title ?? "AI短视频脚本工作室";
-  const subtitle = project
+  const title = opportunity?.title ?? project?.title ?? "AI短视频脚本工作室";
+  const subtitle = opportunity?.summary ?? (project
     ? `来自匹配需求：${session?.intent ?? "项目匹配"}`
-    : "为知识博主/品牌/商家提供短视频脚本本地化制作服务";
-  const conditionTags = project
+    : "为知识博主/品牌/商家提供短视频脚本本地化制作服务");
+  const conditionTags = opportunity
+    ? [opportunity.industry, opportunity.budget_band, opportunity.difficulty, ...opportunity.tags].filter(Boolean)
+    : project
     ? [`匹配度 ${project.score}分`, `预算 ${project.budget}`, ...project.tags.slice(0, 2)]
     : ["匹配度 94分", "预算 1-3万", "1-3个月启动", "轻资产"];
 
@@ -681,7 +719,17 @@ function ProjectDetail() {
       <nav className="pm-detail-tabs" aria-label="项目详情模块">
         {["诊断是否能做", "成功路径", "当前数据", "真实案例库", "优劣势", "可学经验", "要避免行为"].map((item) => <a key={item} href={`#${item}`}>{item}</a>)}
       </nav>
-      <DetailDashboard />
+      {opportunity ? (
+        <section className="pm-detail-dashboard">
+          {opportunity.sections?.length ? opportunity.sections.map((section) => (
+            <article className="pm-detail-section" key={section.title}>
+              <h2>{section.title}</h2>
+              <p>{section.body}</p>
+              {section.items.length ? <ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+            </article>
+          )) : <div className="module-empty-state" role="status">暂无项目详情章节</div>}
+        </section>
+      ) : <DetailDashboard />}
     </>
   );
 }

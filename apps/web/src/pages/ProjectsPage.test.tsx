@@ -87,12 +87,24 @@ describe("ProjectsPage", () => {
     expect(screen.getByText("91分")).toBeInTheDocument();
   });
 
-  it("renders opportunity exploration page", () => {
+  it("renders opportunity exploration from API", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ opportunities: [{
+      id: 42,
+      slug: "ai-sales-consulting",
+      title: "AI销售顾问",
+      summary: "为中小企业搭建销售自动化流程",
+      industry: "企业服务",
+      tags: ["轻资产", "B端服务"],
+      budget_band: "1-3万",
+      difficulty: "中等",
+      resource_requirements: ["销售经验"]
+    }] }), { status: 200 }));
     renderProjectRoute("/projects/explore");
 
     expect(screen.getByRole("heading", { name: "机会探索" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "高潜力机会" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "AI视频矩阵" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看机会" })).toHaveAttribute("href", "/projects/opportunities/ai-sales-consulting");
     expect(screen.getByRole("heading", { name: "机会雷达" })).toBeInTheDocument();
   });
 

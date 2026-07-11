@@ -12,14 +12,25 @@ import (
 )
 
 type fakeApplication struct {
-	input    MatchInput
-	userID   int64
-	matchID  int64
-	result   MatchResult
-	sessions []MatchSession
-	session  MatchSession
-	favorite Favorite
-	err      error
+	input         MatchInput
+	userID        int64
+	matchID       int64
+	result        MatchResult
+	sessions      []MatchSession
+	session       MatchSession
+	favorite      Favorite
+	err           error
+	opportunities []Opportunity
+	opportunity   Opportunity
+	filters       OpportunityFilters
+}
+
+func (a *fakeApplication) ListOpportunities(_ context.Context, filters OpportunityFilters) ([]Opportunity, error) {
+	a.filters = filters
+	return a.opportunities, a.err
+}
+func (a *fakeApplication) GetOpportunity(_ context.Context, _ string) (Opportunity, error) {
+	return a.opportunity, a.err
 }
 
 func (a *fakeApplication) CreateMatch(_ context.Context, input MatchInput) (MatchResult, error) {
@@ -81,6 +92,28 @@ func TestCreateMatchEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"title":"AI短视频脚本工作室"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestOpportunityEndpointsReturnPublishedCatalog(t *testing.T) {
+	app := &fakeApplication{
+		opportunities: []Opportunity{{ID: 42, Slug: "ai-sales", Title: "AI销售顾问"}},
+		opportunity:   Opportunity{ID: 42, Slug: "ai-sales", Title: "AI销售顾问"},
+	}
+	router := projectTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/projects/opportunities?q=AI&industry=%E4%BC%81%E4%B8%9A%E6%9C%8D%E5%8A%A1", nil))
+	if recorder.Code != http.StatusOK || app.filters.Query != "AI" || app.filters.Industry != "企业服务" {
+		t.Fatalf("status/filters = %d/%+v body=%s", recorder.Code, app.filters, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"slug":"ai-sales"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/projects/opportunities/ai-sales", nil))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"title":"AI销售顾问"`) {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }
 

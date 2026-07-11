@@ -6,15 +6,46 @@ import (
 )
 
 const (
-	StatusNeedsInput = "needs_input"
-	StatusCompleted  = "completed"
+	StatusNeedsInput           = "needs_input"
+	StatusCompleted            = "completed"
+	OpportunityStatusDraft     = "draft"
+	OpportunityStatusPublished = "published"
 )
 
 var (
-	ErrServiceNotReady = errors.New("projects service is not configured")
-	ErrInvalidAIResult = errors.New("invalid projects ai result")
-	ErrSessionNotFound = errors.New("project match session not found")
+	ErrServiceNotReady     = errors.New("projects service is not configured")
+	ErrInvalidAIResult     = errors.New("invalid projects ai result")
+	ErrSessionNotFound     = errors.New("project match session not found")
+	ErrOpportunityNotFound = errors.New("project opportunity not found")
 )
+
+type OpportunityFilters struct {
+	Query    string
+	Industry string
+	Limit    int
+}
+
+type OpportunitySection struct {
+	Title string   `json:"title"`
+	Body  string   `json:"body"`
+	Items []string `json:"items"`
+}
+
+type Opportunity struct {
+	ID                   int64                `json:"id"`
+	Slug                 string               `json:"slug"`
+	Title                string               `json:"title"`
+	Summary              string               `json:"summary"`
+	Industry             string               `json:"industry"`
+	Tags                 []string             `json:"tags"`
+	BudgetBand           string               `json:"budget_band"`
+	Difficulty           string               `json:"difficulty"`
+	ResourceRequirements []string             `json:"resource_requirements"`
+	Sections             []OpportunitySection `json:"sections"`
+	Status               string               `json:"-"`
+	PublishedAt          *time.Time           `json:"published_at,omitempty"`
+	UpdatedAt            time.Time            `json:"updated_at"`
+}
 
 type MatchInput struct {
 	UserID  int64    `json:"-"`

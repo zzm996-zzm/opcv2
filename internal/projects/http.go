@@ -11,6 +11,8 @@ import (
 )
 
 type Application interface {
+	ListOpportunities(ctx context.Context, filters OpportunityFilters) ([]Opportunity, error)
+	GetOpportunity(ctx context.Context, slug string) (Opportunity, error)
 	CreateMatch(ctx context.Context, input MatchInput) (MatchResult, error)
 	ListMatches(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetMatch(ctx context.Context, userID, id int64) (MatchSession, error)
@@ -26,10 +28,42 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 }
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
+	router.GET("/projects/opportunities", h.listOpportunities)
+	router.GET("/projects/opportunities/:slug", h.getOpportunity)
 	router.POST("/projects/matches", h.createMatch)
 	router.GET("/projects/matches", h.listMatches)
 	router.GET("/projects/matches/:id", h.getMatch)
 	router.POST("/projects/matches/:id/favorite", h.favoriteMatch)
+}
+
+func (h *HTTPHandler) listOpportunities(c *gin.Context) {
+	limit := 20
+	if value := c.Query("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_limit"})
+			return
+		}
+		limit = parsed
+	}
+	items, err := h.app.ListOpportunities(c.Request.Context(), OpportunityFilters{Query: c.Query("q"), Industry: c.Query("industry"), Limit: limit})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	if items == nil {
+		items = []Opportunity{}
+	}
+	c.JSON(http.StatusOK, gin.H{"opportunities": items})
+}
+
+func (h *HTTPHandler) getOpportunity(c *gin.Context) {
+	item, err := h.app.GetOpportunity(c.Request.Context(), c.Param("slug"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
 }
 
 func (h *HTTPHandler) createMatch(c *gin.Context) {
@@ -104,6 +138,8 @@ func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrSessionNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "match_not_found"})
+	case errors.Is(err, ErrOpportunityNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "opportunity_not_found"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	case errors.Is(err, ErrInvalidAIResult):

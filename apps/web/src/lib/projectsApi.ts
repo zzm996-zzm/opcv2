@@ -41,7 +41,33 @@ export type ProjectFavorite = {
   created_at?: string;
 };
 
+export type ProjectOpportunity = {
+  id: number;
+  slug: string;
+  title: string;
+  summary: string;
+  industry: string;
+  tags: string[];
+  budget_band: string;
+  difficulty: string;
+  resource_requirements: string[];
+  sections?: { title: string; body: string; items: string[] }[];
+  published_at?: string;
+  updated_at?: string;
+};
+
 export const projectsApi = {
+  listOpportunities(filters: { query?: string; industry?: string } = {}) {
+    const query = new URLSearchParams();
+    if (filters.query) query.set("q", filters.query);
+    if (filters.industry) query.set("industry", filters.industry);
+    const suffix = query.toString();
+    return apiRequest<{ opportunities: ProjectOpportunity[] }>(`/api/v1/projects/opportunities${suffix ? `?${suffix}` : ""}`, { method: "GET" });
+  },
+
+  getOpportunity(slug: string) {
+    return apiRequest<ProjectOpportunity>(`/api/v1/projects/opportunities/${encodeURIComponent(slug)}`, { method: "GET" });
+  },
   createMatch(input: { intent: string }) {
     return apiRequest<ProjectMatchResult>("/api/v1/projects/matches", {
       method: "POST",

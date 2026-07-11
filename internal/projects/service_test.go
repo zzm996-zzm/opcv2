@@ -13,9 +13,29 @@ import (
 )
 
 type memoryRepository struct {
-	sessions  []MatchSession
-	favorites map[int64]map[int64]Favorite
-	nextID    int64
+	sessions      []MatchSession
+	favorites     map[int64]map[int64]Favorite
+	opportunities []Opportunity
+	nextID        int64
+}
+
+func (r *memoryRepository) ListOpportunities(_ context.Context, filters OpportunityFilters) ([]Opportunity, error) {
+	var rows []Opportunity
+	for _, item := range r.opportunities {
+		if item.Status == OpportunityStatusPublished && (filters.Query == "" || strings.Contains(item.Title, filters.Query)) {
+			rows = append(rows, item)
+		}
+	}
+	return rows, nil
+}
+
+func (r *memoryRepository) GetOpportunity(_ context.Context, slug string) (Opportunity, error) {
+	for _, item := range r.opportunities {
+		if item.Status == OpportunityStatusPublished && item.Slug == slug {
+			return item, nil
+		}
+	}
+	return Opportunity{}, ErrOpportunityNotFound
 }
 
 func (r *memoryRepository) CreateSession(_ context.Context, session MatchSession) (MatchSession, error) {

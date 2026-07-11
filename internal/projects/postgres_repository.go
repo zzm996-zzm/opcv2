@@ -21,6 +21,46 @@ func NewPostgresRepository(db postgresDB) *PostgresRepository {
 	return &PostgresRepository{db: db}
 }
 
+func (r *PostgresRepository) ListOpportunities(ctx context.Context, filters OpportunityFilters) ([]Opportunity, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, slug, title, summary, industry, tags, budget_band, difficulty, resource_requirements, sections, status, published_at, updated_at
+		FROM project_opportunities
+		WHERE status = 'published'
+		  AND ($1 = '' OR industry = $1)
+		  AND ($2 = '' OR title ILIKE '%' || $2 || '%' OR summary ILIKE '%' || $2 || '%')
+		ORDER BY sort_order ASC, published_at DESC, id ASC
+		LIMIT $3
+	`, filters.Industry, filters.Query, filters.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Opportunity
+	for rows.Next() {
+		item, err := scanOpportunity(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *PostgresRepository) GetOpportunity(ctx context.Context, slug string) (Opportunity, error) {
+	item, err := scanOpportunity(r.db.QueryRow(ctx, `
+		SELECT id, slug, title, summary, industry, tags, budget_band, difficulty, resource_requirements, sections, status, published_at, updated_at
+		FROM project_opportunities
+		WHERE slug = $1 AND status = 'published'
+	`, slug))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Opportunity{}, ErrOpportunityNotFound
+	}
+	return item, err
+}
+
 func (r *PostgresRepository) CreateSession(ctx context.Context, session MatchSession) (MatchSession, error) {
 	questions, err := json.Marshal(session.Questions)
 	if err != nil {
@@ -100,6 +140,24 @@ func (r *PostgresRepository) SaveFavorite(ctx context.Context, favorite Favorite
 
 type sessionScanner interface {
 	Scan(dest ...any) error
+}
+
+func scanOpportunity(scanner sessionScanner) (Opportunity, error) {
+	var item Opportunity
+	var tags, resources, sections []byte
+	if err := scanner.Scan(&item.ID, &item.Slug, &item.Title, &item.Summary, &item.Industry, &tags, &item.BudgetBand, &item.Difficulty, &resources, &sections, &item.Status, &item.PublishedAt, &item.UpdatedAt); err != nil {
+		return Opportunity{}, err
+	}
+	if err := json.Unmarshal(tags, &item.Tags); err != nil {
+		return Opportunity{}, err
+	}
+	if err := json.Unmarshal(resources, &item.ResourceRequirements); err != nil {
+		return Opportunity{}, err
+	}
+	if err := json.Unmarshal(sections, &item.Sections); err != nil {
+		return Opportunity{}, err
+	}
+	return item, nil
 }
 
 func scanSession(scanner sessionScanner) (MatchSession, error) {

@@ -14,10 +14,35 @@ import (
 )
 
 type Repository interface {
+	ListOpportunities(ctx context.Context, filters OpportunityFilters) ([]Opportunity, error)
+	GetOpportunity(ctx context.Context, slug string) (Opportunity, error)
 	CreateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetSession(ctx context.Context, userID, id int64) (MatchSession, error)
 	SaveFavorite(ctx context.Context, favorite Favorite) (Favorite, error)
+}
+
+func (s *Service) ListOpportunities(ctx context.Context, filters OpportunityFilters) ([]Opportunity, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	filters.Query = strings.TrimSpace(filters.Query)
+	filters.Industry = strings.TrimSpace(filters.Industry)
+	if filters.Limit <= 0 || filters.Limit > 100 {
+		filters.Limit = 20
+	}
+	return s.repository.ListOpportunities(ctx, filters)
+}
+
+func (s *Service) GetOpportunity(ctx context.Context, slug string) (Opportunity, error) {
+	if s.repository == nil {
+		return Opportunity{}, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return Opportunity{}, ErrOpportunityNotFound
+	}
+	return s.repository.GetOpportunity(ctx, slug)
 }
 
 type JSONGenerator interface {

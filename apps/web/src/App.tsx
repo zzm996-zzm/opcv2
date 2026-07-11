@@ -505,6 +505,14 @@ function App() {
             <ProjectsPage variant="detail" />
           </RequireAuth>
         }
+        path="/projects/opportunities/:opportunitySlug"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="detail" />
+          </RequireAuth>
+        }
         path="/projects/detail"
       />
       <Route
