@@ -19,6 +19,19 @@ type fakeRepository struct {
 	sessions []Session
 	err      error
 	messages []Message
+	statuses []string
+}
+
+func (r *fakeRepository) UpdateSessionStatus(_ context.Context, userID, id int64, status string) error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.session.UserID != userID || r.session.ID != id {
+		return ErrSessionNotFound
+	}
+	r.session.Status = status
+	r.statuses = append(r.statuses, status)
+	return nil
 }
 
 func (r *fakeRepository) CreateMessage(_ context.Context, message Message) (Message, error) {
@@ -330,6 +343,9 @@ func TestServiceRunSessionGeneratesReportThroughAI(t *testing.T) {
 	if generator.request.Feature != "sandbox.run" || generator.request.SchemaName != "sandbox_report" {
 		t.Fatalf("ai request = %+v", generator.request)
 	}
+	if len(repository.statuses) != 1 || repository.statuses[0] != StatusRunning {
+		t.Fatalf("statuses = %+v", repository.statuses)
+	}
 }
 
 func TestServiceRunSessionRejectsOtherUsersSession(t *testing.T) {
@@ -359,6 +375,9 @@ func TestServiceReturnsSafeErrorForInvalidAIReport(t *testing.T) {
 
 	if !errors.Is(err, ErrInvalidAIResult) {
 		t.Fatalf("err = %v, want ErrInvalidAIResult", err)
+	}
+	if repository.session.Status != StatusFailed {
+		t.Fatalf("status = %s, want failed", repository.session.Status)
 	}
 }
 

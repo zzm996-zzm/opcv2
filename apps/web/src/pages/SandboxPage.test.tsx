@@ -55,13 +55,12 @@ describe("SandboxPage", () => {
     cleanup();
 
     render(<MemoryRouter initialEntries={["/sandbox/report"]}><App /></MemoryRouter>);
-    expect(screen.getByRole("heading", { name: "AI 驱动中小企业知识管理平台" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "核心结论" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "暂无可查看的推演报告" })).toBeInTheDocument();
     cleanup();
 
     render(<MemoryRouter initialEntries={["/sandbox/history"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "历史推演" })).toBeInTheDocument();
-    expect(screen.getByText("AI智能客服SaaS平台")).toBeInTheDocument();
+    expect(screen.getByText("暂无推演记录，完成首次配置后会显示在这里。")).toBeInTheDocument();
     cleanup();
 
     render(<MemoryRouter initialEntries={["/sandbox/quota"]}><App /></MemoryRouter>);
@@ -106,6 +105,7 @@ describe("SandboxPage", () => {
 
     expect(await screen.findByRole("heading", { name: "企业AI运营平台" })).toBeInTheDocument();
     expect(screen.getByText("AI运营平台具备清晰落地空间")).toBeInTheDocument();
+    expect(screen.getByText(/模型推演/)).toBeInTheDocument();
     expect(screen.getByText("门店老板关注降本增效")).toBeInTheDocument();
     expect(screen.getByText("先做3家门店试点")).toBeInTheDocument();
   });

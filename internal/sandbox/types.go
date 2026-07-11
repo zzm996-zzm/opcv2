@@ -7,7 +7,9 @@ import (
 
 const (
 	StatusDraft     = "draft"
+	StatusRunning   = "running"
 	StatusCompleted = "completed"
+	StatusFailed    = "failed"
 )
 
 var (

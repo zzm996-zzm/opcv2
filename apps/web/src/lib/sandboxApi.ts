@@ -16,7 +16,7 @@ export type SandboxSession = {
   target_users: string;
   product: string;
   roles: string[];
-  status: "draft" | "completed";
+  status: "draft" | "running" | "completed" | "failed";
   report?: SandboxReport;
   created_at: string;
   updated_at: string;

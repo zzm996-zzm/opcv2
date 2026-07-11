@@ -125,10 +125,16 @@ Errors:
 
 `POST /api/v1/sandbox/sessions/{id}/run`
 
+Status transitions are `draft|failed -> running -> completed`. AI generation
+failures leave the session in `failed`, and the same endpoint can retry it.
+Quota consumption remains idempotent for the session id.
+
 Consumes membership quota key `sandbox_runs`. Defaults seeded by migrations:
 free users get 1 run/month, pro users get 20 runs/month.
 
-Response `200`: `SandboxSession` with `status: "completed"` and populated `report`.
+Response `200`: `SandboxSession` with `status: "completed"` and populated
+`report`. Report values are model simulation output, not measured statistics;
+clients must label them as `模型推演`.
 
 Errors:
 

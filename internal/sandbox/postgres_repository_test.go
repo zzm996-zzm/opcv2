@@ -110,6 +110,27 @@ func TestPostgresRepositoryUpdatesOwnedSessionResult(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryUpdatesOwnedSessionStatus(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	db.ExpectExec(regexp.QuoteMeta(`
+		UPDATE sandbox_sessions
+		SET status = $1, updated_at = NOW()
+		WHERE user_id = $2 AND id = $3
+	`)).WithArgs(StatusRunning, int64(42), int64(99)).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	repository := NewPostgresRepository(db)
+	if err := repository.UpdateSessionStatus(context.Background(), 42, 99, StatusRunning); err != nil {
+		t.Fatalf("UpdateSessionStatus() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryUpdatesOwnedDraft(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

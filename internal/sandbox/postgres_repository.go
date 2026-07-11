@@ -6,11 +6,28 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type postgresDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+func (r *PostgresRepository) UpdateSessionStatus(ctx context.Context, userID, id int64, status string) error {
+	result, err := r.db.Exec(ctx, `
+		UPDATE sandbox_sessions
+		SET status = $1, updated_at = NOW()
+		WHERE user_id = $2 AND id = $3
+	`, status, userID, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrSessionNotFound
+	}
+	return nil
 }
 
 type PostgresRepository struct {

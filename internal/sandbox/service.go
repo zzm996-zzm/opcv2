@@ -17,6 +17,7 @@ import (
 type Repository interface {
 	CreateSession(ctx context.Context, session Session) (Session, error)
 	UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error)
+	UpdateSessionStatus(ctx context.Context, userID, id int64, status string) error
 	CreateMessage(ctx context.Context, message Message) (Message, error)
 	ListMessages(ctx context.Context, userID, sessionID int64) ([]Message, error)
 	UpdateSessionResult(ctx context.Context, userID, id int64, result Report) (Session, error)
@@ -130,7 +131,7 @@ func (s *Service) RunSession(ctx context.Context, userID, id int64) (Session, er
 	if err != nil {
 		return Session{}, err
 	}
-	if session.Status != StatusDraft || session.Goal == "" || session.TargetUsers == "" || session.Product == "" || len(session.Roles) == 0 {
+	if (session.Status != StatusDraft && session.Status != StatusFailed) || session.Goal == "" || session.TargetUsers == "" || session.Product == "" || len(session.Roles) == 0 {
 		return Session{}, ErrInvalidSession
 	}
 	if s.quota != nil {
@@ -143,8 +144,12 @@ func (s *Service) RunSession(ctx context.Context, userID, id int64) (Session, er
 			return Session{}, err
 		}
 	}
+	if err := s.repository.UpdateSessionStatus(ctx, userID, id, StatusRunning); err != nil {
+		return Session{}, err
+	}
 	report, err := s.generateReport(ctx, session)
 	if err != nil {
+		_ = s.repository.UpdateSessionStatus(ctx, userID, id, StatusFailed)
 		return Session{}, err
 	}
 	return s.repository.UpdateSessionResult(ctx, userID, id, report)

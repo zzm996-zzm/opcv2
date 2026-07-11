@@ -88,16 +88,6 @@ const nextActions = [
   ["合规检查", "梳理数据安全与合规要求，完成必要认证准备。"]
 ] as const;
 
-const historyRows = [
-  ["AI智能客服SaaS平台", "面向中小企业的智能客服解决方案", "用户 投资人 运营 +2", "2024-05-20 14:32", "已完成", "8.6", "中等"],
-  ["跨境电商供应链协同平台", "一站式跨境供应链协同与管理平台", "用户 运营 供应链 +1", "2024-05-18 09:16", "已完成", "7.9", "较高"],
-  ["AI个性化学习助手", "基于AI的个性化学习与辅导工具", "用户 教育专家 投资人 +1", "2024-05-16 16:45", "已完成", "8.1", "中等"],
-  ["社区团购O2O平台", "本地社区团购与即时配送服务", "用户 运营 投资人 +1", "2024-05-15 11:20", "进行中", "7.2", "较高"],
-  ["健康管理小程序", "个人健康数据管理与健康建议服务", "用户 医生 运营 +1", "2024-05-14 10:08", "草稿", "6.4", "中等"],
-  ["企业数据分析平台", "中小企业数据可视化与分析平台", "用户 数据专家 投资人 +1", "2024-05-12 15:33", "已完成", "8.3", "中等"],
-  ["智能硬件IoT解决方案", "智能家居硬件及物联网平台方案", "用户 工程师 投资人 +2", "2024-05-10 09:50", "已完成", "7.6", "较高"]
-] as const;
-
 type SandboxHistoryRow = {
   title: string;
   detail: string;
@@ -115,6 +105,8 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
   const { sessionId } = useParams();
   const [sessions, setSessions] = useState<SandboxSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<SandboxSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionError, setSessionError] = useState("");
   const [roleCatalog, setRoleCatalog] = useState<SandboxRole[]>([]);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
@@ -156,13 +148,21 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
     const id = Number(rawSessionId);
     if (!Number.isFinite(id) || id <= 0) return;
     let active = true;
+    setSessionLoading(true);
+    setSessionError("");
     sandboxApi
       .getSession(id)
       .then((payload) => {
         if (active) setSelectedSession(payload);
       })
       .catch(() => {
-        if (active) setSelectedSession(null);
+        if (active) {
+          setSelectedSession(null);
+          setSessionError("沙盘会话加载失败，请返回历史记录重试。");
+        }
+      })
+      .finally(() => {
+        if (active) setSessionLoading(false);
       });
     return () => {
       active = false;
@@ -206,8 +206,8 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
         {variant === "roles" && <RolesPage roleCatalog={roleCatalog} session={selectedSession} />}
         {variant === "start" && <StartPage isStarting={isStarting} onStart={startSandbox} quota={sandboxQuota} session={selectedSession} startError={startError} />}
         {variant === "questions" && <QuestionsPage />}
-        {variant === "run" && <RunPage session={routedSession ?? selectedSession} />}
-        {variant === "report" && <ReportPage session={reportSession} />}
+        {variant === "run" && <RunPage loading={sessionLoading} loadError={sessionError} session={routedSession ?? selectedSession} />}
+        {variant === "report" && <ReportPage loading={sessionLoading} loadError={sessionError} session={reportSession} />}
         {variant === "history" && <HistoryPage sessions={sessions} />}
         {variant === "quota" && (
           <>
@@ -484,7 +484,7 @@ function QuestionsPage() {
   );
 }
 
-function RunPage({ session }: { session: SandboxSession | null }) {
+function RunPage({ session, loading, loadError }: { session: SandboxSession | null; loading: boolean; loadError: string }) {
   const [messages, setMessages] = useState<SandboxMessage[]>([]);
   const [selectedRole, setSelectedRole] = useState("");
   const [question, setQuestion] = useState("");
@@ -523,6 +523,9 @@ function RunPage({ session }: { session: SandboxSession | null }) {
   }
 
   const initialRows = session?.report?.role_summaries.map((summary) => ["本轮", summary.role, summary.view] as const) ?? conversationRows;
+
+  if (loading) return <SandboxState title="正在加载沙盘会话..." />;
+  if (!session) return <SandboxState title={loadError || "未找到可继续的沙盘会话"} />;
 
   return (
     <SandboxWorkLayout mode="run">
@@ -593,7 +596,9 @@ function reportMetricProgress(value: string, index: number) {
   return index === 2 ? 55 : 92;
 }
 
-function ReportPage({ session }: { session: SandboxSession | null }) {
+function ReportPage({ session, loading, loadError }: { session: SandboxSession | null; loading: boolean; loadError: string }) {
+  if (loading) return <SandboxState title="正在加载推演报告..." />;
+  if (!session?.report) return <SandboxState title={loadError || "暂无可查看的推演报告"} />;
   const report = session?.report;
   const visibleTitle = session?.product || "AI 驱动中小企业知识管理平台";
   const visibleTime = session ? formatSessionTime(session.updated_at) : "2025-05-20 14:32";
@@ -625,7 +630,7 @@ function ReportPage({ session }: { session: SandboxSession | null }) {
           <div>
             <p>商业沙盘 / 历史推演</p>
             <h1>{visibleTitle}</h1>
-            <small>推演时间：{visibleTime} 参与角色数：{visibleRolesCount} 报告版本：V1.0</small>
+            <small>推演时间：{visibleTime} 参与角色数：{visibleRolesCount} 报告版本：V1.0 · 模型推演</small>
           </div>
           <button type="button">导出报告</button>
         </header>
@@ -690,7 +695,7 @@ function toHistoryRow(session: SandboxSession) {
     detail: session.goal,
     role: session.roles.join(" ") || "未选择角色",
     time: formatSessionTime(session.updated_at),
-    status: session.status === "completed" ? "已完成" : "草稿",
+    status: session.status === "completed" ? "已完成" : session.status === "running" ? "推演中" : session.status === "failed" ? "失败可重试" : "草稿",
     score: session.report ? (session.report.score / 10).toFixed(1) : "-",
     risk: sessionRisk(session),
     href: `/sandbox/sessions/${session.id}/report`
@@ -698,18 +703,7 @@ function toHistoryRow(session: SandboxSession) {
 }
 
 function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
-  const visibleRows: SandboxHistoryRow[] = sessions.length
-    ? sessions.map(toHistoryRow)
-    : historyRows.map(([title, detail, role, time, status, score, risk]) => ({
-      title,
-      detail,
-      role,
-      time,
-      status,
-      score,
-      risk,
-      href: "/sandbox/report"
-    }));
+  const visibleRows: SandboxHistoryRow[] = sessions.map(toHistoryRow);
 
   return (
     <SandboxWorkLayout mode="history">
@@ -754,7 +748,20 @@ function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
               <Link to={href}>查看报告</Link>
             </article>
           ))}
+          {visibleRows.length === 0 ? <p className="sandbox-empty-state">暂无推演记录，完成首次配置后会显示在这里。</p> : null}
         </div>
+      </section>
+    </SandboxWorkLayout>
+  );
+}
+
+function SandboxState({ title }: { title: string }) {
+  return (
+    <SandboxWorkLayout mode="report">
+      <section className="sandbox-work-card sandbox-empty-state" role="status">
+        <h1>{title}</h1>
+        <Link to="/sandbox/history">返回历史推演</Link>
+        <Link to="/sandbox/setup">发起新推演</Link>
       </section>
     </SandboxWorkLayout>
   );
