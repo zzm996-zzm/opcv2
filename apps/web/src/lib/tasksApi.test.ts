@@ -55,6 +55,24 @@ describe("tasksApi", () => {
     }));
   });
 
+  it("updates statuses and deletes tasks in batches", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ updated: 2 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ deleted: 2 }), { status: 200 }));
+
+    await tasksApi.batchUpdateStatus([41, 42], "completed");
+    await tasksApi.batchDelete([41, 42]);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks/batch", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ ids: [41, 42], status: "completed" })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/batch", expect.objectContaining({
+      method: "DELETE",
+      body: JSON.stringify({ ids: [41, 42] })
+    }));
+  });
+
   it("creates a task linked to its source", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({ id: 101, title: "反击竞品更新" }), { status: 200 })

@@ -201,6 +201,7 @@ function TasksPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [taskPage, setTaskPage] = useState(1);
   const [taskTotal, setTaskTotal] = useState(0);
+  const [listRevision, setListRevision] = useState(0);
   const [projectOptions, setProjectOptions] = useState<string[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -211,6 +212,11 @@ function TasksPage() {
   const [activeView, setActiveView] = useState<TaskView>("list");
   const [listError, setListError] = useState("");
   const [savingTaskID, setSavingTaskID] = useState<number | null>(null);
+  const [selectedTaskIDs, setSelectedTaskIDs] = useState<Set<number>>(() => new Set());
+  const [batchStatus, setBatchStatus] = useState<TaskStatus>("completed");
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+  const [batchMessage, setBatchMessage] = useState("");
   const [taskGoal, setTaskGoal] = useState("");
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [createMessage, setCreateMessage] = useState("");
@@ -269,7 +275,7 @@ function TasksPage() {
     return () => {
       active = false;
     };
-  }, [selectedStatus, selectedProject, selectedPriority, selectedTag, searchQuery, taskPage]);
+  }, [selectedStatus, selectedProject, selectedPriority, selectedTag, searchQuery, taskPage, listRevision]);
 
   useEffect(() => {
     let active = true;
@@ -303,10 +309,25 @@ function TasksPage() {
   const unscheduledTasks = apiTasks.filter((task) => !task.due_at);
   const totalPages = Math.max(1, Math.ceil(taskTotal / taskPageSize));
   const hasActiveFilters = Boolean(selectedStatus || selectedProject || selectedPriority || selectedTag || searchQuery);
+  const currentPageTaskIDs = apiTasks.map((task) => task.id);
+  const allCurrentPageSelected = currentPageTaskIDs.length > 0 && currentPageTaskIDs.every((id) => selectedTaskIDs.has(id));
 
   useEffect(() => {
     if (taskPage > totalPages) setTaskPage(totalPages);
   }, [taskPage, totalPages]);
+
+  useEffect(() => {
+    setSelectedTaskIDs(new Set());
+    setConfirmBatchDelete(false);
+  }, [selectedStatus, selectedProject, selectedPriority, selectedTag, searchQuery, taskPage]);
+
+  useEffect(() => {
+    const validIDs = new Set(apiTasks.map((task) => task.id));
+    setSelectedTaskIDs((current) => {
+      const next = new Set(Array.from(current).filter((id) => validIDs.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [apiTasks]);
 
   async function refreshTaskStats() {
     try {
@@ -389,6 +410,79 @@ function TasksPage() {
       setListError(apiErrorMessage(error, "暂时无法更新任务状态"));
     } finally {
       setSavingTaskID(null);
+    }
+  }
+
+  function toggleTaskSelection(taskID: number) {
+    setConfirmBatchDelete(false);
+    setSelectedTaskIDs((current) => {
+      const next = new Set(current);
+      if (next.has(taskID)) next.delete(taskID);
+      else next.add(taskID);
+      return next;
+    });
+  }
+
+  function toggleCurrentPageSelection() {
+    setConfirmBatchDelete(false);
+    setSelectedTaskIDs((current) => {
+      const next = new Set(current);
+      if (allCurrentPageSelected) currentPageTaskIDs.forEach((id) => next.delete(id));
+      else currentPageTaskIDs.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  async function applyBatchStatus() {
+    const ids = currentPageTaskIDs.filter((id) => selectedTaskIDs.has(id));
+    if (ids.length === 0 || batchBusy) return;
+    setBatchBusy(true);
+    setBatchMessage("");
+    try {
+      await tasksApi.batchUpdateStatus(ids, batchStatus);
+      const selectedIDs = new Set(ids);
+      const removedCount = apiTasks.filter((task) => selectedIDs.has(task.id) && !taskMatchesCurrentFilters({ ...task, status: batchStatus })).length;
+      setApiTasks((current) => current
+        .map((task) => selectedIDs.has(task.id) ? { ...task, status: batchStatus } : task)
+        .filter(taskMatchesCurrentFilters));
+      if (removedCount > 0) setTaskTotal((current) => Math.max(0, current - removedCount));
+      if (removedCount > 0) setListRevision((current) => current + 1);
+      setSelectedTaskIDs(new Set());
+      setConfirmBatchDelete(false);
+      setListError("");
+      setBatchMessage(`已更新 ${ids.length} 条任务状态`);
+      await refreshTaskStats();
+    } catch (error) {
+      setListError(apiErrorMessage(error, "暂时无法批量更新任务状态"));
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
+  async function deleteSelectedTasks() {
+    const ids = currentPageTaskIDs.filter((id) => selectedTaskIDs.has(id));
+    if (ids.length === 0 || batchBusy) return;
+    if (!confirmBatchDelete) {
+      setConfirmBatchDelete(true);
+      return;
+    }
+    setBatchBusy(true);
+    setBatchMessage("");
+    try {
+      await tasksApi.batchDelete(ids);
+      const selectedIDs = new Set(ids);
+      setApiTasks((current) => current.filter((task) => !selectedIDs.has(task.id)));
+      setTaskTotal((current) => Math.max(0, current - ids.length));
+      setListRevision((current) => current + 1);
+      setSelectedTaskIDs(new Set());
+      setConfirmBatchDelete(false);
+      setListError("");
+      setBatchMessage(`已删除 ${ids.length} 条任务`);
+      await refreshTaskStats();
+    } catch (error) {
+      setListError(apiErrorMessage(error, "暂时无法批量删除任务"));
+    } finally {
+      setBatchBusy(false);
     }
   }
 
@@ -703,6 +797,7 @@ function TasksPage() {
         </div>
         {listError ? <p className="form-error" role="alert">{listError}</p> : null}
         {createMessage ? <p className="form-success" role="status">{createMessage}</p> : null}
+        {batchMessage ? <p className="form-success" role="status">{batchMessage}</p> : null}
 
         <section className="module-overview-card tasks-hero">
           <div className="module-overview-copy">
@@ -827,12 +922,58 @@ function TasksPage() {
               {hasActiveFilters ? <button className="task-filter-clear" onClick={clearTaskFilters} type="button">清除筛选</button> : null}
             </form>
             {activeView === "list" ? (
-              <div aria-label="任务列表" className="task-table">
-                {visibleTasks.length === 0 ? (
-                  <div className="module-empty-state" role="status">暂无任务数据</div>
-                ) : visibleTasks.map((task) => (
-                  <article key={task.id ?? task.title}>
-                    <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
+              <>
+                {visibleTasks.length > 0 ? (
+                  <div className="task-selection-head">
+                    <label>
+                      <input
+                        aria-label="全选当前页任务"
+                        checked={allCurrentPageSelected}
+                        disabled={batchBusy}
+                        onChange={toggleCurrentPageSelection}
+                        type="checkbox"
+                      />
+                      <span>全选当前页</span>
+                    </label>
+                  </div>
+                ) : null}
+                {selectedTaskIDs.size > 0 ? (
+                  <div aria-label="批量操作" className="task-batch-toolbar" role="toolbar">
+                    <strong>已选择 {selectedTaskIDs.size} 项</strong>
+                    <label className="sr-only" htmlFor="task-batch-status">批量设置状态</label>
+                    <select
+                      aria-label="批量设置状态"
+                      disabled={batchBusy}
+                      id="task-batch-status"
+                      onChange={(event) => {
+                        setBatchStatus(event.target.value as TaskStatus);
+                        setConfirmBatchDelete(false);
+                      }}
+                      value={batchStatus}
+                    >
+                      {boardColumnLabels.map((option) => <option key={option.status} value={option.status}>{option.label}</option>)}
+                    </select>
+                    <button disabled={batchBusy} onClick={() => void applyBatchStatus()} type="button">应用状态</button>
+                    <button className="danger" disabled={batchBusy} onClick={() => void deleteSelectedTasks()} type="button">
+                      {confirmBatchDelete ? `确认删除 ${selectedTaskIDs.size} 项` : "批量删除"}
+                    </button>
+                  </div>
+                ) : null}
+                <div aria-label="任务列表" className="task-table">
+                  {visibleTasks.length === 0 ? (
+                    <div className="module-empty-state" role="status">暂无任务数据</div>
+                  ) : visibleTasks.map((task) => (
+                    <article key={task.id ?? task.title}>
+                      {task.id ? (
+                        <input
+                          aria-label={`选择任务 ${task.title}`}
+                          checked={selectedTaskIDs.has(task.id)}
+                          disabled={batchBusy}
+                          onChange={() => toggleTaskSelection(task.id as number)}
+                          type="checkbox"
+                        />
+                      ) : null}
+                      <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
                     <div>
                       <h3>{task.title}</h3>
                       <small>{task.project} · 负责人 {task.assignee || "未指定"} · 截止 {task.due}</small>
@@ -859,9 +1000,10 @@ function TasksPage() {
                     ) : null}
                     <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
                     <Link to="/learning">补课：{task.learning}</Link>
-                  </article>
-                ))}
-              </div>
+                    </article>
+                  ))}
+                </div>
+              </>
             ) : null}
             {activeView === "board" ? (
               <div aria-label="任务看板" className="task-view-board" role="region">

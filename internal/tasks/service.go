@@ -20,6 +20,8 @@ type Repository interface {
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
 	DeleteTask(ctx context.Context, userID, id int64) error
+	BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error)
+	BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error)
 }
 
 type MembershipProvider interface {
@@ -232,6 +234,47 @@ func (s *Service) DeleteTask(ctx context.Context, userID, id int64) error {
 		return ErrServiceNotReady
 	}
 	return s.repository.DeleteTask(ctx, userID, id)
+}
+
+func (s *Service) BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error) {
+	if s.repository == nil {
+		return 0, ErrServiceNotReady
+	}
+	ids, ok := normalizeBatchTaskIDs(ids)
+	if !ok || !validStatus(status) {
+		return 0, ErrInvalidTaskBatch
+	}
+	return s.repository.BatchUpdateTaskStatus(ctx, userID, ids, status)
+}
+
+func (s *Service) BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error) {
+	if s.repository == nil {
+		return 0, ErrServiceNotReady
+	}
+	ids, ok := normalizeBatchTaskIDs(ids)
+	if !ok {
+		return 0, ErrInvalidTaskBatch
+	}
+	return s.repository.BatchDeleteTasks(ctx, userID, ids)
+}
+
+func normalizeBatchTaskIDs(ids []int64) ([]int64, bool) {
+	if len(ids) == 0 || len(ids) > 100 {
+		return nil, false
+	}
+	normalized := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, false
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		normalized = append(normalized, id)
+	}
+	return normalized, true
 }
 
 func normalizeStatus(status string) string {

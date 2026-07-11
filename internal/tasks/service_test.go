@@ -20,6 +20,20 @@ type fakeRepository struct {
 	tags         []string
 	filters      ListFilters
 	err          error
+	batchUserID  int64
+	batchIDs     []int64
+	batchStatus  string
+	batchCount   int
+}
+
+func (r *fakeRepository) BatchUpdateTaskStatus(_ context.Context, userID int64, ids []int64, status string) (int, error) {
+	r.batchUserID, r.batchIDs, r.batchStatus = userID, append([]int64(nil), ids...), status
+	return r.batchCount, r.err
+}
+
+func (r *fakeRepository) BatchDeleteTasks(_ context.Context, userID int64, ids []int64) (int, error) {
+	r.batchUserID, r.batchIDs = userID, append([]int64(nil), ids...)
+	return r.batchCount, r.err
 }
 
 func (r *fakeRepository) CreateTasks(_ context.Context, tasks []Task) ([]Task, error) {
@@ -153,6 +167,62 @@ func (r *fakeRepository) DeleteTask(_ context.Context, userID, id int64) error {
 	}
 	r.deleted = r.task
 	return nil
+}
+
+func TestServiceBatchUpdatesTaskStatusWithUniqueIDs(t *testing.T) {
+	repository := &fakeRepository{batchCount: 2}
+	service := NewService(repository)
+
+	count, err := service.BatchUpdateTaskStatus(context.Background(), 42, []int64{9, 7, 9}, StatusCompleted)
+	if err != nil {
+		t.Fatalf("BatchUpdateTaskStatus() error = %v", err)
+	}
+	if count != 2 || repository.batchUserID != 42 || repository.batchStatus != StatusCompleted {
+		t.Fatalf("count/user/status = %d/%d/%q", count, repository.batchUserID, repository.batchStatus)
+	}
+	if len(repository.batchIDs) != 2 || repository.batchIDs[0] != 9 || repository.batchIDs[1] != 7 {
+		t.Fatalf("batchIDs = %v, want [9 7]", repository.batchIDs)
+	}
+}
+
+func TestServiceBatchDeletesTasksWithUniqueIDs(t *testing.T) {
+	repository := &fakeRepository{batchCount: 2}
+	service := NewService(repository)
+
+	count, err := service.BatchDeleteTasks(context.Background(), 42, []int64{7, 9, 7})
+	if err != nil || count != 2 {
+		t.Fatalf("count/error = %d/%v", count, err)
+	}
+	if len(repository.batchIDs) != 2 || repository.batchIDs[0] != 7 || repository.batchIDs[1] != 9 {
+		t.Fatalf("batchIDs = %v, want [7 9]", repository.batchIDs)
+	}
+}
+
+func TestServiceRejectsInvalidBatchInputs(t *testing.T) {
+	service := NewService(&fakeRepository{})
+	tooMany := make([]int64, 101)
+	for index := range tooMany {
+		tooMany[index] = int64(index + 1)
+	}
+
+	tests := []struct {
+		name   string
+		ids    []int64
+		status string
+	}{
+		{name: "empty", ids: nil, status: StatusTodo},
+		{name: "non-positive", ids: []int64{1, 0}, status: StatusTodo},
+		{name: "too many", ids: tooMany, status: StatusTodo},
+		{name: "invalid status", ids: []int64{1}, status: "done"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := service.BatchUpdateTaskStatus(context.Background(), 42, test.ids, test.status)
+			if !errors.Is(err, ErrInvalidTaskBatch) {
+				t.Fatalf("err = %v, want ErrInvalidTaskBatch", err)
+			}
+		})
+	}
 }
 
 func TestServiceCreatesTaskWithDefaults(t *testing.T) {

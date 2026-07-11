@@ -378,6 +378,68 @@ Errors:
 - `400 invalid_task_id`
 - `404 task_not_found`
 
+### Batch Update Task Status
+
+`PATCH /api/v1/tasks/batch`
+
+Request:
+
+```json
+{
+  "ids": [101, 102, 103],
+  "status": "completed"
+}
+```
+
+The request accepts between 1 and 100 positive task IDs; duplicate IDs are
+normalized before execution. `status` must match the task status enum. The
+update is atomic: every ID must belong to the authenticated user, otherwise no
+task is changed.
+
+Response `200`:
+
+```json
+{
+  "updated": 3
+}
+```
+
+Errors:
+
+- `400 invalid_request`
+- `400 invalid_status`
+- `404 task_not_found`
+
+### Batch Delete Tasks
+
+`DELETE /api/v1/tasks/batch`
+
+Request:
+
+```json
+{
+  "ids": [101, 102, 103]
+}
+```
+
+The request accepts between 1 and 100 positive task IDs; duplicate IDs are
+normalized before execution. Deletion is atomic and cascades to each task's
+subtasks and reminder. If any ID is missing or does not belong to the
+authenticated user, no task is deleted.
+
+Response `200`:
+
+```json
+{
+  "deleted": 3
+}
+```
+
+Errors:
+
+- `400 invalid_request`
+- `404 task_not_found`
+
 ### Update Task
 
 `PATCH /api/v1/tasks/{id}`

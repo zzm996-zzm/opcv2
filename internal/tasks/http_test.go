@@ -35,6 +35,9 @@ type fakeApplication struct {
 	reminder        *TaskReminder
 	reminderInput   UpsertTaskReminderInput
 	reminderDeleted bool
+	batchIDs        []int64
+	batchStatus     string
+	batchCount      int
 }
 
 func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task, error) {
@@ -86,6 +89,16 @@ func (a *fakeApplication) DeleteTask(_ context.Context, userID, id int64) error 
 	a.taskID = id
 	a.deleted = true
 	return a.err
+}
+
+func (a *fakeApplication) BatchUpdateTaskStatus(_ context.Context, userID int64, ids []int64, status string) (int, error) {
+	a.userID, a.batchIDs, a.batchStatus = userID, append([]int64(nil), ids...), status
+	return a.batchCount, a.err
+}
+
+func (a *fakeApplication) BatchDeleteTasks(_ context.Context, userID int64, ids []int64) (int, error) {
+	a.userID, a.batchIDs = userID, append([]int64(nil), ids...)
+	return a.batchCount, a.err
 }
 
 func (a *fakeApplication) ListSubtasks(_ context.Context, userID, taskID int64) ([]Subtask, error) {
@@ -635,5 +648,74 @@ func TestDeleteTaskEndpointReturnsNotFoundForOtherUser(t *testing.T) {
 
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestBatchUpdateTaskStatusEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{batchCount: 2}
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/batch", strings.NewReader(`{"ids":[9,7,9],"status":"completed"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	tasksTestRouter(app).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || response.Body.String() != `{"updated":2}` {
+		t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
+	}
+	if app.userID != 42 || app.batchStatus != StatusCompleted || len(app.batchIDs) != 2 {
+		t.Fatalf("user/status/ids = %d/%q/%v", app.userID, app.batchStatus, app.batchIDs)
+	}
+}
+
+func TestBatchDeleteTasksEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{batchCount: 2}
+	request := httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/batch", strings.NewReader(`{"ids":[7,9]}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	tasksTestRouter(app).ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK || response.Body.String() != `{"deleted":2}` {
+		t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
+	}
+	if app.userID != 42 || len(app.batchIDs) != 2 {
+		t.Fatalf("user/ids = %d/%v", app.userID, app.batchIDs)
+	}
+}
+
+func TestBatchTaskEndpointsRejectInvalidInput(t *testing.T) {
+	tests := []struct {
+		method string
+		body   string
+	}{
+		{method: http.MethodPatch, body: `{"ids":[],"status":"todo"}`},
+		{method: http.MethodPatch, body: `{"ids":[1,0],"status":"todo"}`},
+		{method: http.MethodPatch, body: `{"ids":[1],"status":"done"}`},
+		{method: http.MethodDelete, body: `{"ids":[]}`},
+	}
+	for _, test := range tests {
+		app := &fakeApplication{}
+		request := httptest.NewRequest(test.method, "/api/v1/tasks/batch", strings.NewReader(test.body))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+
+		tasksTestRouter(app).ServeHTTP(response, request)
+
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("%s %s status = %d body=%s", test.method, test.body, response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestBatchUpdateTaskStatusEndpointRejectsInvalidStatus(t *testing.T) {
+	app := &fakeApplication{}
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/batch", strings.NewReader(`{"ids":[1],"status":"done"}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	tasksTestRouter(app).ServeHTTP(response, request)
+
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"error":"invalid_status"`) {
+		t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
 	}
 }

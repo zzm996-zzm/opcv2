@@ -288,6 +288,65 @@ func (r *PostgresRepository) DeleteTask(ctx context.Context, userID, id int64) e
 	return nil
 }
 
+func (r *PostgresRepository) BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		WITH requested_ids AS (
+			SELECT DISTINCT UNNEST($2::bigint[]) AS id
+		), owned_ids AS MATERIALIZED (
+			SELECT tasks.id
+			FROM tasks
+			JOIN requested_ids ON requested_ids.id = tasks.id
+			WHERE tasks.user_id = $1
+			FOR UPDATE OF tasks
+		), updated AS (
+			UPDATE tasks
+			SET status = $3, updated_at = NOW()
+			WHERE user_id = $1
+				AND id IN (SELECT id FROM owned_ids)
+				AND (SELECT COUNT(*) FROM owned_ids) = (SELECT COUNT(*) FROM requested_ids)
+			RETURNING id
+		)
+		SELECT COUNT(*) FROM updated
+	`, userID, ids, status).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	if count != len(ids) {
+		return 0, ErrTaskNotFound
+	}
+	return count, nil
+}
+
+func (r *PostgresRepository) BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error) {
+	var count int
+	err := r.db.QueryRow(ctx, `
+		WITH requested_ids AS (
+			SELECT DISTINCT UNNEST($2::bigint[]) AS id
+		), owned_ids AS MATERIALIZED (
+			SELECT tasks.id
+			FROM tasks
+			JOIN requested_ids ON requested_ids.id = tasks.id
+			WHERE tasks.user_id = $1
+			FOR UPDATE OF tasks
+		), deleted AS (
+			DELETE FROM tasks
+			WHERE user_id = $1
+				AND id IN (SELECT id FROM owned_ids)
+				AND (SELECT COUNT(*) FROM owned_ids) = (SELECT COUNT(*) FROM requested_ids)
+			RETURNING id
+		)
+		SELECT COUNT(*) FROM deleted
+	`, userID, ids).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	if count != len(ids) {
+		return 0, ErrTaskNotFound
+	}
+	return count, nil
+}
+
 func optionalString(value *string) any {
 	if value == nil {
 		return nil

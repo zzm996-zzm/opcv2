@@ -244,6 +244,20 @@ export const tasksApi = {
     });
   },
 
+  batchUpdateStatus(ids: number[], status: TaskStatus) {
+    return apiRequest<{ updated: number }>("/api/v1/tasks/batch", {
+      method: "PATCH",
+      body: JSON.stringify({ ids, status })
+    });
+  },
+
+  batchDelete(ids: number[]) {
+    return apiRequest<{ deleted: number }>("/api/v1/tasks/batch", {
+      method: "DELETE",
+      body: JSON.stringify({ ids })
+    });
+  },
+
   deleteTask(id: number) {
     return apiRequest<void>(`/api/v1/tasks/${id}`, {
       method: "DELETE"

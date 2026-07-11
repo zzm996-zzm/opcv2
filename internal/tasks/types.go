@@ -39,7 +39,17 @@ var (
 	ErrRecurringReminderRequiresMembership = errors.New("recurring task reminder requires membership")
 	ErrInvalidGeneratedTasks               = errors.New("invalid generated task plan")
 	ErrInvalidTaskSource                   = errors.New("invalid task source")
+	ErrInvalidTaskBatch                    = errors.New("invalid task batch")
 )
+
+type BatchTaskStatusInput struct {
+	IDs    []int64 `json:"ids"`
+	Status string  `json:"status"`
+}
+
+type BatchTaskIDsInput struct {
+	IDs []int64 `json:"ids"`
+}
 
 type CreateInput struct {
 	UserID      int64      `json:"-"`

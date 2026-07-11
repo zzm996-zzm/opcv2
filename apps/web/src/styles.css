@@ -9615,7 +9615,7 @@ a {
 
 .task-table article {
   display: grid;
-  grid-template-columns: 12px minmax(220px, 1fr) 46px 72px auto;
+  grid-template-columns: 20px 12px minmax(220px, 1fr) 46px 72px auto;
   align-items: center;
   gap: 12px;
   min-height: 76px;
@@ -9623,6 +9623,83 @@ a {
   background: #f7faff;
   border: 1px solid var(--line);
   border-radius: 11px;
+}
+
+.task-table article > input[type="checkbox"],
+.task-selection-head input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+.task-selection-head {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+.task-selection-head label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6377a5;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.task-batch-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-height: 52px;
+  padding: 10px 12px;
+  background: #f3f7ff;
+  border: 1px solid rgba(21, 87, 255, 0.14);
+  border-radius: 8px;
+}
+
+.task-batch-toolbar strong {
+  margin-right: auto;
+  color: #10265f;
+  font-size: 13px;
+}
+
+.task-batch-toolbar select,
+.task-batch-toolbar button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.task-batch-toolbar select {
+  color: #10265f;
+  background: #fff;
+}
+
+.task-batch-toolbar button {
+  color: #fff;
+  background: var(--blue);
+  cursor: pointer;
+}
+
+.task-batch-toolbar button.danger {
+  color: #c23c2d;
+  background: #fff;
+  border-color: rgba(194, 60, 45, 0.22);
+}
+
+.task-batch-toolbar button:disabled,
+.task-table input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .task-status-dot {
@@ -9691,7 +9768,7 @@ a {
 }
 
 .task-table a {
-  grid-column: 2 / -1;
+  grid-column: 3 / -1;
   color: var(--blue);
   font-size: 12px;
   font-weight: 820;
@@ -29747,6 +29824,18 @@ a {
 
   .task-table a {
     grid-column: 1;
+  }
+
+  .task-table article > input[type="checkbox"] {
+    justify-self: start;
+  }
+
+  .task-batch-toolbar {
+    align-items: stretch;
+  }
+
+  .task-batch-toolbar strong {
+    width: 100%;
   }
 
   .task-row-actions {

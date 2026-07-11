@@ -971,4 +971,174 @@ describe("TasksPage", () => {
     expect(screen.getByText("第 2 / 2 页 · 共 21 条")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
   });
+
+  it("selects the current page and updates task statuses in a batch", async () => {
+    let statsRequests = 0;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [
+            {
+              id: 201,
+              user_id: 7,
+              title: "整理销售话术",
+              project: "销售增长",
+              status: "todo",
+              priority: "high",
+              tools: ["CRM"],
+              learning: "销售方法",
+              created_at: "2026-07-10T08:00:00Z",
+              updated_at: "2026-07-10T08:00:00Z"
+            },
+            {
+              id: 202,
+              user_id: 7,
+              title: "复盘客户反馈",
+              project: "客户验证",
+              status: "in_progress",
+              priority: "medium",
+              tools: ["客户管理"],
+              learning: "客户访谈",
+              created_at: "2026-07-10T09:00:00Z",
+              updated_at: "2026-07-10T09:00:00Z"
+            }
+          ],
+          total: 2,
+          limit: 20,
+          offset: 0
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        statsRequests += 1;
+        return Promise.resolve(new Response(JSON.stringify({
+          total: 2,
+          todo: statsRequests === 1 ? 1 : 0,
+          in_progress: statsRequests === 1 ? 1 : 0,
+          completed: statsRequests === 1 ? 0 : 2,
+          reminder: 0,
+          overdue: 0
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/batch" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({ updated: 2 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    await screen.findByRole("heading", { name: "整理销售话术" });
+    fireEvent.click(screen.getByRole("checkbox", { name: "全选当前页任务" }));
+    expect(screen.getByText("已选择 2 项")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "批量设置状态" }), { target: { value: "completed" } });
+    fireEvent.click(screen.getByRole("button", { name: "应用状态" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/batch",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ ids: [201, 202], status: "completed" })
+      })
+    ));
+    expect(await screen.findByText("已更新 2 条任务状态")).toBeInTheDocument();
+    expect(screen.queryByText("已选择 2 项")).not.toBeInTheDocument();
+    expect(screen.getAllByText("已完成").filter((node) => node.classList.contains("task-state"))).toHaveLength(2);
+    await waitFor(() => expect(statsRequests).toBe(2));
+  });
+
+  it("requires confirmation before batch deletion and clears selection after page changes", async () => {
+    let statsRequests = 0;
+    let deleted = false;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        if (deleted) {
+          return Promise.resolve(new Response(JSON.stringify({
+            tasks: [{
+              id: 303,
+              user_id: 7,
+              title: "补入当前页的任务",
+              project: "任务中心",
+              status: "todo",
+              priority: "low",
+              tools: ["任务中心"],
+              learning: "分页补位",
+              created_at: "2026-07-10T10:00:00Z",
+              updated_at: "2026-07-10T10:00:00Z"
+            }],
+            total: 21,
+            limit: 20,
+            offset: 0
+          }), { status: 200 }));
+        }
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [{
+            id: 301,
+            user_id: 7,
+            title: "待删除任务",
+            project: "任务中心",
+            status: "todo",
+            priority: "medium",
+            tools: ["任务中心"],
+            learning: "批量操作",
+            created_at: "2026-07-10T08:00:00Z",
+            updated_at: "2026-07-10T08:00:00Z"
+          }],
+          total: 22,
+          limit: 20,
+          offset: 0
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks?limit=20&offset=20") {
+        return Promise.resolve(new Response(JSON.stringify({
+          tasks: [{
+            id: 302,
+            user_id: 7,
+            title: "第二页保留任务",
+            project: "任务中心",
+            status: "todo",
+            priority: "low",
+            tools: ["任务中心"],
+            learning: "分页",
+            created_at: "2026-07-10T09:00:00Z",
+            updated_at: "2026-07-10T09:00:00Z"
+          }],
+          total: 21,
+          limit: 20,
+          offset: 20
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        statsRequests += 1;
+        return Promise.resolve(new Response(JSON.stringify({ total: 22, todo: 22, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/batch" && init?.method === "DELETE") {
+        deleted = true;
+        return Promise.resolve(new Response(JSON.stringify({ deleted: 1 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    fireEvent.click(await screen.findByRole("checkbox", { name: "选择任务 待删除任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(await screen.findByRole("heading", { name: "第二页保留任务" })).toBeInTheDocument();
+    expect(screen.queryByText(/已选择/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "上一页" }));
+    fireEvent.click(await screen.findByRole("checkbox", { name: "选择任务 待删除任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "批量删除" }));
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/tasks/batch", expect.objectContaining({ method: "DELETE" }));
+    expect(screen.getByRole("button", { name: "确认删除 1 项" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "确认删除 1 项" }));
+    expect(await screen.findByText("已删除 1 条任务")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "待删除任务" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "补入当前页的任务" })).toBeInTheDocument();
+    expect(screen.getByText("第 1 / 2 页 · 共 21 条")).toBeInTheDocument();
+    await waitFor(() => expect(statsRequests).toBe(2));
+  });
 });

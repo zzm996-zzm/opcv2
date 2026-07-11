@@ -491,6 +491,81 @@ func TestPostgresRepositoryReturnsNotFoundWhenDeleteMisses(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryBatchUpdatesOnlyWhenAllTasksAreOwned(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*UPDATE tasks").
+		WithArgs(int64(42), []int64{7, 9}, StatusCompleted).
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(int64(2)))
+
+	repository := NewPostgresRepository(db)
+	count, err := repository.BatchUpdateTaskStatus(context.Background(), 42, []int64{7, 9}, StatusCompleted)
+	if err != nil || count != 2 {
+		t.Fatalf("count/error = %d/%v", count, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryBatchUpdateReturnsNotFoundWhenOwnershipIsIncomplete(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*UPDATE tasks").
+		WithArgs(int64(42), []int64{7, 9}, StatusCompleted).
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(int64(0)))
+
+	repository := NewPostgresRepository(db)
+	_, err = repository.BatchUpdateTaskStatus(context.Background(), 42, []int64{7, 9}, StatusCompleted)
+	if !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("err = %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestPostgresRepositoryBatchDeletesOnlyWhenAllTasksAreOwned(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*DELETE FROM tasks").
+		WithArgs(int64(42), []int64{7, 9}).
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(int64(2)))
+
+	repository := NewPostgresRepository(db)
+	count, err := repository.BatchDeleteTasks(context.Background(), 42, []int64{7, 9})
+	if err != nil || count != 2 {
+		t.Fatalf("count/error = %d/%v", count, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryBatchDeleteReturnsNotFoundWhenOwnershipIsIncomplete(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*DELETE FROM tasks").
+		WithArgs(int64(42), []int64{7, 9}).
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(int64(0)))
+
+	repository := NewPostgresRepository(db)
+	_, err = repository.BatchDeleteTasks(context.Background(), 42, []int64{7, 9})
+	if !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("err = %v, want ErrTaskNotFound", err)
+	}
+}
+
 func TestPostgresRepositoryListsOwnedTaskSubtasks(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

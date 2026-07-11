@@ -436,6 +436,10 @@ func (fakeTasksApp) UpdateTask(context.Context, int64, int64, tasks.TaskUpdate) 
 	return tasks.Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusCompleted}, nil
 }
 func (fakeTasksApp) DeleteTask(context.Context, int64, int64) error { return nil }
+func (fakeTasksApp) BatchUpdateTaskStatus(context.Context, int64, []int64, string) (int, error) {
+	return 0, nil
+}
+func (fakeTasksApp) BatchDeleteTasks(context.Context, int64, []int64) (int, error) { return 0, nil }
 func (fakeTasksApp) ListSubtasks(context.Context, int64, int64) ([]tasks.Subtask, error) {
 	return []tasks.Subtask{}, nil
 }

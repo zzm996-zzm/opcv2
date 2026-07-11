@@ -22,6 +22,8 @@ type Application interface {
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
 	DeleteTask(ctx context.Context, userID, id int64) error
+	BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error)
+	BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error)
 	ListSubtasks(ctx context.Context, userID, taskID int64) ([]Subtask, error)
 	CreateSubtask(ctx context.Context, input CreateSubtaskInput) (Subtask, error)
 	UpdateSubtask(ctx context.Context, userID, taskID, id int64, update SubtaskUpdate) (Subtask, error)
@@ -46,6 +48,8 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/stats", h.taskStats)
 	router.GET("/tasks/projects", h.listTaskProjects)
 	router.GET("/tasks/tags", h.listTaskTags)
+	router.PATCH("/tasks/batch", h.batchUpdateTaskStatus)
+	router.DELETE("/tasks/batch", h.batchDeleteTasks)
 	router.GET("/tasks/:id", h.getTask)
 	router.PATCH("/tasks/:id", h.updateTask)
 	router.DELETE("/tasks/:id", h.deleteTask)
@@ -56,6 +60,48 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/:id/reminder", h.getTaskReminder)
 	router.PUT("/tasks/:id/reminder", h.upsertTaskReminder)
 	router.DELETE("/tasks/:id/reminder", h.deleteTaskReminder)
+}
+
+func (h *HTTPHandler) batchUpdateTaskStatus(c *gin.Context) {
+	var request BatchTaskStatusInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	ids, ok := normalizeBatchTaskIDs(request.IDs)
+	if !ok {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	if !validStatus(request.Status) {
+		httpapi.BadRequest(c, "invalid_status")
+		return
+	}
+	count, err := h.app.BatchUpdateTaskStatus(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), ids, request.Status)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"updated": count})
+}
+
+func (h *HTTPHandler) batchDeleteTasks(c *gin.Context) {
+	var request BatchTaskIDsInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	ids, ok := normalizeBatchTaskIDs(request.IDs)
+	if !ok {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	count, err := h.app.BatchDeleteTasks(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), ids)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": count})
 }
 
 func (h *HTTPHandler) generateTasks(c *gin.Context) {
@@ -311,6 +357,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusBadGateway, "invalid_ai_result")
 	case errors.Is(err, ErrInvalidTaskSource):
 		httpapi.BadRequest(c, "invalid_source")
+	case errors.Is(err, ErrInvalidTaskBatch):
+		httpapi.BadRequest(c, "invalid_request")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:
