@@ -72,7 +72,53 @@ export type GrowthRecommendations = {
   generated_at: string;
 };
 
+export type GrowthQuestion = {
+  key: keyof GrowthAssumptions;
+  label: string;
+  unit: string;
+  min: number;
+  max?: number;
+};
+
+export type GrowthDraft = {
+  id: number;
+  user_id: number;
+  input: string;
+  status: "needs_input" | "ready" | "calculated";
+  assumptions: GrowthAssumptions;
+  questions: GrowthQuestion[];
+  answers: Partial<Record<keyof GrowthAssumptions, number>>;
+  model_id?: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export const growthApi = {
+  createDraft(input: string) {
+    return apiRequest<GrowthDraft>("/api/v1/growth/drafts", {
+      method: "POST",
+      body: JSON.stringify({ input })
+    });
+  },
+
+  getDraft(id: number) {
+    return apiRequest<GrowthDraft>(`/api/v1/growth/drafts/${id}`, { method: "GET" });
+  },
+
+  answerDraft(id: number, answers: Partial<Record<keyof GrowthAssumptions, number>>) {
+    return apiRequest<GrowthDraft>(`/api/v1/growth/drafts/${id}/answers`, {
+      method: "POST",
+      body: JSON.stringify({ answers })
+    });
+  },
+
+  calculateDraft(id: number, name?: string) {
+    return apiRequest<{ draft: GrowthDraft; model: GrowthModel }>(`/api/v1/growth/drafts/${id}/calculate`, {
+      method: "POST",
+      body: JSON.stringify(name ? { name } : {})
+    });
+  },
+
   createModel(input: {
     name: string;
     monthlyVisits: number;

@@ -50,4 +50,30 @@ describe("growthApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/growth/models/99/forecast", expect.objectContaining({ method: "GET" }));
     expect(fetchMock).toHaveBeenNthCalledWith(5, "/api/v1/growth/models/99/recommendations", expect.objectContaining({ method: "GET" }));
   });
+
+  it("creates, answers and calculates a growth draft", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 71, status: "needs_input" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 71, status: "needs_input" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 71, status: "ready" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ draft: { id: 71 }, model: { id: 99 } }), { status: 200 }));
+
+    await growthApi.createDraft("企业培训服务，需要测算收入和成本");
+    await growthApi.getDraft(71);
+    await growthApi.answerDraft(71, { acquisition_cost: 80, delivery_cost: 120000 });
+    await growthApi.calculateDraft(71);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/growth/drafts", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ input: "企业培训服务，需要测算收入和成本" })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/growth/drafts/71", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/growth/drafts/71/answers", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ answers: { acquisition_cost: 80, delivery_cost: 120000 } })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/growth/drafts/71/calculate", expect.objectContaining({
+      method: "POST"
+    }));
+  });
 });

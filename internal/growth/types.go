@@ -8,6 +8,15 @@ import (
 var (
 	ErrServiceNotReady = errors.New("growth service is not configured")
 	ErrModelNotFound   = errors.New("growth model not found")
+	ErrDraftNotFound   = errors.New("growth draft not found")
+	ErrDraftNotReady   = errors.New("growth draft is not ready")
+	ErrInvalidAnswers  = errors.New("growth draft answers are invalid")
+)
+
+const (
+	DraftStatusNeedsInput = "needs_input"
+	DraftStatusReady      = "ready"
+	DraftStatusCalculated = "calculated"
 )
 
 type CreateInput struct {
@@ -46,6 +55,49 @@ type Model struct {
 	Result      Result      `json:"result"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
+}
+
+type ClarificationQuestion struct {
+	Key   string  `json:"key"`
+	Label string  `json:"label"`
+	Unit  string  `json:"unit"`
+	Min   float64 `json:"min"`
+	Max   float64 `json:"max,omitempty"`
+}
+
+type Draft struct {
+	ID          int64                   `json:"id"`
+	UserID      int64                   `json:"user_id"`
+	Input       string                  `json:"input"`
+	Status      string                  `json:"status"`
+	Assumptions Assumptions             `json:"assumptions"`
+	Questions   []ClarificationQuestion `json:"questions"`
+	Answers     map[string]float64      `json:"answers"`
+	ModelID     *int64                  `json:"model_id,omitempty"`
+	CreatedAt   time.Time               `json:"created_at"`
+	UpdatedAt   time.Time               `json:"updated_at"`
+}
+
+type CreateDraftInput struct {
+	UserID int64  `json:"-"`
+	Input  string `json:"input"`
+}
+
+type AnswerDraftInput struct {
+	UserID  int64              `json:"-"`
+	DraftID int64              `json:"-"`
+	Answers map[string]float64 `json:"answers"`
+}
+
+type CalculateDraftInput struct {
+	UserID  int64  `json:"-"`
+	DraftID int64  `json:"-"`
+	Name    string `json:"name"`
+}
+
+type DraftCalculation struct {
+	Draft Draft `json:"draft"`
+	Model Model `json:"model"`
 }
 
 type GrowthScenario struct {

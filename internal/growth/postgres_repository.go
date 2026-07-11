@@ -38,6 +38,64 @@ func (r *PostgresRepository) CreateModel(ctx context.Context, model Model) (Mode
 	return model, err
 }
 
+func (r *PostgresRepository) CreateDraft(ctx context.Context, draft Draft) (Draft, error) {
+	assumptions, err := json.Marshal(draft.Assumptions)
+	if err != nil {
+		return Draft{}, err
+	}
+	questions, err := json.Marshal(draft.Questions)
+	if err != nil {
+		return Draft{}, err
+	}
+	answers, err := json.Marshal(draft.Answers)
+	if err != nil {
+		return Draft{}, err
+	}
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO growth_drafts (user_id, input, status, assumptions, questions, answers, model_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+		RETURNING id
+	`, draft.UserID, draft.Input, draft.Status, assumptions, questions, answers, nullableInt64(draft.ModelID), draft.CreatedAt).Scan(&draft.ID)
+	return draft, err
+}
+
+func (r *PostgresRepository) GetDraft(ctx context.Context, userID, id int64) (Draft, error) {
+	draft, err := scanDraft(r.db.QueryRow(ctx, `
+		SELECT id, user_id, input, status, assumptions, questions, answers, model_id, created_at, updated_at
+		FROM growth_drafts
+		WHERE user_id = $1 AND id = $2
+	`, userID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Draft{}, ErrDraftNotFound
+	}
+	return draft, err
+}
+
+func (r *PostgresRepository) UpdateDraft(ctx context.Context, draft Draft) (Draft, error) {
+	assumptions, err := json.Marshal(draft.Assumptions)
+	if err != nil {
+		return Draft{}, err
+	}
+	questions, err := json.Marshal(draft.Questions)
+	if err != nil {
+		return Draft{}, err
+	}
+	answers, err := json.Marshal(draft.Answers)
+	if err != nil {
+		return Draft{}, err
+	}
+	err = r.db.QueryRow(ctx, `
+		UPDATE growth_drafts
+		SET status = $3, assumptions = $4, questions = $5, answers = $6, model_id = $7, updated_at = $8
+		WHERE user_id = $1 AND id = $2
+		RETURNING id
+	`, draft.UserID, draft.ID, draft.Status, assumptions, questions, answers, nullableInt64(draft.ModelID), draft.UpdatedAt).Scan(&draft.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Draft{}, ErrDraftNotFound
+	}
+	return draft, err
+}
+
 func (r *PostgresRepository) ListModels(ctx context.Context, userID int64, limit int) ([]Model, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, name, assumptions, result, created_at, updated_at
@@ -103,4 +161,29 @@ func scanModel(scanner modelScanner) (Model, error) {
 		return Model{}, err
 	}
 	return model, nil
+}
+
+func scanDraft(scanner modelScanner) (Draft, error) {
+	var draft Draft
+	var assumptions, questions, answers []byte
+	if err := scanner.Scan(&draft.ID, &draft.UserID, &draft.Input, &draft.Status, &assumptions, &questions, &answers, &draft.ModelID, &draft.CreatedAt, &draft.UpdatedAt); err != nil {
+		return Draft{}, err
+	}
+	if err := json.Unmarshal(assumptions, &draft.Assumptions); err != nil {
+		return Draft{}, err
+	}
+	if err := json.Unmarshal(questions, &draft.Questions); err != nil {
+		return Draft{}, err
+	}
+	if err := json.Unmarshal(answers, &draft.Answers); err != nil {
+		return Draft{}, err
+	}
+	return draft, nil
+}
+
+func nullableInt64(value *int64) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }

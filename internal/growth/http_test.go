@@ -22,6 +22,31 @@ type fakeApplication struct {
 	forecast        GrowthForecast
 	recommendations GrowthRecommendations
 	err             error
+	draft           Draft
+	calculation     DraftCalculation
+	draftInput      CreateDraftInput
+	answerInput     AnswerDraftInput
+	calculateInput  CalculateDraftInput
+}
+
+func (a *fakeApplication) CreateDraft(_ context.Context, input CreateDraftInput) (Draft, error) {
+	a.draftInput = input
+	return a.draft, a.err
+}
+
+func (a *fakeApplication) GetDraft(_ context.Context, userID, id int64) (Draft, error) {
+	a.userID, a.modelID = userID, id
+	return a.draft, a.err
+}
+
+func (a *fakeApplication) AnswerDraft(_ context.Context, input AnswerDraftInput) (Draft, error) {
+	a.answerInput = input
+	return a.draft, a.err
+}
+
+func (a *fakeApplication) CalculateDraft(_ context.Context, input CalculateDraftInput) (DraftCalculation, error) {
+	a.calculateInput = input
+	return a.calculation, a.err
 }
 
 func (a *fakeApplication) CreateModel(_ context.Context, input CreateInput) (Model, error) {
@@ -93,6 +118,38 @@ func TestCreateModelEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if app.input.UserID != 42 || app.input.Name != "标准方案" {
 		t.Fatalf("input = %+v", app.input)
+	}
+}
+
+func TestDraftEndpointsUseAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{
+		draft:       Draft{ID: 71, UserID: 42, Status: DraftStatusNeedsInput},
+		calculation: DraftCalculation{Draft: Draft{ID: 71, UserID: 42, Status: DraftStatusCalculated}, Model: Model{ID: 99}},
+	}
+	router := growthTestRouter(app)
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/growth/drafts", strings.NewReader(`{"input":"企业培训服务增长测算"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || app.draftInput.UserID != 42 {
+		t.Fatalf("create status/input = %d/%+v body=%s", recorder.Code, app.draftInput, recorder.Body.String())
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/growth/drafts/71/answers", strings.NewReader(`{"answers":{"acquisition_cost":80}}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || app.answerInput.UserID != 42 || app.answerInput.DraftID != 71 {
+		t.Fatalf("answer status/input = %d/%+v body=%s", recorder.Code, app.answerInput, recorder.Body.String())
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/growth/drafts/71/calculate", strings.NewReader(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || app.calculateInput.UserID != 42 || app.calculateInput.DraftID != 71 {
+		t.Fatalf("calculate status/input = %d/%+v body=%s", recorder.Code, app.calculateInput, recorder.Body.String())
 	}
 }
 

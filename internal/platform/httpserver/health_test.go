@@ -544,6 +544,18 @@ type fakeGrowthApp struct{}
 func (fakeGrowthApp) CreateModel(context.Context, growth.CreateInput) (growth.Model, error) {
 	return growth.Model{ID: 99, UserID: 42, Name: "标准方案", Result: growth.Result{MonthlyRevenue: 186000}}, nil
 }
+func (fakeGrowthApp) CreateDraft(context.Context, growth.CreateDraftInput) (growth.Draft, error) {
+	return growth.Draft{ID: 71, UserID: 42, Status: growth.DraftStatusNeedsInput}, nil
+}
+func (fakeGrowthApp) GetDraft(context.Context, int64, int64) (growth.Draft, error) {
+	return growth.Draft{ID: 71, UserID: 42, Status: growth.DraftStatusNeedsInput}, nil
+}
+func (fakeGrowthApp) AnswerDraft(context.Context, growth.AnswerDraftInput) (growth.Draft, error) {
+	return growth.Draft{ID: 71, UserID: 42, Status: growth.DraftStatusReady}, nil
+}
+func (fakeGrowthApp) CalculateDraft(context.Context, growth.CalculateDraftInput) (growth.DraftCalculation, error) {
+	return growth.DraftCalculation{Draft: growth.Draft{ID: 71, Status: growth.DraftStatusCalculated}, Model: growth.Model{ID: 99}}, nil
+}
 func (fakeGrowthApp) ListModels(context.Context, int64, int) ([]growth.Model, error) {
 	return []growth.Model{{ID: 99, UserID: 42, Name: "标准方案"}}, nil
 }

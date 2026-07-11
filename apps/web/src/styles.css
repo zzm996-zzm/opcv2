@@ -11194,7 +11194,7 @@ a {
   font-weight: 900;
 }
 
-.growth-input-card label {
+.growth-assumption-row {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
   align-items: center;
@@ -11205,13 +11205,13 @@ a {
   border-radius: 11px;
 }
 
-.growth-input-card label span {
+.growth-assumption-row span {
   color: #6075a4;
   font-size: 12px;
   font-weight: 850;
 }
 
-.growth-input-card input {
+.growth-assumption-row input {
   width: 100%;
   min-height: 34px;
   padding: 0 10px;
@@ -11223,12 +11223,92 @@ a {
   font-weight: 900;
 }
 
-.growth-input-card small {
+.growth-assumption-row small {
   grid-column: 1 / -1;
   color: #7184ad;
   font-size: 12px;
   line-height: 1.5;
   font-weight: 720;
+}
+
+.growth-model-label {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+  color: #3156a4;
+  background: #edf4ff;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.growth-intake-field,
+.growth-question-row,
+.growth-assumption-list,
+.growth-question-list,
+.growth-ready-state {
+  display: grid;
+  gap: 8px;
+}
+
+.growth-intake-field span,
+.growth-question-row > span,
+.growth-assumption-list > strong,
+.growth-draft-status,
+.growth-ready-state > span {
+  color: #3156a4;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.growth-intake-field textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  padding: 10px 12px;
+  color: #061336;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 8px;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.growth-question-row > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.growth-question-row input {
+  min-height: 38px;
+  padding: 0 10px;
+  color: #061336;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 8px;
+}
+
+.growth-draft-button {
+  min-height: 40px;
+  padding: 0 14px;
+  color: #fff;
+  background: #1557ff;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.growth-draft-button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.growth-assumption-list {
+  padding-top: 12px;
+  border-top: 1px solid rgba(31, 68, 140, 0.08);
 }
 
 .growth-workbench,

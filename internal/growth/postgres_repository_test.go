@@ -50,6 +50,36 @@ func TestPostgresRepositoryCreatesModel(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryCreatesAndGetsOwnedDraft(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 7, 11, 9, 0, 0, 0, time.UTC)
+	db.ExpectQuery("INSERT INTO growth_drafts").
+		WithArgs(int64(42), "企业培训", DraftStatusNeedsInput, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), nil, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(int64(71)))
+	repository := NewPostgresRepository(db)
+	draft, err := repository.CreateDraft(context.Background(), Draft{UserID: 42, Input: "企业培训", Status: DraftStatusNeedsInput, Answers: map[string]float64{}, CreatedAt: now})
+	if err != nil || draft.ID != 71 {
+		t.Fatalf("CreateDraft() = %+v, %v", draft, err)
+	}
+
+	db.ExpectQuery("SELECT id, user_id, input, status, assumptions, questions, answers, model_id, created_at, updated_at").
+		WithArgs(int64(42), int64(71)).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "input", "status", "assumptions", "questions", "answers", "model_id", "created_at", "updated_at"}).AddRow(
+			int64(71), int64(42), "企业培训", DraftStatusNeedsInput, []byte(`{}`), []byte(`[]`), []byte(`{}`), nil, now, now,
+		))
+	draft, err = repository.GetDraft(context.Background(), 42, 71)
+	if err != nil || draft.ID != 71 {
+		t.Fatalf("GetDraft() = %+v, %v", draft, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryGetsOwnedModel(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

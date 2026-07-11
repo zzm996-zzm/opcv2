@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -12,6 +14,9 @@ type Repository interface {
 	CreateModel(ctx context.Context, model Model) (Model, error)
 	ListModels(ctx context.Context, userID int64, limit int) ([]Model, error)
 	GetModel(ctx context.Context, userID, id int64) (Model, error)
+	CreateDraft(ctx context.Context, draft Draft) (Draft, error)
+	GetDraft(ctx context.Context, userID, id int64) (Draft, error)
+	UpdateDraft(ctx context.Context, draft Draft) (Draft, error)
 }
 
 type Service struct {
@@ -21,6 +26,204 @@ type Service struct {
 
 func NewService(repository Repository) *Service {
 	return &Service{repository: repository, now: time.Now}
+}
+
+func (s *Service) CreateDraft(ctx context.Context, input CreateDraftInput) (Draft, error) {
+	if s.repository == nil {
+		return Draft{}, ErrServiceNotReady
+	}
+	now := s.now()
+	assumptions := extractAssumptions(input.Input)
+	questions := missingQuestions(assumptions)
+	status := DraftStatusNeedsInput
+	if len(questions) == 0 {
+		status = DraftStatusReady
+	}
+	return s.repository.CreateDraft(ctx, Draft{
+		UserID:      input.UserID,
+		Input:       strings.TrimSpace(input.Input),
+		Status:      status,
+		Assumptions: assumptions,
+		Questions:   questions,
+		Answers:     map[string]float64{},
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+}
+
+func (s *Service) GetDraft(ctx context.Context, userID, id int64) (Draft, error) {
+	if s.repository == nil {
+		return Draft{}, ErrServiceNotReady
+	}
+	return s.repository.GetDraft(ctx, userID, id)
+}
+
+func (s *Service) AnswerDraft(ctx context.Context, input AnswerDraftInput) (Draft, error) {
+	draft, err := s.GetDraft(ctx, input.UserID, input.DraftID)
+	if err != nil {
+		return Draft{}, err
+	}
+	if draft.Status == DraftStatusCalculated || !applyAnswers(&draft.Assumptions, input.Answers) {
+		return Draft{}, ErrInvalidAnswers
+	}
+	if draft.Answers == nil {
+		draft.Answers = map[string]float64{}
+	}
+	for key, value := range input.Answers {
+		draft.Answers[key] = value
+	}
+	draft.Questions = missingQuestions(draft.Assumptions)
+	draft.Status = DraftStatusNeedsInput
+	if len(draft.Questions) == 0 {
+		draft.Status = DraftStatusReady
+	}
+	draft.UpdatedAt = s.now()
+	return s.repository.UpdateDraft(ctx, draft)
+}
+
+func (s *Service) CalculateDraft(ctx context.Context, input CalculateDraftInput) (DraftCalculation, error) {
+	draft, err := s.GetDraft(ctx, input.UserID, input.DraftID)
+	if err != nil {
+		return DraftCalculation{}, err
+	}
+	if draft.Status != DraftStatusReady || len(missingQuestions(draft.Assumptions)) != 0 {
+		return DraftCalculation{}, ErrDraftNotReady
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		name = draftName(draft.Input)
+	}
+	model, err := s.CreateModel(ctx, CreateInput{
+		UserID: input.UserID, Name: name,
+		MonthlyVisits: draft.Assumptions.MonthlyVisits, LeadRate: draft.Assumptions.LeadRate,
+		DealRate: draft.Assumptions.DealRate, AverageOrder: draft.Assumptions.AverageOrder,
+		AcquisitionCost: draft.Assumptions.AcquisitionCost, DeliveryCost: draft.Assumptions.DeliveryCost,
+	})
+	if err != nil {
+		return DraftCalculation{}, err
+	}
+	draft.Status = DraftStatusCalculated
+	draft.ModelID = &model.ID
+	draft.UpdatedAt = s.now()
+	draft, err = s.repository.UpdateDraft(ctx, draft)
+	if err != nil {
+		return DraftCalculation{}, err
+	}
+	return DraftCalculation{Draft: draft, Model: model}, nil
+}
+
+var assumptionPatterns = map[string]*regexp.Regexp{
+	"monthly_visits":   regexp.MustCompile(`(?:月访问量|月流量|每月访问量|月访客)[^0-9]{0,12}([0-9]+)`),
+	"lead_rate":        regexp.MustCompile(`(?:线索转化率|留资率)[^0-9]{0,12}([0-9]+(?:\.[0-9]+)?)%`),
+	"deal_rate":        regexp.MustCompile(`(?:成交转化率|成交率)[^0-9]{0,12}([0-9]+(?:\.[0-9]+)?)%`),
+	"average_order":    regexp.MustCompile(`(?:平均客单价|客单价)[^0-9]{0,12}([0-9]+)`),
+	"acquisition_cost": regexp.MustCompile(`(?:单条获客成本|获客成本)[^0-9]{0,12}([0-9]+)`),
+	"delivery_cost":    regexp.MustCompile(`(?:月交付成本|交付成本)[^0-9]{0,12}([0-9]+)`),
+}
+
+func extractAssumptions(input string) Assumptions {
+	values := map[string]float64{}
+	for key, pattern := range assumptionPatterns {
+		match := pattern.FindStringSubmatch(input)
+		if len(match) != 2 {
+			continue
+		}
+		value, err := strconv.ParseFloat(match[1], 64)
+		if err == nil {
+			values[key] = value
+		}
+	}
+	if value, ok := values["lead_rate"]; ok {
+		values["lead_rate"] = value / 100
+	}
+	if value, ok := values["deal_rate"]; ok {
+		values["deal_rate"] = value / 100
+	}
+	var assumptions Assumptions
+	applyAnswers(&assumptions, values)
+	return assumptions
+}
+
+var clarificationQuestions = []ClarificationQuestion{
+	{Key: "monthly_visits", Label: "预计月访问量", Unit: "次", Min: 1},
+	{Key: "lead_rate", Label: "线索转化率", Unit: "%", Min: 0.01, Max: 100},
+	{Key: "deal_rate", Label: "成交转化率", Unit: "%", Min: 0.01, Max: 100},
+	{Key: "average_order", Label: "平均客单价", Unit: "元", Min: 1},
+	{Key: "acquisition_cost", Label: "单条线索获客成本", Unit: "元", Min: 0},
+	{Key: "delivery_cost", Label: "每月交付成本", Unit: "元", Min: 0},
+}
+
+func missingQuestions(input Assumptions) []ClarificationQuestion {
+	missing := make([]ClarificationQuestion, 0, len(clarificationQuestions))
+	for _, question := range clarificationQuestions {
+		missingField := false
+		switch question.Key {
+		case "monthly_visits":
+			missingField = input.MonthlyVisits <= 0
+		case "lead_rate":
+			missingField = input.LeadRate <= 0
+		case "deal_rate":
+			missingField = input.DealRate <= 0
+		case "average_order":
+			missingField = input.AverageOrder <= 0
+		case "acquisition_cost":
+			missingField = input.AcquisitionCost <= 0
+		case "delivery_cost":
+			missingField = input.DeliveryCost <= 0
+		}
+		if missingField {
+			missing = append(missing, question)
+		}
+	}
+	return missing
+}
+
+func applyAnswers(target *Assumptions, answers map[string]float64) bool {
+	for key, value := range answers {
+		if value < 0 {
+			return false
+		}
+		switch key {
+		case "monthly_visits":
+			target.MonthlyVisits = int(math.Round(value))
+		case "lead_rate":
+			if value > 1 {
+				value /= 100
+			}
+			if value <= 0 || value > 1 {
+				return false
+			}
+			target.LeadRate = value
+		case "deal_rate":
+			if value > 1 {
+				value /= 100
+			}
+			if value <= 0 || value > 1 {
+				return false
+			}
+			target.DealRate = value
+		case "average_order":
+			target.AverageOrder = int(math.Round(value))
+		case "acquisition_cost":
+			target.AcquisitionCost = int(math.Round(value))
+		case "delivery_cost":
+			target.DeliveryCost = int(math.Round(value))
+		default:
+			return false
+		}
+	}
+	return len(answers) > 0
+}
+
+func draftName(input string) string {
+	runes := []rune(strings.TrimSpace(input))
+	if len(runes) > 20 {
+		runes = runes[:20]
+	}
+	if len(runes) == 0 {
+		return "增长测算方案"
+	}
+	return string(runes)
 }
 
 func (s *Service) CreateModel(ctx context.Context, input CreateInput) (Model, error) {

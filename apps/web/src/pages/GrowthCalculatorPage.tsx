@@ -5,6 +5,7 @@ import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import {
   growthApi,
+  type GrowthDraft,
   type GrowthForecast,
   type GrowthModel,
   type GrowthRecommendations,
@@ -100,6 +101,10 @@ function GrowthCalculatorPage() {
   const [recommendationView, setRecommendationView] = useState<GrowthRecommendations | null>(null);
   const [loadError, setLoadError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [draft, setDraft] = useState<GrowthDraft | null>(null);
+  const [businessInput, setBusinessInput] = useState("");
+  const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>({});
+  const [draftError, setDraftError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -151,33 +156,74 @@ function GrowthCalculatorPage() {
   const recommendationSummary = recommendationView?.summary ?? "保存或选择一个测算模型后，这里会展示后端生成的增长建议。";
   const modelName = latestModel?.name ?? "暂无测算模型";
 
-  async function saveModel() {
-    if (isSaving) return;
+  async function loadModelViews(model: GrowthModel) {
+    const [scenariosPayload, forecastPayload, recommendationsPayload] = await Promise.all([
+      growthApi.modelScenarios(model.id).catch(() => null),
+      growthApi.modelForecast(model.id).catch(() => null),
+      growthApi.modelRecommendations(model.id).catch(() => null)
+    ]);
+    setScenarioView(scenariosPayload);
+    setForecastView(forecastPayload);
+    setRecommendationView(recommendationsPayload);
+  }
+
+  async function startDraft() {
+    if (isSaving || !businessInput.trim()) return;
     setIsSaving(true);
+    setDraftError("");
     try {
-      const model = await growthApi.createModel({
-        name: "智能客服系统 · 标准方案",
-        monthlyVisits: 24000,
-        leadRate: 0.068,
-        dealRate: 0.14,
-        averageOrder: 820,
-        acquisitionCost: 42,
-        deliveryCost: 260
-      });
-      setLatestModel(model);
-      const [scenariosPayload, forecastPayload, recommendationsPayload] = await Promise.all([
-        growthApi.modelScenarios(model.id).catch(() => null),
-        growthApi.modelForecast(model.id).catch(() => null),
-        growthApi.modelRecommendations(model.id).catch(() => null)
-      ]);
-      setScenarioView(scenariosPayload);
-      setForecastView(forecastPayload);
-      setRecommendationView(recommendationsPayload);
-    } catch {
-      // Keep the current static/model values visible; error presentation can be centralized later.
+      const nextDraft = await growthApi.createDraft(businessInput.trim());
+      setDraft(nextDraft);
+      setDraftAnswers({});
+    } catch (error) {
+      setDraftError(apiErrorMessage(error, "暂时无法分析业务信息"));
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function submitAnswers() {
+    if (!draft || isSaving) return;
+    const answers = Object.fromEntries(draft.questions.map((question) => [question.key, Number(draftAnswers[question.key])]));
+    if (Object.values(answers).some((value) => !Number.isFinite(value))) {
+      setDraftError("请补齐所有测算信息");
+      return;
+    }
+    setIsSaving(true);
+    setDraftError("");
+    try {
+      const nextDraft = await growthApi.answerDraft(draft.id, answers);
+      setDraft(nextDraft);
+      setDraftAnswers({});
+    } catch (error) {
+      setDraftError(apiErrorMessage(error, "暂时无法保存补充信息"));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function calculateDraft() {
+    if (!draft || draft.status !== "ready" || isSaving) return;
+    if (isSaving) return;
+    setIsSaving(true);
+    setDraftError("");
+    try {
+      const calculation = await growthApi.calculateDraft(draft.id);
+      setDraft(calculation.draft);
+      setLatestModel(calculation.model);
+      await loadModelViews(calculation.model);
+    } catch (error) {
+      setDraftError(apiErrorMessage(error, "暂时无法生成测算结果"));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function resetDraft() {
+    setDraft(null);
+    setBusinessInput("");
+    setDraftAnswers({});
+    setDraftError("");
   }
 
   return (
@@ -188,8 +234,8 @@ function GrowthCalculatorPage() {
             <h1>增长测算</h1>
             <p>用访问量、转化率、客单价、获客成本和交付成本，提前算清楚增长动作的收入和利润边界</p>
           </div>
-          <button className="module-primary-action" disabled={isSaving} onClick={() => void saveModel()} type="button">
-            {isSaving ? "保存中..." : "保存测算模型"}
+          <button className="module-primary-action" disabled={isSaving} onClick={resetDraft} type="button">
+            新建测算
           </button>
         </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
@@ -197,6 +243,7 @@ function GrowthCalculatorPage() {
         <section className="module-overview-card growth-hero">
           <div className="module-overview-copy">
             <span className="module-kicker">{modelName}</span>
+            {latestModel ? <span className="growth-model-label">模型测算</span> : null}
             <h2>先算清每一块钱能带来多少真实增长</h2>
             <p>当前模型以内容获客、私域承接和顾问成交为核心路径，帮助你判断该加预算、调价格，还是先优化转化率。</p>
             <div className="module-stat-strip">
@@ -209,15 +256,68 @@ function GrowthCalculatorPage() {
             </div>
           </div>
 
-          <form className="growth-input-card" aria-label="核心测算假设">
-            <strong>核心假设</strong>
-            {visibleAssumptions.map(([label, value, helper]) => (
-              <label key={label}>
-                <span>{label}</span>
-                <input aria-label={label} readOnly value={value} />
-                <small>{helper}</small>
-              </label>
-            ))}
+          <form className="growth-input-card" aria-label="增长测算输入" onSubmit={(event) => event.preventDefault()}>
+            <strong>业务测算输入</strong>
+            <label className="growth-intake-field">
+              <span>业务与增长问题</span>
+              <textarea
+                aria-label="业务与增长问题"
+                disabled={Boolean(draft)}
+                onChange={(event) => setBusinessInput(event.target.value)}
+                placeholder="描述业务、获客方式、成本、客单价，以及你最想确认的增长问题"
+                value={businessInput}
+              />
+            </label>
+            {!draft ? (
+              <button className="growth-draft-button" disabled={isSaving || !businessInput.trim()} onClick={() => void startDraft()} type="button">
+                {isSaving ? "分析中..." : "开始测算"}
+              </button>
+            ) : null}
+            {draft?.status === "needs_input" ? (
+              <div className="growth-question-list">
+                <p className="growth-draft-status">还需要 {draft.questions.length} 项信息</p>
+                {draft.questions.map((question) => (
+                  <label className="growth-question-row" key={question.key}>
+                    <span>{question.label}</span>
+                    <div>
+                      <input
+                        aria-label={question.label}
+                        min={question.min}
+                        max={question.max}
+                        onChange={(event) => setDraftAnswers((current) => ({ ...current, [question.key]: event.target.value }))}
+                        type="number"
+                        value={draftAnswers[question.key] ?? ""}
+                      />
+                      <small>{question.unit}</small>
+                    </div>
+                  </label>
+                ))}
+                <button className="growth-draft-button" disabled={isSaving} onClick={() => void submitAnswers()} type="button">
+                  {isSaving ? "提交中..." : "提交补充信息"}
+                </button>
+              </div>
+            ) : null}
+            {draft?.status === "ready" ? (
+              <div className="growth-ready-state">
+                <span>测算参数已补齐</span>
+                <button className="growth-draft-button" disabled={isSaving} onClick={() => void calculateDraft()} type="button">
+                  {isSaving ? "生成中..." : "生成测算结果"}
+                </button>
+              </div>
+            ) : null}
+            {draftError ? <p className="form-error" role="alert">{draftError}</p> : null}
+            {latestModel ? (
+              <div className="growth-assumption-list">
+                <strong>核心假设 · 模型测算</strong>
+                {visibleAssumptions.map(([label, value, helper]) => (
+                  <label className="growth-assumption-row" key={label}>
+                    <span>{label}</span>
+                    <input aria-label={label} readOnly value={value} />
+                    <small>{helper}</small>
+                  </label>
+                ))}
+              </div>
+            ) : null}
           </form>
         </section>
 

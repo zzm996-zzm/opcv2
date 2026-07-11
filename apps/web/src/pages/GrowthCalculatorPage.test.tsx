@@ -43,7 +43,8 @@ describe("GrowthCalculatorPage", () => {
     renderGrowthRoute();
 
     expect(screen.getByRole("heading", { name: "增长测算" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "保存测算模型" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "业务与增长问题" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "开始测算" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "增长漏斗" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "情景对比" })).toBeInTheDocument();
     expect(await screen.findByText("暂无测算模型")).toBeInTheDocument();
@@ -149,60 +150,68 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.queryByText("¥18.6万")).not.toBeInTheDocument();
   });
 
-  it("saves a growth model and refreshes the displayed result", async () => {
+  it("clarifies a growth draft and calculates a persisted model", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/growth/models" && init?.method === "GET") {
         return Promise.resolve(new Response(JSON.stringify({ models: [] }), { status: 200 }));
       }
-      if (url === "/api/v1/growth/models" && init?.method === "POST") {
+      if (url === "/api/v1/growth/drafts" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
-          id: 12,
-          user_id: 7,
-          name: "智能客服系统 · 标准方案",
-          assumptions: {
-            monthly_visits: 24000,
-            lead_rate: 0.068,
-            deal_rate: 0.14,
-            average_order: 820,
-            acquisition_cost: 42,
-            delivery_cost: 260
-          },
-          result: {
-            monthly_revenue: 187000,
-            leads: 1632,
-            deals: 228,
-            payback_days: 15,
-            net_margin: 0.41
-          },
-          created_at: "2026-06-30T08:00:00Z",
-          updated_at: "2026-06-30T08:05:00Z"
+          id: 71,
+          status: "needs_input",
+          input: "企业培训服务，每月访问量 12000，线索转化率 8%，成交率 15%，客单价 6000 元",
+          assumptions: { monthly_visits: 12000, lead_rate: 0.08, deal_rate: 0.15, average_order: 6000, acquisition_cost: 0, delivery_cost: 0 },
+          questions: [
+            { key: "acquisition_cost", label: "单条线索获客成本", unit: "元", min: 0 },
+            { key: "delivery_cost", label: "每月交付成本", unit: "元", min: 0 }
+          ],
+          answers: {}
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/growth/drafts/71/answers" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ id: 71, status: "ready", questions: [], answers: {} }), { status: 200 }));
+      }
+      if (url === "/api/v1/growth/drafts/71/calculate" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          draft: { id: 71, status: "calculated", questions: [], answers: {} },
+          model: {
+            id: 12, user_id: 7, name: "企业培训服务增长测算",
+            assumptions: { monthly_visits: 12000, lead_rate: 0.08, deal_rate: 0.15, average_order: 6000, acquisition_cost: 80, delivery_cost: 120000 },
+            result: { monthly_revenue: 864000, leads: 960, deals: 144, payback_days: 7, net_margin: 0.77 },
+            created_at: "2026-07-11T08:00:00Z", updated_at: "2026-07-11T08:00:00Z"
+          }
         }), { status: 200 }));
       }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
 
     renderGrowthRoute();
-    fireEvent.click(screen.getByRole("button", { name: "保存测算模型" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "业务与增长问题" }), {
+      target: { value: "企业培训服务，每月访问量 12000，线索转化率 8%，成交率 15%，客单价 6000 元" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "开始测算" }));
+
+    fireEvent.change(await screen.findByRole("spinbutton", { name: "单条线索获客成本" }), { target: { value: "80" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "每月交付成本" }), { target: { value: "120000" } });
+    fireEvent.click(screen.getByRole("button", { name: "提交补充信息" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "生成测算结果" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/growth/models",
+        "/api/v1/growth/drafts/71/answers",
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
-            name: "智能客服系统 · 标准方案",
-            monthly_visits: 24000,
-            lead_rate: 0.068,
-            deal_rate: 0.14,
-            average_order: 820,
-            acquisition_cost: 42,
-            delivery_cost: 260
+            answers: { acquisition_cost: 80, delivery_cost: 120000 }
           })
         })
       );
     });
-    expect(await screen.findByText("¥187,000")).toBeInTheDocument();
-    expect(screen.getByText("15天")).toBeInTheDocument();
+    expect(await screen.findByText("企业培训服务增长测算")).toBeInTheDocument();
+    expect(screen.getAllByText("¥864,000").length).toBeGreaterThan(0);
+    expect(screen.getByText("7天")).toBeInTheDocument();
+    expect(screen.getAllByText("模型测算").length).toBeGreaterThan(0);
   });
 });
