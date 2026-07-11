@@ -84,6 +84,14 @@ func (p *DevelopmentProvider) responseFor(feature string) []byte {
 				{"key":"preferred_style","value":"直接给执行清单","confidence":0.82,"source":"copilot"}
 			]
 		}`)
+	case "tasks.generate":
+		return []byte(`{
+			"tasks":[
+				{"title":"明确目标客户范围","description":"整理行业、区域和客户规模标准，形成首批筛选条件。","project":"目标落地","priority":"high","tags":["客户验证"],"due_in_days":1,"tools":["CRM"],"learning":"客户画像"},
+				{"title":"完成首批客户访谈","description":"联系10位目标客户并记录高频问题、现有解决方式和付费意愿。","project":"目标落地","priority":"high","tags":["客户验证","访谈"],"due_in_days":3,"tools":["CRM","AI助手"],"learning":"客户访谈"},
+				{"title":"整理验证结论和下一步","description":"汇总访谈证据，确定保留、调整或停止的关键假设。","project":"目标落地","priority":"medium","tags":["复盘"],"due_in_days":5,"tools":["AI助手"],"learning":"需求分析"}
+			]
+		}`)
 	default:
 		return []byte(`{"ok":true}`)
 	}

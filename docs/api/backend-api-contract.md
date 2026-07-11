@@ -235,6 +235,57 @@ Validation:
 
 Response `200`: `Task`
 
+### Generate Task Plan
+
+`POST /api/v1/tasks/generate`
+
+Request:
+
+```json
+{
+  "goal": "验证成都教培机构对 AI 客服的真实需求"
+}
+```
+
+`goal` is trimmed and must contain between 1 and 2000 characters. The backend
+uses the configured AI provider to generate between 1 and 10 structured tasks.
+Each generated item contains a title, description, project, priority, tags,
+tools, learning recommendation, and `due_in_days` between 0 and 365. The model
+response is schema-validated and retried once when invalid.
+
+All generated tasks are persisted in one database transaction. If any insert
+fails, no task from that generated plan is saved.
+
+Response `200`:
+
+```json
+{
+  "tasks": [
+    {
+      "id": 101,
+      "user_id": 42,
+      "title": "整理首批访谈名单",
+      "description": "筛选 10 家目标教培机构并确认访谈联系人",
+      "project": "客户验证",
+      "status": "todo",
+      "priority": "high",
+      "tags": ["客户验证", "访谈"],
+      "due_at": "2026-07-12T12:00:00Z",
+      "tools": ["CRM"],
+      "learning": "客户访谈",
+      "created_at": "2026-07-11T12:00:00Z",
+      "updated_at": "2026-07-11T12:00:00Z"
+    }
+  ]
+}
+```
+
+Errors:
+
+- `400 invalid_request`
+- `400 invalid_goal`
+- `502 invalid_ai_result`
+
 ### List Tasks
 
 `GET /api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&tag=用户研究&q=接口&limit=20&offset=0`

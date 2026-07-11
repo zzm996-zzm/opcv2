@@ -28,6 +28,7 @@ var (
 	ErrInvalidReminderTime                 = errors.New("invalid task reminder time")
 	ErrInvalidReminderRecurrence           = errors.New("invalid task reminder recurrence")
 	ErrRecurringReminderRequiresMembership = errors.New("recurring task reminder requires membership")
+	ErrInvalidGeneratedTasks               = errors.New("invalid generated task plan")
 )
 
 type CreateInput struct {
@@ -41,6 +42,30 @@ type CreateInput struct {
 	DueAt       *time.Time `json:"due_at,omitempty"`
 	Tools       []string   `json:"tools"`
 	Learning    string     `json:"learning"`
+}
+
+type GenerateTasksInput struct {
+	UserID int64  `json:"-"`
+	Goal   string `json:"goal"`
+}
+
+type GeneratedTaskDraft struct {
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Project     string   `json:"project"`
+	Priority    string   `json:"priority"`
+	Tags        []string `json:"tags"`
+	DueInDays   int      `json:"due_in_days"`
+	Tools       []string `json:"tools"`
+	Learning    string   `json:"learning"`
+}
+
+type GeneratedTaskPlan struct {
+	Tasks []GeneratedTaskDraft `json:"tasks"`
+}
+
+type GenerateTasksResult struct {
+	Tasks []Task `json:"tasks"`
 }
 
 type Subtask struct {

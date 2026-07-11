@@ -5,11 +5,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/membership"
 )
 
 type Repository interface {
 	CreateTask(ctx context.Context, task Task) (Task, error)
+	CreateTasks(ctx context.Context, tasks []Task) ([]Task, error)
 	ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error)
 	CountTasks(ctx context.Context, userID int64, filters ListFilters) (int, error)
 	ListTaskProjects(ctx context.Context, userID int64) ([]string, error)
@@ -24,11 +26,16 @@ type MembershipProvider interface {
 	CurrentSnapshot(context.Context, int64) (membership.Snapshot, error)
 }
 
+type TaskGenerator interface {
+	GenerateJSON(context.Context, ai.GenerateJSONRequest) (ai.GenerateJSONResult, error)
+}
+
 type Option func(*Service)
 
 type Service struct {
 	repository Repository
 	membership MembershipProvider
+	generator  TaskGenerator
 	now        func() time.Time
 }
 
@@ -43,6 +50,12 @@ func NewService(repository Repository, options ...Option) *Service {
 func WithMembershipProvider(provider MembershipProvider) Option {
 	return func(service *Service) {
 		service.membership = provider
+	}
+}
+
+func WithTaskGenerator(generator TaskGenerator) Option {
+	return func(service *Service) {
+		service.generator = generator
 	}
 }
 

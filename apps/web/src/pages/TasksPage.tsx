@@ -399,17 +399,12 @@ function TasksPage() {
     setCreateError("");
     setCreateMessage("");
     try {
-      const task = await tasksApi.createTask({
-        title,
-        project: "任务中心",
-        priority: "medium",
-        tools: ["任务中心"],
-        learning: title
-      });
-      if (taskMatchesCurrentFilters(task)) {
-        setTaskTotal((current) => current + 1);
+      const result = await tasksApi.generateTasks(title);
+      const matchingTasks = result.tasks.filter(taskMatchesCurrentFilters);
+      if (matchingTasks.length > 0) {
+        setTaskTotal((current) => current + matchingTasks.length);
         if (taskPage === 1) {
-          setApiTasks((current) => [task, ...current].slice(0, taskPageSize));
+          setApiTasks((current) => [...matchingTasks, ...current].slice(0, taskPageSize));
         } else {
           setTaskPage(1);
         }
@@ -417,7 +412,7 @@ function TasksPage() {
       await refreshTaskStats();
       setTaskGoal("");
       setListError("");
-      setCreateMessage(`已生成任务：${task.title}`);
+      setCreateMessage(`已生成 ${result.tasks.length} 条任务`);
     } catch (error) {
       setCreateError(apiErrorMessage(error, "暂时无法生成任务"));
     } finally {

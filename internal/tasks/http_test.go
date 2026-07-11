@@ -13,6 +13,8 @@ import (
 
 type fakeApplication struct {
 	input           CreateInput
+	generateInput   GenerateTasksInput
+	generated       GenerateTasksResult
 	userID          int64
 	taskID          int64
 	deleted         bool
@@ -38,6 +40,11 @@ type fakeApplication struct {
 func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task, error) {
 	a.input = input
 	return a.task, a.err
+}
+
+func (a *fakeApplication) GenerateTasks(_ context.Context, input GenerateTasksInput) (GenerateTasksResult, error) {
+	a.generateInput = input
+	return a.generated, a.err
 }
 
 func (a *fakeApplication) ListTaskPage(_ context.Context, userID int64, filters ListFilters) (TaskPage, error) {
@@ -151,6 +158,34 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"todo"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestGenerateTasksEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{generated: GenerateTasksResult{Tasks: []Task{{ID: 101, UserID: 42, Title: "整理访谈名单", Status: StatusTodo}}}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/generate", strings.NewReader(`{"goal":"验证教培客户需求"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.generateInput.UserID != 42 || app.generateInput.Goal != "验证教培客户需求" || !strings.Contains(recorder.Body.String(), `"tasks"`) {
+		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.generateInput, recorder.Body.String())
+	}
+}
+
+func TestGenerateTasksEndpointRejectsMissingGoal(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/generate", strings.NewReader(`{"goal":" "}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || app.generateInput.UserID != 0 {
+		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.generateInput, recorder.Body.String())
 	}
 }
 

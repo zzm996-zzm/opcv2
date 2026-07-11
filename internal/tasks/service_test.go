@@ -10,15 +10,30 @@ import (
 )
 
 type fakeRepository struct {
-	created  Task
-	updated  Task
-	deleted  Task
-	task     Task
-	tasks    []Task
-	projects []string
-	tags     []string
-	filters  ListFilters
-	err      error
+	created      Task
+	createdTasks []Task
+	updated      Task
+	deleted      Task
+	task         Task
+	tasks        []Task
+	projects     []string
+	tags         []string
+	filters      ListFilters
+	err          error
+}
+
+func (r *fakeRepository) CreateTasks(_ context.Context, tasks []Task) ([]Task, error) {
+	r.createdTasks = append([]Task(nil), tasks...)
+	if r.err != nil {
+		return nil, r.err
+	}
+	created := make([]Task, len(tasks))
+	for index, task := range tasks {
+		task.ID = int64(100 + index)
+		task.UpdatedAt = task.CreatedAt
+		created[index] = task
+	}
+	return created, nil
 }
 
 func (r *fakeRepository) CreateTask(_ context.Context, task Task) (Task, error) {

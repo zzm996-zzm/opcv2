@@ -22,7 +22,7 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 	db.ExpectQuery(regexp.QuoteMeta(`
 		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
-		RETURNING id
+		RETURNING id, created_at, updated_at
 	`)).
 		WithArgs(
 			int64(42),
@@ -38,7 +38,7 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 			"线索评分",
 			now,
 		).
-		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(int64(99)))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(99), now, now))
 
 	repository := NewPostgresRepository(db)
 	task, err := repository.CreateTask(context.Background(), Task{
@@ -58,8 +58,41 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	if task.ID != 99 {
-		t.Fatalf("task.ID = %d, want 99", task.ID)
+	if task.ID != 99 || !task.CreatedAt.Equal(now) || !task.UpdatedAt.Equal(now) {
+		t.Fatalf("task = %+v", task)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryCreatesTasksInTransaction(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	db.ExpectBegin()
+	for index, title := range []string{"整理访谈名单", "完成访谈复盘"} {
+		db.ExpectQuery("INSERT INTO tasks").
+			WithArgs(
+				int64(42), title, "", "", "客户验证", StatusTodo, PriorityMedium,
+				[]byte(`[]`), (*time.Time)(nil), []byte(`[]`), "", now,
+			).
+			WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(101+index), now, now))
+	}
+	db.ExpectCommit()
+
+	repository := NewPostgresRepository(db)
+	created, err := repository.CreateTasks(context.Background(), []Task{
+		{UserID: 42, Title: "整理访谈名单", Project: "客户验证", Status: StatusTodo, Priority: PriorityMedium, Tags: []string{}, Tools: []string{}, CreatedAt: now},
+		{UserID: 42, Title: "完成访谈复盘", Project: "客户验证", Status: StatusTodo, Priority: PriorityMedium, Tags: []string{}, Tools: []string{}, CreatedAt: now},
+	})
+
+	if err != nil || len(created) != 2 || created[0].ID != 101 || created[1].ID != 102 {
+		t.Fatalf("created/error = %+v/%v", created, err)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

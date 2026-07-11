@@ -42,6 +42,19 @@ describe("tasksApi", () => {
     );
   });
 
+  it("generates a task plan from a goal", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ tasks: [{ id: 101, title: "整理访谈名单" }] }), { status: 200 })
+    );
+
+    await tasksApi.generateTasks("验证教培客户需求");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/generate", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ goal: "验证教培客户需求" })
+    }));
+  });
+
   it("lists, creates, updates, and deletes task subtasks", async () => {
 	const fetchMock = vi.spyOn(globalThis, "fetch")
 	  .mockResolvedValueOnce(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }))

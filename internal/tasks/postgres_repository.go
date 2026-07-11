@@ -14,6 +14,7 @@ type postgresDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
 type PostgresRepository struct {
@@ -25,6 +26,14 @@ func NewPostgresRepository(db postgresDB) *PostgresRepository {
 }
 
 func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, error) {
+	return createTask(ctx, r.db, task)
+}
+
+type taskWriter interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func createTask(ctx context.Context, writer taskWriter, task Task) (Task, error) {
 	tags, err := json.Marshal(task.Tags)
 	if err != nil {
 		return Task{}, err
@@ -33,10 +42,10 @@ func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, e
 	if err != nil {
 		return Task{}, err
 	}
-	err = r.db.QueryRow(ctx, `
+	err = writer.QueryRow(ctx, `
 		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
-		RETURNING id
+		RETURNING id, created_at, updated_at
 	`,
 		task.UserID,
 		task.Title,
@@ -50,8 +59,28 @@ func (r *PostgresRepository) CreateTask(ctx context.Context, task Task) (Task, e
 		tools,
 		task.Learning,
 		task.CreatedAt,
-	).Scan(&task.ID)
+	).Scan(&task.ID, &task.CreatedAt, &task.UpdatedAt)
 	return task, err
+}
+
+func (r *PostgresRepository) CreateTasks(ctx context.Context, tasks []Task) ([]Task, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	created := make([]Task, 0, len(tasks))
+	for _, task := range tasks {
+		item, err := createTask(ctx, tx, task)
+		if err != nil {
+			return nil, err
+		}
+		created = append(created, item)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return created, nil
 }
 
 func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error) {

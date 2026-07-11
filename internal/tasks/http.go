@@ -14,6 +14,7 @@ import (
 
 type Application interface {
 	CreateTask(ctx context.Context, input CreateInput) (Task, error)
+	GenerateTasks(ctx context.Context, input GenerateTasksInput) (GenerateTasksResult, error)
 	ListTaskPage(ctx context.Context, userID int64, filters ListFilters) (TaskPage, error)
 	ListTaskProjects(ctx context.Context, userID int64) ([]string, error)
 	ListTaskTags(ctx context.Context, userID int64) ([]string, error)
@@ -40,6 +41,7 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/tasks", h.createTask)
+	router.POST("/tasks/generate", h.generateTasks)
 	router.GET("/tasks", h.listTasks)
 	router.GET("/tasks/stats", h.taskStats)
 	router.GET("/tasks/projects", h.listTaskProjects)
@@ -54,6 +56,27 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/:id/reminder", h.getTaskReminder)
 	router.PUT("/tasks/:id/reminder", h.upsertTaskReminder)
 	router.DELETE("/tasks/:id/reminder", h.deleteTaskReminder)
+}
+
+func (h *HTTPHandler) generateTasks(c *gin.Context) {
+	var request GenerateTasksInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.Goal = strings.TrimSpace(request.Goal)
+	if request.Goal == "" || len([]rune(request.Goal)) > 2000 {
+		httpapi.BadRequest(c, "invalid_goal")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	result, err := h.app.GenerateTasks(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	result.Tasks = httpapi.EnsureSlice(result.Tasks)
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *HTTPHandler) createTask(c *gin.Context) {
@@ -283,6 +306,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.BadRequest(c, "invalid_recurrence")
 	case errors.Is(err, ErrRecurringReminderRequiresMembership):
 		httpapi.Error(c, http.StatusPaymentRequired, "membership_required")
+	case errors.Is(err, ErrInvalidGeneratedTasks):
+		httpapi.Error(c, http.StatusBadGateway, "invalid_ai_result")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

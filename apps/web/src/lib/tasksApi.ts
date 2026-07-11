@@ -47,6 +47,10 @@ export type TaskStats = {
   overdue: number;
 };
 
+export type GenerateTasksResult = {
+  tasks: Task[];
+};
+
 export type TaskSubtask = {
   id: number;
   task_id: number;
@@ -171,6 +175,13 @@ export const tasksApi = {
     return apiRequest<Task>("/api/v1/tasks", {
       method: "POST",
       body: JSON.stringify(toCreatePayload(input))
+    });
+  },
+
+  generateTasks(goal: string) {
+    return apiRequest<GenerateTasksResult>("/api/v1/tasks/generate", {
+      method: "POST",
+      body: JSON.stringify({ goal })
     });
   },
 
