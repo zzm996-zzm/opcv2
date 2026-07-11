@@ -24,7 +24,13 @@ describe("learningApi", () => {
     await learningApi.listCourses({ category: "实战", limit: 12 });
     await learningApi.getCourse("ai-basics");
     await learningApi.listProgress();
-    await learningApi.createDiagnosis({ goal: "提升AI能力", project: "智能客服" });
+    await learningApi.createDiagnosis({
+      goal: "提升AI能力",
+      project: "智能客服",
+      focus_abilities: ["数据洞察能力"],
+      weekly_time: "5-8 小时",
+      bottleneck: "缺少案例"
+    });
     await learningApi.getLatestDiagnosis();
     await learningApi.getLatestGaps();
     await learningApi.getLatestRecommendations();
@@ -39,7 +45,13 @@ describe("learningApi", () => {
       "/api/v1/learning/diagnoses",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ goal: "提升AI能力", project: "智能客服" })
+        body: JSON.stringify({
+          goal: "提升AI能力",
+          project: "智能客服",
+          focus_abilities: ["数据洞察能力"],
+          weekly_time: "5-8 小时",
+          bottleneck: "缺少案例"
+        })
       })
     );
     expect(fetchMock).toHaveBeenNthCalledWith(5, "/api/v1/learning/diagnoses/latest", expect.objectContaining({ method: "GET" }));

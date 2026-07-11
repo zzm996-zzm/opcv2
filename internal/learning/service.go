@@ -58,11 +58,14 @@ func (s *Service) CreateDiagnosis(ctx context.Context, input CreateDiagnosisInpu
 	goal := strings.TrimSpace(input.Goal)
 	project := strings.TrimSpace(input.Project)
 	return s.repository.CreateDiagnosis(ctx, Diagnosis{
-		UserID:       input.UserID,
-		Goal:         goal,
-		Project:      project,
-		Status:       DiagnosisCompleted,
-		OverallScore: 72,
+		UserID:         input.UserID,
+		Goal:           goal,
+		Project:        project,
+		FocusAbilities: normalizeUniqueStrings(input.FocusAbilities),
+		WeeklyTime:     strings.TrimSpace(input.WeeklyTime),
+		Bottleneck:     strings.TrimSpace(input.Bottleneck),
+		Status:         DiagnosisCompleted,
+		OverallScore:   72,
 		Dimensions: []Dimension{
 			{Name: "市场分析能力", Score: 78, Gap: 12, Summary: "具备基础判断能力，需要补充竞品拆解方法。"},
 			{Name: "数据分析能力", Score: 64, Gap: 22, Summary: "能理解核心指标，但需要加强漏斗和转化分析。"},
@@ -75,6 +78,23 @@ func (s *Service) CreateDiagnosis(ctx context.Context, input CreateDiagnosisInpu
 		},
 		CreatedAt: now,
 	})
+}
+
+func normalizeUniqueStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func (s *Service) LatestDiagnosis(ctx context.Context, userID int64) (Diagnosis, error) {

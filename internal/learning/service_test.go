@@ -102,9 +102,12 @@ func TestServiceCreatesCompletedDiagnosis(t *testing.T) {
 	service.now = func() time.Time { return now }
 
 	diagnosis, err := service.CreateDiagnosis(context.Background(), CreateDiagnosisInput{
-		UserID:  42,
-		Goal:    "提升智能客服和市场分析能力",
-		Project: "智能客服系统",
+		UserID:         42,
+		Goal:           " 提升智能客服和市场分析能力 ",
+		Project:        " 智能客服系统 ",
+		FocusAbilities: []string{" 数据洞察能力 ", "数据洞察能力", "提示词工程实战"},
+		WeeklyTime:     " 5-8 小时 ",
+		Bottleneck:     " 缺少真实项目案例 ",
 	})
 
 	if err != nil {
@@ -118,6 +121,15 @@ func TestServiceCreatesCompletedDiagnosis(t *testing.T) {
 	}
 	if repository.created.UserID != 42 || repository.created.CreatedAt != now {
 		t.Fatalf("created = %+v", repository.created)
+	}
+	if repository.created.Goal != "提升智能客服和市场分析能力" || repository.created.Project != "智能客服系统" {
+		t.Fatalf("created text fields = %+v", repository.created)
+	}
+	if len(repository.created.FocusAbilities) != 2 || repository.created.FocusAbilities[0] != "数据洞察能力" {
+		t.Fatalf("created focus abilities = %+v", repository.created.FocusAbilities)
+	}
+	if repository.created.WeeklyTime != "5-8 小时" || repository.created.Bottleneck != "缺少真实项目案例" {
+		t.Fatalf("created intake = %+v", repository.created)
 	}
 }
 

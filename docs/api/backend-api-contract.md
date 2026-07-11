@@ -1379,13 +1379,18 @@ Request:
 ```json
 {
   "goal": "提升AI能力",
-  "project": "智能客服"
+  "project": "智能客服",
+  "focus_abilities": ["数据洞察能力"],
+  "weekly_time": "5-8 小时",
+  "bottleneck": "缺少真实项目案例"
 }
 ```
 
 Validation:
 
 - `goal` and `project` must be non-empty after trimming.
+- `focus_abilities` is normalized by trimming values and removing duplicates.
+- `weekly_time` and `bottleneck` are optional diagnosis intake context.
 - Client-supplied `user_id` is ignored.
 
 Response `200`: `LearningDiagnosis`

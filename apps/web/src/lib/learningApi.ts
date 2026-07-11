@@ -39,12 +39,23 @@ export type LearningDiagnosis = {
   user_id: number;
   goal: string;
   project: string;
+  focus_abilities: string[];
+  weekly_time: string;
+  bottleneck: string;
   status: string;
   overall_score: number;
   dimensions: LearningDimension[];
   recommendations: string[];
   created_at: string;
   updated_at: string;
+};
+
+export type CreateLearningDiagnosisInput = {
+  goal: string;
+  project: string;
+  focus_abilities: string[];
+  weekly_time: string;
+  bottleneck: string;
 };
 
 export type LearningGapItem = {
@@ -155,7 +166,7 @@ export const learningApi = {
     });
   },
 
-  createDiagnosis(input: { goal: string; project: string }) {
+  createDiagnosis(input: CreateLearningDiagnosisInput) {
     return apiRequest<LearningDiagnosis>("/api/v1/learning/diagnoses", {
       method: "POST",
       body: JSON.stringify(input)

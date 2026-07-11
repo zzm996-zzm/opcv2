@@ -89,6 +89,10 @@ func (r *PostgresRepository) ListProgress(ctx context.Context, userID int64) ([]
 }
 
 func (r *PostgresRepository) CreateDiagnosis(ctx context.Context, diagnosis Diagnosis) (Diagnosis, error) {
+	focusAbilities, err := json.Marshal(diagnosis.FocusAbilities)
+	if err != nil {
+		return Diagnosis{}, err
+	}
 	dimensions, err := json.Marshal(diagnosis.Dimensions)
 	if err != nil {
 		return Diagnosis{}, err
@@ -98,16 +102,16 @@ func (r *PostgresRepository) CreateDiagnosis(ctx context.Context, diagnosis Diag
 		return Diagnosis{}, err
 	}
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO learning_diagnoses (user_id, goal, project, status, overall_score, dimensions, recommendations, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+		INSERT INTO learning_diagnoses (user_id, goal, project, focus_abilities, weekly_time, bottleneck, status, overall_score, dimensions, recommendations, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 		RETURNING id, updated_at
-	`, diagnosis.UserID, diagnosis.Goal, diagnosis.Project, diagnosis.Status, diagnosis.OverallScore, dimensions, recommendations, diagnosis.CreatedAt).Scan(&diagnosis.ID, &diagnosis.UpdatedAt)
+	`, diagnosis.UserID, diagnosis.Goal, diagnosis.Project, focusAbilities, diagnosis.WeeklyTime, diagnosis.Bottleneck, diagnosis.Status, diagnosis.OverallScore, dimensions, recommendations, diagnosis.CreatedAt).Scan(&diagnosis.ID, &diagnosis.UpdatedAt)
 	return diagnosis, err
 }
 
 func (r *PostgresRepository) LatestDiagnosis(ctx context.Context, userID int64) (Diagnosis, error) {
 	diagnosis, err := scanDiagnosis(r.db.QueryRow(ctx, `
-		SELECT id, user_id, goal, project, status, overall_score, dimensions, recommendations, created_at, updated_at
+		SELECT id, user_id, goal, project, focus_abilities, weekly_time, bottleneck, status, overall_score, dimensions, recommendations, created_at, updated_at
 		FROM learning_diagnoses
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -159,6 +163,7 @@ type diagnosisScanner interface {
 
 func scanDiagnosis(scanner diagnosisScanner) (Diagnosis, error) {
 	var diagnosis Diagnosis
+	var focusAbilities []byte
 	var dimensions []byte
 	var recommendations []byte
 	if err := scanner.Scan(
@@ -166,6 +171,9 @@ func scanDiagnosis(scanner diagnosisScanner) (Diagnosis, error) {
 		&diagnosis.UserID,
 		&diagnosis.Goal,
 		&diagnosis.Project,
+		&focusAbilities,
+		&diagnosis.WeeklyTime,
+		&diagnosis.Bottleneck,
 		&diagnosis.Status,
 		&diagnosis.OverallScore,
 		&dimensions,
@@ -173,6 +181,9 @@ func scanDiagnosis(scanner diagnosisScanner) (Diagnosis, error) {
 		&diagnosis.CreatedAt,
 		&diagnosis.UpdatedAt,
 	); err != nil {
+		return Diagnosis{}, err
+	}
+	if err := json.Unmarshal(focusAbilities, &diagnosis.FocusAbilities); err != nil {
 		return Diagnosis{}, err
 	}
 	if err := json.Unmarshal(dimensions, &diagnosis.Dimensions); err != nil {

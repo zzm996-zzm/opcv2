@@ -60,7 +60,7 @@ func TestPostgresRepositoryGetsLatestDiagnosisForUser(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 15, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, user_id, goal, project, status, overall_score, dimensions, recommendations, created_at, updated_at
+		SELECT id, user_id, goal, project, focus_abilities, weekly_time, bottleneck, status, overall_score, dimensions, recommendations, created_at, updated_at
 		FROM learning_diagnoses
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -68,12 +68,15 @@ func TestPostgresRepositoryGetsLatestDiagnosisForUser(t *testing.T) {
 	`)).
 		WithArgs(int64(42)).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "goal", "project", "status", "overall_score", "dimensions", "recommendations", "created_at", "updated_at",
+			"id", "user_id", "goal", "project", "focus_abilities", "weekly_time", "bottleneck", "status", "overall_score", "dimensions", "recommendations", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
 			"提升AI能力",
 			"智能客服",
+			[]byte(`["数据洞察能力"]`),
+			"5-8 小时",
+			"缺少案例",
 			DiagnosisCompleted,
 			72,
 			[]byte(`[{"name":"市场分析能力","score":78,"gap":12,"summary":"具备基础判断能力"}]`),
@@ -87,7 +90,56 @@ func TestPostgresRepositoryGetsLatestDiagnosisForUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LatestDiagnosis() error = %v", err)
 	}
-	if diagnosis.ID != 99 || diagnosis.UserID != 42 || diagnosis.Dimensions[0].Name == "" {
+	if diagnosis.ID != 99 || diagnosis.UserID != 42 || diagnosis.Dimensions[0].Name == "" || diagnosis.FocusAbilities[0] != "数据洞察能力" || diagnosis.WeeklyTime != "5-8 小时" {
+		t.Fatalf("diagnosis = %+v", diagnosis)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryCreatesDiagnosisWithIntake(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 11, 15, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO learning_diagnoses (user_id, goal, project, focus_abilities, weekly_time, bottleneck, status, overall_score, dimensions, recommendations, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+		RETURNING id, updated_at
+	`)).WithArgs(
+		int64(42),
+		"提升AI能力",
+		"智能客服",
+		[]byte(`["数据洞察能力"]`),
+		"5-8 小时",
+		"缺少案例",
+		DiagnosisCompleted,
+		72,
+		pgxmock.AnyArg(),
+		pgxmock.AnyArg(),
+		now,
+	).WillReturnRows(pgxmock.NewRows([]string{"id", "updated_at"}).AddRow(int64(99), now))
+
+	repository := NewPostgresRepository(db)
+	diagnosis, err := repository.CreateDiagnosis(context.Background(), Diagnosis{
+		UserID:         42,
+		Goal:           "提升AI能力",
+		Project:        "智能客服",
+		FocusAbilities: []string{"数据洞察能力"},
+		WeeklyTime:     "5-8 小时",
+		Bottleneck:     "缺少案例",
+		Status:         DiagnosisCompleted,
+		OverallScore:   72,
+		CreatedAt:      now,
+	})
+	if err != nil {
+		t.Fatalf("CreateDiagnosis() error = %v", err)
+	}
+	if diagnosis.ID != 99 {
 		t.Fatalf("diagnosis = %+v", diagnosis)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {

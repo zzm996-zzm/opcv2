@@ -57,6 +57,9 @@ type Diagnosis struct {
 	UserID          int64       `json:"user_id"`
 	Goal            string      `json:"goal"`
 	Project         string      `json:"project"`
+	FocusAbilities  []string    `json:"focus_abilities"`
+	WeeklyTime      string      `json:"weekly_time"`
+	Bottleneck      string      `json:"bottleneck"`
 	Status          string      `json:"status"`
 	OverallScore    int         `json:"overall_score"`
 	Dimensions      []Dimension `json:"dimensions"`
@@ -66,9 +69,12 @@ type Diagnosis struct {
 }
 
 type CreateDiagnosisInput struct {
-	UserID  int64  `json:"-"`
-	Goal    string `json:"goal"`
-	Project string `json:"project"`
+	UserID         int64    `json:"-"`
+	Goal           string   `json:"goal"`
+	Project        string   `json:"project"`
+	FocusAbilities []string `json:"focus_abilities"`
+	WeeklyTime     string   `json:"weekly_time"`
+	Bottleneck     string   `json:"bottleneck"`
 }
 
 type GapItem struct {

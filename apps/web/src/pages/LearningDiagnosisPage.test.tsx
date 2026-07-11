@@ -81,6 +81,10 @@ describe("LearningDiagnosisPage", () => {
         <App />
       </MemoryRouter>
     );
+    fireEvent.click(screen.getByRole("button", { name: "拓展业务视野" }));
+    fireEvent.change(screen.getByLabelText("希望提升的能力"), { target: { value: "数据洞察能力" } });
+    fireEvent.click(screen.getByRole("button", { name: "5-8 小时" }));
+    fireEvent.change(screen.getByLabelText("当前最大卡点"), { target: { value: "缺少真实项目案例" } });
     fireEvent.click(screen.getByRole("link", { name: /开始能力诊断/ }));
 
     await waitFor(() => {
@@ -89,8 +93,11 @@ describe("LearningDiagnosisPage", () => {
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
-            goal: "提升专业能力",
-            project: "智能客服与市场分析"
+            goal: "拓展业务视野",
+            project: "智能客服与市场分析",
+            focus_abilities: ["数据洞察能力"],
+            weekly_time: "5-8 小时",
+            bottleneck: "缺少真实项目案例"
           })
         })
       );

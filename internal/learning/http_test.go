@@ -111,7 +111,7 @@ func TestHTTPHandlerCreatesDiagnosisForAuthenticatedUser(t *testing.T) {
 	NewHTTPHandler(app).RegisterProtected(group)
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/learning/diagnoses", strings.NewReader(`{"user_id":99,"goal":"提升AI能力","project":"智能客服"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/learning/diagnoses", strings.NewReader(`{"user_id":99,"goal":"提升AI能力","project":"智能客服","focus_abilities":["数据洞察能力"],"weekly_time":"5-8 小时","bottleneck":"缺少案例"}`))
 	request.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(recorder, request)
 
@@ -120,6 +120,9 @@ func TestHTTPHandlerCreatesDiagnosisForAuthenticatedUser(t *testing.T) {
 	}
 	if app.diagnosisInput.UserID != 42 {
 		t.Fatalf("diagnosis userID = %d, want authenticated user 42", app.diagnosisInput.UserID)
+	}
+	if len(app.diagnosisInput.FocusAbilities) != 1 || app.diagnosisInput.WeeklyTime != "5-8 小时" || app.diagnosisInput.Bottleneck != "缺少案例" {
+		t.Fatalf("diagnosis input = %+v", app.diagnosisInput)
 	}
 	if !strings.Contains(recorder.Body.String(), `"id":99`) {
 		t.Fatalf("body = %s", recorder.Body.String())

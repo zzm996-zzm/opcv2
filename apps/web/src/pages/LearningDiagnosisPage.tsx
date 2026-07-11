@@ -34,6 +34,10 @@ const analysisItems = [
 
 function LearningDiagnosisPage() {
   const navigate = useNavigate();
+  const [goal, setGoal] = useState(focusTags[0]);
+  const [focusAbility, setFocusAbility] = useState("");
+  const [weeklyTime, setWeeklyTime] = useState(timeTags[1]);
+  const [bottleneck, setBottleneck] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
 
@@ -44,8 +48,11 @@ function LearningDiagnosisPage() {
     setStartError("");
     try {
       const diagnosis = await learningApi.createDiagnosis({
-        goal: "提升专业能力",
-        project: "智能客服与市场分析"
+        goal,
+        project: "智能客服与市场分析",
+        focus_abilities: focusAbility ? [focusAbility] : [],
+        weekly_time: weeklyTime,
+        bottleneck
       });
       navigate("/learning/assessment", { state: { diagnosis } });
     } catch {
@@ -115,30 +122,50 @@ function LearningDiagnosisPage() {
               <div className="goal-row">
                 <span>目标方向</span>
                 <div className="goal-chips">
-                  {focusTags.map((tag, index) => (
-                    <button className={index === 0 ? "active" : ""} key={tag} type="button">{tag}</button>
+                  {focusTags.map((tag) => (
+                    <button
+                      className={goal === tag ? "active" : ""}
+                      key={tag}
+                      onClick={() => setGoal(tag)}
+                      type="button"
+                    >
+                      {tag}
+                    </button>
                   ))}
                 </div>
               </div>
               <label className="diagnosis-field">
                 <span>希望提升的能力</span>
-                <select defaultValue="">
+                <select aria-label="希望提升的能力" onChange={(event) => setFocusAbility(event.target.value)} value={focusAbility}>
                   <option value="" disabled>请选择核心想要提升的能力（可多选）</option>
-                  <option>智能客服方案设计</option>
+                  {analysisItems.map(([title]) => <option key={title}>{title}</option>)}
                 </select>
               </label>
               <div className="goal-row">
                 <span>每周可投入时间</span>
                 <div className="goal-chips">
-                  {timeTags.map((tag, index) => (
-                    <button className={index === 1 ? "active" : ""} key={tag} type="button">{tag}</button>
+                  {timeTags.map((tag) => (
+                    <button
+                      className={weeklyTime === tag ? "active" : ""}
+                      key={tag}
+                      onClick={() => setWeeklyTime(tag)}
+                      type="button"
+                    >
+                      {tag}
+                    </button>
                   ))}
                 </div>
               </div>
               <label className="diagnosis-field textarea">
                 <span>当前最大卡点</span>
-                <textarea maxLength={100} placeholder="请描述你当前遇到的主要困难或挑战（选填）" />
-                <small>0/100</small>
+                <textarea
+                  aria-label="当前最大卡点"
+                  maxLength={100}
+                  onChange={(event) => setBottleneck(event.target.value)}
+                  placeholder="请描述你当前遇到的主要困难或挑战（选填）"
+                  value={bottleneck}
+                />
+                <small>{bottleneck.length}/100</small>
               </label>
             </section>
 
