@@ -556,6 +556,9 @@ func (fakeGrowthApp) AnswerDraft(context.Context, growth.AnswerDraftInput) (grow
 func (fakeGrowthApp) CalculateDraft(context.Context, growth.CalculateDraftInput) (growth.DraftCalculation, error) {
 	return growth.DraftCalculation{Draft: growth.Draft{ID: 71, Status: growth.DraftStatusCalculated}, Model: growth.Model{ID: 99}}, nil
 }
+func (fakeGrowthApp) ListSnapshots(context.Context, int64, int64, int) ([]growth.ModelSnapshot, error) {
+	return []growth.ModelSnapshot{}, nil
+}
 func (fakeGrowthApp) ListModels(context.Context, int64, int) ([]growth.Model, error) {
 	return []growth.Model{{ID: 99, UserID: 42, Name: "标准方案"}}, nil
 }

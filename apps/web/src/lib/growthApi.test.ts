@@ -76,4 +76,17 @@ describe("growthApi", () => {
       method: "POST"
     }));
   });
+
+  it("lists persisted model snapshots", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ snapshots: [{ id: 501, model_id: 99 }] }), { status: 200 })
+    );
+
+    await growthApi.listSnapshots(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/99/snapshots",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
 });

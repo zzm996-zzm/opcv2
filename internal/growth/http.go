@@ -23,6 +23,7 @@ type Application interface {
 	ModelScenarios(ctx context.Context, userID, id int64) (GrowthScenarios, error)
 	ModelForecast(ctx context.Context, userID, id int64) (GrowthForecast, error)
 	ModelRecommendations(ctx context.Context, userID, id int64) (GrowthRecommendations, error)
+	ListSnapshots(ctx context.Context, userID, modelID int64, limit int) ([]ModelSnapshot, error)
 }
 
 type HTTPHandler struct {
@@ -44,6 +45,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/growth/models/:id/scenarios", h.modelScenarios)
 	router.GET("/growth/models/:id/forecast", h.modelForecast)
 	router.GET("/growth/models/:id/recommendations", h.modelRecommendations)
+	router.GET("/growth/models/:id/snapshots", h.listSnapshots)
 }
 
 func (h *HTTPHandler) createDraft(c *gin.Context) {
@@ -206,6 +208,23 @@ func (h *HTTPHandler) modelRecommendations(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, recommendations)
+}
+
+func (h *HTTPHandler) listSnapshots(c *gin.Context) {
+	id, ok := modelIDParam(c)
+	if !ok {
+		return
+	}
+	limit, ok := httpapi.QueryLimit(c, 20, 100)
+	if !ok {
+		return
+	}
+	snapshots, err := h.app.ListSnapshots(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"snapshots": httpapi.EnsureSlice(snapshots)})
 }
 
 func modelIDParam(c *gin.Context) (int64, bool) {

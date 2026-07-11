@@ -35,6 +35,9 @@ func (r *PostgresRepository) CreateModel(ctx context.Context, model Model) (Mode
 		VALUES ($1, $2, $3, $4, $5, $5)
 		RETURNING id
 	`, model.UserID, model.Name, assumptions, result, model.CreatedAt).Scan(&model.ID)
+	if err == nil {
+		model.UpdatedAt = model.CreatedAt
+	}
 	return model, err
 }
 
@@ -94,6 +97,61 @@ func (r *PostgresRepository) UpdateDraft(ctx context.Context, draft Draft) (Draf
 		return Draft{}, ErrDraftNotFound
 	}
 	return draft, err
+}
+
+func (r *PostgresRepository) CreateSnapshot(ctx context.Context, snapshot ModelSnapshot) (ModelSnapshot, error) {
+	assumptions, err := json.Marshal(snapshot.Assumptions)
+	if err != nil {
+		return ModelSnapshot{}, err
+	}
+	result, err := json.Marshal(snapshot.Result)
+	if err != nil {
+		return ModelSnapshot{}, err
+	}
+	scenarios, err := json.Marshal(snapshot.Scenarios)
+	if err != nil {
+		return ModelSnapshot{}, err
+	}
+	forecast, err := json.Marshal(snapshot.Forecast)
+	if err != nil {
+		return ModelSnapshot{}, err
+	}
+	recommendations, err := json.Marshal(snapshot.Recommendations)
+	if err != nil {
+		return ModelSnapshot{}, err
+	}
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO growth_model_snapshots (user_id, model_id, model_name, assumptions, result, scenarios, forecast, recommendations, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id
+	`, snapshot.UserID, snapshot.ModelID, snapshot.ModelName, assumptions, result, scenarios, forecast, recommendations, snapshot.CreatedAt).Scan(&snapshot.ID)
+	return snapshot, err
+}
+
+func (r *PostgresRepository) ListSnapshots(ctx context.Context, userID, modelID int64, limit int) ([]ModelSnapshot, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, model_id, model_name, assumptions, result, scenarios, forecast, recommendations, created_at
+		FROM growth_model_snapshots
+		WHERE user_id = $1 AND model_id = $2
+		ORDER BY created_at DESC
+		LIMIT $3
+	`, userID, modelID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var snapshots []ModelSnapshot
+	for rows.Next() {
+		snapshot, err := scanSnapshot(rows)
+		if err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return snapshots, nil
 }
 
 func (r *PostgresRepository) ListModels(ctx context.Context, userID int64, limit int) ([]Model, error) {
@@ -186,4 +244,28 @@ func nullableInt64(value *int64) any {
 		return nil
 	}
 	return *value
+}
+
+func scanSnapshot(scanner modelScanner) (ModelSnapshot, error) {
+	var snapshot ModelSnapshot
+	var assumptions, result, scenarios, forecast, recommendations []byte
+	if err := scanner.Scan(&snapshot.ID, &snapshot.UserID, &snapshot.ModelID, &snapshot.ModelName, &assumptions, &result, &scenarios, &forecast, &recommendations, &snapshot.CreatedAt); err != nil {
+		return ModelSnapshot{}, err
+	}
+	if err := json.Unmarshal(assumptions, &snapshot.Assumptions); err != nil {
+		return ModelSnapshot{}, err
+	}
+	if err := json.Unmarshal(result, &snapshot.Result); err != nil {
+		return ModelSnapshot{}, err
+	}
+	if err := json.Unmarshal(scenarios, &snapshot.Scenarios); err != nil {
+		return ModelSnapshot{}, err
+	}
+	if err := json.Unmarshal(forecast, &snapshot.Forecast); err != nil {
+		return ModelSnapshot{}, err
+	}
+	if err := json.Unmarshal(recommendations, &snapshot.Recommendations); err != nil {
+		return ModelSnapshot{}, err
+	}
+	return snapshot, nil
 }

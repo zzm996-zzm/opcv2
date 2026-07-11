@@ -9,7 +9,8 @@ import {
   type GrowthForecast,
   type GrowthModel,
   type GrowthRecommendations,
-  type GrowthScenarios
+  type GrowthScenarios,
+  type GrowthSnapshot
 } from "../lib/growthApi";
 
 const emptyGrowthStats = [
@@ -105,6 +106,8 @@ function GrowthCalculatorPage() {
   const [businessInput, setBusinessInput] = useState("");
   const [draftAnswers, setDraftAnswers] = useState<Record<string, string>>({});
   const [draftError, setDraftError] = useState("");
+  const [snapshots, setSnapshots] = useState<GrowthSnapshot[]>([]);
+  const [selectedSnapshotID, setSelectedSnapshotID] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -130,12 +133,16 @@ function GrowthCalculatorPage() {
         setScenarioView(scenariosPayload);
         setForecastView(forecastPayload);
         setRecommendationView(recommendationsPayload);
+        const snapshotPayload = await growthApi.listSnapshots(model.id).catch(() => ({ snapshots: [] }));
+        if (!active) return;
+        setSnapshots(snapshotPayload.snapshots);
       } catch (error) {
         if (!active) return;
         setLatestModel(null);
         setScenarioView(null);
         setForecastView(null);
         setRecommendationView(null);
+        setSnapshots([]);
         setLoadError(apiErrorMessage(error, "暂时无法读取测算模型"));
       }
     }
@@ -212,6 +219,9 @@ function GrowthCalculatorPage() {
       setDraft(calculation.draft);
       setLatestModel(calculation.model);
       await loadModelViews(calculation.model);
+      if (calculation.snapshot) {
+        setSnapshots((current) => [calculation.snapshot, ...current.filter((item) => item.id !== calculation.snapshot.id)]);
+      }
     } catch (error) {
       setDraftError(apiErrorMessage(error, "暂时无法生成测算结果"));
     } finally {
@@ -226,6 +236,24 @@ function GrowthCalculatorPage() {
     setDraftError("");
   }
 
+  function restoreSnapshot(snapshotID: string) {
+    setSelectedSnapshotID(snapshotID);
+    const snapshot = snapshots.find((item) => item.id === Number(snapshotID));
+    if (!snapshot) return;
+    setLatestModel({
+      id: snapshot.model_id,
+      user_id: snapshot.user_id,
+      name: snapshot.model_name,
+      assumptions: snapshot.assumptions,
+      result: snapshot.result,
+      created_at: snapshot.created_at,
+      updated_at: snapshot.created_at
+    });
+    setScenarioView(snapshot.scenarios);
+    setForecastView(snapshot.forecast);
+    setRecommendationView(snapshot.recommendations);
+  }
+
   return (
     <V4PageShell className="growth-calculator-shell">
       <section className="module-page growth-calculator-page" aria-label="增长测算">
@@ -234,9 +262,22 @@ function GrowthCalculatorPage() {
             <h1>增长测算</h1>
             <p>用访问量、转化率、客单价、获客成本和交付成本，提前算清楚增长动作的收入和利润边界</p>
           </div>
-          <button className="module-primary-action" disabled={isSaving} onClick={resetDraft} type="button">
-            新建测算
-          </button>
+          <div className="growth-page-actions">
+            {snapshots.length > 0 ? (
+              <label>
+                <span>历史测算</span>
+                <select aria-label="历史测算" onChange={(event) => restoreSnapshot(event.target.value)} value={selectedSnapshotID}>
+                  <option value="">当前结果</option>
+                  {snapshots.map((snapshot) => (
+                    <option key={snapshot.id} value={snapshot.id}>{new Date(snapshot.created_at).toLocaleString("zh-CN")}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <button className="module-primary-action" disabled={isSaving} onClick={resetDraft} type="button">
+              新建测算
+            </button>
+          </div>
         </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
 

@@ -23,6 +23,12 @@ func (r *fakeRepository) GetDraft(_ context.Context, _, _ int64) (Draft, error) 
 func (r *fakeRepository) UpdateDraft(_ context.Context, draft Draft) (Draft, error) {
 	return draft, r.err
 }
+func (r *fakeRepository) CreateSnapshot(_ context.Context, snapshot ModelSnapshot) (ModelSnapshot, error) {
+	return snapshot, r.err
+}
+func (r *fakeRepository) ListSnapshots(_ context.Context, _, _ int64, _ int) ([]ModelSnapshot, error) {
+	return nil, r.err
+}
 
 func (r *fakeRepository) CreateModel(_ context.Context, model Model) (Model, error) {
 	r.created = model

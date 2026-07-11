@@ -96,8 +96,22 @@ type CalculateDraftInput struct {
 }
 
 type DraftCalculation struct {
-	Draft Draft `json:"draft"`
-	Model Model `json:"model"`
+	Draft    Draft         `json:"draft"`
+	Model    Model         `json:"model"`
+	Snapshot ModelSnapshot `json:"snapshot"`
+}
+
+type ModelSnapshot struct {
+	ID              int64                 `json:"id"`
+	UserID          int64                 `json:"user_id"`
+	ModelID         int64                 `json:"model_id"`
+	ModelName       string                `json:"model_name"`
+	Assumptions     Assumptions           `json:"assumptions"`
+	Result          Result                `json:"result"`
+	Scenarios       GrowthScenarios       `json:"scenarios"`
+	Forecast        GrowthForecast        `json:"forecast"`
+	Recommendations GrowthRecommendations `json:"recommendations"`
+	CreatedAt       time.Time             `json:"created_at"`
 }
 
 type GrowthScenario struct {

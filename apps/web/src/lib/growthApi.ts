@@ -93,6 +93,19 @@ export type GrowthDraft = {
   updated_at: string;
 };
 
+export type GrowthSnapshot = {
+  id: number;
+  user_id: number;
+  model_id: number;
+  model_name: string;
+  assumptions: GrowthAssumptions;
+  result: GrowthResult;
+  scenarios: GrowthScenarios;
+  forecast: GrowthForecast;
+  recommendations: GrowthRecommendations;
+  created_at: string;
+};
+
 export const growthApi = {
   createDraft(input: string) {
     return apiRequest<GrowthDraft>("/api/v1/growth/drafts", {
@@ -113,10 +126,14 @@ export const growthApi = {
   },
 
   calculateDraft(id: number, name?: string) {
-    return apiRequest<{ draft: GrowthDraft; model: GrowthModel }>(`/api/v1/growth/drafts/${id}/calculate`, {
+    return apiRequest<{ draft: GrowthDraft; model: GrowthModel; snapshot: GrowthSnapshot }>(`/api/v1/growth/drafts/${id}/calculate`, {
       method: "POST",
       body: JSON.stringify(name ? { name } : {})
     });
+  },
+
+  listSnapshots(id: number) {
+    return apiRequest<{ snapshots: GrowthSnapshot[] }>(`/api/v1/growth/models/${id}/snapshots`, { method: "GET" });
   },
 
   createModel(input: {

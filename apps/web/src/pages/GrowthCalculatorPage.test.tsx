@@ -122,6 +122,20 @@ describe("GrowthCalculatorPage", () => {
           generated_at: "2026-06-30T08:30:00Z"
         }), { status: 200 }));
       }
+      if (url === "/api/v1/growth/models/9/snapshots") {
+        return Promise.resolve(new Response(JSON.stringify({ snapshots: [{
+          id: 501,
+          user_id: 7,
+          model_id: 9,
+          model_name: "商业沙盘标准模型 · 初版",
+          assumptions: { monthly_visits: 10000, lead_rate: 0.05, deal_rate: 0.1, average_order: 2000, acquisition_cost: 50, delivery_cost: 40000 },
+          result: { monthly_revenue: 100000, leads: 500, deals: 50, payback_days: 20, net_margin: 0.35 },
+          scenarios: { model_id: 9, model_name: "商业沙盘标准模型 · 初版", scenarios: [], generated_at: "2026-06-20T08:00:00Z" },
+          forecast: { model_id: 9, model_name: "商业沙盘标准模型 · 初版", months: [], generated_at: "2026-06-20T08:00:00Z" },
+          recommendations: { model_id: 9, model_name: "商业沙盘标准模型 · 初版", headline: "先验证渠道", summary: "初版测算", cost_items: [], action_items: ["验证首个获客渠道"], generated_at: "2026-06-20T08:00:00Z" },
+          created_at: "2026-06-20T08:00:00Z"
+        }] }), { status: 200 }));
+      }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
 
@@ -135,6 +149,11 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.getByText("案例页和行业内容")).toBeInTheDocument();
     expect(screen.getByText("先优化高意向成交")).toBeInTheDocument();
     expect(screen.getByText("把 CRM 跟进延迟压缩到 24 小时内")).toBeInTheDocument();
+
+    fireEvent.change(await screen.findByRole("combobox", { name: "历史测算" }), { target: { value: "501" } });
+    expect(await screen.findByText("商业沙盘标准模型 · 初版")).toBeInTheDocument();
+    expect(screen.getAllByText("¥100,000").length).toBeGreaterThan(0);
+    expect(screen.getByText("验证首个获客渠道")).toBeInTheDocument();
   });
 
   it("shows backend load errors without rendering fallback model values", async () => {

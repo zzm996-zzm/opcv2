@@ -17,6 +17,8 @@ type Repository interface {
 	CreateDraft(ctx context.Context, draft Draft) (Draft, error)
 	GetDraft(ctx context.Context, userID, id int64) (Draft, error)
 	UpdateDraft(ctx context.Context, draft Draft) (Draft, error)
+	CreateSnapshot(ctx context.Context, snapshot ModelSnapshot) (ModelSnapshot, error)
+	ListSnapshots(ctx context.Context, userID, modelID int64, limit int) ([]ModelSnapshot, error)
 }
 
 type Service struct {
@@ -102,6 +104,27 @@ func (s *Service) CalculateDraft(ctx context.Context, input CalculateDraftInput)
 	if err != nil {
 		return DraftCalculation{}, err
 	}
+	scenarios, err := s.ModelScenarios(ctx, input.UserID, model.ID)
+	if err != nil {
+		return DraftCalculation{}, err
+	}
+	forecast, err := s.ModelForecast(ctx, input.UserID, model.ID)
+	if err != nil {
+		return DraftCalculation{}, err
+	}
+	recommendations, err := s.ModelRecommendations(ctx, input.UserID, model.ID)
+	if err != nil {
+		return DraftCalculation{}, err
+	}
+	snapshot, err := s.repository.CreateSnapshot(ctx, ModelSnapshot{
+		UserID: input.UserID, ModelID: model.ID, ModelName: model.Name,
+		Assumptions: model.Assumptions, Result: model.Result,
+		Scenarios: scenarios, Forecast: forecast, Recommendations: recommendations,
+		CreatedAt: s.now(),
+	})
+	if err != nil {
+		return DraftCalculation{}, err
+	}
 	draft.Status = DraftStatusCalculated
 	draft.ModelID = &model.ID
 	draft.UpdatedAt = s.now()
@@ -109,7 +132,20 @@ func (s *Service) CalculateDraft(ctx context.Context, input CalculateDraftInput)
 	if err != nil {
 		return DraftCalculation{}, err
 	}
-	return DraftCalculation{Draft: draft, Model: model}, nil
+	return DraftCalculation{Draft: draft, Model: model, Snapshot: snapshot}, nil
+}
+
+func (s *Service) ListSnapshots(ctx context.Context, userID, modelID int64, limit int) ([]ModelSnapshot, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if _, err := s.repository.GetModel(ctx, userID, modelID); err != nil {
+		return nil, err
+	}
+	return s.repository.ListSnapshots(ctx, userID, modelID, limit)
 }
 
 var assumptionPatterns = map[string]*regexp.Regexp{

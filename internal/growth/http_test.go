@@ -27,6 +27,12 @@ type fakeApplication struct {
 	draftInput      CreateDraftInput
 	answerInput     AnswerDraftInput
 	calculateInput  CalculateDraftInput
+	snapshots       []ModelSnapshot
+}
+
+func (a *fakeApplication) ListSnapshots(_ context.Context, userID, modelID int64, limit int) ([]ModelSnapshot, error) {
+	a.userID, a.modelID, a.limit = userID, modelID, limit
+	return a.snapshots, a.err
 }
 
 func (a *fakeApplication) CreateDraft(_ context.Context, input CreateDraftInput) (Draft, error) {
@@ -150,6 +156,19 @@ func TestDraftEndpointsUseAuthenticatedUser(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK || app.calculateInput.UserID != 42 || app.calculateInput.DraftID != 71 {
 		t.Fatalf("calculate status/input = %d/%+v body=%s", recorder.Code, app.calculateInput, recorder.Body.String())
+	}
+}
+
+func TestListSnapshotsEndpointUsesOwnedModel(t *testing.T) {
+	app := &fakeApplication{snapshots: []ModelSnapshot{{ID: 501, UserID: 42, ModelID: 99}}}
+	router := growthTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/growth/models/99/snapshots", nil))
+	if recorder.Code != http.StatusOK || app.userID != 42 || app.modelID != 99 || app.limit != 20 {
+		t.Fatalf("status/user/model/limit = %d/%d/%d/%d body=%s", recorder.Code, app.userID, app.modelID, app.limit, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"snapshots"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }
 
