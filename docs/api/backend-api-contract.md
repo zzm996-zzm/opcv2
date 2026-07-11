@@ -308,7 +308,7 @@ Validation:
 - Supported source types are `analysis_session`, `project_match`,
   `sandbox_session`, `competitor_scan`, `competitor_monitoring`,
   `enterprise_diagnosis`, `lead_task`, `crm_customer`, and
-  `learning_diagnosis`.
+  `learning_diagnosis`, `growth_model`.
 - Client-supplied `user_id` is ignored.
 
 Response `200`: `Task`

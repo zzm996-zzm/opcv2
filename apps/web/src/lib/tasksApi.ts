@@ -12,7 +12,8 @@ export type TaskSourceType =
   | "enterprise_diagnosis"
   | "lead_task"
   | "crm_customer"
-  | "learning_diagnosis";
+  | "learning_diagnosis"
+  | "growth_model";
 
 export type Task = {
   id: number;

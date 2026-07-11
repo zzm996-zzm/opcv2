@@ -277,6 +277,21 @@ func TestServiceCreatesTaskWithNormalizedSource(t *testing.T) {
 	}
 }
 
+func TestServiceAcceptsGrowthModelSource(t *testing.T) {
+	sourceID := int64(99)
+	repository := &fakeRepository{}
+	service := NewService(repository)
+
+	_, err := service.CreateTask(context.Background(), CreateInput{
+		UserID: 42, Title: "优化成交转化率", Project: "增长测算", Priority: PriorityHigh,
+		SourceType: SourceGrowthModel, SourceID: &sourceID, SourceTitle: "企业培训增长测算", SourceURL: "/growth-calculator",
+	})
+
+	if err != nil || repository.created.SourceType != SourceGrowthModel {
+		t.Fatalf("err/source = %v/%+v", err, repository.created)
+	}
+}
+
 func TestServiceRejectsUnsafeTaskSource(t *testing.T) {
 	repository := &fakeRepository{}
 	service := NewService(repository)

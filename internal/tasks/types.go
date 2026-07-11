@@ -28,6 +28,7 @@ const (
 	SourceLeadTask             = "lead_task"
 	SourceCRMCustomer          = "crm_customer"
 	SourceLearningDiagnosis    = "learning_diagnosis"
+	SourceGrowthModel          = "growth_model"
 )
 
 var (

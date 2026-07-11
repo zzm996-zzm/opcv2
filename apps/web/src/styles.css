@@ -11599,7 +11599,7 @@ a {
   font-weight: 820;
 }
 
-.growth-action-card a {
+.growth-action-card > button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -11612,6 +11612,13 @@ a {
   border-radius: 10px;
   font-size: 13px;
   font-weight: 850;
+  border: 0;
+  cursor: pointer;
+}
+
+.growth-action-card > button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
 }
 
 .geo-acquisition-page {

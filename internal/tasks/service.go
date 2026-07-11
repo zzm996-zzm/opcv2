@@ -99,7 +99,7 @@ func validTaskSource(sourceType string, sourceID *int64, sourceTitle, sourceURL 
 	switch sourceType {
 	case SourceAnalysisSession, SourceProjectMatch, SourceSandboxSession, SourceCompetitorScan,
 		SourceCompetitorMonitoring, SourceEnterpriseDiagnosis, SourceLeadTask, SourceCRMCustomer,
-		SourceLearningDiagnosis:
+		SourceLearningDiagnosis, SourceGrowthModel:
 	default:
 		return false
 	}

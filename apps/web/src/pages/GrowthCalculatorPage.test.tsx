@@ -54,7 +54,7 @@ describe("GrowthCalculatorPage", () => {
   });
 
   it("loads the latest growth model from API", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/growth/models") {
         return Promise.resolve(new Response(JSON.stringify({
@@ -136,6 +136,9 @@ describe("GrowthCalculatorPage", () => {
           created_at: "2026-06-20T08:00:00Z"
         }] }), { status: 200 }));
       }
+      if (url === "/api/v1/tasks/generate" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [{ id: 801 }, { id: 802 }] }), { status: 200 }));
+      }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
 
@@ -149,6 +152,22 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.getByText("案例页和行业内容")).toBeInTheDocument();
     expect(screen.getByText("先优化高意向成交")).toBeInTheDocument();
     expect(screen.getByText("把 CRM 跟进延迟压缩到 24 小时内")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "生成增长任务" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/tasks/generate",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          goal: "执行商业沙盘标准模型的增长优化：把 CRM 跟进延迟压缩到 24 小时内；先提高成交率再增加预算",
+          source_type: "growth_model",
+          source_id: 9,
+          source_title: "商业沙盘标准模型",
+          source_url: "/growth-calculator"
+        })
+      })
+    ));
+    expect(await screen.findByText("已创建 2 个增长任务")).toBeInTheDocument();
 
     fireEvent.change(await screen.findByRole("combobox", { name: "历史测算" }), { target: { value: "501" } });
     expect(await screen.findByText("商业沙盘标准模型 · 初版")).toBeInTheDocument();

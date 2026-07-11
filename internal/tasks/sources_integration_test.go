@@ -32,12 +32,12 @@ func TestPostgresRepositoryPersistsTaskSourceIntegration(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = db.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, userID) })
 
-	sourceID := int64(11)
+	sourceID := int64(99)
 	repository := NewPostgresRepository(db)
 	created, err := repository.CreateTask(ctx, Task{
-		UserID: userID, Title: "反击竞品更新", Project: "竞品动态监测", Status: StatusTodo, Priority: PriorityHigh,
-		Tags: []string{}, Tools: []string{}, SourceType: SourceCompetitorScan, SourceID: &sourceID,
-		SourceTitle: "竞品扫描：商业沙盘竞品", SourceURL: "/competitor-data", CreatedAt: time.Now().UTC(),
+		UserID: userID, Title: "优化成交转化率", Project: "增长测算", Status: StatusTodo, Priority: PriorityHigh,
+		Tags: []string{}, Tools: []string{}, SourceType: SourceGrowthModel, SourceID: &sourceID,
+		SourceTitle: "企业培训增长测算", SourceURL: "/growth-calculator", CreatedAt: time.Now().UTC(),
 	})
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -47,7 +47,7 @@ func TestPostgresRepositoryPersistsTaskSourceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTask() error = %v", err)
 	}
-	if loaded.SourceType != SourceCompetitorScan || loaded.SourceID == nil || *loaded.SourceID != sourceID || loaded.SourceTitle != "竞品扫描：商业沙盘竞品" || loaded.SourceURL != "/competitor-data" {
+	if loaded.SourceType != SourceGrowthModel || loaded.SourceID == nil || *loaded.SourceID != sourceID || loaded.SourceTitle != "企业培训增长测算" || loaded.SourceURL != "/growth-calculator" {
 		t.Fatalf("loaded source = %+v", loaded)
 	}
 }

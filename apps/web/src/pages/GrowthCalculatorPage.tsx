@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
+import { tasksApi } from "../lib/tasksApi";
 import {
   growthApi,
   type GrowthDraft,
@@ -108,6 +107,9 @@ function GrowthCalculatorPage() {
   const [draftError, setDraftError] = useState("");
   const [snapshots, setSnapshots] = useState<GrowthSnapshot[]>([]);
   const [selectedSnapshotID, setSelectedSnapshotID] = useState("");
+  const [syncingTasks, setSyncingTasks] = useState(false);
+  const [taskSyncMessage, setTaskSyncMessage] = useState("");
+  const [taskSyncError, setTaskSyncError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -252,6 +254,31 @@ function GrowthCalculatorPage() {
     setScenarioView(snapshot.scenarios);
     setForecastView(snapshot.forecast);
     setRecommendationView(snapshot.recommendations);
+    setTaskSyncMessage("");
+    setTaskSyncError("");
+  }
+
+  async function syncToTaskCenter() {
+    if (!latestModel || !recommendationView || syncingTasks) return;
+    setSyncingTasks(true);
+    setTaskSyncMessage("");
+    setTaskSyncError("");
+    try {
+      const result = await tasksApi.generateTasks(
+        `执行${recommendationView.model_name}的增长优化：${recommendationView.action_items.join("；")}`,
+        {
+          sourceType: "growth_model",
+          sourceId: recommendationView.model_id,
+          sourceTitle: recommendationView.model_name,
+          sourceUrl: "/growth-calculator"
+        }
+      );
+      setTaskSyncMessage(`已创建 ${result.tasks.length} 个增长任务`);
+    } catch {
+      setTaskSyncError("同步任务失败，请稍后重试");
+    } finally {
+      setSyncingTasks(false);
+    }
   }
 
   return (
@@ -461,7 +488,11 @@ function GrowthCalculatorPage() {
             <div>
               {visibleActionItems.length === 0 ? <span>暂无行动建议</span> : visibleActionItems.map((item) => <span key={item}>{item}</span>)}
             </div>
-            <Link to="/tasks">生成增长任务</Link>
+            <button disabled={!latestModel || !recommendationView || syncingTasks} onClick={() => void syncToTaskCenter()} type="button">
+              {syncingTasks ? "生成中..." : "生成增长任务"}
+            </button>
+            {taskSyncMessage ? <p className="form-success" role="status">{taskSyncMessage}</p> : null}
+            {taskSyncError ? <p className="form-error" role="alert">{taskSyncError}</p> : null}
           </aside>
         </section>
       </section>
