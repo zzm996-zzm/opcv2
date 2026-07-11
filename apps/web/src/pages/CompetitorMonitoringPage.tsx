@@ -165,7 +165,10 @@ function CompetitorMonitoringPage() {
         project: "竞品动态监测",
         priority: firstAlert[4] === "强" ? "high" : "medium",
         tools: ["竞品动态监测", "任务中心"],
-        learning: firstAlert[3]
+        learning: firstAlert[3],
+        sourceType: "competitor_monitoring",
+        sourceTitle: `竞品监测：${firstAlert[1]} ${firstAlert[2]}`,
+        sourceUrl: "/competitor-monitoring"
       });
       setLoadError("");
       setGeneratedTaskCount((count) => count + 1);

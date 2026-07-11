@@ -18,6 +18,8 @@ type TaskRow = {
   tags: string[];
   tools: string[];
   learning: string;
+  sourceTitle?: string;
+  sourceURL?: string;
 };
 
 type TaskView = "list" | "board" | "calendar";
@@ -144,7 +146,9 @@ function toTaskRow(task: Task): TaskRow {
     due: formatDueAt(task.due_at),
     tags: task.tags ?? [],
     tools: task.tools,
-    learning: task.learning
+    learning: task.learning,
+    sourceTitle: task.source_title,
+    sourceURL: task.source_url
   };
 }
 
@@ -837,6 +841,7 @@ function TasksPage() {
                           {task.tags.map((tag) => <span key={tag}>{tag}</span>)}
                         </div>
                       ) : null}
+                      {task.sourceTitle && task.sourceURL ? <Link className="task-source-link" to={task.sourceURL}>来源：{task.sourceTitle}</Link> : null}
                     </div>
                     <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>
                     <span className="task-state">{task.status}</span>
@@ -1005,6 +1010,15 @@ function TasksPage() {
                       <textarea onChange={(event) => updateDetailField("learning", event.target.value)} value={detailForm.learning} />
                     </label>
                   </div>
+                  {detailTask.source_title && detailTask.source_url ? (
+                    <section aria-label="任务来源" className="task-source-section">
+                      <div>
+                        <h3>任务来源</h3>
+                        <p>{detailTask.source_title}</p>
+                      </div>
+                      <Link aria-label={`查看来源：${detailTask.source_title}`} to={detailTask.source_url}>查看来源</Link>
+                    </section>
+                  ) : null}
                   <section aria-label="提醒设置" className="task-reminder-section">
                     <header>
                       <h3>提醒设置</h3>

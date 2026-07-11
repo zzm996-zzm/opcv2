@@ -25143,6 +25143,50 @@ a {
   box-shadow: 0 0 0 3px rgba(21, 87, 255, 0.1);
 }
 
+.task-source-link {
+  width: fit-content;
+  color: #1557ff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.task-source-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 22px;
+  padding: 16px;
+  background: #f6f9ff;
+  border: 1px solid rgba(31, 68, 140, 0.12);
+  border-radius: 8px;
+}
+
+.task-source-section h3,
+.task-source-section p {
+  margin: 0;
+}
+
+.task-source-section h3 {
+  color: #071637;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.task-source-section p {
+  margin-top: 4px;
+  color: #6377a5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.task-source-section > a {
+  flex: 0 0 auto;
+  color: #1557ff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .task-reminder-section {
   display: grid;
   gap: 12px;

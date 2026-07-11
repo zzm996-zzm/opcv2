@@ -63,6 +63,12 @@ func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, erro
 	if s.repository == nil {
 		return Task{}, ErrServiceNotReady
 	}
+	input.SourceType = strings.TrimSpace(input.SourceType)
+	input.SourceTitle = strings.TrimSpace(input.SourceTitle)
+	input.SourceURL = strings.TrimSpace(input.SourceURL)
+	if !validTaskSource(input.SourceType, input.SourceID, input.SourceTitle, input.SourceURL) {
+		return Task{}, ErrInvalidTaskSource
+	}
 	task := Task{
 		UserID:      input.UserID,
 		Title:       strings.TrimSpace(input.Title),
@@ -75,9 +81,32 @@ func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, erro
 		DueAt:       input.DueAt,
 		Tools:       normalizeStrings(input.Tools),
 		Learning:    strings.TrimSpace(input.Learning),
+		SourceType:  input.SourceType,
+		SourceID:    input.SourceID,
+		SourceTitle: input.SourceTitle,
+		SourceURL:   input.SourceURL,
 		CreatedAt:   s.now(),
 	}
 	return s.repository.CreateTask(ctx, task)
+}
+
+func validTaskSource(sourceType string, sourceID *int64, sourceTitle, sourceURL string) bool {
+	if sourceType == "" {
+		return sourceID == nil && strings.TrimSpace(sourceTitle) == "" && strings.TrimSpace(sourceURL) == ""
+	}
+	switch sourceType {
+	case SourceAnalysisSession, SourceProjectMatch, SourceSandboxSession, SourceCompetitorScan,
+		SourceCompetitorMonitoring, SourceEnterpriseDiagnosis, SourceLeadTask, SourceCRMCustomer:
+	default:
+		return false
+	}
+	if sourceID != nil && *sourceID <= 0 {
+		return false
+	}
+	sourceTitle = strings.TrimSpace(sourceTitle)
+	sourceURL = strings.TrimSpace(sourceURL)
+	return sourceTitle != "" && len([]rune(sourceTitle)) <= 200 &&
+		len(sourceURL) <= 500 && strings.HasPrefix(sourceURL, "/") && !strings.HasPrefix(sourceURL, "//")
 }
 
 func (s *Service) ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error) {

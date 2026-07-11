@@ -105,7 +105,8 @@ func validCreateInput(input CreateInput) bool {
 		len([]rune(strings.TrimSpace(input.Description))) <= 1000 &&
 		len([]rune(strings.TrimSpace(input.Assignee))) <= 100 &&
 		validTags(input.Tags) &&
-		validPriority(input.Priority)
+		validPriority(input.Priority) &&
+		validTaskSource(strings.TrimSpace(input.SourceType), input.SourceID, strings.TrimSpace(input.SourceTitle), strings.TrimSpace(input.SourceURL))
 }
 
 func (h *HTTPHandler) listTasks(c *gin.Context) {
@@ -308,6 +309,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusPaymentRequired, "membership_required")
 	case errors.Is(err, ErrInvalidGeneratedTasks):
 		httpapi.Error(c, http.StatusBadGateway, "invalid_ai_result")
+	case errors.Is(err, ErrInvalidTaskSource):
+		httpapi.BadRequest(c, "invalid_source")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

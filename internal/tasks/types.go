@@ -18,6 +18,15 @@ const (
 	ReminderRecurrenceOnce   = "once"
 	ReminderRecurrenceDaily  = "daily"
 	ReminderRecurrenceWeekly = "weekly"
+
+	SourceAnalysisSession      = "analysis_session"
+	SourceProjectMatch         = "project_match"
+	SourceSandboxSession       = "sandbox_session"
+	SourceCompetitorScan       = "competitor_scan"
+	SourceCompetitorMonitoring = "competitor_monitoring"
+	SourceEnterpriseDiagnosis  = "enterprise_diagnosis"
+	SourceLeadTask             = "lead_task"
+	SourceCRMCustomer          = "crm_customer"
 )
 
 var (
@@ -29,6 +38,7 @@ var (
 	ErrInvalidReminderRecurrence           = errors.New("invalid task reminder recurrence")
 	ErrRecurringReminderRequiresMembership = errors.New("recurring task reminder requires membership")
 	ErrInvalidGeneratedTasks               = errors.New("invalid generated task plan")
+	ErrInvalidTaskSource                   = errors.New("invalid task source")
 )
 
 type CreateInput struct {
@@ -42,6 +52,10 @@ type CreateInput struct {
 	DueAt       *time.Time `json:"due_at,omitempty"`
 	Tools       []string   `json:"tools"`
 	Learning    string     `json:"learning"`
+	SourceType  string     `json:"source_type"`
+	SourceID    *int64     `json:"source_id,omitempty"`
+	SourceTitle string     `json:"source_title"`
+	SourceURL   string     `json:"source_url"`
 }
 
 type GenerateTasksInput struct {
@@ -167,6 +181,10 @@ type Task struct {
 	DueAt       *time.Time `json:"due_at,omitempty"`
 	Tools       []string   `json:"tools"`
 	Learning    string     `json:"learning"`
+	SourceType  string     `json:"source_type"`
+	SourceID    *int64     `json:"source_id,omitempty"`
+	SourceTitle string     `json:"source_title"`
+	SourceURL   string     `json:"source_url"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }

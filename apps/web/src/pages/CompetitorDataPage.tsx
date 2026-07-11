@@ -201,7 +201,11 @@ function CompetitorDataPage() {
         project: "竞品动态监测",
         priority: "high",
         tools: ["竞品全盘数据破解", "任务中心"],
-        learning: primaryConclusion.detail
+        learning: primaryConclusion.detail,
+        sourceType: "competitor_scan",
+        sourceId: latestScan.id,
+        sourceTitle: `竞品扫描：${latestScan.targets.join("、")}`,
+        sourceUrl: "/competitor-data"
       });
       setLoadError("");
       setTaskMessage(`已生成反击任务：${task.title}`);

@@ -19,9 +19,10 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
 	due := now.Add(2 * time.Hour)
+	sourceID := int64(501)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
 		RETURNING id, created_at, updated_at
 	`)).
 		WithArgs(
@@ -36,6 +37,10 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 			&due,
 			[]byte(`["CRM"]`),
 			"线索评分",
+			SourceCRMCustomer,
+			&sourceID,
+			"重点客户 A",
+			"/crm/customers/501",
 			now,
 		).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(99), now, now))
@@ -53,12 +58,16 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 		DueAt:       &due,
 		Tools:       []string{"CRM"},
 		Learning:    "线索评分",
+		SourceType:  SourceCRMCustomer,
+		SourceID:    &sourceID,
+		SourceTitle: "重点客户 A",
+		SourceURL:   "/crm/customers/501",
 		CreatedAt:   now,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	if task.ID != 99 || !task.CreatedAt.Equal(now) || !task.UpdatedAt.Equal(now) {
+	if task.ID != 99 || task.SourceID == nil || *task.SourceID != sourceID || !task.CreatedAt.Equal(now) || !task.UpdatedAt.Equal(now) {
 		t.Fatalf("task = %+v", task)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
@@ -75,23 +84,26 @@ func TestPostgresRepositoryCreatesTasksInTransaction(t *testing.T) {
 
 	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
 	db.ExpectBegin()
-	for index, title := range []string{"整理访谈名单", "完成访谈复盘"} {
+	sourceID := int64(601)
+	tasks := []Task{
+		{UserID: 42, Title: "整理访谈名单", Project: "客户验证", Status: StatusTodo, Priority: PriorityMedium, Tags: []string{}, Tools: []string{}, SourceType: SourceAnalysisSession, SourceID: &sourceID, SourceTitle: "客户访谈分析", SourceURL: "/analysis/sessions/601", CreatedAt: now},
+		{UserID: 42, Title: "完成访谈复盘", Project: "客户验证", Status: StatusTodo, Priority: PriorityMedium, Tags: []string{}, Tools: []string{}, CreatedAt: now},
+	}
+	for index, task := range tasks {
 		db.ExpectQuery("INSERT INTO tasks").
 			WithArgs(
-				int64(42), title, "", "", "客户验证", StatusTodo, PriorityMedium,
-				[]byte(`[]`), (*time.Time)(nil), []byte(`[]`), "", now,
+				int64(42), task.Title, "", "", "客户验证", StatusTodo, PriorityMedium,
+				[]byte(`[]`), (*time.Time)(nil), []byte(`[]`), "",
+				task.SourceType, task.SourceID, task.SourceTitle, task.SourceURL, now,
 			).
 			WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(101+index), now, now))
 	}
 	db.ExpectCommit()
 
 	repository := NewPostgresRepository(db)
-	created, err := repository.CreateTasks(context.Background(), []Task{
-		{UserID: 42, Title: "整理访谈名单", Project: "客户验证", Status: StatusTodo, Priority: PriorityMedium, Tags: []string{}, Tools: []string{}, CreatedAt: now},
-		{UserID: 42, Title: "完成访谈复盘", Project: "客户验证", Status: StatusTodo, Priority: PriorityMedium, Tags: []string{}, Tools: []string{}, CreatedAt: now},
-	})
+	created, err := repository.CreateTasks(context.Background(), tasks)
 
-	if err != nil || len(created) != 2 || created[0].ID != 101 || created[1].ID != 102 {
+	if err != nil || len(created) != 2 || created[0].ID != 101 || created[1].ID != 102 || created[0].SourceID == nil || created[1].SourceID != nil {
 		t.Fatalf("created/error = %+v/%v", created, err)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
@@ -107,8 +119,9 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
+	sourceID := int64(501)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
 		  AND ($2 = '' OR status = $2)
@@ -122,7 +135,7 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 	`)).
 		WithArgs(int64(42), StatusTodo, "AI线索开发", PriorityHigh, "用户研究", "客户", 20, 10).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -136,6 +149,10 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",
+			SourceCRMCustomer,
+			&sourceID,
+			"重点客户 A",
+			"/crm/customers/501",
 			now,
 			now,
 		))
@@ -153,8 +170,42 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
-	if len(tasks) != 1 || tasks[0].ID != 99 || tasks[0].Tools[0] != "CRM" {
+	if len(tasks) != 1 || tasks[0].ID != 99 || tasks[0].Tools[0] != "CRM" || tasks[0].SourceID == nil || *tasks[0].SourceID != sourceID || tasks[0].SourceType != SourceCRMCustomer {
 		t.Fatalf("tasks = %+v", tasks)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryGetsTaskWithNoSource(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
+		FROM tasks
+		WHERE user_id = $1 AND id = $2
+	`)).
+		WithArgs(int64(42), int64(99)).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
+		}).AddRow(
+			int64(99), int64(42), "完成访谈复盘", "", "", "客户验证", StatusTodo, PriorityMedium,
+			[]byte(`[]`), nil, []byte(`[]`), "", "", nil, "", "", now, now,
+		))
+
+	repository := NewPostgresRepository(db)
+	task, err := repository.GetTask(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if task.ID != 99 || task.SourceType != "" || task.SourceID != nil || task.SourceTitle != "" || task.SourceURL != "" {
+		t.Fatalf("task = %+v", task)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -270,6 +321,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
+	sourceID := int64(501)
 	status := StatusCompleted
 	db.ExpectQuery(regexp.QuoteMeta(`
 		UPDATE tasks
@@ -285,7 +337,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 		    learning = COALESCE($11, learning),
 		    updated_at = NOW()
 		WHERE user_id = $12 AND id = $13
-		RETURNING id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
+		RETURNING id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
 	`)).
 		WithArgs(
 			nil,
@@ -303,7 +355,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 			int64(99),
 		).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -317,6 +369,10 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",
+			SourceCRMCustomer,
+			&sourceID,
+			"重点客户 A",
+			"/crm/customers/501",
 			now,
 			now,
 		))
@@ -326,7 +382,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateTask() error = %v", err)
 	}
-	if task.Status != StatusCompleted {
+	if task.Status != StatusCompleted || task.SourceID == nil || *task.SourceID != 501 || task.SourceType != SourceCRMCustomer {
 		t.Fatalf("task = %+v", task)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
@@ -359,7 +415,7 @@ func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
 			int64(99),
 		).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -373,6 +429,10 @@ func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",
+			"",
+			nil,
+			"",
+			"",
 			now,
 			now,
 		))
@@ -382,7 +442,7 @@ func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpdateTask() error = %v", err)
 	}
-	if task.DueAt != nil {
+	if task.DueAt != nil || task.SourceType != "" || task.SourceID != nil || task.SourceTitle != "" || task.SourceURL != "" {
 		t.Fatalf("task.DueAt = %v, want nil", task.DueAt)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {

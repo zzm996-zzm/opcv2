@@ -216,7 +216,11 @@ describe("CompetitorDataPage", () => {
           project: "竞品动态监测",
           priority: "high",
           tools: ["竞品全盘数据破解", "任务中心"],
-          learning: "竞品正在把AI能力嵌入销售跟进链路。"
+          learning: "竞品正在把AI能力嵌入销售跟进链路。",
+          source_type: "competitor_scan",
+          source_id: 11,
+          source_title: "竞品扫描：商业沙盘竞品",
+          source_url: "/competitor-data"
         })
       })
     );

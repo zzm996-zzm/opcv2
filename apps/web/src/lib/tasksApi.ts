@@ -3,6 +3,15 @@ import { apiRequest } from "./apiRequest";
 export type TaskStatus = "todo" | "in_progress" | "completed" | "reminder";
 export type TaskPriority = "low" | "medium" | "high";
 export type ReminderRecurrence = "once" | "daily" | "weekly";
+export type TaskSourceType =
+  | "analysis_session"
+  | "project_match"
+  | "sandbox_session"
+  | "competitor_scan"
+  | "competitor_monitoring"
+  | "enterprise_diagnosis"
+  | "lead_task"
+  | "crm_customer";
 
 export type Task = {
   id: number;
@@ -17,6 +26,10 @@ export type Task = {
   due_at?: string;
   tools: string[];
   learning: string;
+  source_type?: TaskSourceType;
+  source_id?: number;
+  source_title?: string;
+  source_url?: string;
   created_at: string;
   updated_at: string;
 };
@@ -103,6 +116,10 @@ export type CreateTaskInput = {
   dueAt?: string;
   tools: string[];
   learning: string;
+  sourceType?: TaskSourceType;
+  sourceId?: number;
+  sourceTitle?: string;
+  sourceUrl?: string;
 };
 
 export type UpdateTaskInput = Partial<{
@@ -129,7 +146,11 @@ function toCreatePayload(input: CreateTaskInput) {
     tags: input.tags,
     due_at: input.dueAt,
     tools: input.tools,
-    learning: input.learning
+    learning: input.learning,
+    source_type: input.sourceType,
+    source_id: input.sourceId,
+    source_title: input.sourceTitle,
+    source_url: input.sourceUrl
   };
 }
 

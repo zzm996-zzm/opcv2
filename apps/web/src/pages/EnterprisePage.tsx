@@ -111,7 +111,11 @@ function EnterprisePage() {
         project: "企业定制化陪跑",
         priority: "high",
         tools: ["企业诊断", "CRM"],
-        learning: `围绕企业需求制定陪跑方案：${request.need}`
+        learning: `围绕企业需求制定陪跑方案：${request.need}`,
+        sourceType: "enterprise_diagnosis",
+        sourceId: request.id,
+        sourceTitle: `企业诊断：${request.need}`,
+        sourceUrl: "/enterprise"
       });
       const updatedRequest = await enterpriseApi.updateDiagnosisRequest(request.id, { status: "follow_up_created" });
       setDiagnosisRequests((current) => current.map((item) => (item.id === updatedRequest.id ? updatedRequest : item)));

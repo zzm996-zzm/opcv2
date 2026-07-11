@@ -220,7 +220,11 @@ Request:
   "tags": ["用户研究", "访谈"],
   "due_at": "2026-06-30T12:00:00Z",
   "tools": ["CRM"],
-  "learning": "线索评分"
+  "learning": "线索评分",
+  "source_type": "competitor_scan",
+  "source_id": 11,
+  "source_title": "竞品扫描：商业沙盘竞品",
+  "source_url": "/competitor-data"
 }
 ```
 
@@ -231,9 +235,20 @@ Validation:
 - `assignee` is an optional display-name snapshot for the responsible person or external collaborator.
 - `tags` supports at most 10 entries and each tag supports at most 30 characters.
 - `priority` must be one of the task priority enum values.
+- Source fields are optional and immutable after creation. When `source_type`
+  is present, `source_title` and a local `source_url` are required;
+  protocol-relative URLs such as `//example.com` are rejected.
+- Supported source types are `analysis_session`, `project_match`,
+  `sandbox_session`, `competitor_scan`, `competitor_monitoring`,
+  `enterprise_diagnosis`, `lead_task`, and `crm_customer`.
 - Client-supplied `user_id` is ignored.
 
 Response `200`: `Task`
+
+Errors:
+
+- `400 invalid_request`
+- `400 invalid_source`
 
 ### Generate Task Plan
 

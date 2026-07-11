@@ -55,6 +55,39 @@ describe("tasksApi", () => {
     }));
   });
 
+  it("creates a task linked to its source", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 101, title: "反击竞品更新" }), { status: 200 })
+    );
+
+    await tasksApi.createTask({
+      title: "反击竞品更新",
+      project: "竞品动态监测",
+      priority: "high",
+      tools: [],
+      learning: "",
+      sourceType: "competitor_scan",
+      sourceId: 11,
+      sourceTitle: "销售自动化提速",
+      sourceUrl: "/competitor-data"
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({
+        title: "反击竞品更新",
+        project: "竞品动态监测",
+        priority: "high",
+        tools: [],
+        learning: "",
+        source_type: "competitor_scan",
+        source_id: 11,
+        source_title: "销售自动化提速",
+        source_url: "/competitor-data"
+      })
+    }));
+  });
+
   it("lists, creates, updates, and deletes task subtasks", async () => {
 	const fetchMock = vi.spyOn(globalThis, "fetch")
 	  .mockResolvedValueOnce(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }))

@@ -43,8 +43,8 @@ func createTask(ctx context.Context, writer taskWriter, task Task) (Task, error)
 		return Task{}, err
 	}
 	err = writer.QueryRow(ctx, `
-		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
 		RETURNING id, created_at, updated_at
 	`,
 		task.UserID,
@@ -58,6 +58,10 @@ func createTask(ctx context.Context, writer taskWriter, task Task) (Task, error)
 		task.DueAt,
 		tools,
 		task.Learning,
+		task.SourceType,
+		task.SourceID,
+		task.SourceTitle,
+		task.SourceURL,
 		task.CreatedAt,
 	).Scan(&task.ID, &task.CreatedAt, &task.UpdatedAt)
 	return task, err
@@ -85,7 +89,7 @@ func (r *PostgresRepository) CreateTasks(ctx context.Context, tasks []Task) ([]T
 
 func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
 		  AND ($2 = '' OR status = $2)
@@ -207,7 +211,7 @@ func (r *PostgresRepository) TaskStats(ctx context.Context, userID int64, now ti
 
 func (r *PostgresRepository) GetTask(ctx context.Context, userID, id int64) (Task, error) {
 	task, err := scanTask(r.db.QueryRow(ctx, `
-		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1 AND id = $2
 	`, userID, id))
@@ -248,7 +252,7 @@ func (r *PostgresRepository) UpdateTask(ctx context.Context, userID, id int64, u
 		    learning = COALESCE($11, learning),
 		    updated_at = NOW()
 		WHERE user_id = $12 AND id = $13
-		RETURNING id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, created_at, updated_at
+		RETURNING id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
 	`,
 		optionalString(update.Title),
 		optionalString(update.Description),
@@ -319,6 +323,10 @@ func scanTask(scanner taskScanner) (Task, error) {
 		&task.DueAt,
 		&tools,
 		&task.Learning,
+		&task.SourceType,
+		&task.SourceID,
+		&task.SourceTitle,
+		&task.SourceURL,
 		&task.CreatedAt,
 		&task.UpdatedAt,
 	); err != nil {

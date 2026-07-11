@@ -143,7 +143,11 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 		"priority":"high",
 		"tags":["用户研究","访谈"],
 		"tools":["CRM"],
-		"learning":"线索评分"
+		"learning":"线索评分",
+		"source_type":"competitor_scan",
+		"source_id":11,
+		"source_title":"销售自动化提速",
+		"source_url":"/competitor-data"
 	}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
@@ -153,11 +157,32 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" || app.input.Assignee != "李明" || len(app.input.Tags) != 2 {
+	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" || app.input.Assignee != "李明" || len(app.input.Tags) != 2 || app.input.SourceType != SourceCompetitorScan || app.input.SourceID == nil || *app.input.SourceID != 11 {
 		t.Fatalf("input = %+v", app.input)
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"todo"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestCreateTaskEndpointRejectsUnsafeSourceURL(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks", strings.NewReader(`{
+		"title":"反击竞品更新",
+		"project":"竞品动态监测",
+		"priority":"high",
+		"source_type":"competitor_scan",
+		"source_title":"竞品扫描",
+		"source_url":"//evil.example/steal"
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || app.input.UserID != 0 {
+		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.input, recorder.Body.String())
 	}
 }
 

@@ -554,6 +554,10 @@ describe("TasksPage", () => {
       due_at: "2026-07-18T10:00:00Z",
       tools: ["CRM"],
       learning: "访谈方法",
+      source_type: "competitor_scan",
+      source_id: 11,
+      source_title: "竞品扫描：商业沙盘竞品",
+      source_url: "/competitor-data",
       created_at: "2026-07-10T08:00:00Z",
       updated_at: "2026-07-10T08:00:00Z"
     };
@@ -594,10 +598,12 @@ describe("TasksPage", () => {
     const taskHeading = await screen.findByRole("heading", { name: "准备客户访谈" });
     expect(screen.getByText(/负责人 张晨/)).toBeInTheDocument();
     expect(within(taskHeading.closest("article") as HTMLElement).getByText("客户")).toBeInTheDocument();
+    expect(within(taskHeading.closest("article") as HTMLElement).getByRole("link", { name: "来源：竞品扫描：商业沙盘竞品" })).toHaveAttribute("href", "/competitor-data");
     fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "查看任务详情" }));
 
     const dialog = await screen.findByRole("dialog", { name: "任务详情" });
     expect(await within(dialog).findByDisplayValue("准备首轮客户访谈")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "查看来源：竞品扫描：商业沙盘竞品" })).toHaveAttribute("href", "/competitor-data");
     fireEvent.change(within(dialog).getByLabelText("任务标题"), { target: { value: "完成客户访谈提纲" } });
     fireEvent.change(within(dialog).getByLabelText("负责人"), { target: { value: "李明" } });
     fireEvent.change(within(dialog).getByLabelText("标签"), { target: { value: "客户，执行" } });

@@ -187,6 +187,40 @@ func TestServiceCreatesTaskWithDefaults(t *testing.T) {
 	}
 }
 
+func TestServiceCreatesTaskWithNormalizedSource(t *testing.T) {
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
+	sourceID := int64(11)
+	repository := &fakeRepository{}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	_, err := service.CreateTask(context.Background(), CreateInput{
+		UserID: 42, Title: "反击竞品更新", Project: "竞品动态监测", Priority: PriorityHigh,
+		SourceType: " competitor_scan ", SourceID: &sourceID, SourceTitle: " 销售自动化提速 ", SourceURL: " /competitor-data ",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if repository.created.SourceType != SourceCompetitorScan || repository.created.SourceID == nil || *repository.created.SourceID != 11 || repository.created.SourceTitle != "销售自动化提速" || repository.created.SourceURL != "/competitor-data" {
+		t.Fatalf("source = %+v", repository.created)
+	}
+}
+
+func TestServiceRejectsUnsafeTaskSource(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository)
+
+	_, err := service.CreateTask(context.Background(), CreateInput{
+		UserID: 42, Title: "反击竞品更新", Project: "竞品动态监测", Priority: PriorityHigh,
+		SourceType: SourceCompetitorScan, SourceTitle: "竞品扫描", SourceURL: "//evil.example/steal",
+	})
+
+	if !errors.Is(err, ErrInvalidTaskSource) || repository.created.ID != 0 {
+		t.Fatalf("err/created = %v/%+v", err, repository.created)
+	}
+}
+
 func TestServiceListsOnlyUserTasks(t *testing.T) {
 	repository := &fakeRepository{tasks: []Task{
 		{ID: 1, UserID: 42, Title: "我的任务"},

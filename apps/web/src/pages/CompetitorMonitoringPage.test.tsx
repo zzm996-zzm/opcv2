@@ -274,7 +274,10 @@ describe("CompetitorMonitoringPage", () => {
           project: "竞品动态监测",
           priority: "high",
           tools: ["竞品动态监测", "任务中心"],
-          learning: "竞品开始把监测事件直接转成执行清单。"
+          learning: "竞品开始把监测事件直接转成执行清单。",
+          source_type: "competitor_monitoring",
+          source_title: "竞品监测：增长雷达 自动任务派发上线",
+          source_url: "/competitor-monitoring"
         })
       })
     );

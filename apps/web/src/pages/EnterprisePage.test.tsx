@@ -245,7 +245,11 @@ describe("EnterprisePage", () => {
         project: "企业定制化陪跑",
         priority: "high",
         tools: ["企业诊断", "CRM"],
-        learning: "围绕企业需求制定陪跑方案：30人销售团队需要AI获客陪跑"
+        learning: "围绕企业需求制定陪跑方案：30人销售团队需要AI获客陪跑",
+        source_type: "enterprise_diagnosis",
+        source_id: 8,
+        source_title: "企业诊断：30人销售团队需要AI获客陪跑",
+        source_url: "/enterprise"
       })
     })));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/diagnosis-requests/8", expect.objectContaining({
