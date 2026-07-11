@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type fakeRepository struct {
@@ -479,8 +481,62 @@ func TestServiceUpsertsFutureTaskReminder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpsertTaskReminder() error = %v", err)
 	}
-	if reminder.ID != 8 || repository.savedReminder.UserID != 42 || repository.savedReminder.TaskID != 99 || !repository.savedReminder.RemindAt.Equal(remindAt) || !repository.savedReminder.CreatedAt.Equal(now) {
+	if reminder.ID != 8 || repository.savedReminder.UserID != 42 || repository.savedReminder.TaskID != 99 || repository.savedReminder.Recurrence != ReminderRecurrenceOnce || !repository.savedReminder.RemindAt.Equal(remindAt) || !repository.savedReminder.CreatedAt.Equal(now) {
 		t.Fatalf("reminder/saved = %+v/%+v", reminder, repository.savedReminder)
+	}
+}
+
+type fakeTaskMembership struct {
+	planCode string
+	err      error
+}
+
+func (m *fakeTaskMembership) CurrentSnapshot(context.Context, int64) (membership.Snapshot, error) {
+	return membership.Snapshot{Plan: membership.PlanCatalog[m.planCode]}, m.err
+}
+
+func TestServiceRejectsRecurringReminderForFreePlan(t *testing.T) {
+	now := time.Date(2026, 7, 11, 10, 0, 0, 0, time.UTC)
+	repository := &fakeReminderRepository{fakeRepository: &fakeRepository{task: Task{ID: 99, UserID: 42}}}
+	service := NewService(repository, WithMembershipProvider(&fakeTaskMembership{planCode: membership.PlanFree}))
+	service.now = func() time.Time { return now }
+
+	_, err := service.UpsertTaskReminder(context.Background(), UpsertTaskReminderInput{
+		UserID: 42, TaskID: 99, RemindAt: now.Add(time.Hour), Recurrence: ReminderRecurrenceDaily,
+	})
+
+	if !errors.Is(err, ErrRecurringReminderRequiresMembership) || repository.savedReminder.ID != 0 {
+		t.Fatalf("err/saved = %v/%+v", err, repository.savedReminder)
+	}
+}
+
+func TestServiceAllowsRecurringReminderForProPlan(t *testing.T) {
+	now := time.Date(2026, 7, 11, 10, 0, 0, 0, time.UTC)
+	repository := &fakeReminderRepository{fakeRepository: &fakeRepository{task: Task{ID: 99, UserID: 42}}}
+	service := NewService(repository, WithMembershipProvider(&fakeTaskMembership{planCode: membership.PlanPro}))
+	service.now = func() time.Time { return now }
+
+	_, err := service.UpsertTaskReminder(context.Background(), UpsertTaskReminderInput{
+		UserID: 42, TaskID: 99, RemindAt: now.Add(time.Hour), Recurrence: ReminderRecurrenceWeekly,
+	})
+
+	if err != nil || repository.savedReminder.Recurrence != ReminderRecurrenceWeekly {
+		t.Fatalf("saved/error = %+v/%v", repository.savedReminder, err)
+	}
+}
+
+func TestServiceRejectsInvalidReminderRecurrence(t *testing.T) {
+	now := time.Date(2026, 7, 11, 10, 0, 0, 0, time.UTC)
+	repository := &fakeReminderRepository{fakeRepository: &fakeRepository{task: Task{ID: 99, UserID: 42}}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	_, err := service.UpsertTaskReminder(context.Background(), UpsertTaskReminderInput{
+		UserID: 42, TaskID: 99, RemindAt: now.Add(time.Hour), Recurrence: "monthly",
+	})
+
+	if !errors.Is(err, ErrInvalidReminderRecurrence) {
+		t.Fatalf("err = %v, want ErrInvalidReminderRecurrence", err)
 	}
 }
 

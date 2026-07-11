@@ -473,13 +473,15 @@ Response `200` when a reminder exists:
     "task_id": 99,
     "user_id": 42,
     "remind_at": "2026-07-18T10:00:00Z",
+    "recurrence": "daily",
     "created_at": "2026-07-10T10:00:00Z",
     "updated_at": "2026-07-10T10:00:00Z"
   }
 }
 ```
 
-`sent_at` is included after the reminder has been processed.
+`recurrence` is `once`, `daily`, or `weekly`. `sent_at` is included after the
+reminder has been processed at least once.
 
 Errors:
 
@@ -494,13 +496,16 @@ Request:
 
 ```json
 {
-  "remind_at": "2026-07-18T10:00:00Z"
+  "remind_at": "2026-07-18T10:00:00Z",
+  "recurrence": "daily"
 }
 ```
 
 `remind_at` must be a valid RFC 3339 timestamp later than the current server
-time. Each task has one current one-time reminder. Repeating this request
-updates the time and resets `sent_at` so the reminder can trigger again.
+time. `recurrence` defaults to `once`; `daily` and `weekly` require an active
+non-free membership. Each task has one current reminder. Repeating this request
+updates the time and recurrence, and resets `sent_at` so the reminder can
+trigger again.
 
 Response `200`: `TaskReminder`
 
@@ -509,6 +514,8 @@ Errors:
 - `400 invalid_task_id`
 - `400 invalid_request`
 - `400 invalid_remind_at`
+- `400 invalid_recurrence`
+- `402 membership_required`
 - `404 task_not_found`
 
 ### Delete Task Reminder
@@ -526,13 +533,13 @@ Errors:
 ### Reminder Delivery
 
 The Worker checks due reminders once per minute and atomically marks them sent
-while inserting `task` notifications. Concurrent workers use row locks with
-`SKIP LOCKED`, so one reminder is delivered at most once. Completed tasks and
-users with site notifications disabled do not receive a notification. The
-notification links back to the task center.
-
-This slice supports one-time site notifications. Recurring reminders and
-external channels remain separate paid-feature work.
+while inserting `task` notifications. Daily and weekly reminders advance
+directly to the next future occurrence while preserving their original UTC
+trigger time, so downtime does not produce a burst of catch-up notifications.
+Concurrent workers use row locks with `SKIP LOCKED`, so one occurrence is
+delivered at most once. Completed tasks and users with site notifications
+disabled do not receive a notification. The notification links back to the
+task center. External notification channels remain separate work.
 
 ## Dashboard
 

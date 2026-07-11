@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { tasksApi, type Task, type TaskPriority, type TaskReminder, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
+import { ApiRequestError } from "../lib/apiRequest";
+import { tasksApi, type ReminderRecurrence, type Task, type TaskPriority, type TaskReminder, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
 
 type TaskRow = {
   id?: number;
@@ -228,8 +229,10 @@ function TasksPage() {
   const [reminderLoading, setReminderLoading] = useState(false);
   const [reminderSaving, setReminderSaving] = useState(false);
   const [reminderTime, setReminderTime] = useState("");
+  const [reminderRecurrence, setReminderRecurrence] = useState<ReminderRecurrence>("once");
   const [reminderError, setReminderError] = useState("");
   const [reminderMessage, setReminderMessage] = useState("");
+  const [reminderNeedsUpgrade, setReminderNeedsUpgrade] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -436,8 +439,10 @@ function TasksPage() {
     setTaskReminder(null);
     setReminderLoading(true);
     setReminderTime("");
+    setReminderRecurrence("once");
     setReminderError("");
     setReminderMessage("");
+    setReminderNeedsUpgrade(false);
     const [taskResult, subtasksResult, reminderResult] = await Promise.allSettled([
       tasksApi.getTask(taskID),
       tasksApi.listSubtasks(taskID),
@@ -457,6 +462,7 @@ function TasksPage() {
     if (reminderResult.status === "fulfilled") {
       setTaskReminder(reminderResult.value.reminder);
       setReminderTime(toDateTimeLocal(reminderResult.value.reminder?.remind_at));
+      setReminderRecurrence(reminderResult.value.reminder?.recurrence ?? "once");
     } else {
       setReminderError(apiErrorMessage(reminderResult.reason, "暂时无法读取提醒设置"));
     }
@@ -477,8 +483,10 @@ function TasksPage() {
     setSubtaskError("");
     setTaskReminder(null);
     setReminderTime("");
+    setReminderRecurrence("once");
     setReminderError("");
     setReminderMessage("");
+    setReminderNeedsUpgrade(false);
   }
 
   function updateDetailField<Key extends keyof TaskEditForm>(key: Key, value: TaskEditForm[Key]) {
@@ -543,13 +551,19 @@ function TasksPage() {
     setReminderSaving(true);
     setReminderError("");
     setReminderMessage("");
+    setReminderNeedsUpgrade(false);
     try {
-      const reminder = await tasksApi.upsertReminder(detailTaskID, remindAt.toISOString());
+      const reminder = await tasksApi.upsertReminder(detailTaskID, {
+        remindAt: remindAt.toISOString(),
+        recurrence: reminderRecurrence
+      });
       setTaskReminder(reminder);
       setReminderTime(toDateTimeLocal(reminder.remind_at));
+      setReminderRecurrence(reminder.recurrence);
       setReminderMessage("已设置站内提醒");
     } catch (error) {
       setReminderError(apiErrorMessage(error, "暂时无法保存提醒"));
+      setReminderNeedsUpgrade(error instanceof ApiRequestError && error.code === "membership_required");
     } finally {
       setReminderSaving(false);
     }
@@ -560,10 +574,12 @@ function TasksPage() {
     setReminderSaving(true);
     setReminderError("");
     setReminderMessage("");
+    setReminderNeedsUpgrade(false);
     try {
       await tasksApi.deleteReminder(detailTaskID);
       setTaskReminder(null);
       setReminderTime("");
+      setReminderRecurrence("once");
     } catch (error) {
       setReminderError(apiErrorMessage(error, "暂时无法取消提醒"));
     } finally {
@@ -997,7 +1013,7 @@ function TasksPage() {
                   <section aria-label="提醒设置" className="task-reminder-section">
                     <header>
                       <h3>提醒设置</h3>
-                      <span>{reminderLoading ? "读取中" : taskReminder?.sent_at ? "已触发" : taskReminder ? "待触发" : "暂无提醒"}</span>
+                      <span>{reminderLoading ? "读取中" : taskReminder?.recurrence !== "once" && taskReminder ? "循环中" : taskReminder?.sent_at ? "已触发" : taskReminder ? "待触发" : "暂无提醒"}</span>
                     </header>
                     <div className="task-reminder-controls">
                       <label>
@@ -1013,6 +1029,23 @@ function TasksPage() {
                           value={reminderTime}
                         />
                       </label>
+                      <label>
+                        <span>提醒频率</span>
+                        <select
+                          aria-label="提醒频率"
+                          disabled={reminderLoading || reminderSaving}
+                          onChange={(event) => {
+                            setReminderRecurrence(event.target.value as ReminderRecurrence);
+                            setReminderMessage("");
+                            setReminderNeedsUpgrade(false);
+                          }}
+                          value={reminderRecurrence}
+                        >
+                          <option value="once">一次性</option>
+                          <option value="daily">每天（会员）</option>
+                          <option value="weekly">每周（会员）</option>
+                        </select>
+                      </label>
                       <button disabled={reminderLoading || reminderSaving || !reminderTime} onClick={() => void saveTaskReminder()} type="button">
                         {reminderSaving ? "处理中..." : "保存提醒"}
                       </button>
@@ -1022,6 +1055,7 @@ function TasksPage() {
                     </div>
                     {reminderMessage ? <p className="task-reminder-message" role="status">{reminderMessage}</p> : null}
                     {reminderError ? <p className="form-error" role="alert">{reminderError}</p> : null}
+                    {reminderNeedsUpgrade ? <Link className="task-reminder-upgrade" to="/membership">升级会员</Link> : null}
                   </section>
                   <section aria-label="子任务" className="task-subtask-section">
                     <header>

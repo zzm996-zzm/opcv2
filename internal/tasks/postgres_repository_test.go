@@ -509,10 +509,10 @@ func TestPostgresRepositoryGetsTaskReminder(t *testing.T) {
 
 	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
 	remindAt := now.Add(2 * time.Hour)
-	db.ExpectQuery("SELECT id, task_id, user_id, remind_at, sent_at, created_at, updated_at").
+	db.ExpectQuery("SELECT id, task_id, user_id, remind_at, recurrence, sent_at, created_at, updated_at").
 		WithArgs(int64(42), int64(99)).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "sent_at", "created_at", "updated_at"}).
-			AddRow(int64(8), int64(99), int64(42), remindAt, nil, now, now))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "recurrence", "sent_at", "created_at", "updated_at"}).
+			AddRow(int64(8), int64(99), int64(42), remindAt, ReminderRecurrenceOnce, nil, now, now))
 
 	repository := NewPostgresRepository(db)
 	reminder, err := repository.GetTaskReminder(context.Background(), 42, 99)
@@ -529,9 +529,9 @@ func TestPostgresRepositoryReturnsNilWhenTaskReminderIsMissing(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.ExpectQuery("SELECT id, task_id, user_id, remind_at, sent_at, created_at, updated_at").
+	db.ExpectQuery("SELECT id, task_id, user_id, remind_at, recurrence, sent_at, created_at, updated_at").
 		WithArgs(int64(42), int64(99)).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "sent_at", "created_at", "updated_at"}))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "recurrence", "sent_at", "created_at", "updated_at"}))
 
 	repository := NewPostgresRepository(db)
 	reminder, err := repository.GetTaskReminder(context.Background(), 42, 99)
@@ -551,12 +551,12 @@ func TestPostgresRepositoryUpsertsReminderOnlyForOwnedTask(t *testing.T) {
 	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
 	remindAt := now.Add(2 * time.Hour)
 	db.ExpectQuery("INSERT INTO task_reminders").
-		WithArgs(int64(99), int64(42), remindAt, now).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "sent_at", "created_at", "updated_at"}).
-			AddRow(int64(8), int64(99), int64(42), remindAt, nil, now, now))
+		WithArgs(int64(99), int64(42), remindAt, ReminderRecurrenceWeekly, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "recurrence", "sent_at", "created_at", "updated_at"}).
+			AddRow(int64(8), int64(99), int64(42), remindAt, ReminderRecurrenceWeekly, nil, now, now))
 
 	repository := NewPostgresRepository(db)
-	reminder, err := repository.UpsertTaskReminder(context.Background(), TaskReminder{TaskID: 99, UserID: 42, RemindAt: remindAt, CreatedAt: now})
+	reminder, err := repository.UpsertTaskReminder(context.Background(), TaskReminder{TaskID: 99, UserID: 42, RemindAt: remindAt, Recurrence: ReminderRecurrenceWeekly, CreatedAt: now})
 
 	if err != nil || reminder.ID != 8 {
 		t.Fatalf("reminder/error = %+v/%v", reminder, err)
@@ -588,7 +588,7 @@ func TestPostgresRepositoryDispatchesDueTaskReminders(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
-	db.ExpectQuery("(?s)WITH due AS.*status <> 'completed'.*notifications_enabled").
+	db.ExpectQuery("(?s)WITH due AS.*recurrence.*INTERVAL '1 day'.*INTERVAL '7 days'.*status <> 'completed'.*notifications_enabled").
 		WithArgs(now, 100).
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
 

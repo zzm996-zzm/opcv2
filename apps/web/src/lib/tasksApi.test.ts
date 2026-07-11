@@ -73,13 +73,13 @@ describe("tasksApi", () => {
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     await tasksApi.getReminder(99);
-    await tasksApi.upsertReminder(99, "2026-07-18T10:00:00Z");
+    await tasksApi.upsertReminder(99, { remindAt: "2026-07-18T10:00:00Z", recurrence: "weekly" });
     await tasksApi.deleteReminder(99);
 
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks/99/reminder", expect.objectContaining({ method: "GET" }));
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/99/reminder", expect.objectContaining({
       method: "PUT",
-      body: JSON.stringify({ remind_at: "2026-07-18T10:00:00Z" })
+      body: JSON.stringify({ remind_at: "2026-07-18T10:00:00Z", recurrence: "weekly" })
     }));
     expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/tasks/99/reminder", expect.objectContaining({ method: "DELETE" }));
   });

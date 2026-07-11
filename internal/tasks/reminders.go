@@ -2,7 +2,10 @@ package tasks
 
 import (
 	"context"
+	"strings"
 	"time"
+
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type ReminderRepository interface {
@@ -43,15 +46,44 @@ func (s *Service) UpsertTaskReminder(ctx context.Context, input UpsertTaskRemind
 	if input.RemindAt.IsZero() || !input.RemindAt.After(now) {
 		return TaskReminder{}, ErrInvalidReminderTime
 	}
+	recurrence := strings.ToLower(strings.TrimSpace(input.Recurrence))
+	if recurrence == "" {
+		recurrence = ReminderRecurrenceOnce
+	}
+	if !validReminderRecurrence(recurrence) {
+		return TaskReminder{}, ErrInvalidReminderRecurrence
+	}
+	if recurrence != ReminderRecurrenceOnce {
+		if s.membership == nil {
+			return TaskReminder{}, ErrServiceNotReady
+		}
+		snapshot, err := s.membership.CurrentSnapshot(ctx, input.UserID)
+		if err != nil {
+			return TaskReminder{}, err
+		}
+		if snapshot.Plan.Code == "" || snapshot.Plan.Code == membership.PlanFree {
+			return TaskReminder{}, ErrRecurringReminderRequiresMembership
+		}
+	}
 	if _, err := s.repository.GetTask(ctx, input.UserID, input.TaskID); err != nil {
 		return TaskReminder{}, err
 	}
 	return repository.UpsertTaskReminder(ctx, TaskReminder{
-		TaskID:    input.TaskID,
-		UserID:    input.UserID,
-		RemindAt:  input.RemindAt,
-		CreatedAt: now,
+		TaskID:     input.TaskID,
+		UserID:     input.UserID,
+		RemindAt:   input.RemindAt,
+		Recurrence: recurrence,
+		CreatedAt:  now,
 	})
+}
+
+func validReminderRecurrence(value string) bool {
+	switch value {
+	case ReminderRecurrenceOnce, ReminderRecurrenceDaily, ReminderRecurrenceWeekly:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) DeleteTaskReminder(ctx context.Context, userID, taskID int64) error {

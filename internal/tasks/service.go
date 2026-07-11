@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type Repository interface {
@@ -18,13 +20,30 @@ type Repository interface {
 	DeleteTask(ctx context.Context, userID, id int64) error
 }
 
+type MembershipProvider interface {
+	CurrentSnapshot(context.Context, int64) (membership.Snapshot, error)
+}
+
+type Option func(*Service)
+
 type Service struct {
 	repository Repository
+	membership MembershipProvider
 	now        func() time.Time
 }
 
-func NewService(repository Repository) *Service {
-	return &Service{repository: repository, now: time.Now}
+func NewService(repository Repository, options ...Option) *Service {
+	service := &Service{repository: repository, now: time.Now}
+	for _, option := range options {
+		option(service)
+	}
+	return service
+}
+
+func WithMembershipProvider(provider MembershipProvider) Option {
+	return func(service *Service) {
+		service.membership = provider
+	}
 }
 
 func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, error) {

@@ -11,7 +11,7 @@ import (
 
 func (r *PostgresRepository) GetTaskReminder(ctx context.Context, userID, taskID int64) (*TaskReminder, error) {
 	reminder, err := scanTaskReminder(r.db.QueryRow(ctx, `
-		SELECT id, task_id, user_id, remind_at, sent_at, created_at, updated_at
+		SELECT id, task_id, user_id, remind_at, recurrence, sent_at, created_at, updated_at
 		FROM task_reminders
 		WHERE user_id = $1 AND task_id = $2
 	`, userID, taskID))
@@ -26,16 +26,17 @@ func (r *PostgresRepository) GetTaskReminder(ctx context.Context, userID, taskID
 
 func (r *PostgresRepository) UpsertTaskReminder(ctx context.Context, reminder TaskReminder) (TaskReminder, error) {
 	item, err := scanTaskReminder(r.db.QueryRow(ctx, `
-		INSERT INTO task_reminders (task_id, user_id, remind_at, created_at, updated_at)
-		SELECT t.id, t.user_id, $3, $4, $4
+		INSERT INTO task_reminders (task_id, user_id, remind_at, recurrence, created_at, updated_at)
+		SELECT t.id, t.user_id, $3, $4, $5, $5
 		FROM tasks t
 		WHERE t.id = $1 AND t.user_id = $2
 		ON CONFLICT (task_id) DO UPDATE
 		SET remind_at = EXCLUDED.remind_at,
+		    recurrence = EXCLUDED.recurrence,
 		    sent_at = NULL,
 		    updated_at = EXCLUDED.updated_at
-		RETURNING id, task_id, user_id, remind_at, sent_at, created_at, updated_at
-	`, reminder.TaskID, reminder.UserID, reminder.RemindAt, reminder.CreatedAt))
+		RETURNING id, task_id, user_id, remind_at, recurrence, sent_at, created_at, updated_at
+	`, reminder.TaskID, reminder.UserID, reminder.RemindAt, reminder.Recurrence, reminder.CreatedAt))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return TaskReminder{}, ErrTaskNotFound
 	}
@@ -62,11 +63,16 @@ func (r *PostgresRepository) DispatchDueTaskReminders(ctx context.Context, now t
 		WITH due AS (
 			UPDATE task_reminders AS reminder
 			SET sent_at = $1,
+			    remind_at = CASE reminder.recurrence
+			        WHEN 'daily' THEN reminder.remind_at + (FLOOR(EXTRACT(EPOCH FROM ($1 - reminder.remind_at)) / 86400) + 1) * INTERVAL '1 day'
+			        WHEN 'weekly' THEN reminder.remind_at + (FLOOR(EXTRACT(EPOCH FROM ($1 - reminder.remind_at)) / 604800) + 1) * INTERVAL '7 days'
+			        ELSE reminder.remind_at
+			    END,
 			    updated_at = $1
 			WHERE reminder.id IN (
 				SELECT candidate.id
 				FROM task_reminders AS candidate
-				WHERE candidate.sent_at IS NULL
+				WHERE (candidate.recurrence <> 'once' OR candidate.sent_at IS NULL)
 				  AND candidate.remind_at <= $1
 				ORDER BY candidate.remind_at, candidate.id
 				LIMIT $2
@@ -114,6 +120,7 @@ func scanTaskReminder(scanner taskScanner) (TaskReminder, error) {
 		&reminder.TaskID,
 		&reminder.UserID,
 		&reminder.RemindAt,
+		&reminder.Recurrence,
 		&sentAt,
 		&reminder.CreatedAt,
 		&reminder.UpdatedAt,

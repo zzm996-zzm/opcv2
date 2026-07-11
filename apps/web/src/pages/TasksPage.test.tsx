@@ -727,11 +727,16 @@ describe("TasksPage", () => {
         return Promise.resolve(new Response(JSON.stringify({ reminder: null }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/98/reminder" && init?.method === "PUT") {
+        const payload = JSON.parse(String(init.body)) as { recurrence?: string };
+        if (payload.recurrence === "daily") {
+          return Promise.resolve(new Response(JSON.stringify({ error: "membership_required" }), { status: 402 }));
+        }
         return Promise.resolve(new Response(JSON.stringify({
           id: 8,
           task_id: 98,
           user_id: 7,
           remind_at: remindAt,
+          recurrence: "once",
           created_at: "2026-07-10T10:00:00Z",
           updated_at: "2026-07-10T10:00:00Z"
         }), { status: 200 }));
@@ -755,12 +760,19 @@ describe("TasksPage", () => {
     expect(await within(dialog).findByText("已设置站内提醒")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/98/reminder", expect.objectContaining({
       method: "PUT",
-      body: JSON.stringify({ remind_at: remindAt })
+      body: JSON.stringify({ remind_at: remindAt, recurrence: "once" })
     }));
 
     fireEvent.click(within(dialog).getByRole("button", { name: "取消提醒" }));
     await waitFor(() => expect(within(dialog).getByText("暂无提醒")).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/98/reminder", expect.objectContaining({ method: "DELETE" }));
+
+    fireEvent.change(within(dialog).getByLabelText("提醒时间"), { target: { value: "2026-07-18T18:00" } });
+    fireEvent.change(within(dialog).getByLabelText("提醒频率"), { target: { value: "daily" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "保存提醒" }));
+
+    expect(await within(dialog).findByText("循环提醒仅限会员使用，请升级后重试")).toBeInTheDocument();
+    expect(within(dialog).getByRole("link", { name: "升级会员" })).toHaveAttribute("href", "/membership");
   });
 
   it("deletes a task after a second confirmation", async () => {

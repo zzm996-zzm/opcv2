@@ -25176,7 +25176,7 @@ a {
 
 .task-reminder-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 0.45fr) auto auto;
   align-items: end;
   gap: 8px;
 }
@@ -25190,7 +25190,8 @@ a {
   font-weight: 850;
 }
 
-.task-reminder-controls input {
+.task-reminder-controls input,
+.task-reminder-controls select {
   width: 100%;
   min-width: 0;
   min-height: 40px;
@@ -25205,7 +25206,8 @@ a {
   font-weight: 700;
 }
 
-.task-reminder-controls input:focus {
+.task-reminder-controls input:focus,
+.task-reminder-controls select:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(21, 87, 255, 0.1);
 }
@@ -25233,6 +25235,13 @@ a {
   color: #167345;
   font-size: 12px;
   font-weight: 800;
+}
+
+.task-reminder-upgrade {
+  width: fit-content;
+  color: #1557ff;
+  font-size: 12px;
+  font-weight: 850;
 }
 
 .task-subtask-section {

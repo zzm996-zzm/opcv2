@@ -279,6 +279,10 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusNotFound, "reminder_not_found")
 	case errors.Is(err, ErrInvalidReminderTime):
 		httpapi.BadRequest(c, "invalid_remind_at")
+	case errors.Is(err, ErrInvalidReminderRecurrence):
+		httpapi.BadRequest(c, "invalid_recurrence")
+	case errors.Is(err, ErrRecurringReminderRequiresMembership):
+		httpapi.Error(c, http.StatusPaymentRequired, "membership_required")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

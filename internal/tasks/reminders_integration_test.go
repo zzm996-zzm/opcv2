@@ -48,7 +48,7 @@ func TestPostgresRepositoryDispatchesReminderIntegration(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	repository := NewPostgresRepository(db)
 	_, err = repository.UpsertTaskReminder(ctx, TaskReminder{
-		TaskID: taskID, UserID: userID, RemindAt: now.Add(-time.Minute), CreatedAt: now.Add(-2 * time.Minute),
+		TaskID: taskID, UserID: userID, RemindAt: now.Add(-time.Minute), Recurrence: ReminderRecurrenceOnce, CreatedAt: now.Add(-2 * time.Minute),
 	})
 	if err != nil {
 		t.Fatalf("UpsertTaskReminder() error = %v", err)
@@ -79,5 +79,34 @@ func TestPostgresRepositoryDispatchesReminderIntegration(t *testing.T) {
 	count, err = repository.DispatchDueTaskReminders(ctx, now.Add(time.Minute), 100)
 	if err != nil || count != 0 {
 		t.Fatalf("second dispatch count/error = %d/%v, want 0/nil", count, err)
+	}
+
+	_, err = repository.UpsertTaskReminder(ctx, TaskReminder{
+		TaskID: taskID, UserID: userID, RemindAt: now.Add(-49 * time.Hour), Recurrence: ReminderRecurrenceDaily, CreatedAt: now,
+	})
+	if err != nil {
+		t.Fatalf("UpsertTaskReminder(daily) error = %v", err)
+	}
+	count, err = repository.DispatchDueTaskReminders(ctx, now, 100)
+	if err != nil || count != 1 {
+		t.Fatalf("daily dispatch count/error = %d/%v, want 1/nil", count, err)
+	}
+	reminder, err := repository.GetTaskReminder(ctx, userID, taskID)
+	if err != nil || reminder == nil {
+		t.Fatalf("GetTaskReminder() reminder/error = %+v/%v", reminder, err)
+	}
+	if reminder.Recurrence != ReminderRecurrenceDaily || reminder.SentAt == nil || !reminder.RemindAt.After(now) || reminder.RemindAt.After(now.Add(24*time.Hour)) {
+		t.Fatalf("advanced daily reminder = %+v", reminder)
+	}
+	count, err = repository.DispatchDueTaskReminders(ctx, now, 100)
+	if err != nil || count != 0 {
+		t.Fatalf("repeated daily dispatch count/error = %d/%v, want 0/nil", count, err)
+	}
+	var notificationCount int
+	if err := db.QueryRow(ctx, `SELECT COUNT(*) FROM notifications WHERE user_id = $1`, userID).Scan(&notificationCount); err != nil {
+		t.Fatalf("count notifications: %v", err)
+	}
+	if notificationCount != 2 {
+		t.Fatalf("notification count = %d, want 2", notificationCount)
 	}
 }

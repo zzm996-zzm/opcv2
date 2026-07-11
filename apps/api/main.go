@@ -149,7 +149,7 @@ func main() {
 	)
 	sandboxHTTP := sandbox.NewHTTPHandler(sandboxService)
 	tasksRepository := tasks.NewPostgresRepository(db)
-	tasksService := tasks.NewService(tasksRepository)
+	tasksService := tasks.NewService(tasksRepository, tasks.WithMembershipProvider(membershipService))
 	tasksHTTP := tasks.NewHTTPHandler(tasksService)
 	dashboardRepository := dashboard.NewPostgresRepository(db)
 	dashboardService := dashboard.NewService(dashboardRepository)

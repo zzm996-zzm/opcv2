@@ -14,14 +14,20 @@ const (
 	PriorityLow    = "low"
 	PriorityMedium = "medium"
 	PriorityHigh   = "high"
+
+	ReminderRecurrenceOnce   = "once"
+	ReminderRecurrenceDaily  = "daily"
+	ReminderRecurrenceWeekly = "weekly"
 )
 
 var (
-	ErrServiceNotReady     = errors.New("tasks service is not configured")
-	ErrTaskNotFound        = errors.New("task not found")
-	ErrSubtaskNotFound     = errors.New("subtask not found")
-	ErrReminderNotFound    = errors.New("task reminder not found")
-	ErrInvalidReminderTime = errors.New("invalid task reminder time")
+	ErrServiceNotReady                     = errors.New("tasks service is not configured")
+	ErrTaskNotFound                        = errors.New("task not found")
+	ErrSubtaskNotFound                     = errors.New("subtask not found")
+	ErrReminderNotFound                    = errors.New("task reminder not found")
+	ErrInvalidReminderTime                 = errors.New("invalid task reminder time")
+	ErrInvalidReminderRecurrence           = errors.New("invalid task reminder recurrence")
+	ErrRecurringReminderRequiresMembership = errors.New("recurring task reminder requires membership")
 )
 
 type CreateInput struct {
@@ -66,19 +72,21 @@ type SubtaskUpdate struct {
 }
 
 type TaskReminder struct {
-	ID        int64      `json:"id"`
-	TaskID    int64      `json:"task_id"`
-	UserID    int64      `json:"user_id"`
-	RemindAt  time.Time  `json:"remind_at"`
-	SentAt    *time.Time `json:"sent_at,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID         int64      `json:"id"`
+	TaskID     int64      `json:"task_id"`
+	UserID     int64      `json:"user_id"`
+	RemindAt   time.Time  `json:"remind_at"`
+	Recurrence string     `json:"recurrence"`
+	SentAt     *time.Time `json:"sent_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 type UpsertTaskReminderInput struct {
-	UserID   int64     `json:"-"`
-	TaskID   int64     `json:"-"`
-	RemindAt time.Time `json:"remind_at"`
+	UserID     int64     `json:"-"`
+	TaskID     int64     `json:"-"`
+	RemindAt   time.Time `json:"remind_at"`
+	Recurrence string    `json:"recurrence"`
 }
 
 type TaskUpdate struct {

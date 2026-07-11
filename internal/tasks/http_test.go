@@ -508,6 +508,20 @@ func TestUpsertTaskReminderEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 }
 
+func TestUpsertRecurringTaskReminderEndpointReturnsMembershipRequired(t *testing.T) {
+	app := &fakeApplication{err: ErrRecurringReminderRequiresMembership}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/tasks/99/reminder", strings.NewReader(`{"remind_at":"2026-07-18T10:00:00Z","recurrence":"daily"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusPaymentRequired || !strings.Contains(recorder.Body.String(), `"error":"membership_required"`) || app.reminderInput.Recurrence != ReminderRecurrenceDaily {
+		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.reminderInput, recorder.Body.String())
+	}
+}
+
 func TestUpsertTaskReminderEndpointRejectsMissingTime(t *testing.T) {
 	app := &fakeApplication{}
 	router := tasksTestRouter(app)

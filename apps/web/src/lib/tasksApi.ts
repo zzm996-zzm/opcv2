@@ -2,6 +2,7 @@ import { apiRequest } from "./apiRequest";
 
 export type TaskStatus = "todo" | "in_progress" | "completed" | "reminder";
 export type TaskPriority = "low" | "medium" | "high";
+export type ReminderRecurrence = "once" | "daily" | "weekly";
 
 export type Task = {
   id: number;
@@ -63,6 +64,7 @@ export type TaskReminder = {
   task_id: number;
   user_id: number;
   remind_at: string;
+  recurrence: ReminderRecurrence;
   sent_at?: string;
   created_at: string;
   updated_at: string;
@@ -81,6 +83,11 @@ export type UpdateSubtaskInput = Partial<{
   clearDueAt: boolean;
   completed: boolean;
 }>;
+
+export type UpsertReminderInput = {
+  remindAt: string;
+  recurrence: ReminderRecurrence;
+};
 
 export type CreateTaskInput = {
   title: string;
@@ -243,10 +250,10 @@ export const tasksApi = {
     });
   },
 
-  upsertReminder(taskID: number, remindAt: string) {
+  upsertReminder(taskID: number, input: UpsertReminderInput) {
     return apiRequest<TaskReminder>(`/api/v1/tasks/${taskID}/reminder`, {
       method: "PUT",
-      body: JSON.stringify({ remind_at: remindAt })
+      body: JSON.stringify({ remind_at: input.remindAt, recurrence: input.recurrence })
     });
   },
 
