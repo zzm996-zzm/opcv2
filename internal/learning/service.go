@@ -12,6 +12,8 @@ type Repository interface {
 	ListCourses(ctx context.Context, filter CourseFilter) ([]Course, error)
 	GetCourse(ctx context.Context, slug string) (Course, error)
 	ListProgress(ctx context.Context, userID int64) ([]Progress, error)
+	GetProgress(ctx context.Context, userID int64, courseSlug string) (Progress, error)
+	UpsertProgress(ctx context.Context, progress Progress) (Progress, error)
 	CreateDiagnosis(ctx context.Context, diagnosis Diagnosis) (Diagnosis, error)
 	LatestDiagnosis(ctx context.Context, userID int64) (Diagnosis, error)
 }
@@ -48,6 +50,44 @@ func (s *Service) ListProgress(ctx context.Context, userID int64) ([]Progress, e
 		return nil, ErrServiceNotReady
 	}
 	return s.repository.ListProgress(ctx, userID)
+}
+
+func (s *Service) GetProgress(ctx context.Context, userID int64, courseSlug string) (Progress, error) {
+	if s.repository == nil {
+		return Progress{}, ErrServiceNotReady
+	}
+	courseSlug = strings.TrimSpace(courseSlug)
+	if userID <= 0 || courseSlug == "" {
+		return Progress{}, ErrInvalidProgress
+	}
+	return s.repository.GetProgress(ctx, userID, courseSlug)
+}
+
+func (s *Service) UpdateProgress(ctx context.Context, input UpdateProgressInput) (Progress, error) {
+	if s.repository == nil {
+		return Progress{}, ErrServiceNotReady
+	}
+	input.CourseSlug = strings.TrimSpace(input.CourseSlug)
+	if input.UserID <= 0 || input.CourseSlug == "" || input.Percent < 0 || input.Percent > 100 {
+		return Progress{}, ErrInvalidProgress
+	}
+	course, err := s.repository.GetCourse(ctx, input.CourseSlug)
+	if err != nil {
+		return Progress{}, err
+	}
+	progress, err := s.repository.UpsertProgress(ctx, Progress{
+		UserID:            input.UserID,
+		CourseSlug:        input.CourseSlug,
+		Percent:           input.Percent,
+		LastLesson:        strings.TrimSpace(input.LastLesson),
+		RecommendedAction: strings.TrimSpace(input.RecommendedAction),
+		UpdatedAt:         s.now(),
+	})
+	if err != nil {
+		return Progress{}, err
+	}
+	progress.CourseTitle = course.Title
+	return progress, nil
 }
 
 func (s *Service) CreateDiagnosis(ctx context.Context, input CreateDiagnosisInput) (Diagnosis, error) {

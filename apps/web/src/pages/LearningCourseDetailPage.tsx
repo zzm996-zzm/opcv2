@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
+import { learningApi } from "../lib/learningApi";
 
 const outlineSections = [
   {
@@ -66,6 +68,44 @@ const materials = [
 ] as const;
 
 function LearningCourseDetailPage() {
+  const [percent, setPercent] = useState(32);
+  const [saving, setSaving] = useState(false);
+  const [progressError, setProgressError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    learningApi.getProgress("ai-market-analysis")
+      .then((progress) => {
+        if (active) setPercent(progress.percent);
+      })
+      .catch(() => {
+        // Keep the design-reference starting point until the user saves progress.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function continueToNextLesson() {
+    if (saving) return;
+    setSaving(true);
+    setProgressError("");
+    try {
+      const progress = await learningApi.updateProgress("ai-market-analysis", {
+        percent: Math.min(100, percent + 6),
+        last_lesson: "2.3 行业规模与增长趋势分析",
+        recommended_action: "继续完成第2章"
+      });
+      setPercent(progress.percent);
+    } catch {
+      setProgressError("学习进度保存失败，请稍后重试。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const learnedLessons = Math.min(18, Math.round(percent * 18 / 100));
+
   return (
     <V4PageShell>
       <section className="learning-page course-detail-page" aria-label="课程学习">
@@ -103,11 +143,12 @@ function LearningCourseDetailPage() {
 
               <footer className="course-progress-row">
                 <strong>课程总进度</strong>
-                <progress max="100" value="32">32%</progress>
-                <b>32%</b>
-                <span>已学 6 / 18 节</span>
-                <button type="button">继续下一节</button>
+                <progress max="100" value={percent}>{percent}%</progress>
+                <b>{percent}%</b>
+                <span>已学 {learnedLessons} / 18 节</span>
+                <button disabled={saving} onClick={continueToNextLesson} type="button">{saving ? "保存中..." : "继续下一节"}</button>
               </footer>
+              {progressError ? <p role="alert">{progressError}</p> : null}
             </article>
 
             <aside className="course-outline-card" aria-label="课程大纲">

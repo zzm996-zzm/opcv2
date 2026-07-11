@@ -51,6 +51,54 @@ func TestPostgresRepositoryListsProgressForUser(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryGetsAndUpsertsUserProgress(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 11, 16, 0, 0, 0, time.UTC)
+	columns := []string{"id", "user_id", "course_slug", "title", "percent", "last_lesson", "recommended_action", "updated_at"}
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT lp.id, lp.user_id, lp.course_slug, lc.title, lp.percent, lp.last_lesson, lp.recommended_action, lp.updated_at
+		FROM learning_progress lp
+		JOIN learning_courses lc ON lc.slug = lp.course_slug
+		WHERE lp.user_id = $1 AND lp.course_slug = $2
+	`)).WithArgs(int64(42), "ai-market-analysis").WillReturnRows(pgxmock.NewRows(columns).AddRow(
+		int64(7), int64(42), "ai-market-analysis", "AI行业分析方法", 32, "2.2 行业生命周期", "继续第2章", now,
+	))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO learning_progress (user_id, course_slug, percent, last_lesson, recommended_action, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $6)
+		ON CONFLICT (user_id, course_slug) DO UPDATE SET
+			percent = EXCLUDED.percent,
+			last_lesson = EXCLUDED.last_lesson,
+			recommended_action = EXCLUDED.recommended_action,
+			updated_at = EXCLUDED.updated_at
+		RETURNING id, user_id, course_slug, percent, last_lesson, recommended_action, updated_at
+	`)).WithArgs(int64(42), "ai-market-analysis", 38, "2.3 行业规模", "继续第2章", now).WillReturnRows(
+		pgxmock.NewRows([]string{"id", "user_id", "course_slug", "percent", "last_lesson", "recommended_action", "updated_at"}).AddRow(
+			int64(7), int64(42), "ai-market-analysis", 38, "2.3 行业规模", "继续第2章", now,
+		),
+	)
+
+	repository := NewPostgresRepository(db)
+	progress, err := repository.GetProgress(context.Background(), 42, "ai-market-analysis")
+	if err != nil || progress.CourseTitle != "AI行业分析方法" {
+		t.Fatalf("GetProgress() progress = %+v err = %v", progress, err)
+	}
+	updated, err := repository.UpsertProgress(context.Background(), Progress{
+		UserID: 42, CourseSlug: "ai-market-analysis", Percent: 38, LastLesson: "2.3 行业规模", RecommendedAction: "继续第2章", UpdatedAt: now,
+	})
+	if err != nil || updated.Percent != 38 {
+		t.Fatalf("UpsertProgress() progress = %+v err = %v", updated, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryGetsLatestDiagnosisForUser(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

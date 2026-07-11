@@ -647,6 +647,12 @@ func (fakeLearningApp) GetCourse(context.Context, string) (learning.Course, erro
 func (fakeLearningApp) ListProgress(context.Context, int64) ([]learning.Progress, error) {
 	return []learning.Progress{{CourseSlug: "ai-basics", CourseTitle: "AI基础入门", Percent: 42}}, nil
 }
+func (fakeLearningApp) GetProgress(context.Context, int64, string) (learning.Progress, error) {
+	return learning.Progress{CourseSlug: "ai-basics", CourseTitle: "AI基础入门", Percent: 42}, nil
+}
+func (fakeLearningApp) UpdateProgress(context.Context, learning.UpdateProgressInput) (learning.Progress, error) {
+	return learning.Progress{CourseSlug: "ai-basics", CourseTitle: "AI基础入门", Percent: 42}, nil
+}
 func (fakeLearningApp) CreateDiagnosis(context.Context, learning.CreateDiagnosisInput) (learning.Diagnosis, error) {
 	return learning.Diagnosis{ID: 99, UserID: 42, Status: learning.DiagnosisCompleted}, nil
 }

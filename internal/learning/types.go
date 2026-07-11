@@ -8,6 +8,8 @@ import (
 var (
 	ErrServiceNotReady   = errors.New("learning service is not configured")
 	ErrCourseNotFound    = errors.New("learning course not found")
+	ErrProgressNotFound  = errors.New("learning progress not found")
+	ErrInvalidProgress   = errors.New("invalid learning progress")
 	ErrDiagnosisNotFound = errors.New("learning diagnosis not found")
 )
 
@@ -43,6 +45,14 @@ type Progress struct {
 	LastLesson        string    `json:"last_lesson"`
 	RecommendedAction string    `json:"recommended_action"`
 	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+type UpdateProgressInput struct {
+	UserID            int64  `json:"-"`
+	CourseSlug        string `json:"-"`
+	Percent           int    `json:"percent"`
+	LastLesson        string `json:"last_lesson"`
+	RecommendedAction string `json:"recommended_action"`
 }
 
 type Dimension struct {

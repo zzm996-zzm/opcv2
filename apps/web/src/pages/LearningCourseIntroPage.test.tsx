@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authSession } from "../lib/authSession";
 import LearningCourseIntroPage from "./LearningCourseIntroPage";
@@ -8,6 +8,7 @@ import LearningCourseIntroPage from "./LearningCourseIntroPage";
 describe("LearningCourseIntroPage", () => {
   afterEach(() => {
     authSession.clear();
+	vi.restoreAllMocks();
   });
 
   it("renders the course intro with overview, syllabus and copilot guidance", () => {
@@ -34,5 +35,26 @@ describe("LearningCourseIntroPage", () => {
     expect(screen.getByText("与你的目标强相关")).toBeInTheDocument();
     expect(screen.getByText("能力诊断报告.pdf")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /提示词工程实战/ })).toHaveAttribute("href", "/learning/courses/detail");
+  });
+
+  it("starts the course and saves initial progress", async () => {
+	const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+	  id: 7,
+	  course_slug: "ai-market-analysis",
+	  percent: 1,
+	  last_lesson: "第1章 行业分析概述与框架"
+	}), { status: 200 }));
+
+	render(
+	  <MemoryRouter>
+		<LearningCourseIntroPage />
+	  </MemoryRouter>
+	);
+	fireEvent.click(screen.getByRole("button", { name: "立即学习" }));
+
+	await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+	  "/api/v1/learning/progress/ai-market-analysis",
+	  expect.objectContaining({ method: "PUT" })
+	));
   });
 });

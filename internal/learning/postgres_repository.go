@@ -88,6 +88,56 @@ func (r *PostgresRepository) ListProgress(ctx context.Context, userID int64) ([]
 	return progress, nil
 }
 
+func (r *PostgresRepository) GetProgress(ctx context.Context, userID int64, courseSlug string) (Progress, error) {
+	progress, err := scanProgress(r.db.QueryRow(ctx, `
+		SELECT lp.id, lp.user_id, lp.course_slug, lc.title, lp.percent, lp.last_lesson, lp.recommended_action, lp.updated_at
+		FROM learning_progress lp
+		JOIN learning_courses lc ON lc.slug = lp.course_slug
+		WHERE lp.user_id = $1 AND lp.course_slug = $2
+	`, userID, courseSlug))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Progress{}, ErrProgressNotFound
+	}
+	return progress, err
+}
+
+func (r *PostgresRepository) UpsertProgress(ctx context.Context, progress Progress) (Progress, error) {
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO learning_progress (user_id, course_slug, percent, last_lesson, recommended_action, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $6)
+		ON CONFLICT (user_id, course_slug) DO UPDATE SET
+			percent = EXCLUDED.percent,
+			last_lesson = EXCLUDED.last_lesson,
+			recommended_action = EXCLUDED.recommended_action,
+			updated_at = EXCLUDED.updated_at
+		RETURNING id, user_id, course_slug, percent, last_lesson, recommended_action, updated_at
+	`, progress.UserID, progress.CourseSlug, progress.Percent, progress.LastLesson, progress.RecommendedAction, progress.UpdatedAt).Scan(
+		&progress.ID,
+		&progress.UserID,
+		&progress.CourseSlug,
+		&progress.Percent,
+		&progress.LastLesson,
+		&progress.RecommendedAction,
+		&progress.UpdatedAt,
+	)
+	return progress, err
+}
+
+func scanProgress(scanner courseScanner) (Progress, error) {
+	var progress Progress
+	err := scanner.Scan(
+		&progress.ID,
+		&progress.UserID,
+		&progress.CourseSlug,
+		&progress.CourseTitle,
+		&progress.Percent,
+		&progress.LastLesson,
+		&progress.RecommendedAction,
+		&progress.UpdatedAt,
+	)
+	return progress, err
+}
+
 func (r *PostgresRepository) CreateDiagnosis(ctx context.Context, diagnosis Diagnosis) (Diagnosis, error) {
 	focusAbilities, err := json.Marshal(diagnosis.FocusAbilities)
 	if err != nil {

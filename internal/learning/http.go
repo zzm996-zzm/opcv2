@@ -15,6 +15,8 @@ type Application interface {
 	ListCourses(ctx context.Context, filter CourseFilter) ([]Course, error)
 	GetCourse(ctx context.Context, slug string) (Course, error)
 	ListProgress(ctx context.Context, userID int64) ([]Progress, error)
+	GetProgress(ctx context.Context, userID int64, courseSlug string) (Progress, error)
+	UpdateProgress(ctx context.Context, input UpdateProgressInput) (Progress, error)
 	CreateDiagnosis(ctx context.Context, input CreateDiagnosisInput) (Diagnosis, error)
 	LatestDiagnosis(ctx context.Context, userID int64) (Diagnosis, error)
 	LatestGaps(ctx context.Context, userID int64) (DiagnosisGaps, error)
@@ -38,12 +40,39 @@ func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
 
 func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.GET("/learning/progress", h.listProgress)
+	router.GET("/learning/progress/:courseSlug", h.getProgress)
+	router.PUT("/learning/progress/:courseSlug", h.updateProgress)
 	router.POST("/learning/diagnoses", h.createDiagnosis)
 	router.GET("/learning/diagnoses/latest", h.latestDiagnosis)
 	router.GET("/learning/diagnoses/latest/gaps", h.latestGaps)
 	router.GET("/learning/diagnoses/latest/recommendations", h.latestRecommendations)
 	router.GET("/learning/diagnoses/latest/plan", h.latestPlan)
 	router.GET("/learning/diagnoses/latest/report", h.latestReport)
+}
+
+func (h *HTTPHandler) getProgress(c *gin.Context) {
+	progress, err := h.app.GetProgress(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), c.Param("courseSlug"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, progress)
+}
+
+func (h *HTTPHandler) updateProgress(c *gin.Context) {
+	var request UpdateProgressInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.CourseSlug = c.Param("courseSlug")
+	progress, err := h.app.UpdateProgress(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, progress)
 }
 
 func (h *HTTPHandler) listCourses(c *gin.Context) {
@@ -148,6 +177,10 @@ func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrCourseNotFound):
 		httpapi.Error(c, http.StatusNotFound, "course_not_found")
+	case errors.Is(err, ErrProgressNotFound):
+		httpapi.Error(c, http.StatusNotFound, "progress_not_found")
+	case errors.Is(err, ErrInvalidProgress):
+		httpapi.BadRequest(c, "invalid_progress")
 	case errors.Is(err, ErrDiagnosisNotFound):
 		httpapi.Error(c, http.StatusNotFound, "diagnosis_not_found")
 	case errors.Is(err, ErrServiceNotReady):

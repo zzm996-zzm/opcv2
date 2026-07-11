@@ -1,7 +1,9 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
+import { learningApi } from "../lib/learningApi";
 
 const topicTags = ["行业分析", "市场洞察", "数据分析", "竞争分析", "AI工具应用"] as const;
 
@@ -44,6 +46,28 @@ const relatedCourses = [
 ] as const;
 
 function LearningCourseIntroPage() {
+  const navigate = useNavigate();
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState("");
+
+  async function startCourse() {
+    if (starting) return;
+    setStarting(true);
+    setStartError("");
+    try {
+      await learningApi.updateProgress("ai-market-analysis", {
+        percent: 1,
+        last_lesson: "第1章 行业分析概述与框架",
+        recommended_action: "继续学习第1章"
+      });
+      navigate("/learning/courses/detail");
+    } catch {
+      setStartError("课程启动失败，请稍后重试。");
+    } finally {
+      setStarting(false);
+    }
+  }
+
   return (
     <V4PageShell>
       <section className="learning-page course-intro-page" aria-label="课程介绍">
@@ -90,10 +114,11 @@ function LearningCourseIntroPage() {
                 ))}
               </div>
               <div className="course-hero-actions">
-                <button type="button">立即学习</button>
+                <button disabled={starting} onClick={startCourse} type="button">{starting ? "正在开始..." : "立即学习"}</button>
                 <Link to="/learning/plan">加入学习计划</Link>
                 <button type="button">收藏</button>
               </div>
+              {startError ? <p role="alert">{startError}</p> : null}
             </div>
           </section>
 

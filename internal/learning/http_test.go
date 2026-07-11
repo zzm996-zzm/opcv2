@@ -23,6 +23,8 @@ type fakeApp struct {
 	report          DiagnosisReport
 	diagnosisInput  CreateDiagnosisInput
 	progressUserID  int64
+	progressSlug    string
+	progressInput   UpdateProgressInput
 	latestUserID    int64
 	err             error
 }
@@ -37,6 +39,21 @@ func (a *fakeApp) GetCourse(context.Context, string) (Course, error) {
 func (a *fakeApp) ListProgress(_ context.Context, userID int64) ([]Progress, error) {
 	a.progressUserID = userID
 	return a.progress, a.err
+}
+func (a *fakeApp) GetProgress(_ context.Context, userID int64, courseSlug string) (Progress, error) {
+	a.progressUserID = userID
+	a.progressSlug = courseSlug
+	if len(a.progress) == 0 {
+		return Progress{}, a.err
+	}
+	return a.progress[0], a.err
+}
+func (a *fakeApp) UpdateProgress(_ context.Context, input UpdateProgressInput) (Progress, error) {
+	a.progressInput = input
+	if len(a.progress) == 0 {
+		return Progress{}, a.err
+	}
+	return a.progress[0], a.err
 }
 func (a *fakeApp) CreateDiagnosis(_ context.Context, input CreateDiagnosisInput) (Diagnosis, error) {
 	a.diagnosisInput = input
@@ -172,6 +189,35 @@ func TestHTTPHandlerListsProgressForAuthenticatedUser(t *testing.T) {
 	}
 	if app.progressUserID != 42 {
 		t.Fatalf("progress userID = %d, want authenticated user 42", app.progressUserID)
+	}
+}
+
+func TestHTTPHandlerGetsAndUpdatesCourseProgressForAuthenticatedUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	group := router.Group("/api/v1")
+	group.Use(func(c *gin.Context) {
+		c.Set(auth.UserIDContextKey, int64(42))
+		c.Next()
+	})
+	app := &fakeApp{progress: []Progress{{ID: 7, UserID: 42, CourseSlug: "ai-market-analysis", Percent: 38}}}
+	NewHTTPHandler(app).RegisterProtected(group)
+
+	getRecorder := httptest.NewRecorder()
+	router.ServeHTTP(getRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/learning/progress/ai-market-analysis", nil))
+	if getRecorder.Code != http.StatusOK || app.progressUserID != 42 || app.progressSlug != "ai-market-analysis" {
+		t.Fatalf("get status = %d app = %+v body=%s", getRecorder.Code, app, getRecorder.Body.String())
+	}
+
+	updateRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/learning/progress/ai-market-analysis", strings.NewReader(`{"percent":38,"last_lesson":"2.3 行业规模与增长趋势分析","recommended_action":"继续完成第2章"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(updateRecorder, request)
+	if updateRecorder.Code != http.StatusOK {
+		t.Fatalf("update status = %d body=%s", updateRecorder.Code, updateRecorder.Body.String())
+	}
+	if app.progressInput.UserID != 42 || app.progressInput.CourseSlug != "ai-market-analysis" || app.progressInput.Percent != 38 {
+		t.Fatalf("progress input = %+v", app.progressInput)
 	}
 }
 

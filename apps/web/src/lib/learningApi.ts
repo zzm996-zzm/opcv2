@@ -27,6 +27,12 @@ export type LearningProgress = {
   updated_at: string;
 };
 
+export type UpdateLearningProgressInput = {
+  percent: number;
+  last_lesson: string;
+  recommended_action: string;
+};
+
 export type LearningDimension = {
   name: string;
   score: number;
@@ -163,6 +169,19 @@ export const learningApi = {
   listProgress() {
     return apiRequest<{ progress: LearningProgress[] }>("/api/v1/learning/progress", {
       method: "GET"
+    });
+  },
+
+  getProgress(courseSlug: string) {
+    return apiRequest<LearningProgress>(`/api/v1/learning/progress/${encodeURIComponent(courseSlug)}`, {
+      method: "GET"
+    });
+  },
+
+  updateProgress(courseSlug: string, input: UpdateLearningProgressInput) {
+    return apiRequest<LearningProgress>(`/api/v1/learning/progress/${encodeURIComponent(courseSlug)}`, {
+      method: "PUT",
+      body: JSON.stringify(input)
     });
   },
 

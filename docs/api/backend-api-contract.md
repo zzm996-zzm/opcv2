@@ -1368,6 +1368,44 @@ Response:
 }
 ```
 
+### Get Course Progress
+
+`GET /api/v1/learning/progress/{courseSlug}`
+
+Protected and scoped to the authenticated user.
+
+Errors:
+
+- `404 progress_not_found`
+
+### Update Course Progress
+
+`PUT /api/v1/learning/progress/{courseSlug}`
+
+Protected. Creates or replaces the authenticated user's progress for the
+course. Repeated requests are idempotent for the same user and course.
+
+Request:
+
+```json
+{
+  "percent": 38,
+  "last_lesson": "2.3 行业规模与增长趋势分析",
+  "recommended_action": "继续完成第2章"
+}
+```
+
+Validation:
+
+- `percent` must be between `0` and `100`.
+- The course must exist.
+- Client-supplied user or course identifiers are ignored.
+
+Errors:
+
+- `400 invalid_progress`
+- `404 course_not_found`
+
 ### Create Diagnosis
 
 `POST /api/v1/learning/diagnoses`

@@ -15,6 +15,30 @@ type fakeRepository struct {
 	repository error
 }
 
+func (r *fakeRepository) GetProgress(_ context.Context, userID int64, courseSlug string) (Progress, error) {
+	for _, item := range r.progress {
+		if item.UserID == userID && item.CourseSlug == courseSlug {
+			return item, nil
+		}
+	}
+	return Progress{}, ErrProgressNotFound
+}
+
+func (r *fakeRepository) UpsertProgress(_ context.Context, progress Progress) (Progress, error) {
+	if r.repository != nil {
+		return Progress{}, r.repository
+	}
+	progress.ID = 88
+	for index, item := range r.progress {
+		if item.UserID == progress.UserID && item.CourseSlug == progress.CourseSlug {
+			r.progress[index] = progress
+			return progress, nil
+		}
+	}
+	r.progress = append(r.progress, progress)
+	return progress, nil
+}
+
 func (r *fakeRepository) ListCourses(_ context.Context, filter CourseFilter) ([]Course, error) {
 	if r.repository != nil {
 		return nil, r.repository
@@ -92,6 +116,39 @@ func TestServiceListsCoursesByCategory(t *testing.T) {
 	}
 	if len(courses) != 1 || courses[0].Slug != "prompt-engineering" {
 		t.Fatalf("courses = %+v", courses)
+	}
+}
+
+func TestServiceUpdatesUserCourseProgress(t *testing.T) {
+	repository := &fakeRepository{courses: []Course{{Slug: "ai-market-analysis", Title: "AI行业分析方法"}}}
+	service := NewService(repository)
+
+	progress, err := service.UpdateProgress(context.Background(), UpdateProgressInput{
+		UserID:            42,
+		CourseSlug:        " ai-market-analysis ",
+		Percent:           38,
+		LastLesson:        " 2.3 行业规模与增长趋势分析 ",
+		RecommendedAction: " 继续完成第2章 ",
+	})
+
+	if err != nil {
+		t.Fatalf("UpdateProgress() error = %v", err)
+	}
+	if progress.UserID != 42 || progress.CourseSlug != "ai-market-analysis" || progress.CourseTitle != "AI行业分析方法" || progress.Percent != 38 {
+		t.Fatalf("progress = %+v", progress)
+	}
+	if progress.LastLesson != "2.3 行业规模与增长趋势分析" || progress.RecommendedAction != "继续完成第2章" {
+		t.Fatalf("progress text = %+v", progress)
+	}
+}
+
+func TestServiceRejectsInvalidCourseProgress(t *testing.T) {
+	service := NewService(&fakeRepository{})
+
+	_, err := service.UpdateProgress(context.Background(), UpdateProgressInput{UserID: 42, CourseSlug: "ai-market-analysis", Percent: 101})
+
+	if !errors.Is(err, ErrInvalidProgress) {
+		t.Fatalf("err = %v, want ErrInvalidProgress", err)
 	}
 }
 
