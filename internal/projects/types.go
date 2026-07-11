@@ -10,6 +10,8 @@ const (
 	StatusCompleted            = "completed"
 	OpportunityStatusDraft     = "draft"
 	OpportunityStatusPublished = "published"
+	CaseStatusDraft            = "draft"
+	CaseStatusPublished        = "published"
 )
 
 var (
@@ -17,7 +19,32 @@ var (
 	ErrInvalidAIResult     = errors.New("invalid projects ai result")
 	ErrSessionNotFound     = errors.New("project match session not found")
 	ErrOpportunityNotFound = errors.New("project opportunity not found")
+	ErrCaseNotFound        = errors.New("project case not found")
 )
+
+type CaseFilters struct {
+	CaseType string
+	Limit    int
+}
+
+type CaseStudy struct {
+	ID            int64      `json:"id"`
+	Slug          string     `json:"slug"`
+	OpportunityID *int64     `json:"opportunity_id,omitempty"`
+	Title         string     `json:"title"`
+	Summary       string     `json:"summary"`
+	CaseType      string     `json:"case_type"`
+	Outcome       string     `json:"outcome"`
+	KeyActions    []string   `json:"key_actions"`
+	Lessons       []string   `json:"lessons"`
+	Pitfalls      []string   `json:"pitfalls"`
+	SourceTitle   string     `json:"source_title"`
+	SourceURL     string     `json:"source_url"`
+	CapturedAt    time.Time  `json:"captured_at"`
+	Status        string     `json:"-"`
+	PublishedAt   *time.Time `json:"published_at,omitempty"`
+	UpdatedAt     time.Time  `json:"updated_at"`
+}
 
 type OpportunityFilters struct {
 	Query    string

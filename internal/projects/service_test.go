@@ -16,7 +16,27 @@ type memoryRepository struct {
 	sessions      []MatchSession
 	favorites     map[int64]map[int64]Favorite
 	opportunities []Opportunity
+	cases         []CaseStudy
 	nextID        int64
+}
+
+func (r *memoryRepository) ListCases(_ context.Context, filters CaseFilters) ([]CaseStudy, error) {
+	var rows []CaseStudy
+	for _, item := range r.cases {
+		if item.Status == CaseStatusPublished && (filters.CaseType == "" || item.CaseType == filters.CaseType) {
+			rows = append(rows, item)
+		}
+	}
+	return rows, nil
+}
+
+func (r *memoryRepository) GetCase(_ context.Context, slug string) (CaseStudy, error) {
+	for _, item := range r.cases {
+		if item.Status == CaseStatusPublished && item.Slug == slug {
+			return item, nil
+		}
+	}
+	return CaseStudy{}, ErrCaseNotFound
 }
 
 func (r *memoryRepository) ListOpportunities(_ context.Context, filters OpportunityFilters) ([]Opportunity, error) {

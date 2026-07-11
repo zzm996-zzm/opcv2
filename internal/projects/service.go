@@ -16,10 +16,34 @@ import (
 type Repository interface {
 	ListOpportunities(ctx context.Context, filters OpportunityFilters) ([]Opportunity, error)
 	GetOpportunity(ctx context.Context, slug string) (Opportunity, error)
+	ListCases(ctx context.Context, filters CaseFilters) ([]CaseStudy, error)
+	GetCase(ctx context.Context, slug string) (CaseStudy, error)
 	CreateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetSession(ctx context.Context, userID, id int64) (MatchSession, error)
 	SaveFavorite(ctx context.Context, favorite Favorite) (Favorite, error)
+}
+
+func (s *Service) ListCases(ctx context.Context, filters CaseFilters) ([]CaseStudy, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	filters.CaseType = strings.TrimSpace(filters.CaseType)
+	if filters.Limit <= 0 || filters.Limit > 100 {
+		filters.Limit = 20
+	}
+	return s.repository.ListCases(ctx, filters)
+}
+
+func (s *Service) GetCase(ctx context.Context, slug string) (CaseStudy, error) {
+	if s.repository == nil {
+		return CaseStudy{}, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return CaseStudy{}, ErrCaseNotFound
+	}
+	return s.repository.GetCase(ctx, slug)
 }
 
 func (s *Service) ListOpportunities(ctx context.Context, filters OpportunityFilters) ([]Opportunity, error) {

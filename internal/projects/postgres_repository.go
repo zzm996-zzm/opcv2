@@ -61,6 +61,34 @@ func (r *PostgresRepository) GetOpportunity(ctx context.Context, slug string) (O
 	return item, err
 }
 
+func (r *PostgresRepository) ListCases(ctx context.Context, filters CaseFilters) ([]CaseStudy, error) {
+	rows, err := r.db.Query(ctx, `SELECT id, slug, opportunity_id, title, summary, case_type, outcome, key_actions, lessons, pitfalls, source_title, source_url, captured_at, status, published_at, updated_at FROM project_cases WHERE status = 'published' AND ($1 = '' OR case_type = $1) ORDER BY published_at DESC, id ASC LIMIT $2`, filters.CaseType, filters.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CaseStudy
+	for rows.Next() {
+		item, err := scanCase(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *PostgresRepository) GetCase(ctx context.Context, slug string) (CaseStudy, error) {
+	item, err := scanCase(r.db.QueryRow(ctx, `SELECT id, slug, opportunity_id, title, summary, case_type, outcome, key_actions, lessons, pitfalls, source_title, source_url, captured_at, status, published_at, updated_at FROM project_cases WHERE slug = $1 AND status = 'published'`, slug))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return CaseStudy{}, ErrCaseNotFound
+	}
+	return item, err
+}
+
 func (r *PostgresRepository) CreateSession(ctx context.Context, session MatchSession) (MatchSession, error) {
 	questions, err := json.Marshal(session.Questions)
 	if err != nil {
@@ -156,6 +184,24 @@ func scanOpportunity(scanner sessionScanner) (Opportunity, error) {
 	}
 	if err := json.Unmarshal(sections, &item.Sections); err != nil {
 		return Opportunity{}, err
+	}
+	return item, nil
+}
+
+func scanCase(scanner sessionScanner) (CaseStudy, error) {
+	var item CaseStudy
+	var actions, lessons, pitfalls []byte
+	if err := scanner.Scan(&item.ID, &item.Slug, &item.OpportunityID, &item.Title, &item.Summary, &item.CaseType, &item.Outcome, &actions, &lessons, &pitfalls, &item.SourceTitle, &item.SourceURL, &item.CapturedAt, &item.Status, &item.PublishedAt, &item.UpdatedAt); err != nil {
+		return CaseStudy{}, err
+	}
+	if err := json.Unmarshal(actions, &item.KeyActions); err != nil {
+		return CaseStudy{}, err
+	}
+	if err := json.Unmarshal(lessons, &item.Lessons); err != nil {
+		return CaseStudy{}, err
+	}
+	if err := json.Unmarshal(pitfalls, &item.Pitfalls); err != nil {
+		return CaseStudy{}, err
 	}
 	return item, nil
 }

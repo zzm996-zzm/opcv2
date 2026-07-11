@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { projectsApi, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
+import { projectsApi, type ProjectCase, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
 
 type ProjectMarketVariant =
   | "home"
@@ -461,6 +461,14 @@ function OpportunityExplore() {
 }
 
 function CaseLibrary() {
+  const [cases, setCases] = useState<ProjectCase[]>([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    projectsApi.listCases().then((payload) => { if (active) { setCases(payload.cases); setError(""); } })
+      .catch((loadError) => { if (active) { setCases([]); setError(apiErrorMessage(loadError, "暂时无法读取项目案例")); } });
+    return () => { active = false; };
+  }, []);
   return (
     <>
       <ProjectHero title="真实案例库" subtitle="用真实创业样板、失败复盘和可复制经验反推你的启动路径" action="机会探索" href="/projects/explore" />
@@ -473,29 +481,29 @@ function CaseLibrary() {
       </section>
       <section className="pm-case-layout">
         <div className="pm-case-grid">
-          {caseCards.map(([title, meta, result, detail]) => (
-            <article className="pm-case-card" key={title}>
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          {!error && cases.length === 0 ? <div className="module-empty-state" role="status">暂无已发布案例</div> : null}
+          {cases.map((item) => (
+            <article className="pm-case-card" key={item.id}>
               <div className="pm-thumb" />
               <div>
-                <small>{meta}</small>
-                <h2>{title}</h2>
-                <strong>{result}</strong>
-                <p>{detail}</p>
+                <small>{item.case_type === "success" ? "成功样板" : "失败复盘"}</small>
+                <h2>{item.title}</h2>
+                <strong>{item.outcome}</strong>
+                <p>{item.summary}</p>
               </div>
               <footer>
-                <span>关键动作 5 个</span>
-                <span>踩坑提醒 3 条</span>
-                <Link to="/projects/detail">查看拆解</Link>
+                <span>关键动作 {item.key_actions.length} 个</span>
+                <span>踩坑提醒 {item.pitfalls.length} 条</span>
+                <a href={item.source_url} rel="noreferrer" target="_blank">{item.source_title}</a>
               </footer>
             </article>
           ))}
         </div>
         <aside className="pm-insight-panel">
           <h2>案例共性</h2>
-          <p>跑通案例通常不是因为点子更大，而是更早完成了样板、报价和复购设计。</p>
-          {["先做窄行业样板", "用小订单验证真实需求", "把经验沉淀成模板", "用复购提升利润"].map((item) => (
-            <article key={item}>{item}</article>
-          ))}
+          <p>共性结论需要基于已发布案例证据生成。</p>
+          <div className="module-empty-state">暂无案例共性结论</div>
         </aside>
       </section>
     </>

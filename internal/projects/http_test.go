@@ -23,6 +23,15 @@ type fakeApplication struct {
 	opportunities []Opportunity
 	opportunity   Opportunity
 	filters       OpportunityFilters
+	cases         []CaseStudy
+	caseStudy     CaseStudy
+}
+
+func (a *fakeApplication) ListCases(_ context.Context, _ CaseFilters) ([]CaseStudy, error) {
+	return a.cases, a.err
+}
+func (a *fakeApplication) GetCase(_ context.Context, _ string) (CaseStudy, error) {
+	return a.caseStudy, a.err
 }
 
 func (a *fakeApplication) ListOpportunities(_ context.Context, filters OpportunityFilters) ([]Opportunity, error) {

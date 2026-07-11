@@ -108,12 +108,18 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "机会雷达" })).toBeInTheDocument();
   });
 
-  it("renders real case library page", () => {
+  it("renders real case library from API evidence", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ cases: [{
+      id: 81, slug: "ai-sales-pilot", title: "AI销售试点", summary: "从单一销售场景开始验证",
+      case_type: "success", outcome: "完成首轮流程验证", key_actions: ["先限定客户范围"], pitfalls: ["不要承诺未验证收益"],
+      source_title: "企业公开复盘", source_url: "https://example.com/case", captured_at: "2026-07-01T08:00:00Z"
+    }] }), { status: 200 }));
     renderProjectRoute("/projects/cases");
 
     expect(screen.getByRole("heading", { name: "真实案例库" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "成功样板" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Excel自动化顾问" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "AI销售试点" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "企业公开复盘" })).toHaveAttribute("href", "https://example.com/case");
     expect(screen.getByRole("heading", { name: "案例共性" })).toBeInTheDocument();
   });
 

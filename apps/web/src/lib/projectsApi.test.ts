@@ -57,6 +57,12 @@ describe("projectsApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/projects/opportunities/ai-sales", expect.objectContaining({ method: "GET" }));
   });
 
+  it("lists published project cases", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ cases: [] }), { status: 200 }));
+    await projectsApi.listCases({ caseType: "success" });
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/cases?type=success", expect.objectContaining({ method: "GET" }));
+  });
+
   it("gets project match detail", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: 99, user_id: 42, intent: "线上项目", status: "completed" }), { status: 200 })

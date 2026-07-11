@@ -55,6 +55,7 @@ export type ProjectOpportunity = {
   published_at?: string;
   updated_at?: string;
 };
+export type ProjectCase = { id:number; slug:string; title:string; summary:string; case_type:string; outcome:string; key_actions:string[]; lessons:string[]; pitfalls:string[]; source_title:string; source_url:string; captured_at:string };
 
 export const projectsApi = {
   listOpportunities(filters: { query?: string; industry?: string } = {}) {
@@ -67,6 +68,10 @@ export const projectsApi = {
 
   getOpportunity(slug: string) {
     return apiRequest<ProjectOpportunity>(`/api/v1/projects/opportunities/${encodeURIComponent(slug)}`, { method: "GET" });
+  },
+  listCases(filters: { caseType?: string } = {}) {
+    const suffix = filters.caseType ? `?type=${encodeURIComponent(filters.caseType)}` : "";
+    return apiRequest<{ cases: ProjectCase[] }>(`/api/v1/projects/cases${suffix}`, { method: "GET" });
   },
   createMatch(input: { intent: string }) {
     return apiRequest<ProjectMatchResult>("/api/v1/projects/matches", {
