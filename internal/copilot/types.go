@@ -16,6 +16,11 @@ const (
 
 	MessageStatusCompleted = "completed"
 	MessageStatusFailed    = "failed"
+
+	FileStatusReady  = "ready"
+	FileStatusFailed = "failed"
+	FileSourcePasted = "pasted"
+	FileSourceUpload = "upload"
 )
 
 var (
@@ -129,14 +134,19 @@ type Memory struct {
 }
 
 type File struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"user_id"`
-	Name      string    `json:"name"`
-	MimeType  string    `json:"mime_type"`
-	SizeBytes int       `json:"size_bytes"`
-	Content   string    `json:"content,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             int64     `json:"id"`
+	UserID         int64     `json:"user_id"`
+	Name           string    `json:"name"`
+	MimeType       string    `json:"mime_type"`
+	SizeBytes      int       `json:"size_bytes"`
+	Content        string    `json:"content,omitempty"`
+	Status         string    `json:"status"`
+	Source         string    `json:"source"`
+	SHA256         string    `json:"sha256,omitempty"`
+	ExtractedChars int       `json:"extracted_chars"`
+	ErrorCode      string    `json:"error_code,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type MemoryCandidate struct {

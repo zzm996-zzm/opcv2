@@ -62,6 +62,7 @@ const errorMessages: Record<string, string> = {
   invalid_file_encoding: "文件内容无法识别，请上传 UTF-8 文本或有效 DOCX",
   invalid_thread_id: "对话 ID 不正确",
   invalid_memory_id: "记忆 ID 不正确",
+  invalid_file_id: "文件 ID 不正确",
   notification_not_found: "消息不存在或已无权限访问",
   membership_required: "循环提醒仅限会员使用，请升级后重试"
 };

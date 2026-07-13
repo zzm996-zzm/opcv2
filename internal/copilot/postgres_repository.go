@@ -202,17 +202,17 @@ func (r *PostgresRepository) DeleteMemory(ctx context.Context, userID, id int64)
 
 func (r *PostgresRepository) CreateFile(ctx context.Context, file File) (File, error) {
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO copilot_files (user_id, name, mime_type, size_bytes, content, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $6)
+		INSERT INTO copilot_files (user_id, name, mime_type, size_bytes, content, status, source, sha256, extracted_chars, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
 		RETURNING id, created_at, updated_at
-	`, file.UserID, file.Name, file.MimeType, file.SizeBytes, file.Content, file.CreatedAt).
+	`, file.UserID, file.Name, file.MimeType, file.SizeBytes, file.Content, file.Status, file.Source, file.SHA256, file.ExtractedChars, file.CreatedAt).
 		Scan(&file.ID, &file.CreatedAt, &file.UpdatedAt)
 	return file, err
 }
 
 func (r *PostgresRepository) ListFiles(ctx context.Context, userID int64, limit int) ([]File, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, name, mime_type, size_bytes, content, created_at, updated_at
+		SELECT id, user_id, name, mime_type, size_bytes, '' AS content, status, source, sha256, extracted_chars, error_code, created_at, updated_at
 		FROM copilot_files
 		WHERE user_id = $1
 		ORDER BY updated_at DESC
@@ -236,9 +236,9 @@ func (r *PostgresRepository) ListFiles(ctx context.Context, userID int64, limit 
 
 func (r *PostgresRepository) GetFilesByIDs(ctx context.Context, userID int64, ids []int64) ([]File, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, name, mime_type, size_bytes, content, created_at, updated_at
+		SELECT id, user_id, name, mime_type, size_bytes, content, status, source, sha256, extracted_chars, error_code, created_at, updated_at
 		FROM copilot_files
-		WHERE user_id = $1 AND id = ANY($2)
+		WHERE user_id = $1 AND id = ANY($2) AND status = 'ready'
 		ORDER BY updated_at DESC
 	`, userID, ids)
 	if err != nil {
@@ -255,6 +255,29 @@ func (r *PostgresRepository) GetFilesByIDs(ctx context.Context, userID int64, id
 		files = append(files, file)
 	}
 	return files, rows.Err()
+}
+
+func (r *PostgresRepository) GetFile(ctx context.Context, userID, id int64) (File, error) {
+	file, err := scanFile(r.db.QueryRow(ctx, `
+		SELECT id, user_id, name, mime_type, size_bytes, content, status, source, sha256, extracted_chars, error_code, created_at, updated_at
+		FROM copilot_files
+		WHERE user_id = $1 AND id = $2
+	`, userID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return File{}, ErrFileNotFound
+	}
+	return file, err
+}
+
+func (r *PostgresRepository) DeleteFile(ctx context.Context, userID, id int64) error {
+	tag, err := r.db.Exec(ctx, `DELETE FROM copilot_files WHERE user_id = $1 AND id = $2`, userID, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrFileNotFound
+	}
+	return nil
 }
 
 func (r *PostgresRepository) ListRuns(ctx context.Context, userID int64, featurePrefix string, limit int) ([]ai.Run, error) {
@@ -382,6 +405,11 @@ func scanFile(scanner scanner) (File, error) {
 		&file.MimeType,
 		&file.SizeBytes,
 		&file.Content,
+		&file.Status,
+		&file.Source,
+		&file.SHA256,
+		&file.ExtractedChars,
+		&file.ErrorCode,
 		&file.CreatedAt,
 		&file.UpdatedAt,
 	); err != nil {

@@ -46,6 +46,11 @@ export type CopilotFile = {
   mime_type: string;
   size_bytes: number;
   content?: string;
+  status: "ready" | "failed" | string;
+  source: "pasted" | "upload" | string;
+  sha256?: string;
+  extracted_chars: number;
+  error_code?: string;
   created_at: string;
   updated_at: string;
 };
@@ -222,5 +227,13 @@ export const copilotApi = {
       method: "POST",
       body
     });
+  },
+
+  getFile(id: number) {
+    return apiRequest<CopilotFile>(`/api/v1/copilot/files/${id}`, { method: "GET" });
+  },
+
+  deleteFile(id: number) {
+    return apiRequest<void>(`/api/v1/copilot/files/${id}`, { method: "DELETE" });
   }
 };

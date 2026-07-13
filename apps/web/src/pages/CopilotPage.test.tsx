@@ -142,6 +142,22 @@ describe("CopilotPage", () => {
     expect(screen.getByRole("dialog", { name: "引用" })).toBeInTheDocument();
     expect(await screen.findByText("智能客服竞品功能对比表.txt")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "插入引用" })).toBeInTheDocument();
+    expect(screen.getByText(/解析完成/)).toBeInTheDocument();
+  });
+
+  it("deletes a copilot reference file", async () => {
+    const fetchMock = mockCopilotBackend();
+    renderPage("files");
+
+    fireEvent.click(await screen.findByRole("button", { name: "删除文件 智能客服竞品功能对比表.txt" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/v1/copilot/files/17",
+        expect.objectContaining({ method: "DELETE" })
+      );
+    });
+    expect(screen.queryByText("智能客服竞品功能对比表.txt")).not.toBeInTheDocument();
   });
 
   it("sends selected reference files with chat messages", async () => {
@@ -564,7 +580,10 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
           name: "智能客服竞品功能对比表.txt",
           mime_type: "text/plain",
           size_bytes: 64,
-          content: "小鹅通：私域工具强；有赞教育：交易能力强。",
+          status: "ready",
+          source: "upload",
+          sha256: "abc123",
+          extracted_chars: 23,
           created_at: "2026-07-02T09:00:00Z",
           updated_at: "2026-07-02T09:00:00Z"
         }]
@@ -594,6 +613,9 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
         created_at: "2026-07-02T09:16:00Z",
         updated_at: "2026-07-02T09:16:00Z"
       }), { status: 200 }));
+    }
+    if (url === "/api/v1/copilot/files/17" && init?.method === "DELETE") {
+      return Promise.resolve(new Response(null, { status: 204 }));
     }
     if (url === "/api/v1/copilot/models/smoke" && init?.method === "POST") {
       return Promise.resolve(new Response(JSON.stringify({

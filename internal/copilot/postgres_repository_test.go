@@ -146,31 +146,46 @@ func TestPostgresRepositoryCreatesAndListsFiles(t *testing.T) {
 
 	now := time.Date(2026, 7, 2, 9, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO copilot_files (user_id, name, mime_type, size_bytes, content, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $6)
+		INSERT INTO copilot_files (user_id, name, mime_type, size_bytes, content, status, source, sha256, extracted_chars, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
 		RETURNING id, created_at, updated_at
 	`)).
-		WithArgs(int64(42), "竞品对比.txt", "text/plain", 48, "小鹅通：私域工具强。", now).
+		WithArgs(int64(42), "竞品对比.txt", "text/plain", 48, "小鹅通：私域工具强。", FileStatusReady, FileSourceUpload, "abc123", 11, now).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(17), now, now))
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, user_id, name, mime_type, size_bytes, content, created_at, updated_at
+		SELECT id, user_id, name, mime_type, size_bytes, '' AS content, status, source, sha256, extracted_chars, error_code, created_at, updated_at
 		FROM copilot_files
 		WHERE user_id = $1
 		ORDER BY updated_at DESC
 		LIMIT $2
 	`)).
 		WithArgs(int64(42), 20).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "name", "mime_type", "size_bytes", "content", "created_at", "updated_at"}).
-			AddRow(int64(17), int64(42), "竞品对比.txt", "text/plain", 48, "小鹅通：私域工具强。", now, now))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "name", "mime_type", "size_bytes", "content", "status", "source", "sha256", "extracted_chars", "error_code", "created_at", "updated_at"}).
+			AddRow(int64(17), int64(42), "竞品对比.txt", "text/plain", 48, "", FileStatusReady, FileSourceUpload, "abc123", 11, "", now, now))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, name, mime_type, size_bytes, content, status, source, sha256, extracted_chars, error_code, created_at, updated_at
+		FROM copilot_files
+		WHERE user_id = $1 AND id = $2
+	`)).
+		WithArgs(int64(42), int64(17)).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "name", "mime_type", "size_bytes", "content", "status", "source", "sha256", "extracted_chars", "error_code", "created_at", "updated_at"}).
+			AddRow(int64(17), int64(42), "竞品对比.txt", "text/plain", 48, "小鹅通：私域工具强。", FileStatusReady, FileSourceUpload, "abc123", 11, "", now, now))
+	db.ExpectExec(regexp.QuoteMeta(`DELETE FROM copilot_files WHERE user_id = $1 AND id = $2`)).
+		WithArgs(int64(42), int64(17)).
+		WillReturnResult(pgxmock.NewResult("DELETE", 1))
 
 	repository := NewPostgresRepository(db)
 	file, err := repository.CreateFile(context.Background(), File{
-		UserID:    42,
-		Name:      "竞品对比.txt",
-		MimeType:  "text/plain",
-		SizeBytes: 48,
-		Content:   "小鹅通：私域工具强。",
-		CreatedAt: now,
+		UserID:         42,
+		Name:           "竞品对比.txt",
+		MimeType:       "text/plain",
+		SizeBytes:      48,
+		Content:        "小鹅通：私域工具强。",
+		Status:         FileStatusReady,
+		Source:         FileSourceUpload,
+		SHA256:         "abc123",
+		ExtractedChars: 11,
+		CreatedAt:      now,
 	})
 	if err != nil {
 		t.Fatalf("CreateFile() error = %v", err)
@@ -183,8 +198,15 @@ func TestPostgresRepositoryCreatesAndListsFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListFiles() error = %v", err)
 	}
-	if len(files) != 1 || files[0].ID != 17 || files[0].Content == "" {
+	if len(files) != 1 || files[0].ID != 17 || files[0].Content != "" || files[0].Status != FileStatusReady {
 		t.Fatalf("files = %+v", files)
+	}
+	detail, err := repository.GetFile(context.Background(), 42, 17)
+	if err != nil || detail.Content == "" {
+		t.Fatalf("GetFile() = %+v, %v", detail, err)
+	}
+	if err := repository.DeleteFile(context.Background(), 42, 17); err != nil {
+		t.Fatalf("DeleteFile() error = %v", err)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

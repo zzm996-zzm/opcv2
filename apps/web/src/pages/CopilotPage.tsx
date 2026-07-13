@@ -505,6 +505,17 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     }
   }
 
+  async function handleDeleteFile(id: number) {
+    try {
+      await copilotApi.deleteFile(id);
+      setFiles((current) => current.filter((file) => file.id !== id));
+      setSelectedReferenceIDs((current) => current.filter((fileID) => fileID !== id));
+      setError("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "删除文件失败");
+    }
+  }
+
   function handleToggleReference(id: number) {
     setSelectedReferenceIDs((current) => (
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
@@ -614,6 +625,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
             onDeleteMemory={handleDeleteMemory}
             onSaveFile={handleSaveFile}
             onUploadFile={handleUploadFile}
+            onDeleteFile={handleDeleteFile}
             onToggleReference={handleToggleReference}
             onInsertReferences={() => setActivePopover(null)}
             compare={isCompare}
@@ -900,6 +912,7 @@ const Composer = forwardRef<HTMLDivElement, {
   onDeleteMemory: (id: number) => void;
   onSaveFile: (input: { name: string; content: string; mime_type?: string }) => Promise<void>;
   onUploadFile: (file: File) => Promise<void>;
+  onDeleteFile: (id: number) => Promise<void>;
   onToggleReference: (id: number) => void;
   onInsertReferences: () => void;
   onSubmit: (event: FormEvent) => void;
@@ -924,6 +937,7 @@ const Composer = forwardRef<HTMLDivElement, {
   onDeleteMemory,
   onSaveFile,
   onUploadFile,
+  onDeleteFile,
   onToggleReference,
   onInsertReferences,
   onSubmit,
@@ -1004,6 +1018,7 @@ const Composer = forwardRef<HTMLDivElement, {
           onInsert={onInsertReferences}
           onSaveFile={onSaveFile}
           onUploadFile={onUploadFile}
+          onDeleteFile={onDeleteFile}
           onToggle={onToggleReference}
         />
       )}
@@ -1231,6 +1246,7 @@ function ReferencePicker({
   selectedIDs,
   onSaveFile,
   onUploadFile,
+  onDeleteFile,
   onToggle,
   onInsert
 }: {
@@ -1239,6 +1255,7 @@ function ReferencePicker({
   selectedIDs: number[];
   onSaveFile: (input: { name: string; content: string; mime_type?: string }) => Promise<void>;
   onUploadFile: (file: File) => Promise<void>;
+  onDeleteFile: (id: number) => Promise<void>;
   onToggle: (id: number) => void;
   onInsert: () => void;
 }) {
@@ -1340,21 +1357,26 @@ function ReferencePicker({
             <h3>最近上传文件</h3>
             {files.map((file) => {
               const selected = selectedIDs.includes(file.id);
+              const ready = file.status === "ready";
               return (
-                <label key={file.id} className={selected ? "checked" : ""}>
+                <div key={file.id} className={`reference-list-item ${selected ? "checked" : ""}`}>
+                  <label>
                   <input
                     aria-label={`引用 ${file.name}`}
                     checked={selected}
+                    disabled={!ready}
                     onChange={() => onToggle(file.id)}
                     type="checkbox"
                   />
                   <span className="reference-file sheet" aria-hidden="true" />
                   <span>
                     <strong>{file.name}</strong>
-                    <small>{file.mime_type} · {formatFileSize(file.size_bytes)}</small>
+                    <small>{file.mime_type} · {formatFileSize(file.size_bytes)} · {ready ? "解析完成" : "解析失败"}</small>
                   </span>
                   <em>{formatTime(file.updated_at)}</em>
-                </label>
+                  </label>
+                  <button aria-label={`删除文件 ${file.name}`} onClick={() => void onDeleteFile(file.id)} type="button">删除</button>
+                </div>
               );
             })}
           </div>

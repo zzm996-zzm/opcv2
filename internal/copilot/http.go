@@ -31,6 +31,8 @@ type Application interface {
 	ListFiles(ctx context.Context, userID int64, limit int) ([]File, error)
 	SaveFile(ctx context.Context, input FileInput) (File, error)
 	UploadFile(ctx context.Context, input UploadFileInput) (File, error)
+	GetFile(ctx context.Context, userID, id int64) (File, error)
+	DeleteFile(ctx context.Context, userID, id int64) error
 	ListModels(ctx context.Context) ([]ModelOption, error)
 	ListAIRuns(ctx context.Context, userID int64, limit int) ([]AIRun, error)
 }
@@ -59,6 +61,8 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/copilot/files", h.listFiles)
 	router.POST("/copilot/files", h.saveFile)
 	router.POST("/copilot/files/upload", h.uploadFile)
+	router.GET("/copilot/files/:id", h.getFile)
+	router.DELETE("/copilot/files/:id", h.deleteFile)
 	router.GET("/copilot/models", h.listModels)
 	router.POST("/copilot/models/smoke", h.smokeModel)
 	router.GET("/copilot/ai-runs", h.listAIRuns)
@@ -327,6 +331,31 @@ func (h *HTTPHandler) uploadFile(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, file)
+}
+
+func (h *HTTPHandler) getFile(c *gin.Context) {
+	id, ok := parseID(c, "id", "invalid_file_id")
+	if !ok {
+		return
+	}
+	file, err := h.app.GetFile(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, file)
+}
+
+func (h *HTTPHandler) deleteFile(c *gin.Context) {
+	id, ok := parseID(c, "id", "invalid_file_id")
+	if !ok {
+		return
+	}
+	if err := h.app.DeleteFile(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *HTTPHandler) listModels(c *gin.Context) {

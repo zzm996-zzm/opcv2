@@ -222,4 +222,16 @@ describe("copilotApi", () => {
     expect((request?.body as FormData).get("file")).toBe(file);
     expect((request?.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
   });
+
+  it("gets and deletes an owned copilot file", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 17, content: "正文" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await copilotApi.getFile(17);
+    await copilotApi.deleteFile(17);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/copilot/files/17", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/copilot/files/17", expect.objectContaining({ method: "DELETE" }));
+  });
 });

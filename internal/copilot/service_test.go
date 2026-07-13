@@ -25,6 +25,7 @@ type fakeRepository struct {
 	createdFile     File
 	upsertedMemory  Memory
 	deletedMemoryID int64
+	deletedFileID   int64
 	listRunsUserID  int64
 	listRunsPrefix  string
 	listRunsLimit   int
@@ -175,6 +176,26 @@ func (r *fakeRepository) GetFilesByIDs(_ context.Context, userID int64, ids []in
 		}
 	}
 	return files, nil
+}
+
+func (r *fakeRepository) GetFile(_ context.Context, userID, id int64) (File, error) {
+	for _, file := range r.files {
+		if file.UserID == userID && file.ID == id {
+			return file, nil
+		}
+	}
+	return File{}, ErrFileNotFound
+}
+
+func (r *fakeRepository) DeleteFile(_ context.Context, userID, id int64) error {
+	r.deletedFileID = id
+	for index, file := range r.files {
+		if file.UserID == userID && file.ID == id {
+			r.files = append(r.files[:index], r.files[index+1:]...)
+			return nil
+		}
+	}
+	return ErrFileNotFound
 }
 
 func (r *fakeRepository) ListRuns(_ context.Context, userID int64, featurePrefix string, limit int) ([]ai.Run, error) {
@@ -422,6 +443,22 @@ func TestServiceUploadsTextFileAndConsumesAnalysisQuota(t *testing.T) {
 	}
 	if len(quota.consumed) != 1 || quota.consumed[0].FeatureKey != membership.FeatureCopilotFileAnalysis {
 		t.Fatalf("consumed = %+v", quota.consumed)
+	}
+}
+
+func TestServiceGetsAndDeletesOwnedFile(t *testing.T) {
+	repository := &fakeRepository{files: []File{{ID: 17, UserID: 42, Name: "访谈.txt", Content: "正文", Status: FileStatusReady}}}
+	service := NewService(repository, nil)
+
+	file, err := service.GetFile(context.Background(), 42, 17)
+	if err != nil || file.Content != "正文" {
+		t.Fatalf("GetFile() = %+v, %v", file, err)
+	}
+	if err := service.DeleteFile(context.Background(), 42, 17); err != nil {
+		t.Fatalf("DeleteFile() error = %v", err)
+	}
+	if repository.deletedFileID != 17 || len(repository.files) != 0 {
+		t.Fatalf("repository = %+v", repository)
 	}
 }
 

@@ -33,6 +33,8 @@ type Repository interface {
 	CreateFile(ctx context.Context, file File) (File, error)
 	ListFiles(ctx context.Context, userID int64, limit int) ([]File, error)
 	GetFilesByIDs(ctx context.Context, userID int64, ids []int64) ([]File, error)
+	GetFile(ctx context.Context, userID, id int64) (File, error)
+	DeleteFile(ctx context.Context, userID, id int64) error
 	ListRuns(ctx context.Context, userID int64, featurePrefix string, limit int) ([]ai.Run, error)
 }
 
@@ -555,12 +557,16 @@ func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (File, 
 		return File{}, err
 	}
 	file, err := s.repository.CreateFile(ctx, File{
-		UserID:    input.UserID,
-		Name:      name,
-		MimeType:  mimeType,
-		SizeBytes: len(input.Data),
-		Content:   content,
-		CreatedAt: s.now(),
+		UserID:         input.UserID,
+		Name:           name,
+		MimeType:       mimeType,
+		SizeBytes:      len(input.Data),
+		Content:        content,
+		Status:         FileStatusReady,
+		Source:         FileSourceUpload,
+		SHA256:         digest,
+		ExtractedChars: utf8.RuneCountInString(content),
+		CreatedAt:      s.now(),
 	})
 	if err != nil {
 		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotFileAnalysis, 1, quotaKey, "persistence")
@@ -574,6 +580,20 @@ func (s *Service) ListFiles(ctx context.Context, userID int64, limit int) ([]Fil
 		return nil, ErrServiceNotReady
 	}
 	return s.repository.ListFiles(ctx, userID, normalizeLimit(limit, 50))
+}
+
+func (s *Service) GetFile(ctx context.Context, userID, id int64) (File, error) {
+	if s.repository == nil {
+		return File{}, ErrServiceNotReady
+	}
+	return s.repository.GetFile(ctx, userID, id)
+}
+
+func (s *Service) DeleteFile(ctx context.Context, userID, id int64) error {
+	if s.repository == nil {
+		return ErrServiceNotReady
+	}
+	return s.repository.DeleteFile(ctx, userID, id)
 }
 
 func (s *Service) referenceFiles(ctx context.Context, userID int64, ids []int64) ([]File, error) {
@@ -798,13 +818,18 @@ func fileFromInput(input FileInput, now time.Time) (File, error) {
 	if mimeType == "" {
 		mimeType = "text/plain"
 	}
+	digest := fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
 	return File{
-		UserID:    input.UserID,
-		Name:      name,
-		MimeType:  mimeType,
-		SizeBytes: len([]byte(content)),
-		Content:   content,
-		CreatedAt: now,
+		UserID:         input.UserID,
+		Name:           name,
+		MimeType:       mimeType,
+		SizeBytes:      len([]byte(content)),
+		Content:        content,
+		Status:         FileStatusReady,
+		Source:         FileSourcePasted,
+		SHA256:         digest,
+		ExtractedChars: utf8.RuneCountInString(content),
+		CreatedAt:      now,
 	}, nil
 }
 

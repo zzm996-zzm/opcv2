@@ -27555,19 +27555,37 @@ a {
   font-size: 11px;
 }
 
-.reference-list label {
-  display: grid;
-  grid-template-columns: 17px 24px minmax(0, 1fr) auto;
+.reference-list-item {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 5px;
+  gap: 6px;
   border: 1px solid transparent;
   border-radius: 7px;
 }
 
-.reference-list label.checked {
+.reference-list-item.checked {
   border-color: #6e75ff;
   background: #f8f8ff;
+}
+
+.reference-list-item > label {
+  display: grid;
+  grid-template-columns: 17px 24px minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 8px;
+  padding: 7px 5px;
+}
+
+.reference-list-item > button {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  color: #8c3b35;
+  background: transparent;
+  border: 0;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .reference-list input {

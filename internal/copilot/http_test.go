@@ -25,6 +25,7 @@ type fakeApplication struct {
 	memoryInput       MemoryInput
 	fileInput         FileInput
 	uploadInput       UploadFileInput
+	fileID            int64
 	userID            int64
 	threadID          int64
 	memoryID          int64
@@ -131,6 +132,18 @@ func (a *fakeApplication) SaveFile(_ context.Context, input FileInput) (File, er
 func (a *fakeApplication) UploadFile(_ context.Context, input UploadFileInput) (File, error) {
 	a.uploadInput = input
 	return File{ID: 18, UserID: input.UserID, Name: input.Name, MimeType: input.MimeType, SizeBytes: len(input.Data)}, a.err
+}
+
+func (a *fakeApplication) GetFile(_ context.Context, userID, id int64) (File, error) {
+	a.userID = userID
+	a.fileID = id
+	return File{ID: id, UserID: userID, Name: "客户访谈.txt", Content: "正文", Status: FileStatusReady}, a.err
+}
+
+func (a *fakeApplication) DeleteFile(_ context.Context, userID, id int64) error {
+	a.userID = userID
+	a.fileID = id
+	return a.err
 }
 
 func (a *fakeApplication) ListModels(_ context.Context) ([]ModelOption, error) {
@@ -334,6 +347,21 @@ func TestUploadCopilotFileEndpointReadsMultipartFile(t *testing.T) {
 	}
 	if app.uploadInput.UserID != 42 || app.uploadInput.Name != "客户访谈.txt" || string(app.uploadInput.Data) != "客户关注交付周期。" {
 		t.Fatalf("uploadInput = %+v", app.uploadInput)
+	}
+}
+
+func TestCopilotFileDetailAndDeleteEndpointsUseAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := copilotTestRouter(app)
+	detailRecorder := httptest.NewRecorder()
+	router.ServeHTTP(detailRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/copilot/files/17", nil))
+	if detailRecorder.Code != http.StatusOK || !strings.Contains(detailRecorder.Body.String(), `"content":"正文"`) {
+		t.Fatalf("detail status = %d body=%s", detailRecorder.Code, detailRecorder.Body.String())
+	}
+	deleteRecorder := httptest.NewRecorder()
+	router.ServeHTTP(deleteRecorder, httptest.NewRequest(http.MethodDelete, "/api/v1/copilot/files/17", nil))
+	if deleteRecorder.Code != http.StatusNoContent || app.userID != 42 || app.fileID != 17 {
+		t.Fatalf("delete status = %d user/file = %d/%d", deleteRecorder.Code, app.userID, app.fileID)
 	}
 }
 
