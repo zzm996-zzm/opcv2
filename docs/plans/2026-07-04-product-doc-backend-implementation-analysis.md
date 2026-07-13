@@ -39,7 +39,7 @@ Current coverage by product area:
 | --- | --- | --- |
 | Auth/account | SMS login/register/refresh/logout, profile, onboarding JSON sections, preferences, account content/quotas skeleton | WeChat scan login, phone/WeChat binding, password update wiring, richer 6-group profile schema, profile write-back prompts |
 | Membership | Plans, quotas, transactional check/consume/refund with idempotency, resettable usage cycles, orders, manual checkout, redemption | Real payment callback, subscription activation, broader feature coverage, admin config surface |
-| Content/top nav | Articles, tools, help, community config, favorites/bookmarks, limited admin upserts | Full CMS fields, tool recommendation, insight search/RAG, community QR code variants, course/admin content management |
+| Content/top nav | Published tools/insights with rich source fields, catalog matching, citation-constrained Q&A, community QR variants, favorites/bookmarks, help, and admin upserts | Course/help authoring depth, admin UI, external retrieval/RAG, and enterprise public conversion content |
 | Copilot | Threads/messages, compare, memories, quota gating, multipart file upload and extraction, file lifecycle, upstream SSE streaming, task/project tools, model options, AI run history | Embeddings/RAG, object storage, richer document parsers, additional module tools |
 | Project market | Opportunity and evidence catalog, match sessions, persistent follow-up Q&A, compare, export, task sync, list/detail/favorite APIs | Remove remaining frontend static fallbacks, complete saved-project UX, paid unlock policy |
 | Sandbox | Draft persistence, role catalog/follow-up, queued worker runs, progress/cancel/retry, per-attempt quota/refund, labeled AI report assumptions/evidence boundary | External evidence retrieval, richer user-defined variables, export/share only after a real implementation exists |
@@ -230,6 +230,52 @@ Final verification:
 
 No production deployment was performed for this module.
 
+### 2.6 Content/admin catalog-depth handoff (2026-07-13)
+
+The **content/admin catalog depth** module is complete for tools, insights, and
+community configuration in two commits on `feature/bootstrap`:
+
+| Commit | Completed scope |
+| --- | --- |
+| `2798a21` | Added rich tool and insight source fields, community QR variants, catalog-based tool matching, citation-constrained insight AI Q&A, admin writes, migration, and backend tests. |
+| `9c64bae` | Connected tool matching/detail, insight search/detail/Q&A, and community QR pages to real APIs; removed static tool catalogs, fabricated insight answers/references, fake popularity data, and placeholder QR graphics. |
+
+Database migration added:
+
+- `000055_content_catalog_depth`
+
+Current behavior and boundaries:
+
+- Tool admin writes persist tags, provider/price/platform data, features, use
+  cases, limitations, source URL/timestamp, and sort weight. Public list/detail
+  routes return only published tools.
+- Tool matching is labeled `catalog_match` and returns persisted catalog matches;
+  it is not presented as an AI-generated personalized recommendation.
+- Insight list/detail supports category and keyword filtering plus publisher,
+  source URL, author, tags, source publication time, and structured citations.
+- Insight Q&A runs through the shared AI workflow but receives only selected
+  published articles and their saved citations. Unknown or missing citation IDs
+  fail validation; responses carry `catalog_citations`, assumptions, a
+  disclaimer, and clickable stored sources.
+- Public community config exposes only published `members`/`enterprise` QR
+  variants. Draft variants remain available only through the admin write model.
+- C-side pages no longer substitute static tool brands, market conclusions,
+  citations, popularity/discussion counts, pagination, or QR graphics when APIs
+  return no data.
+
+Final verification:
+
+- `go test ./...`: passed.
+- Frontend tests: 66 files and 353 tests passed.
+- `npm run build`: passed (existing bundle-size warning only).
+- `npm run lint`: 0 errors; 1 pre-existing Hook dependency warning remains in
+  `CrmPage.tsx`.
+- A PostgreSQL empty-database migration run was not available because local
+  PostgreSQL was not running; migration/repository behavior is covered by
+  automated tests.
+
+No production deployment was performed for this module.
+
 ## 3. Backend design target
 
 ### 3.1 Shared tables/components to formalize
@@ -301,10 +347,12 @@ PATCH /api/v1/account/profile-writebacks/:id/accept
 
 The product doc marks admin as P0 because content, QR codes, quotas, and script accounts cannot go live by code edits.
 
-Current `content.RegisterAdmin` has article/tool/community/brand upserts, but it is not enough. Recommended admin domains:
+`content.RegisterAdmin` now supports rich article/tool upserts and community QR
+variants. Public tool/insight/community pages are wired to those records. The
+remaining recommended admin domains are:
 
-- content catalog: projects, tools, insights, courses, help articles
-- community QR codes: member group, enterprise group, consultant QR
+- content catalog: courses and help-article authoring, plus richer project operations
+- community QR codes: consultant QR for enterprise conversion
 - membership plans and quotas
 - competitor/script sources: platform accounts, frequency limits, script status
 - user/order operations: manual permission adjustment, order correction, refunds
@@ -505,6 +553,11 @@ This slice is the highest leverage because many pages depend on honest paid/free
 4. Community QR config variants.
 5. Enterprise public cases and inquiry form.
 
+Items 1 through 4 are complete: project opportunities were delivered in the
+Project Market slice, and tools, insights, and community QR variants were
+completed in migration `000055`. Item 5 is intentionally the next standalone
+module because it includes public conversion writes and CRM handoff semantics.
+
 ### Slice E: AI workflow depth
 
 1. Copilot SSE.
@@ -538,5 +591,8 @@ scope was delivered as five backend/frontend-verified parts:
 
 **Completed on 2026-07-13:** learning writes / AI teaching write loop.
 
-The next large module is now **content/admin catalog depth**. After that,
-continue with enterprise public conversion flows.
+**Completed on 2026-07-13:** content/admin catalog depth for tools, insights,
+and community QR variants.
+
+The next large module is now **enterprise public conversion flows**: public
+overview/cases, inquiry submission, consultant contact config, and CRM handoff.

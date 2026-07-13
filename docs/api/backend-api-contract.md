@@ -2870,12 +2870,42 @@ Response `200`:
 
 ## Content, Community, Help, and Support Extensions
 
-Status: Implemented for content tools, article bookmarks, community join,
-help, and support ticket endpoints. Tool recommendation endpoints remain
-planned and are marked below.
+Status: Implemented for the published tool and insight catalogs, catalog-based
+tool matching, citation-constrained insight Q&A, article/tool user state,
+community QR variants and join requests, help, and support tickets.
 
 Existing public content endpoints remain implemented. The endpoints below extend
 content-driven pages and add help/support.
+
+### List Published Insights
+
+`GET /api/v1/content/articles?category=行业趋势&q=客服&limit=20`
+
+Public. Returns only published articles. `category` and `q` are optional; `q`
+matches title, summary, and stored tags. List rows omit the full body but retain
+source metadata, tags, and structured citations.
+
+### Get Published Insight
+
+`GET /api/v1/content/articles/{slug}`
+
+Public. Returns the full body plus `source_name`, `source_url`, `author`,
+`category`, `tags`, `citations`, and `source_published_at`. Citation entries
+contain a stable per-article `id`, label, publisher, URL, optional excerpt, and
+optional publication date.
+
+Errors:
+
+- `404 article_not_found`
+
+### Admin Upsert Insight
+
+`POST /api/v1/admin/content/articles`
+
+Protected and admin-only. Creates or updates by `slug`. In addition to the
+existing title/summary/body/status fields, the request accepts the source and
+citation fields documented above. Blank or duplicate tags/citation IDs are
+normalized; incomplete citations without label, publisher, or URL are removed.
 
 ### List Tools With Filters
 
@@ -2884,14 +2914,30 @@ content-driven pages and add help/support.
 Query:
 
 - `category` optional.
-- `q` optional search keyword.
-- `sort` optional: `featured`, `latest`, `hot`, `favorite`.
+- `q` optionally matches name, description, tags, features, and use cases.
+- `sort` supports the catalog views `featured`, `latest`, and `hot`.
 
 Response `200`:
 
 ```json
 {
-  "tools": []
+  "tools": [
+    {
+      "slug": "canva-ai",
+      "name": "Canva AI",
+      "description": "营销视觉设计工具",
+      "category": "创业获客",
+      "tags": ["设计", "社媒"],
+      "provider_name": "Canva",
+      "price_label": "免费试用",
+      "platforms": ["Web"],
+      "features": ["模板设计", "图片生成"],
+      "use_cases": ["社媒海报"],
+      "limitations": ["部分功能需要订阅"],
+      "source_url": "https://www.canva.com/",
+      "source_updated_at": "2026-07-13T08:00:00Z"
+    }
+  ]
 }
 ```
 
@@ -2902,6 +2948,13 @@ Response `200`:
 Errors:
 
 - `404 tool_not_found`
+
+### Admin Upsert Tool
+
+`POST /api/v1/admin/content/tools`
+
+Protected and admin-only. Creates or updates by `slug`; accepts all rich catalog
+fields shown above plus `url`, `status`, and `sort_weight`.
 
 ### Favorite Tool
 
@@ -2931,36 +2984,47 @@ Response `200`:
 
 ### Create Tool Recommendation
 
-Status: Planned, not implemented.
+`POST /api/v1/content/tools/recommendations`
 
-`POST /api/v1/tools/recommendations`
+Protected. This is a deterministic published-catalog match, not a generated AI
+claim. It filters the stored catalog by submitted scenario/category and returns
+only persisted tools.
 
 Request:
 
 ```json
 {
-  "need": "我想做小红书海报，还想配套文案和数据复盘"
+  "goal": "获取更多线索",
+  "scenario": "制作社媒海报",
+  "category": "创业获客",
+  "limit": 6
 }
 ```
 
 Validation:
 
-- `need` must be non-empty after trimming.
+- `goal` and `scenario` must be non-empty after trimming.
+- `limit` defaults to 6 and is capped at 20.
 
 Response `200`:
 
 ```json
 {
-  "id": 31,
-  "summary": "需求摘要",
-  "tools": [],
-  "created_at": "2026-07-02T10:00:00Z"
+  "basis": "catalog_match",
+  "criteria": {
+    "goal": "获取更多线索",
+    "scenario": "制作社媒海报",
+    "category": "创业获客",
+    "limit": 6
+  },
+  "tools": []
 }
 ```
 
 ### Get Tool Recommendation Plan
 
-Status: Planned, not implemented.
+Status: Not implemented. The current release returns individual catalog matches
+only and does not fabricate a multi-tool execution plan.
 
 `GET /api/v1/tools/recommendation-plans/{id}`
 
@@ -2993,6 +3057,75 @@ Response `200`:
 }
 ```
 
+### Ask Published Insights With Citations
+
+`POST /api/v1/content/insights/qa`
+
+Protected. The model receives only the selected published article bodies and
+their stored citations. Its JSON result is rejected if it omits citations or
+references an unknown citation ID. The AI run is recorded by the shared AI
+workflow service.
+
+Request:
+
+```json
+{
+  "question": "这些资料反映了什么市场趋势？",
+  "article_slugs": ["ai-growth-playbook"]
+}
+```
+
+Validation:
+
+- `question` must be non-empty after trimming.
+- `article_slugs` must contain 1 to 5 unique published article slugs.
+- At least one selected article must contain a complete stored citation.
+
+Response `200`:
+
+```json
+{
+  "answer": "所选资料显示企业采用率仍在增长。",
+  "citations": [
+    {
+      "id": "ai-growth-playbook:source-1",
+      "article_slug": "ai-growth-playbook",
+      "label": "行业采用率报告",
+      "source_name": "研究机构",
+      "source_url": "https://example.com/report",
+      "excerpt": "企业采用率同比提升"
+    }
+  ],
+  "assumptions": ["仅覆盖所选文章"],
+  "basis": "catalog_citations",
+  "disclaimer": "AI 回答仅基于所选已发布资讯及其已保存引用，不代表对外部来源完成实时核验。"
+}
+```
+
+Errors:
+
+- `400 invalid_content_input`
+- `404 article_not_found`
+- `422 insight_sources_unavailable`
+- `500 invalid_ai_result`
+- `500 service_not_ready`
+
+### Get Community Config
+
+`GET /api/v1/content/community`
+
+Public. Returns the headline/description plus only `published` QR variants.
+Each `qr_variants` item has a stable `key` (for example `members` or
+`enterprise`), label, description, `image_url`, `join_url`, and status. Draft
+variants are never exposed by this endpoint.
+
+### Admin Update Community Config
+
+`PUT /api/v1/admin/content/community`
+
+Protected and admin-only. Replaces the singleton community content and its QR
+variants. Variant keys are deduplicated; status must be `draft` or `published`.
+
 ### Join Community Request
 
 `POST /api/v1/community/join-requests`
@@ -3020,6 +3153,9 @@ Response `200`:
   "status": "submitted"
 }
 ```
+
+Rich tool, insight-source, and community QR fields were added by migration
+`000055_content_catalog_depth`.
 
 ### List Help Topics
 
