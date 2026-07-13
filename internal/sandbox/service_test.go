@@ -398,6 +398,9 @@ func TestServiceRunSessionGeneratesReportThroughAI(t *testing.T) {
 	if session.Status != StatusCompleted || session.Report.Score != 83 {
 		t.Fatalf("session = %+v", session)
 	}
+	if session.Report.Basis != "model_simulation" || session.Report.Disclaimer == "" || len(session.Report.Assumptions) == 0 || len(session.Report.EvidenceSources) != 0 {
+		t.Fatalf("report metadata = %+v", session.Report)
+	}
 	if generator.request.Feature != "sandbox.run" || generator.request.SchemaName != "sandbox_report" {
 		t.Fatalf("ai request = %+v", generator.request)
 	}

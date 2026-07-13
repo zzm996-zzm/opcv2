@@ -161,6 +161,10 @@ func (r *PostgresRepository) UpdateSessionResult(ctx context.Context, userID, id
 func marshalReport(report Report) ([]byte, error) {
 	if report.Score == 0 &&
 		report.Summary == "" &&
+		report.Basis == "" &&
+		report.Disclaimer == "" &&
+		len(report.Assumptions) == 0 &&
+		len(report.EvidenceSources) == 0 &&
 		len(report.Metrics) == 0 &&
 		len(report.RoleSummaries) == 0 &&
 		len(report.Risks) == 0 &&

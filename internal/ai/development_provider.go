@@ -74,6 +74,7 @@ func (p *DevelopmentProvider) responseFor(feature string) []byte {
 		return []byte(`{
 			"score":83,
 			"summary":"建议先做小范围客户验证。当前方案具备明确场景和可解释价值，但需要优先验证付费意愿、数据安全顾虑和交付成本。",
+			"assumptions":["目标客户存在高频咨询场景","客户愿意为效率提升付费","试点期间可以合规使用必要数据"],
 			"metrics":[
 				{"label":"市场吸引力","value":"8.4"},
 				{"label":"落地难度","value":"中等"},

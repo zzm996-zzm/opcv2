@@ -91,12 +91,22 @@ type Session struct {
 }
 
 type Report struct {
-	Score         int           `json:"score"`
-	Summary       string        `json:"summary"`
-	Metrics       []Metric      `json:"metrics"`
-	RoleSummaries []RoleSummary `json:"role_summaries"`
-	Risks         []string      `json:"risks"`
-	NextActions   []string      `json:"next_actions"`
+	Score           int              `json:"score"`
+	Summary         string           `json:"summary"`
+	Basis           string           `json:"basis"`
+	Disclaimer      string           `json:"disclaimer"`
+	Assumptions     []string         `json:"assumptions"`
+	EvidenceSources []ReportEvidence `json:"evidence_sources"`
+	Metrics         []Metric         `json:"metrics"`
+	RoleSummaries   []RoleSummary    `json:"role_summaries"`
+	Risks           []string         `json:"risks"`
+	NextActions     []string         `json:"next_actions"`
+}
+
+type ReportEvidence struct {
+	Title      string    `json:"title"`
+	URL        string    `json:"url"`
+	CapturedAt time.Time `json:"captured_at"`
 }
 
 type Metric struct {

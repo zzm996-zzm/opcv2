@@ -295,6 +295,9 @@ func (s *Service) AskRole(ctx context.Context, input AskRoleInput) (Message, err
 	if !containsRole(session.Roles, input.Role) {
 		return Message{}, ErrInvalidSession
 	}
+	if session.Status != StatusCompleted {
+		return Message{}, ErrInvalidSession
+	}
 	result, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID: input.UserID, Feature: "sandbox.follow_up", PromptVersion: "sandbox_role_follow_up_v1",
 		SystemPrompt: "你正在商业沙盘中扮演指定角色。只返回JSON，格式为{\"answer\":\"...\"}。",
@@ -342,8 +345,8 @@ func (s *Service) generateReport(ctx context.Context, session Session) (Report, 
 	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID:         session.UserID,
 		Feature:        "sandbox.run",
-		PromptVersion:  "sandbox_run_v1",
-		SystemPrompt:   "你是商业沙盘推演助手。必须只返回 JSON，字段严格匹配 sandbox_report。",
+		PromptVersion:  "sandbox_run_v2",
+		SystemPrompt:   "你是商业沙盘推演助手。必须只返回 JSON，字段严格匹配 sandbox_report。所有分数和判断均为模型推演；assumptions 必须列出关键假设；不得编造外部证据或来源链接。",
 		UserPrompt:     appendPromptSection(sandboxUserPrompt(session), profilePrompt),
 		SchemaName:     "sandbox_report",
 		Validate:       validateReportJSON,
@@ -356,10 +359,25 @@ func (s *Service) generateReport(ctx context.Context, session Session) (Report, 
 	if err := json.Unmarshal(aiResult.Content, &report); err != nil {
 		return Report{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
 	}
+	report = labelModelReport(report, session)
 	if err := validateReport(report); err != nil {
 		return Report{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
 	}
 	return report, nil
+}
+
+func labelModelReport(report Report, session Session) Report {
+	report.Basis = "model_simulation"
+	report.Disclaimer = "本报告由 AI 基于用户输入进行情景推演，不代表真实市场统计、收益承诺或已验证事实。"
+	if len(report.Assumptions) == 0 {
+		report.Assumptions = []string{
+			fmt.Sprintf("目标用户范围以“%s”为前提。", session.TargetUsers),
+			fmt.Sprintf("产品方案以“%s”的当前描述为前提。", session.Product),
+			"当前推演未接入外部市场数据或真实用户实验结果。",
+		}
+	}
+	report.EvidenceSources = []ReportEvidence{}
+	return report
 }
 
 func (s *Service) profilePrompt(ctx context.Context, userID int64) (string, error) {
@@ -425,11 +443,21 @@ func validateReportJSON(data []byte) error {
 	if err := json.Unmarshal(data, &report); err != nil {
 		return err
 	}
-	return validateReport(report)
+	return validateReportContent(report)
 }
 
 func validateReport(report Report) error {
-	if report.Score <= 0 ||
+	if err := validateReportContent(report); err != nil {
+		return err
+	}
+	if report.Basis != "model_simulation" || report.Disclaimer == "" || len(report.Assumptions) == 0 {
+		return errors.New("sandbox report metadata is missing")
+	}
+	return nil
+}
+
+func validateReportContent(report Report) error {
+	if report.Score <= 0 || report.Score > 100 ||
 		report.Summary == "" ||
 		len(report.Metrics) == 0 ||
 		len(report.RoleSummaries) == 0 ||

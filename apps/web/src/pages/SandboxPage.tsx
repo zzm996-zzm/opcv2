@@ -54,40 +54,6 @@ const questionCards = [
   ["预算与资源情况？", "团队规模、预算范围、技术资源等", "可跳过"]
 ] as const;
 
-const conversationRows = [
-  ["14:32", "用户视角", "中小企业普遍面临知识分散、检索效率低、沉淀难的问题，经理/员工对快速找资料、复用知识、降低重复劳动需求强。"],
-  ["14:33", "投资人视角", "目标市场规模可观，国内中小企业超 4000 万家，SaaS 渗透率持续提升。ROI 关注点：客户留存与扩张、单位经济模型、产品壁垒。"],
-  ["14:34", "竞争对手", "替代方案包括通用网盘、搜索、企业微信/钉钉文档、Notion 等。差异点在于行业知识图谱构建、AI 检索准确率。"],
-  ["14:35", "运营策略", "获客：内容营销 + 渠道伙伴 + 行业社群；留存：知识沉淀可视化、使用激励、角色化权限提升粘性。"],
-  ["14:35", "增长路径", "阶段 1 聚焦 10 个细分行业，阶段 2 渠道赋能，阶段 3 向中大型客户延伸。"],
-  ["14:37", "风险研判", "合规风险、模型幻觉、客户迁移成本和续费口碑是主要压力点。"],
-  ["14:38", "智活 Copilot 总结", "本轮对话建议先聚焦中等及以上风险项目，完成用户验证与 MVP 试点后再扩张。"]
-] as const;
-
-const reportMetrics = [
-  ["综合可行性", "83", "/100", "可行性较高，建议推进验证"],
-  ["消费概率", "68", "%", "市场接受度中高，具备增长潜力"],
-  ["风险等级", "中等", "", "存在可控风险，需重点关注3项"],
-  ["推荐优先级", "A", "级", "建议优先投入验证资源"]
-] as const;
-
-const roleSummaries = [
-  ["用户视角", "操作简单，快速检索与沉淀知识问题直接，价值感明显。"],
-  ["投资人视角", "赛道空间大，建议关注单位经济模型与商业化闭环。"],
-  ["竞争对手", "同类产品通用性强，行业化与落地服务是差异点。"],
-  ["运营策略", "建议先聚焦细分行业与核心场景，建立标杆案例。"],
-  ["增长路径", "出口型与渠道驱动为主，逐步拓展生态合作。"],
-  ["风险研判", "重点关注数据合规、客户教育成本与模型成本。"]
-] as const;
-
-const nextActions = [
-  ["用户验证", "录入访谈10+目标客户，验证核心痛点与付费意愿。"],
-  ["MVP测试", "开发核心功能 MVP，进行小范围可用性测试。"],
-  ["定价试验", "设计2-3套定价方案，开展小规模价格测试。"],
-  ["渠道试点", "对接3-5个渠道伙伴，试点推广与合作模式。"],
-  ["合规检查", "梳理数据安全与合规要求，完成必要认证准备。"]
-] as const;
-
 type SandboxHistoryRow = {
   title: string;
   detail: string;
@@ -169,8 +135,30 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
     };
   }, [location.search, sessionId]);
 
+  const pollingSessionId = selectedSession && (selectedSession.status === "queued" || selectedSession.status === "running")
+    ? selectedSession.id
+    : null;
+
+  useEffect(() => {
+    if (!pollingSessionId) return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      void sandboxApi.getStatus(pollingSessionId).then((session) => {
+        if (!active) return;
+        setSelectedSession(session);
+        setSessions((current) => [session, ...current.filter((item) => item.id !== session.id)]);
+      }).catch(() => {
+        // Preserve the last known progress and allow the next poll to recover.
+      });
+    }, 2000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [pollingSessionId]);
+
   const routedSession = (location.state as { sandboxSession?: SandboxSession } | null)?.sandboxSession ?? null;
-  const reportSession = routedSession ?? selectedSession ?? sessions.find((session) => session.status === "completed" && session.report) ?? sessions.find((session) => session.report) ?? null;
+  const reportSession = selectedSession ?? routedSession ?? sessions.find((session) => session.status === "completed" && session.report) ?? sessions.find((session) => session.report) ?? null;
 
   async function startSandbox(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
@@ -186,15 +174,42 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
         setStartError("请先完成推演配置和角色选择。");
         return;
       }
-      const completed = await sandboxApi.runSession(selectedSession.id);
-      setSessions((current) => [completed, ...current.filter((session) => session.id !== completed.id)]);
+      const queued = await sandboxApi.runSession(selectedSession.id);
+      setSelectedSession(queued);
+      setSessions((current) => [queued, ...current.filter((session) => session.id !== queued.id)]);
       const usagePayload = await membershipApi.usage().catch(() => null);
       if (usagePayload) setUsage(usagePayload.usage ?? []);
-      navigate(`/sandbox/run?session=${completed.id}`, { state: { sandboxSession: completed } });
+      navigate(`/sandbox/run?session=${queued.id}`, { state: { sandboxSession: queued } });
     } catch (error) {
       setStartError(apiErrorMessage(error, "推演启动失败，请稍后重试。"));
     } finally {
       setIsStarting(false);
+    }
+  }
+
+  async function cancelSandbox() {
+    const session = selectedSession ?? routedSession;
+    if (!session) return;
+    try {
+      const canceled = await sandboxApi.cancelSession(session.id);
+      setSelectedSession(canceled);
+      setSessions((current) => [canceled, ...current.filter((item) => item.id !== canceled.id)]);
+      setSessionError("");
+    } catch (error) {
+      setSessionError(apiErrorMessage(error, "暂时无法取消推演。"));
+    }
+  }
+
+  async function retrySandbox() {
+    const session = selectedSession ?? routedSession;
+    if (!session) return;
+    try {
+      const queued = await sandboxApi.retrySession(session.id);
+      setSelectedSession(queued);
+      setSessions((current) => [queued, ...current.filter((item) => item.id !== queued.id)]);
+      setSessionError("");
+    } catch (error) {
+      setSessionError(apiErrorMessage(error, "暂时无法重新推演。"));
     }
   }
 
@@ -206,13 +221,13 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
         {variant === "roles" && <RolesPage roleCatalog={roleCatalog} session={selectedSession} />}
         {variant === "start" && <StartPage isStarting={isStarting} onStart={startSandbox} quota={sandboxQuota} session={selectedSession} startError={startError} />}
         {variant === "questions" && <QuestionsPage />}
-        {variant === "run" && <RunPage loading={sessionLoading} loadError={sessionError} session={routedSession ?? selectedSession} />}
+        {variant === "run" && <RunPage loading={sessionLoading} loadError={sessionError} onCancel={cancelSandbox} onRetry={retrySandbox} session={selectedSession ?? routedSession} />}
         {variant === "report" && <ReportPage loading={sessionLoading} loadError={sessionError} session={reportSession} />}
         {variant === "history" && <HistoryPage sessions={sessions} />}
         {variant === "quota" && (
           <>
             <SandboxHome />
-            <QuotaModal />
+            <QuotaModal quota={sandboxQuota} />
           </>
         )}
       </section>
@@ -393,7 +408,6 @@ function StartPage({
           <section>
             <header>
               <h2>推演设置信息</h2>
-              <button type="button">编辑</button>
             </header>
             {[
               ["推演目标", session?.goal ?? "尚未配置"],
@@ -423,17 +437,13 @@ function StartPage({
         </div>
         <footer>
           <div>
-            <strong>推演深度</strong>
-            <span>标准（推荐）</span>
+            <strong>当前流程</strong>
+            <span>多角色情景推演</span>
           </div>
           <div>
-            <strong>输出风格</strong>
-            <span>结构化报告（推荐）</span>
+            <strong>输出内容</strong>
+            <span>结构化模型推演报告</span>
           </div>
-          <label>
-            <input defaultChecked type="checkbox" />
-            生成推演大纲
-          </label>
           <div className={quota.blocked ? "module-quota-inline depleted" : "module-quota-inline"}>
             <small>{quota.label}</small>
             <strong>{quota.value}</strong>
@@ -484,7 +494,19 @@ function QuestionsPage() {
   );
 }
 
-function RunPage({ session, loading, loadError }: { session: SandboxSession | null; loading: boolean; loadError: string }) {
+function RunPage({
+  session,
+  loading,
+  loadError,
+  onCancel,
+  onRetry
+}: {
+  session: SandboxSession | null;
+  loading: boolean;
+  loadError: string;
+  onCancel: () => Promise<void>;
+  onRetry: () => Promise<void>;
+}) {
   const [messages, setMessages] = useState<SandboxMessage[]>([]);
   const [selectedRole, setSelectedRole] = useState("");
   const [question, setQuestion] = useState("");
@@ -522,7 +544,7 @@ function RunPage({ session, loading, loadError }: { session: SandboxSession | nu
     }
   }
 
-  const initialRows = session?.report?.role_summaries.map((summary) => ["本轮", summary.role, summary.view] as const) ?? conversationRows;
+  const initialRows = session?.report?.role_summaries.map((summary) => ["本轮", summary.role, summary.view] as const) ?? [];
 
   if (loading) return <SandboxState title="正在加载沙盘会话..." />;
   if (!session) return <SandboxState title={loadError || "未找到可继续的沙盘会话"} />;
@@ -533,11 +555,11 @@ function RunPage({ session, loading, loadError }: { session: SandboxSession | nu
         <header>
           <div>
             <h1>{session?.product ?? "商业沙盘推演"}</h1>
-            <span>{session?.status === "completed" ? "推演完成" : "推演中"}</span>
-            <span>标准深度</span>
+            <span>{sandboxStatusLabel(session.status)}</span>
           </div>
-          <small>本轮推演 · 第 1 轮</small>
+          <small>第 {session.run_attempt || 1} 轮 · {session.progress_percent || 0}% · {session.current_step || session.status}</small>
         </header>
+        {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
         <nav className="run-role-tabs">
           {(session?.roles ?? []).map((item) => (
             <button className={selectedRole === item ? "active" : ""} key={item} onClick={() => setSelectedRole(item)} type="button">{item}</button>
@@ -545,6 +567,7 @@ function RunPage({ session, loading, loadError }: { session: SandboxSession | nu
         </nav>
         <div className="run-grid">
           <section className="run-dialog">
+            {initialRows.length === 0 ? <div className="module-empty-state" role="status">{session.status === "failed" ? session.error_message || "推演失败，可重新运行。" : session.status === "canceled" ? "推演已取消。" : "报告生成中，完成后将显示各角色推演结论。"}</div> : null}
             {initialRows.map(([time, role, text]) => (
               <article key={`${time}-${role}`}>
                 <time>{time}</time>
@@ -560,24 +583,16 @@ function RunPage({ session, loading, loadError }: { session: SandboxSession | nu
               </article>
             ))}
             <footer>
-              <Link to="/sandbox/run">继续推演</Link>
-              <button type="button">调整变量后重跑</button>
-              <Link to={session ? `/sandbox/sessions/${session.id}/report` : "/sandbox/report"}>生成推演报告</Link>
+              {(session.status === "queued" || session.status === "running") ? <button onClick={() => void onCancel()} type="button">取消推演</button> : null}
+              {(session.status === "failed" || session.status === "canceled") ? <button onClick={() => void onRetry()} type="button">重新推演</button> : null}
+              {session.status === "completed" ? <Link to={`/sandbox/sessions/${session.id}/report`}>查看推演报告</Link> : null}
             </footer>
           </section>
           <aside className="run-variable-panel">
-            <h2>调整变量</h2>
-            {["定价策略", "获客渠道", "服务模式", "目标客群"].map((item) => (
-              <label key={item}>
-                <span>{item}</span>
-                <select aria-label={item}>
-                  <option>{item === "定价策略" ? "中档订阅（39 元/人/月）" : item === "获客渠道" ? "内容营销 + 渠道伙伴" : item === "服务模式" ? "SaaS 标准版" : "10-200 人规模的中小企业"}</option>
-                </select>
-              </label>
-            ))}
             <h2>追加追问</h2>
+            {session.status !== "completed" ? <p>推演完成后可向已选角色追加追问。</p> : null}
             <textarea aria-label="追加追问" onChange={(event) => setQuestion(event.target.value)} placeholder="输入你的问题，进一步追问任意角色..." value={question} />
-            <button disabled={!session || !selectedRole || !question.trim() || sending} onClick={sendQuestion} type="button">{sending ? "发送中..." : "发送追问"}</button>
+            <button disabled={session.status !== "completed" || !selectedRole || !question.trim() || sending} onClick={sendQuestion} type="button">{sending ? "发送中..." : "发送追问"}</button>
             {messageError ? <p role="alert">{messageError}</p> : null}
           </aside>
         </div>
@@ -586,42 +601,37 @@ function RunPage({ session, loading, loadError }: { session: SandboxSession | nu
   );
 }
 
-function formatSessionTime(value: string) {
-  return new Date(value).toLocaleString("zh-CN", { hour12: false });
+function sandboxStatusLabel(status: SandboxSession["status"]) {
+  if (status === "queued") return "等待执行";
+  if (status === "running") return "推演中";
+  if (status === "completed") return "推演完成";
+  if (status === "failed") return "推演失败";
+  if (status === "canceled") return "已取消";
+  return "草稿";
 }
 
-function reportMetricProgress(value: string, index: number) {
-  const numeric = Number.parseFloat(value);
-  if (Number.isFinite(numeric)) return Math.max(0, Math.min(100, numeric));
-  return index === 2 ? 55 : 92;
+function formatSessionTime(value: string) {
+  return new Date(value).toLocaleString("zh-CN", { hour12: false });
 }
 
 function ReportPage({ session, loading, loadError }: { session: SandboxSession | null; loading: boolean; loadError: string }) {
   if (loading) return <SandboxState title="正在加载推演报告..." />;
   if (!session?.report) return <SandboxState title={loadError || "暂无可查看的推演报告"} />;
-  const report = session?.report;
-  const visibleTitle = session?.product || "AI 驱动中小企业知识管理平台";
-  const visibleTime = session ? formatSessionTime(session.updated_at) : "2025-05-20 14:32";
-  const visibleRolesCount = session?.roles.length ?? 6;
-  const visibleMetrics = report?.metrics.length
-    ? report.metrics.map((metric, index) => [
+  const report = session.report;
+  const reportAssumptions = report.assumptions ?? ["历史报告未记录结构化假设，使用前需重新核验输入条件。"];
+  const reportEvidence = report.evidence_sources ?? [];
+  const reportDisclaimer = report.disclaimer ?? "本报告为历史 AI 模型推演记录，不代表真实市场统计、收益承诺或已验证事实。";
+  const visibleTitle = session.product;
+  const visibleTime = formatSessionTime(session.updated_at);
+  const visibleRolesCount = session.roles.length;
+  const visibleMetrics = report.metrics.map((metric) => [
       metric.label,
       metric.value,
-      index === 0 ? "/100" : "",
       "来自本次沙盘推演报告"
-    ] as const)
-    : reportMetrics;
-  const visibleConclusions = report ? [report.summary, ...report.risks.map((risk) => `风险提示：${risk}`)] : [
-    "市场需求明确且增长潜力大，中小企业知识管理数字化痛点显著。",
-    "AI 驱动方案可有效提升效率并降低成本。",
-    "风险主要集中在数据安全合规、客户教育成本与付费转化路径。"
-  ];
-  const visibleRoleSummaries = report?.role_summaries.length
-    ? report.role_summaries.map((item) => [item.role, item.view] as const)
-    : roleSummaries;
-  const visibleNextActions = report?.next_actions.length
-    ? report.next_actions.map((item, index) => [`行动 ${index + 1}`, item] as const)
-    : nextActions;
+    ] as const);
+  const visibleConclusions = [report.summary, ...report.risks.map((risk) => `风险提示：${risk}`)];
+  const visibleRoleSummaries = report.role_summaries.map((item) => [item.role, item.view] as const);
+  const visibleNextActions = report.next_actions.map((item, index) => [`行动 ${index + 1}`, item] as const);
 
   return (
     <SandboxWorkLayout mode="report">
@@ -630,34 +640,35 @@ function ReportPage({ session, loading, loadError }: { session: SandboxSession |
           <div>
             <p>商业沙盘 / 历史推演</p>
             <h1>{visibleTitle}</h1>
-            <small>推演时间：{visibleTime} 参与角色数：{visibleRolesCount} 报告版本：V1.0 · 模型推演</small>
+            <small>推演时间：{visibleTime} 参与角色数：{visibleRolesCount} 报告版本：V2.0 · 模型推演</small>
           </div>
-          <button type="button">导出报告</button>
         </header>
         <div className="report-metrics">
-          {visibleMetrics.map(([label, value, suffix, detail], index) => (
+          {visibleMetrics.map(([label, value, detail]) => (
             <article key={label}>
               <small>{label}</small>
-              <strong>{value}<span>{suffix}</span></strong>
+              <strong>{value}</strong>
               <p>{detail}</p>
-              <i style={{ width: `${reportMetricProgress(value, index)}%` }} />
             </article>
           ))}
         </div>
         <section className="report-summary">
           <h2>核心结论</h2>
+          <p>{reportDisclaimer}</p>
           <ul>
             {visibleConclusions.map((item) => <li key={item}>{item}</li>)}
           </ul>
         </section>
         <div className="report-two-col">
           <article>
-            <h2>机会分析</h2>
-            <p>中小企业数字化渗透率持续提升，知识管理场景刚需明显，现有竞品价格偏高且通用性强，轻量化 SaaS 存在市场空白。</p>
+            <h2>关键假设</h2>
+            <ul>{reportAssumptions.map((item) => <li key={item}>{item}</li>)}</ul>
           </article>
           <article>
-            <h2>风险分析</h2>
-            <p>涉及企业敏感数据，合规与安全要求高；中小企业付费意愿和迁移成本需要通过样板客户验证。</p>
+            <h2>验证证据</h2>
+            {reportEvidence.length === 0 ? <p>本次推演未接入外部验证证据，所有结论需通过访谈、实验或可信数据源复核。</p> : (
+              <ul>{reportEvidence.map((item) => <li key={`${item.title}-${item.url}`}><a href={item.url} rel="noreferrer" target="_blank">{item.title}</a></li>)}</ul>
+            )}
           </article>
         </div>
         <section className="role-summary-grid">
@@ -682,22 +693,15 @@ function ReportPage({ session, loading, loadError }: { session: SandboxSession |
   );
 }
 
-function sessionRisk(session: SandboxSession) {
-  if (!session.report) return "中等";
-  if (session.report.score >= 85) return "较低";
-  if (session.report.score >= 70) return "中等";
-  return "较高";
-}
-
 function toHistoryRow(session: SandboxSession) {
   return {
     title: session.product || session.goal,
     detail: session.goal,
     role: session.roles.join(" ") || "未选择角色",
     time: formatSessionTime(session.updated_at),
-    status: session.status === "completed" ? "已完成" : session.status === "running" ? "推演中" : session.status === "failed" ? "失败可重试" : "草稿",
-    score: session.report ? (session.report.score / 10).toFixed(1) : "-",
-    risk: sessionRisk(session),
+    status: sandboxStatusLabel(session.status),
+    score: session.report ? `${session.report.score}/100` : "-",
+    risk: session.report ? `${session.report.risks.length} 项` : "-",
     href: `/sandbox/sessions/${session.id}/report`
   };
 }
@@ -715,11 +719,6 @@ function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
             <small>查看与管理你过往的商业沙盘推演记录</small>
           </div>
         </header>
-        <aside className="history-notice">
-          <strong>历史记录管理说明</strong>
-          <span>普通版仅保存最近 3 条历史，会员版可长期保存更多记录。</span>
-          <button type="button">升级会员，解锁更多记录</button>
-        </aside>
         <div className="history-filter-row">
           <input aria-label="搜索项目名称或关键词" placeholder="搜索项目名称 / 关键词" />
           <select aria-label="状态"><option>全部状态</option></select>
@@ -734,7 +733,7 @@ function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
             <span>推演时间</span>
             <span>状态</span>
             <span>综合评分</span>
-            <span>风险等级</span>
+            <span>风险项</span>
             <span>操作</span>
           </div>
           {visibleRows.map(({ title, detail, role, time, status, score, risk, href }) => (
@@ -767,27 +766,19 @@ function SandboxState({ title }: { title: string }) {
   );
 }
 
-function QuotaModal() {
+function QuotaModal({ quota }: { quota: ReturnType<typeof quotaSummary> }) {
+  const resetAt = quota.item?.reset_at
+    ? new Date(quota.item.reset_at).toLocaleString("zh-CN", { hour12: false })
+    : "以账户额度页为准";
   return (
     <div className="sandbox-modal-scrim">
       <section className="quota-modal" role="dialog" aria-label="本月沙盘次数已用尽">
         <button aria-label="关闭" type="button">×</button>
         <div className="quota-lock" />
         <h2>本月沙盘次数已用尽</h2>
-        <p>您已用完普通版每月可用的沙盘推演次数。</p>
-        <div className="quota-compare">
-          <article><small>普通版</small><strong>1 次/月</strong></article>
-          <b>VS</b>
-          <article><small>会员版</small><strong>20 次/月</strong></article>
-        </div>
-        <p>本月已使用：1 / 1 次，重置时间：2025-06-01</p>
-        <h3>升级会员版，立即享受更多权益</h3>
-        <div className="quota-benefits">
-          {["解锁更多推演次数", "保存更多历史记录", "导出完整推演报告", "优先体验高级分析能力"].map((item) => <span key={item}>{item}</span>)}
-        </div>
+        {quota.item ? <p>本周期已使用：{quota.item.used} / {quota.item.limit} {quota.item.unit}，重置时间：{resetAt}</p> : <p>额度信息加载中，请前往套餐页查看当前账户的实际额度。</p>}
         <footer>
-          <Link to="/membership">升级套餐</Link>
-          <button type="button">联系客服</button>
+          <Link to="/membership">查看套餐与额度</Link>
         </footer>
         <Link to="/sandbox">稍后再说</Link>
       </section>
@@ -838,19 +829,19 @@ function SandboxCopilot({ mode }: { mode: SandboxVariant }) {
         <button type="button">⌃</button>
       </header>
       <div className="sandbox-chat mine">
-        {mode === "home" ? "我有一个智能宠物新品的想法，帮我从多角度分析市场并评估机会与潜在风险。" : "我想做一款面向上班族的低卡代餐奶昔，请帮我判断机会。"}
+        {mode === "home" ? "如何使用商业沙盘？" : "这些推演结果可以直接作为市场事实吗？"}
       </div>
       <div className="sandbox-chat">
         {resultMode
-          ? "已为你梳理当前推演的关键建议，优先验证中等及以上风险项目。"
-          : "好的，我将基于你提供的信息和选择的角色进行多维度推演分析。"}
+          ? "不可以。沙盘结果是基于输入条件的 AI 情景推演，关键假设和结论仍需通过访谈、实验或可信数据验证。"
+          : "先填写目标用户、产品方案和推演目标，再选择角色。系统会生成模型推演报告，并明确标注假设与证据边界。"}
       </div>
       <nav>
         {(resultMode
-          ? ["查看完整建议动作", "生成PPT报告", "导出Excel数据", "分享报告链接"]
-          : ["开始多角色推演", "查看推演思路", "生成推演大纲", "历史推演记录"]
+          ? [["开始新推演", "/sandbox/setup"], ["历史推演记录", "/sandbox/history"]]
+          : [["开始多角色推演", "/sandbox/setup"], ["历史推演记录", "/sandbox/history"]]
         ).map((item) => (
-          <Link key={item} to={item.includes("历史") ? "/sandbox/history" : item.includes("开始") ? "/sandbox/setup" : "#"}>{item}</Link>
+          <Link key={item[0]} to={item[1]}>{item[0]}</Link>
         ))}
       </nav>
       <MiniCopilotForm className="sandbox-copilot-input" inputAriaLabel="向沙盘 Copilot 提问" attachIcon="＋" sendIcon="↗" />

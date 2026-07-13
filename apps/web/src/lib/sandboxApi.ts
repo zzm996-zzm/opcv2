@@ -3,6 +3,10 @@ import { apiRequest } from "./apiRequest";
 export type SandboxReport = {
   score: number;
   summary: string;
+  basis?: "model_simulation";
+  disclaimer?: string;
+  assumptions?: string[];
+  evidence_sources?: Array<{ title: string; url: string; captured_at: string }>;
   metrics: Array<{ label: string; value: string }>;
   role_summaries: Array<{ role: string; view: string }>;
   risks: string[];
@@ -16,7 +20,11 @@ export type SandboxSession = {
   target_users: string;
   product: string;
   roles: string[];
-  status: "draft" | "running" | "completed" | "failed";
+  status: "draft" | "queued" | "running" | "completed" | "failed" | "canceled";
+  progress_percent: number;
+  current_step: string;
+  error_message?: string;
+  run_attempt: number;
   report?: SandboxReport;
   created_at: string;
   updated_at: string;
@@ -67,6 +75,18 @@ export const sandboxApi = {
     return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/run`, {
       method: "POST"
     });
+  },
+
+  retrySession(id: number) {
+    return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/retry`, { method: "POST" });
+  },
+
+  cancelSession(id: number) {
+    return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/cancel`, { method: "POST" });
+  },
+
+  getStatus(id: number) {
+    return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/status`, { method: "GET" });
   },
 
   updateDraft(id: number, input: SandboxDraftUpdate) {

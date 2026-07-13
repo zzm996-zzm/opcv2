@@ -52,6 +52,21 @@ describe("sandboxApi", () => {
     );
   });
 
+  it("gets status, retries, and cancels a sandbox session", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockImplementation(() => Promise.resolve(
+        new Response(JSON.stringify({ id: 99, status: "queued" }), { status: 200 })
+      ));
+
+    await sandboxApi.getStatus(99);
+    await sandboxApi.retrySession(99);
+    await sandboxApi.cancelSession(99);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/sandbox/sessions/99/status", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/sandbox/sessions/99/retry", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/sandbox/sessions/99/cancel", expect.objectContaining({ method: "POST" }));
+  });
+
   it("loads roles and updates a sandbox draft", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ roles: [{ key: "user", label: "用户视角" }] }), { status: 200 }))

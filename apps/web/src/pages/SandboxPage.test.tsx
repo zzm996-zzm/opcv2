@@ -65,7 +65,7 @@ describe("SandboxPage", () => {
 
     render(<MemoryRouter initialEntries={["/sandbox/quota"]}><App /></MemoryRouter>);
     expect(screen.getByRole("dialog", { name: "本月沙盘次数已用尽" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "升级套餐" })).toHaveAttribute("href", "/membership");
+    expect(screen.getByRole("link", { name: "查看套餐与额度" })).toHaveAttribute("href", "/membership");
   });
 
   it("loads sandbox sessions into history and report states", async () => {
@@ -105,7 +105,9 @@ describe("SandboxPage", () => {
 
     expect(await screen.findByRole("heading", { name: "企业AI运营平台" })).toBeInTheDocument();
     expect(screen.getByText("AI运营平台具备清晰落地空间")).toBeInTheDocument();
-    expect(screen.getByText(/模型推演/)).toBeInTheDocument();
+    expect(screen.getByText(/报告版本：V2.0 · 模型推演/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "关键假设" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "验证证据" })).toBeInTheDocument();
     expect(screen.getByText("门店老板关注降本增效")).toBeInTheDocument();
     expect(screen.getByText("先做3家门店试点")).toBeInTheDocument();
   });
@@ -178,19 +180,14 @@ describe("SandboxPage", () => {
           goal: "验证 AI 低卡代餐奶昔",
           target_users: "上班族",
           product: "AI 低卡代餐奶昔",
-          roles: ["用户视角", "投资人视角", "竞争对手视角", "运营视角"],
-          status: "completed",
-          report: {
-            score: 86,
-            summary: "代餐奶昔项目适合先做小范围验证",
-            metrics: [{ label: "综合可行性", value: "86" }],
-            role_summaries: [{ role: "用户视角", view: "用户需要口味和饱腹感双验证" }],
-            risks: ["线下履约成本需要控制"],
-            next_actions: ["先完成20位上班族访谈"]
-          },
+          roles: ["用户视角", "投资人视角"],
+          status: "queued",
+          progress_percent: 0,
+          current_step: "queued",
+          run_attempt: 1,
           created_at: "2026-06-30T08:00:00Z",
-          updated_at: "2026-06-30T08:02:00Z"
-        }), { status: 200 }));
+          updated_at: "2026-06-30T08:00:01Z"
+        }), { status: 202 }));
       }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
@@ -204,8 +201,9 @@ describe("SandboxPage", () => {
     });
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox/sessions/123/run", expect.objectContaining({ method: "POST" }));
     expect(await screen.findByRole("heading", { name: "AI 低卡代餐奶昔" })).toBeInTheDocument();
-    expect(screen.getByText("用户需要口味和饱腹感双验证")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "生成推演报告" })).toHaveAttribute("href", "/sandbox/sessions/123/report");
+    expect(screen.getByText("等待执行")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消推演" })).toBeInTheDocument();
+    expect(screen.queryByText("用户需要口味和饱腹感双验证")).not.toBeInTheDocument();
   });
 
   it("creates a draft from editable setup fields", async () => {
