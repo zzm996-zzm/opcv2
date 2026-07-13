@@ -287,7 +287,7 @@ func TestMembershipRoutesAreMountedBehindAuth(t *testing.T) {
 
 type fakeContentApp struct{}
 
-func (fakeContentApp) ListArticles(context.Context) ([]content.Article, error) {
+func (fakeContentApp) ListArticles(context.Context, content.ArticleFilters) ([]content.Article, error) {
 	return []content.Article{}, nil
 }
 func (fakeContentApp) GetArticle(context.Context, string) (content.Article, error) {
@@ -308,6 +308,9 @@ func (fakeContentApp) ListTools(context.Context, content.ToolFilters) ([]content
 func (fakeContentApp) GetTool(context.Context, string) (content.Tool, error) {
 	return content.Tool{}, nil
 }
+func (fakeContentApp) RecommendTools(context.Context, content.ToolRecommendationInput) (content.ToolRecommendations, error) {
+	return content.ToolRecommendations{}, nil
+}
 func (fakeContentApp) FavoriteTool(context.Context, int64, string) (content.FavoriteResult, error) {
 	return content.FavoriteResult{}, nil
 }
@@ -325,6 +328,9 @@ func (fakeContentApp) UpdateCommunityConfig(context.Context, int64, content.Comm
 }
 func (fakeContentApp) CreateCommunityJoinRequest(context.Context, int64, content.CommunityJoinInput) (content.CommunityJoinRequest, error) {
 	return content.CommunityJoinRequest{}, nil
+}
+func (fakeContentApp) AnswerInsightQuestion(context.Context, int64, content.InsightQuestionInput) (content.InsightAnswer, error) {
+	return content.InsightAnswer{}, nil
 }
 func (fakeContentApp) ListHelpTopics(context.Context) ([]content.HelpTopic, error) {
 	return []content.HelpTopic{}, nil

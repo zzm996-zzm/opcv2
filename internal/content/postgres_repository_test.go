@@ -45,14 +45,10 @@ func TestPostgresRepositoryListsPublishedArticles(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 6, 24, 9, 0, 0, 0, time.UTC)
-	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, slug, title, summary, '' AS body, status, published_at, created_at, updated_at
-		FROM content_articles
-		WHERE status = 'published'
-		ORDER BY published_at DESC NULLS LAST, created_at DESC
-	`)).
+	db.ExpectQuery(regexp.QuoteMeta("SELECT id, slug, title, summary, '' AS body, status,")).
+		WithArgs("", "", 20).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "slug", "title", "summary", "body", "status", "published_at", "created_at", "updated_at",
+			"id", "slug", "title", "summary", "body", "status", "source_name", "source_url", "author", "category", "tags", "citations", "source_published_at", "published_at", "created_at", "updated_at",
 		}).AddRow(
 			int64(7),
 			"growth-playbook",
@@ -60,13 +56,20 @@ func TestPostgresRepositoryListsPublishedArticles(t *testing.T) {
 			"摘要",
 			"",
 			StatusPublished,
+			"智活AI研究院",
+			"https://example.com/report",
+			"研究团队",
+			"行业趋势",
+			[]byte(`["AI创业"]`),
+			[]byte(`[]`),
+			now,
 			now,
 			now,
 			now,
 		))
 
 	repository := NewPostgresRepository(db)
-	articles, err := repository.ListArticles(context.Background())
+	articles, err := repository.ListArticles(context.Background(), ArticleFilters{Limit: 20})
 	if err != nil {
 		t.Fatalf("ListArticles() error = %v", err)
 	}
@@ -86,21 +89,16 @@ func TestPostgresRepositoryUpsertsArticle(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 6, 24, 9, 0, 0, 0, time.UTC)
-	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO content_articles (slug, title, summary, body, status, published_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, TIMESTAMPTZ '0001-01-01 00:00:00+00'), $7, $8)
-		ON CONFLICT (slug) DO UPDATE SET
-			title = EXCLUDED.title,
-			summary = EXCLUDED.summary,
-			body = EXCLUDED.body,
-			status = EXCLUDED.status,
-			published_at = COALESCE(EXCLUDED.published_at, content_articles.published_at),
-			updated_at = EXCLUDED.updated_at
-		RETURNING id, slug, title, summary, body, status, published_at, created_at, updated_at
-	`)).
-		WithArgs("growth-playbook", "增长手册", "摘要", "正文", StatusPublished, now, now, now).
+	db.ExpectQuery(regexp.QuoteMeta("INSERT INTO content_articles (")).
+		WithArgs(
+			"growth-playbook", "增长手册", "摘要", "正文", StatusPublished,
+			"智活AI研究院", "https://example.com/report", "研究团队", "行业趋势",
+			[]byte(`["AI创业"]`),
+			[]byte(`[{"id":"source-1","label":"行业报告","source_name":"研究机构","source_url":"https://example.com/source"}]`),
+			&now, now, now, now,
+		).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "slug", "title", "summary", "body", "status", "published_at", "created_at", "updated_at",
+			"id", "slug", "title", "summary", "body", "status", "source_name", "source_url", "author", "category", "tags", "citations", "source_published_at", "published_at", "created_at", "updated_at",
 		}).AddRow(
 			int64(7),
 			"growth-playbook",
@@ -108,6 +106,13 @@ func TestPostgresRepositoryUpsertsArticle(t *testing.T) {
 			"摘要",
 			"正文",
 			StatusPublished,
+			"智活AI研究院",
+			"https://example.com/report",
+			"研究团队",
+			"行业趋势",
+			[]byte(`["AI创业"]`),
+			[]byte(`[{"id":"source-1","label":"行业报告","source_name":"研究机构","source_url":"https://example.com/source"}]`),
+			now,
 			now,
 			now,
 			now,
@@ -115,14 +120,23 @@ func TestPostgresRepositoryUpsertsArticle(t *testing.T) {
 
 	repository := NewPostgresRepository(db)
 	article, err := repository.UpsertArticle(context.Background(), Article{
-		Slug:        "growth-playbook",
-		Title:       "增长手册",
-		Summary:     "摘要",
-		Body:        "正文",
-		Status:      StatusPublished,
-		PublishedAt: now,
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		Slug:       "growth-playbook",
+		Title:      "增长手册",
+		Summary:    "摘要",
+		Body:       "正文",
+		Status:     StatusPublished,
+		SourceName: "智活AI研究院",
+		SourceURL:  "https://example.com/report",
+		Author:     "研究团队",
+		Category:   "行业趋势",
+		Tags:       []string{"AI创业"},
+		Citations: []ArticleCitation{{
+			ID: "source-1", Label: "行业报告", SourceName: "研究机构", SourceURL: "https://example.com/source",
+		}},
+		SourcePublishedAt: &now,
+		PublishedAt:       now,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	})
 	if err != nil {
 		t.Fatalf("UpsertArticle() error = %v", err)

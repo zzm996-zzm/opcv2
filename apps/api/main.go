@@ -136,7 +136,7 @@ func main() {
 	crmService := crm.NewService(crmRepository, aiService)
 	crmHTTP := crm.NewHTTPHandler(crmService)
 	contentRepository := content.NewPostgresRepository(db)
-	contentService := content.NewService(contentRepository)
+	contentService := content.NewService(contentRepository, content.WithGenerator(aiService))
 	contentHTTP := content.NewHTTPHandler(contentService)
 	supportRepository := support.NewPostgresRepository(db)
 	supportService := support.NewService(supportRepository)

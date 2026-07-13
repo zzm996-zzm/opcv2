@@ -2,37 +2,62 @@ package content
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/zzm/opcv2/internal/ai"
 )
 
 type fakeRepository struct {
-	admin        bool
-	article      Article
-	articles     []Article
-	tool         Tool
-	tools        []Tool
-	filters      ToolFilters
-	favorite     FavoriteResult
-	bookmark     BookmarkResult
-	joinInput    CommunityJoinInput
-	joinRequest  CommunityJoinRequest
-	helpTopics   []HelpTopic
-	helpArticles []HelpArticle
-	helpArticle  HelpArticle
-	err          error
+	admin          bool
+	article        Article
+	articles       []Article
+	articleFilters ArticleFilters
+	tool           Tool
+	tools          []Tool
+	filters        ToolFilters
+	community      CommunityConfig
+	favorite       FavoriteResult
+	bookmark       BookmarkResult
+	joinInput      CommunityJoinInput
+	joinRequest    CommunityJoinRequest
+	helpTopics     []HelpTopic
+	helpArticles   []HelpArticle
+	helpArticle    HelpArticle
+	err            error
 }
 
 func (r *fakeRepository) IsAdmin(context.Context, int64) (bool, error) {
 	return r.admin, r.err
 }
 
-func (r *fakeRepository) ListArticles(context.Context) ([]Article, error) {
+func (r *fakeRepository) ListArticles(_ context.Context, filters ArticleFilters) ([]Article, error) {
+	r.articleFilters = filters
 	return r.articles, r.err
 }
 
 func (r *fakeRepository) GetArticle(context.Context, string) (Article, error) {
 	return r.article, r.err
+}
+
+type fakeGenerator struct {
+	content []byte
+	request ai.GenerateJSONRequest
+	err     error
+}
+
+func (g *fakeGenerator) GenerateJSON(_ context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
+	g.request = request
+	if g.err != nil {
+		return ai.GenerateJSONResult{}, g.err
+	}
+	if request.Validate != nil {
+		if err := request.Validate(g.content); err != nil {
+			return ai.GenerateJSONResult{}, err
+		}
+	}
+	return ai.GenerateJSONResult{Content: g.content}, nil
 }
 
 func (r *fakeRepository) UpsertArticle(_ context.Context, article Article) (Article, error) {
@@ -65,16 +90,18 @@ func (r *fakeRepository) UnfavoriteTool(context.Context, int64, string) (Favorit
 	return r.favorite, r.err
 }
 
-func (r *fakeRepository) UpsertTool(context.Context, Tool) (Tool, error) {
-	return Tool{}, r.err
+func (r *fakeRepository) UpsertTool(_ context.Context, tool Tool) (Tool, error) {
+	r.tool = tool
+	return tool, r.err
 }
 
 func (r *fakeRepository) GetCommunityConfig(context.Context) (CommunityConfig, error) {
-	return CommunityConfig{}, r.err
+	return r.community, r.err
 }
 
-func (r *fakeRepository) UpsertCommunityConfig(context.Context, CommunityConfig) (CommunityConfig, error) {
-	return CommunityConfig{}, r.err
+func (r *fakeRepository) UpsertCommunityConfig(_ context.Context, config CommunityConfig) (CommunityConfig, error) {
+	r.community = config
+	return config, r.err
 }
 
 func (r *fakeRepository) CreateCommunityJoinRequest(_ context.Context, userID int64, input CommunityJoinInput) (CommunityJoinRequest, error) {
@@ -149,13 +176,27 @@ func TestServiceNormalizesArticleAndAllowsAdmin(t *testing.T) {
 func TestServiceEmptyListsAreArrays(t *testing.T) {
 	service := NewService(&fakeRepository{})
 
-	articles, err := service.ListArticles(context.Background())
+	articles, err := service.ListArticles(context.Background(), ArticleFilters{})
 
 	if err != nil {
 		t.Fatalf("ListArticles() error = %v", err)
 	}
 	if articles == nil || len(articles) != 0 {
 		t.Fatalf("articles = %#v, want empty slice", articles)
+	}
+}
+
+func TestServiceNormalizesArticleFilters(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository)
+
+	_, err := service.ListArticles(context.Background(), ArticleFilters{Category: " 行业趋势 ", Query: " 客服 ", Limit: 500})
+
+	if err != nil {
+		t.Fatalf("ListArticles() error = %v", err)
+	}
+	if repository.articleFilters.Category != "行业趋势" || repository.articleFilters.Query != "客服" || repository.articleFilters.Limit != 100 {
+		t.Fatalf("filters = %+v", repository.articleFilters)
 	}
 }
 
@@ -189,6 +230,76 @@ func TestServiceFavoritesToolForUser(t *testing.T) {
 	}
 	if result.Slug != "canva-ai" || !result.Favorited {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestServiceRecommendsOnlyCatalogMatches(t *testing.T) {
+	repository := &fakeRepository{tools: []Tool{{Slug: "canva-ai", Name: "Canva AI"}}}
+	service := NewService(repository)
+
+	result, err := service.RecommendTools(context.Background(), ToolRecommendationInput{
+		Goal: " 获取更多线索 ", Scenario: " 社媒海报 ", Category: " 创业获客 ", Limit: 30,
+	})
+
+	if err != nil {
+		t.Fatalf("RecommendTools() error = %v", err)
+	}
+	if result.Basis != "catalog_match" || len(result.Tools) != 1 || repository.filters.Query != "社媒海报" || repository.filters.Limit != 20 {
+		t.Fatalf("result/filters = %+v/%+v", result, repository.filters)
+	}
+}
+
+func TestServiceAnswersInsightQuestionWithStoredCitations(t *testing.T) {
+	repository := &fakeRepository{article: Article{
+		Slug: "growth-playbook", Title: "增长手册", Summary: "摘要", Body: "正文",
+		Citations: []ArticleCitation{{ID: "source-1", Label: "行业报告", SourceName: "研究机构", SourceURL: "https://example.com/source", Excerpt: "市场增长"}},
+	}}
+	generator := &fakeGenerator{content: []byte(`{"answer":"市场仍在增长。","citation_ids":["growth-playbook:source-1"],"assumptions":["仅覆盖已选文章"]}`)}
+	service := NewService(repository, WithGenerator(generator))
+
+	answer, err := service.AnswerInsightQuestion(context.Background(), 42, InsightQuestionInput{
+		Question: " 市场趋势是什么？ ", ArticleSlugs: []string{" growth-playbook ", "growth-playbook"},
+	})
+
+	if err != nil {
+		t.Fatalf("AnswerInsightQuestion() error = %v", err)
+	}
+	if answer.Basis != "catalog_citations" || len(answer.Citations) != 1 || answer.Citations[0].SourceURL != "https://example.com/source" {
+		t.Fatalf("answer = %+v", answer)
+	}
+	if generator.request.Feature != "content.insight_qa" || !strings.Contains(generator.request.UserPrompt, "growth-playbook:source-1") {
+		t.Fatalf("request = %+v", generator.request)
+	}
+}
+
+func TestServiceRejectsInsightQuestionWithoutStoredSources(t *testing.T) {
+	service := NewService(&fakeRepository{article: Article{Slug: "growth-playbook"}}, WithGenerator(&fakeGenerator{}))
+
+	_, err := service.AnswerInsightQuestion(context.Background(), 42, InsightQuestionInput{
+		Question: "趋势？", ArticleSlugs: []string{"growth-playbook"},
+	})
+
+	if err != ErrInsightSourcesEmpty {
+		t.Fatalf("err = %v, want ErrInsightSourcesEmpty", err)
+	}
+}
+
+func TestServiceNormalizesCommunityQRVariants(t *testing.T) {
+	repository := &fakeRepository{admin: true}
+	service := NewService(repository)
+
+	config, err := service.UpdateCommunityConfig(context.Background(), 42, CommunityConfigInput{
+		Headline: " 社群 ", QRVariants: []CommunityQRVariant{
+			{Key: " members ", Label: " 免费社群 ", ImageURL: " /qr/members.png ", Status: "published"},
+			{Key: "members", Label: "重复", Status: "published"},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("UpdateCommunityConfig() error = %v", err)
+	}
+	if len(config.QRVariants) != 1 || config.QRVariants[0].Key != "members" || config.QRVariants[0].ImageURL != "/qr/members.png" {
+		t.Fatalf("config = %+v", config)
 	}
 }
 

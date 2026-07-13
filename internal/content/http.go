@@ -11,19 +11,21 @@ import (
 )
 
 type Application interface {
-	ListArticles(ctx context.Context) ([]Article, error)
+	ListArticles(ctx context.Context, filters ArticleFilters) ([]Article, error)
 	GetArticle(ctx context.Context, slug string) (Article, error)
 	CreateArticle(ctx context.Context, userID int64, input ArticleInput) (Article, error)
 	BookmarkArticle(ctx context.Context, userID int64, slug string) (BookmarkResult, error)
 	UnbookmarkArticle(ctx context.Context, userID int64, slug string) (BookmarkResult, error)
 	ListTools(ctx context.Context, filters ToolFilters) ([]Tool, error)
 	GetTool(ctx context.Context, slug string) (Tool, error)
+	RecommendTools(ctx context.Context, input ToolRecommendationInput) (ToolRecommendations, error)
 	FavoriteTool(ctx context.Context, userID int64, slug string) (FavoriteResult, error)
 	UnfavoriteTool(ctx context.Context, userID int64, slug string) (FavoriteResult, error)
 	UpsertTool(ctx context.Context, userID int64, input ToolInput) (Tool, error)
 	GetCommunityConfig(ctx context.Context) (CommunityConfig, error)
 	UpdateCommunityConfig(ctx context.Context, userID int64, input CommunityConfigInput) (CommunityConfig, error)
 	CreateCommunityJoinRequest(ctx context.Context, userID int64, input CommunityJoinInput) (CommunityJoinRequest, error)
+	AnswerInsightQuestion(ctx context.Context, userID int64, input InsightQuestionInput) (InsightAnswer, error)
 	ListHelpTopics(ctx context.Context) ([]HelpTopic, error)
 	ListHelpArticles(ctx context.Context, filters HelpArticleFilters) ([]HelpArticle, error)
 	GetHelpArticle(ctx context.Context, slug string) (HelpArticle, error)
@@ -57,6 +59,8 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.DELETE("/content/articles/:slug/bookmark", h.unbookmarkArticle)
 	router.POST("/content/tools/:slug/favorite", h.favoriteTool)
 	router.DELETE("/content/tools/:slug/favorite", h.unfavoriteTool)
+	router.POST("/content/tools/recommendations", h.recommendTools)
+	router.POST("/content/insights/qa", h.answerInsightQuestion)
 	router.POST("/community/join-requests", h.createCommunityJoinRequest)
 }
 
@@ -69,7 +73,13 @@ func (h *HTTPHandler) RegisterAdmin(router *gin.RouterGroup) {
 }
 
 func (h *HTTPHandler) listArticles(c *gin.Context) {
-	articles, err := h.app.ListArticles(c.Request.Context())
+	limit := queryLimit(c)
+	if limit == 0 {
+		return
+	}
+	articles, err := h.app.ListArticles(c.Request.Context(), ArticleFilters{
+		Category: c.Query("category"), Query: c.Query("q"), Limit: limit,
+	})
 	if err != nil {
 		writeError(c, err)
 		return
@@ -78,6 +88,34 @@ func (h *HTTPHandler) listArticles(c *gin.Context) {
 		articles = []Article{}
 	}
 	c.JSON(http.StatusOK, gin.H{"articles": articles})
+}
+
+func (h *HTTPHandler) recommendTools(c *gin.Context) {
+	var request ToolRecommendationInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	result, err := h.app.RecommendTools(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *HTTPHandler) answerInsightQuestion(c *gin.Context) {
+	var request InsightQuestionInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	result, err := h.app.AnswerInsightQuestion(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *HTTPHandler) getArticle(c *gin.Context) {
@@ -316,6 +354,10 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "tool_not_found"})
 	case errors.Is(err, ErrHelpArticleNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "help_article_not_found"})
+	case errors.Is(err, ErrInsightSourcesEmpty):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "insight_sources_unavailable"})
+	case errors.Is(err, ErrInvalidAIResult):
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "invalid_ai_result"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	default:

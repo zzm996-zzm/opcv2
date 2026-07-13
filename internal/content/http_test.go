@@ -13,26 +13,32 @@ import (
 )
 
 type fakeApplication struct {
-	userID       int64
-	input        ArticleInput
-	article      Article
-	articles     []Article
-	tool         Tool
-	tools        []Tool
-	toolFilters  ToolFilters
-	toolSlug     string
-	favorite     FavoriteResult
-	bookmark     BookmarkResult
-	joinInput    CommunityJoinInput
-	joinRequest  CommunityJoinRequest
-	helpTopics   []HelpTopic
-	helpArticles []HelpArticle
-	helpArticle  HelpArticle
-	helpFilters  HelpArticleFilters
-	err          error
+	userID              int64
+	input               ArticleInput
+	article             Article
+	articles            []Article
+	articleFilters      ArticleFilters
+	tool                Tool
+	tools               []Tool
+	toolFilters         ToolFilters
+	toolSlug            string
+	recommendationInput ToolRecommendationInput
+	recommendations     ToolRecommendations
+	favorite            FavoriteResult
+	bookmark            BookmarkResult
+	joinInput           CommunityJoinInput
+	joinRequest         CommunityJoinRequest
+	insightInput        InsightQuestionInput
+	insightAnswer       InsightAnswer
+	helpTopics          []HelpTopic
+	helpArticles        []HelpArticle
+	helpArticle         HelpArticle
+	helpFilters         HelpArticleFilters
+	err                 error
 }
 
-func (a *fakeApplication) ListArticles(context.Context) ([]Article, error) {
+func (a *fakeApplication) ListArticles(_ context.Context, filters ArticleFilters) ([]Article, error) {
+	a.articleFilters = filters
 	return a.articles, a.err
 }
 
@@ -69,6 +75,11 @@ func (a *fakeApplication) GetTool(_ context.Context, slug string) (Tool, error) 
 	return a.tool, a.err
 }
 
+func (a *fakeApplication) RecommendTools(_ context.Context, input ToolRecommendationInput) (ToolRecommendations, error) {
+	a.recommendationInput = input
+	return a.recommendations, a.err
+}
+
 func (a *fakeApplication) FavoriteTool(_ context.Context, userID int64, slug string) (FavoriteResult, error) {
 	a.userID = userID
 	a.toolSlug = slug
@@ -97,6 +108,12 @@ func (a *fakeApplication) CreateCommunityJoinRequest(_ context.Context, userID i
 	a.userID = userID
 	a.joinInput = input
 	return a.joinRequest, a.err
+}
+
+func (a *fakeApplication) AnswerInsightQuestion(_ context.Context, userID int64, input InsightQuestionInput) (InsightAnswer, error) {
+	a.userID = userID
+	a.insightInput = input
+	return a.insightAnswer, a.err
 }
 
 func (a *fakeApplication) ListHelpTopics(context.Context) ([]HelpTopic, error) {
@@ -151,6 +168,18 @@ func TestListArticlesReturnsEmptyArray(t *testing.T) {
 	}
 	if recorder.Body.String() != `{"articles":[]}` {
 		t.Fatalf("body = %q, want empty articles array", recorder.Body.String())
+	}
+}
+
+func TestListArticlesPassesSearchFilters(t *testing.T) {
+	app := &fakeApplication{}
+	router := contentTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/content/articles?category=行业趋势&q=客服&limit=500", nil))
+
+	if recorder.Code != http.StatusOK || app.articleFilters.Category != "行业趋势" || app.articleFilters.Query != "客服" || app.articleFilters.Limit != 100 {
+		t.Fatalf("status/filters/body = %d/%+v/%s", recorder.Code, app.articleFilters, recorder.Body.String())
 	}
 }
 
@@ -258,6 +287,34 @@ func TestFavoriteToolEndpointUsesAuthenticatedUser(t *testing.T) {
 
 	if recorder.Code != http.StatusOK || app.userID != 42 || app.toolSlug != "canva-ai" {
 		t.Fatalf("status/user/slug/body = %d/%d/%s/%s", recorder.Code, app.userID, app.toolSlug, recorder.Body.String())
+	}
+}
+
+func TestRecommendToolsEndpointPassesCriteria(t *testing.T) {
+	app := &fakeApplication{recommendations: ToolRecommendations{Basis: "catalog_match", Tools: []Tool{}}}
+	router := contentTestRouter(app)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/content/tools/recommendations", strings.NewReader(`{"goal":"获客","scenario":"社媒海报","limit":6}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.recommendationInput.Scenario != "社媒海报" || !strings.Contains(recorder.Body.String(), `"basis":"catalog_match"`) {
+		t.Fatalf("status/input/body = %d/%+v/%s", recorder.Code, app.recommendationInput, recorder.Body.String())
+	}
+}
+
+func TestInsightQAEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{insightAnswer: InsightAnswer{Answer: "结论", Basis: "catalog_citations", Citations: []InsightAnswerCitation{}}}
+	router := contentTestRouter(app)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/content/insights/qa", strings.NewReader(`{"question":"趋势？","article_slugs":["growth-playbook"]}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.userID != 42 || app.insightInput.Question != "趋势？" || !strings.Contains(recorder.Body.String(), `"basis":"catalog_citations"`) {
+		t.Fatalf("status/user/input/body = %d/%d/%+v/%s", recorder.Code, app.userID, app.insightInput, recorder.Body.String())
 	}
 }
 

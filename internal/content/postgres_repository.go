@@ -3,6 +3,7 @@ package content
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -37,13 +38,18 @@ func (r *PostgresRepository) IsAdmin(ctx context.Context, userID int64) (bool, e
 	return isAdmin, err
 }
 
-func (r *PostgresRepository) ListArticles(ctx context.Context) ([]Article, error) {
+func (r *PostgresRepository) ListArticles(ctx context.Context, filters ArticleFilters) ([]Article, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, slug, title, summary, '' AS body, status, published_at, created_at, updated_at
+		SELECT id, slug, title, summary, '' AS body, status,
+		       source_name, source_url, author, category, tags, citations,
+		       source_published_at, published_at, created_at, updated_at
 		FROM content_articles
 		WHERE status = 'published'
+		  AND ($1 = '' OR category = $1)
+		  AND ($2 = '' OR title ILIKE '%' || $2 || '%' OR summary ILIKE '%' || $2 || '%' OR tags::TEXT ILIKE '%' || $2 || '%')
 		ORDER BY published_at DESC NULLS LAST, created_at DESC
-	`)
+		LIMIT $3
+	`, filters.Category, filters.Query, filters.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +68,9 @@ func (r *PostgresRepository) ListArticles(ctx context.Context) ([]Article, error
 
 func (r *PostgresRepository) GetArticle(ctx context.Context, slug string) (Article, error) {
 	article, err := scanArticle(r.db.QueryRow(ctx, `
-		SELECT id, slug, title, summary, body, status, published_at, created_at, updated_at
+		SELECT id, slug, title, summary, body, status,
+		       source_name, source_url, author, category, tags, citations,
+		       source_published_at, published_at, created_at, updated_at
 		FROM content_articles
 		WHERE slug = $1 AND status = 'published'
 	`, slug))
@@ -73,23 +81,51 @@ func (r *PostgresRepository) GetArticle(ctx context.Context, slug string) (Artic
 }
 
 func (r *PostgresRepository) UpsertArticle(ctx context.Context, article Article) (Article, error) {
+	tags, err := json.Marshal(article.Tags)
+	if err != nil {
+		return Article{}, err
+	}
+	citations, err := json.Marshal(article.Citations)
+	if err != nil {
+		return Article{}, err
+	}
 	return scanArticle(r.db.QueryRow(ctx, `
-		INSERT INTO content_articles (slug, title, summary, body, status, published_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, NULLIF($6, TIMESTAMPTZ '0001-01-01 00:00:00+00'), $7, $8)
+		INSERT INTO content_articles (
+			slug, title, summary, body, status, source_name, source_url, author, category,
+			tags, citations, source_published_at, published_at, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+		        NULLIF($13, TIMESTAMPTZ '0001-01-01 00:00:00+00'), $14, $15)
 		ON CONFLICT (slug) DO UPDATE SET
 			title = EXCLUDED.title,
 			summary = EXCLUDED.summary,
 			body = EXCLUDED.body,
 			status = EXCLUDED.status,
+			source_name = EXCLUDED.source_name,
+			source_url = EXCLUDED.source_url,
+			author = EXCLUDED.author,
+			category = EXCLUDED.category,
+			tags = EXCLUDED.tags,
+			citations = EXCLUDED.citations,
+			source_published_at = EXCLUDED.source_published_at,
 			published_at = COALESCE(EXCLUDED.published_at, content_articles.published_at),
 			updated_at = EXCLUDED.updated_at
-		RETURNING id, slug, title, summary, body, status, published_at, created_at, updated_at
+		RETURNING id, slug, title, summary, body, status,
+		          source_name, source_url, author, category, tags, citations,
+		          source_published_at, published_at, created_at, updated_at
 	`,
 		article.Slug,
 		article.Title,
 		article.Summary,
 		article.Body,
 		article.Status,
+		article.SourceName,
+		article.SourceURL,
+		article.Author,
+		article.Category,
+		tags,
+		citations,
+		article.SourcePublishedAt,
 		article.PublishedAt,
 		article.CreatedAt,
 		article.UpdatedAt,
@@ -121,11 +157,15 @@ func (r *PostgresRepository) UnbookmarkArticle(ctx context.Context, userID int64
 
 func (r *PostgresRepository) ListTools(ctx context.Context, filters ToolFilters) ([]Tool, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, slug, name, description, url, status, COALESCE(category, ''), created_at, updated_at
+		SELECT id, slug, name, description, url, status, COALESCE(category, ''), tags,
+		       provider_name, price_label, platforms, features, use_cases, limitations,
+		       source_url, source_updated_at, sort_weight, created_at, updated_at
 		FROM content_tools
 		WHERE status = 'published'
 		  AND ($1 = '' OR category = $1)
-		  AND ($2 = '' OR name ILIKE '%' || $2 || '%' OR description ILIKE '%' || $2 || '%')
+		  AND ($2 = '' OR name ILIKE '%' || $2 || '%' OR description ILIKE '%' || $2 || '%'
+		       OR tags::TEXT ILIKE '%' || $2 || '%' OR features::TEXT ILIKE '%' || $2 || '%'
+		       OR use_cases::TEXT ILIKE '%' || $2 || '%')
 		ORDER BY
 		  CASE WHEN $3 = 'hot' THEN sort_weight ELSE 0 END DESC,
 		  created_at DESC
@@ -149,7 +189,9 @@ func (r *PostgresRepository) ListTools(ctx context.Context, filters ToolFilters)
 
 func (r *PostgresRepository) GetTool(ctx context.Context, slug string) (Tool, error) {
 	tool, err := scanTool(r.db.QueryRow(ctx, `
-		SELECT id, slug, name, description, url, status, COALESCE(category, ''), created_at, updated_at
+		SELECT id, slug, name, description, url, status, COALESCE(category, ''), tags,
+		       provider_name, price_label, platforms, features, use_cases, limitations,
+		       source_url, source_updated_at, sort_weight, created_at, updated_at
 		FROM content_tools
 		WHERE slug = $1 AND status = 'published'
 	`, slug))
@@ -183,17 +225,53 @@ func (r *PostgresRepository) UnfavoriteTool(ctx context.Context, userID int64, s
 }
 
 func (r *PostgresRepository) UpsertTool(ctx context.Context, tool Tool) (Tool, error) {
+	tags, err := json.Marshal(tool.Tags)
+	if err != nil {
+		return Tool{}, err
+	}
+	platforms, err := json.Marshal(tool.Platforms)
+	if err != nil {
+		return Tool{}, err
+	}
+	features, err := json.Marshal(tool.Features)
+	if err != nil {
+		return Tool{}, err
+	}
+	useCases, err := json.Marshal(tool.UseCases)
+	if err != nil {
+		return Tool{}, err
+	}
+	limitations, err := json.Marshal(tool.Limitations)
+	if err != nil {
+		return Tool{}, err
+	}
 	return scanTool(r.db.QueryRow(ctx, `
-		INSERT INTO content_tools (slug, name, description, url, status, category, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO content_tools (
+			slug, name, description, url, status, category, tags, provider_name, price_label,
+			platforms, features, use_cases, limitations, source_url, source_updated_at,
+			sort_weight, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		ON CONFLICT (slug) DO UPDATE SET
 			name = EXCLUDED.name,
 			description = EXCLUDED.description,
 			url = EXCLUDED.url,
 			status = EXCLUDED.status,
 			category = EXCLUDED.category,
+			tags = EXCLUDED.tags,
+			provider_name = EXCLUDED.provider_name,
+			price_label = EXCLUDED.price_label,
+			platforms = EXCLUDED.platforms,
+			features = EXCLUDED.features,
+			use_cases = EXCLUDED.use_cases,
+			limitations = EXCLUDED.limitations,
+			source_url = EXCLUDED.source_url,
+			source_updated_at = EXCLUDED.source_updated_at,
+			sort_weight = EXCLUDED.sort_weight,
 			updated_at = EXCLUDED.updated_at
-		RETURNING id, slug, name, description, url, status, COALESCE(category, ''), created_at, updated_at
+		RETURNING id, slug, name, description, url, status, COALESCE(category, ''), tags,
+		          provider_name, price_label, platforms, features, use_cases, limitations,
+		          source_url, source_updated_at, sort_weight, created_at, updated_at
 	`,
 		tool.Slug,
 		tool.Name,
@@ -201,6 +279,16 @@ func (r *PostgresRepository) UpsertTool(ctx context.Context, tool Tool) (Tool, e
 		tool.URL,
 		tool.Status,
 		tool.Category,
+		tags,
+		tool.ProviderName,
+		tool.PriceLabel,
+		platforms,
+		features,
+		useCases,
+		limitations,
+		tool.SourceURL,
+		tool.SourceUpdatedAt,
+		tool.SortWeight,
 		tool.CreatedAt,
 		tool.UpdatedAt,
 	))
@@ -208,7 +296,7 @@ func (r *PostgresRepository) UpsertTool(ctx context.Context, tool Tool) (Tool, e
 
 func (r *PostgresRepository) GetCommunityConfig(ctx context.Context) (CommunityConfig, error) {
 	config, err := scanCommunityConfig(r.db.QueryRow(ctx, `
-		SELECT id, headline, description, join_url, created_at, updated_at
+		SELECT id, headline, description, join_url, qr_variants, created_at, updated_at
 		FROM community_config
 		WHERE id = 1
 	`))
@@ -219,19 +307,25 @@ func (r *PostgresRepository) GetCommunityConfig(ctx context.Context) (CommunityC
 }
 
 func (r *PostgresRepository) UpsertCommunityConfig(ctx context.Context, config CommunityConfig) (CommunityConfig, error) {
+	variants, err := json.Marshal(config.QRVariants)
+	if err != nil {
+		return CommunityConfig{}, err
+	}
 	return scanCommunityConfig(r.db.QueryRow(ctx, `
-		INSERT INTO community_config (id, headline, description, join_url, created_at, updated_at)
-		VALUES (1, $1, $2, $3, $4, $5)
+		INSERT INTO community_config (id, headline, description, join_url, qr_variants, created_at, updated_at)
+		VALUES (1, $1, $2, $3, $4, $5, $6)
 		ON CONFLICT (id) DO UPDATE SET
 			headline = EXCLUDED.headline,
 			description = EXCLUDED.description,
 			join_url = EXCLUDED.join_url,
+			qr_variants = EXCLUDED.qr_variants,
 			updated_at = EXCLUDED.updated_at
-		RETURNING id, headline, description, join_url, created_at, updated_at
+		RETURNING id, headline, description, join_url, qr_variants, created_at, updated_at
 	`,
 		config.Headline,
 		config.Description,
 		config.JoinURL,
+		variants,
 		config.CreatedAt,
 		config.UpdatedAt,
 	))
@@ -402,6 +496,8 @@ type scanner interface {
 func scanArticle(scanner scanner) (Article, error) {
 	var article Article
 	var publishedAt sql.NullTime
+	var sourcePublishedAt sql.NullTime
+	var tags, citations []byte
 	if err := scanner.Scan(
 		&article.ID,
 		&article.Slug,
@@ -409,6 +505,13 @@ func scanArticle(scanner scanner) (Article, error) {
 		&article.Summary,
 		&article.Body,
 		&article.Status,
+		&article.SourceName,
+		&article.SourceURL,
+		&article.Author,
+		&article.Category,
+		&tags,
+		&citations,
+		&sourcePublishedAt,
 		&publishedAt,
 		&article.CreatedAt,
 		&article.UpdatedAt,
@@ -418,11 +521,22 @@ func scanArticle(scanner scanner) (Article, error) {
 	if publishedAt.Valid {
 		article.PublishedAt = publishedAt.Time
 	}
+	if sourcePublishedAt.Valid {
+		article.SourcePublishedAt = &sourcePublishedAt.Time
+	}
+	if err := json.Unmarshal(tags, &article.Tags); err != nil {
+		return Article{}, err
+	}
+	if err := json.Unmarshal(citations, &article.Citations); err != nil {
+		return Article{}, err
+	}
 	return article, nil
 }
 
 func scanTool(scanner scanner) (Tool, error) {
 	var tool Tool
+	var tags, platforms, features, useCases, limitations []byte
+	var sourceUpdatedAt sql.NullTime
 	err := scanner.Scan(
 		&tool.ID,
 		&tool.Slug,
@@ -431,10 +545,34 @@ func scanTool(scanner scanner) (Tool, error) {
 		&tool.URL,
 		&tool.Status,
 		&tool.Category,
+		&tags,
+		&tool.ProviderName,
+		&tool.PriceLabel,
+		&platforms,
+		&features,
+		&useCases,
+		&limitations,
+		&tool.SourceURL,
+		&sourceUpdatedAt,
+		&tool.SortWeight,
 		&tool.CreatedAt,
 		&tool.UpdatedAt,
 	)
-	return tool, err
+	if err != nil {
+		return Tool{}, err
+	}
+	if sourceUpdatedAt.Valid {
+		tool.SourceUpdatedAt = &sourceUpdatedAt.Time
+	}
+	for data, destination := range map[*[]byte]*[]string{
+		&tags: &tool.Tags, &platforms: &tool.Platforms, &features: &tool.Features,
+		&useCases: &tool.UseCases, &limitations: &tool.Limitations,
+	} {
+		if err := json.Unmarshal(*data, destination); err != nil {
+			return Tool{}, err
+		}
+	}
+	return tool, nil
 }
 
 func scanHelpArticle(scanner scanner) (HelpArticle, error) {
@@ -454,15 +592,23 @@ func scanHelpArticle(scanner scanner) (HelpArticle, error) {
 
 func scanCommunityConfig(scanner scanner) (CommunityConfig, error) {
 	var config CommunityConfig
+	var variants []byte
 	err := scanner.Scan(
 		&config.ID,
 		&config.Headline,
 		&config.Description,
 		&config.JoinURL,
+		&variants,
 		&config.CreatedAt,
 		&config.UpdatedAt,
 	)
-	return config, err
+	if err != nil {
+		return CommunityConfig{}, err
+	}
+	if err := json.Unmarshal(variants, &config.QRVariants); err != nil {
+		return CommunityConfig{}, err
+	}
+	return config, nil
 }
 
 func scanBrandMetric(scanner scanner) (BrandMetric, error) {
