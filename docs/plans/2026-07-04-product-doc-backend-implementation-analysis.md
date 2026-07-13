@@ -42,7 +42,7 @@ Current coverage by product area:
 | Content/top nav | Articles, tools, help, community config, favorites/bookmarks, limited admin upserts | Full CMS fields, tool recommendation, insight search/RAG, community QR code variants, course/admin content management |
 | Copilot | Threads/messages, compare, memories, quota gating, multipart file upload and extraction, file lifecycle, upstream SSE streaming, task/project tools, model options, AI run history | Embeddings/RAG, object storage, richer document parsers, additional module tools |
 | Project market | Opportunity and evidence catalog, match sessions, persistent follow-up Q&A, compare, export, task sync, list/detail/favorite APIs | Remove remaining frontend static fallbacks, complete saved-project UX, paid unlock policy |
-| Sandbox | Create/list/get/run session; AI JSON report | Draft step persistence, roles catalog, async progress, per-role conversation, quota check/charge, report evidence/labels |
+| Sandbox | Draft persistence, role catalog/follow-up, queued worker runs, progress/cancel/retry, per-attempt quota/refund, labeled AI report assumptions/evidence boundary | External evidence retrieval, richer user-defined variables, export/share only after a real implementation exists |
 | Tasks | CRUD, filters, stats | Reminder rules, notification delivery, AI task generation, source links from other modules, batch operations |
 | Competitor | Queued scans, worker/provider interface, status/progress/retry, normalized raw snapshots/evidence, safe admin account pool, monitoring read/write flow | Real platform-specific scripts are intentionally not connected; monitoring schedules/events still need worker depth |
 | Growth | Models plus derived scenarios/forecast/recommendations | Dynamic AI clarification, saved snapshots, transparent assumptions, export/share, quota/paid gates |
@@ -139,6 +139,49 @@ Final verification:
 - `npm run build`: passed (existing bundle-size warning only).
 - `npm run lint`: 0 errors; 1 pre-existing Hook dependency warning remains in `CrmPage.tsx`.
 - A PostgreSQL empty-database migration run was not available because local PostgreSQL was not running; migration and repository behavior are covered by automated tests.
+
+No production deployment was performed for this module.
+
+### 2.4 Sandbox workflow-depth handoff (2026-07-13)
+
+The **sandbox workflow depth** module is complete in two commits on
+`feature/bootstrap`:
+
+| Commit | Completed scope |
+| --- | --- |
+| `7a57cfd` | Replaced request-blocking report generation with persistent queued attempts, worker execution, progress/status, cancel/retry, and idempotent per-attempt quota refunds. |
+| `912762e` | Added forced model-simulation provenance, disclaimer, assumptions and empty external-evidence boundary; connected frontend polling/state controls and removed static conclusions, score transforms, risk labels, quota claims, and fake export/share actions. |
+
+Database migration added:
+
+- `000052_sandbox_run_jobs`
+
+Current behavior:
+
+- `POST /sandbox/sessions/:id/run` and `/retry` return `202` with a queued
+  session; the worker advances persistent progress and stores the final report.
+- Users can poll `/status`, cancel queued/running attempts, and retry failed or
+  canceled attempts. Stale jobs do not overwrite newer or canceled state.
+- Quota consumption and refunds are idempotent per run attempt. Queue failure,
+  AI/validation failure, and cancellation refund consumed usage.
+- Role follow-up is available only after a session completes.
+- Reports are always labeled `model_simulation`, include a fixed disclaimer and
+  explicit assumptions, and expose an empty `evidence_sources` array because
+  no external evidence retrieval is connected.
+- The frontend renders only persisted run/report data and real membership usage;
+  it no longer fabricates role conclusions, business metrics, risk levels,
+  report exports, or Copilot recommendations.
+
+Final verification:
+
+- `go test ./...`: passed.
+- Frontend tests: 66 files and 361 tests passed.
+- `npm run build`: passed (existing bundle-size warning only).
+- `npm run lint`: 0 errors; 1 pre-existing Hook dependency warning remains in
+  `CrmPage.tsx`.
+- A PostgreSQL empty-database migration run was not available because local
+  PostgreSQL was not running; migration/repository behavior is covered by
+  automated tests.
 
 No production deployment was performed for this module.
 
@@ -272,16 +315,24 @@ Do not fabricate heat/case/source data. Empty state is better than fake numbers.
 
 ### 4.5 Sandbox
 
-Current sandbox runs synchronously and immediately stores a report. Product needs staged setup, multi-role simulation, quota, and report labeling.
+The staged draft, multi-role simulation, quota, and report-labeling slice is now
+implemented. Runs execute through the shared persistent queue instead of
+blocking the API request.
 
-Next backend slice:
+Implemented backend slice:
 
 - `GET /sandbox/roles`
 - `PATCH /sandbox/sessions/:id/draft`
-- `POST /sandbox/sessions/:id/run` should check quota and create a queued job if provider latency is high
+- `POST /sandbox/sessions/:id/run` checks per-attempt quota and creates a queued job
 - `GET /sandbox/sessions/:id/status`
+- `POST /sandbox/sessions/:id/retry`
+- `POST /sandbox/sessions/:id/cancel`
 - `POST /sandbox/sessions/:id/messages` for role follow-up
-- report fields should explicitly mark model-derived assumptions, not real statistics
+- report fields explicitly mark model-derived assumptions and the lack of external evidence
+
+Optional future depth: external evidence retrieval, configurable simulation
+variables, and real export/share records. These must not be represented as
+available until their backend workflows exist.
 
 ### 4.6 Competitor full-data scan and dynamic monitoring
 
@@ -435,6 +486,7 @@ scope was delivered as five backend/frontend-verified parts:
 
 **Completed on 2026-07-13:** competitor script-job/evidence architecture.
 
-The next large module is now **sandbox workflow depth**. After that, continue
-with learning writes, content/admin catalog depth, and enterprise public
-conversion flows.
+**Completed on 2026-07-13:** sandbox workflow depth.
+
+The next large module is now **learning writes**. After that, continue with
+content/admin catalog depth and enterprise public conversion flows.

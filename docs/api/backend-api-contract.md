@@ -38,6 +38,7 @@ be treated as available until the matching backend handlers and tests land.
 | `invalid_ai_result` | 500 | AI output failed backend validation. |
 | `quota_exceeded` | 402 | Authenticated user has exhausted the configured membership quota for this action. |
 | `quota_not_configured` | 500 | Backend quota config is missing for a gated action. |
+| `stale_run` | 409 | A queued worker attempt no longer matches the current resource attempt/state. |
 
 ## Sandbox
 
@@ -84,6 +85,9 @@ Response `200`: `SandboxSession`
   "product": "AI 客服工具",
   "roles": ["用户", "投资人"],
   "status": "draft",
+  "progress_percent": 0,
+  "current_step": "draft",
+  "run_attempt": 0,
   "report": {
     "score": 0,
     "summary": "",
@@ -125,16 +129,80 @@ Errors:
 
 `POST /api/v1/sandbox/sessions/{id}/run`
 
-Status transitions are `draft|failed -> running -> completed`. AI generation
-failures leave the session in `failed`, and the same endpoint can retry it.
-Quota consumption remains idempotent for the session id.
+Prepares a new persistent attempt and enqueues `sandbox.run`. Status transitions
+are:
+
+```text
+draft|failed|canceled -> queued -> running -> completed
+                                    |       |
+                                    +-> canceled
+                                            |
+                                            +-> failed
+```
+
+Workers report `20% / generating_report`, `80% / storing_report`, and
+`100% / completed`. The session exposes the current `progress_percent`,
+`current_step`, safe `error_message`, and monotonically increasing
+`run_attempt`.
 
 Consumes membership quota key `sandbox_runs`. Defaults seeded by migrations:
-free users get 1 run/month, pro users get 20 runs/month.
+free users get 1 run/month, pro users get 20 runs/month. Consumption is
+idempotent per `(session_id, run_attempt)`, so retries are separately charged.
+Queue failures, AI/validation failures, and user cancellation refund that
+attempt with an idempotent refund key. A quota-check failure does not consume
+usage.
 
-Response `200`: `SandboxSession` with `status: "completed"` and populated
-`report`. Report values are model simulation output, not measured statistics;
-clients must label them as `模型推演`.
+Response `202`: `SandboxSession` with `status: "queued"`. Clients should poll
+the status endpoint until the attempt reaches a terminal state.
+
+### Get Session Status
+
+`GET /api/v1/sandbox/sessions/{id}/status`
+
+Returns the owned `SandboxSession`, including progress, attempt, safe error,
+and report fields. This read endpoint is suitable for polling.
+
+### Cancel Session
+
+`POST /api/v1/sandbox/sessions/{id}/cancel`
+
+Cancels an owned `queued` or `running` attempt, marks it `canceled` at 100%,
+and idempotently refunds that attempt's quota. A stale worker for a canceled
+attempt becomes a no-op.
+
+Response `200`: canceled `SandboxSession`.
+
+### Retry Session
+
+`POST /api/v1/sandbox/sessions/{id}/retry`
+
+Starts a new queued attempt for an owned `failed` or `canceled` session. It
+increments `run_attempt`, performs a new quota check/consume, and enqueues a
+new job.
+
+Response `202`: queued `SandboxSession`.
+
+### Simulation Report Metadata
+
+Completed reports contain explicit provenance fields in addition to score,
+summary, metrics, role summaries, risks, and next actions:
+
+```json
+{
+  "basis": "model_simulation",
+  "disclaimer": "本报告由 AI 基于用户输入进行情景推演，不代表真实市场统计、收益承诺或已验证事实。",
+  "assumptions": [
+    "目标用户范围以“本地教培机构”为前提。"
+  ],
+  "evidence_sources": []
+}
+```
+
+The service forces `basis`, the disclaimer, and at least one assumption after
+AI generation. Sandbox currently has no external evidence retrieval, so it
+forces `evidence_sources` to an empty array rather than accepting invented
+links. Clients must label these values as model simulation and explicitly show
+the missing-evidence state.
 
 Errors:
 
@@ -143,6 +211,8 @@ Errors:
 - `402 quota_exceeded`
 - `500 invalid_ai_result`
 - `500 quota_not_configured`
+- `500 internal_error` (for example, queue unavailable; the session is marked
+  failed with a safe `error_message` and any consumed usage is refunded)
 
 ### List Role Follow-ups
 
@@ -163,8 +233,8 @@ Request:
 }
 ```
 
-The role must be selected on the session. The answer is generated using the
-session's product context and stored with the question.
+The role must be selected on a completed session. The answer is generated using
+the session's product context and stored with the question.
 
 Errors:
 
