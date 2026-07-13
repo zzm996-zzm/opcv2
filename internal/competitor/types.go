@@ -1,6 +1,7 @@
 package competitor
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -41,6 +42,14 @@ type ScanResult struct {
 	Competitors     []Competitor
 	Conclusions     []Conclusion
 	EvidenceSources []EvidenceSource
+	RawSnapshots    []RawSnapshot
+}
+
+type RawSnapshot struct {
+	Platform   string          `json:"-"`
+	Payload    json.RawMessage `json:"-"`
+	ObjectKey  string          `json:"-"`
+	CapturedAt time.Time       `json:"-"`
 }
 
 type Scan struct {
@@ -74,11 +83,13 @@ type Conclusion struct {
 }
 
 type EvidenceSource struct {
-	SourceType string    `json:"source_type"`
-	Title      string    `json:"title"`
-	URL        string    `json:"url"`
-	Summary    string    `json:"summary"`
-	CapturedAt time.Time `json:"captured_at"`
+	SourceType          string    `json:"source_type"`
+	Platform            string    `json:"platform,omitempty"`
+	Title               string    `json:"title"`
+	URL                 string    `json:"url"`
+	Summary             string    `json:"summary"`
+	ScreenshotObjectKey string    `json:"screenshot_object_key,omitempty"`
+	CapturedAt          time.Time `json:"captured_at"`
 }
 
 type WatchItem struct {

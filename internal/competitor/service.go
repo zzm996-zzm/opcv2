@@ -316,6 +316,9 @@ func (s *Service) ProcessScan(ctx context.Context, id int64) error {
 	if result.EvidenceSources == nil {
 		result.EvidenceSources = []EvidenceSource{}
 	}
+	if result.RawSnapshots == nil {
+		result.RawSnapshots = []RawSnapshot{}
+	}
 	if err := s.repository.StoreScanResults(ctx, id, result); err != nil {
 		return err
 	}

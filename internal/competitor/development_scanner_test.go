@@ -30,4 +30,7 @@ func TestDevelopmentScannerReturnsCompetitorsConclusionsAndEvidence(t *testing.T
 	if result.EvidenceSources[0].Title == "" || result.EvidenceSources[0].URL == "" || result.EvidenceSources[0].CapturedAt.IsZero() {
 		t.Fatalf("first evidence = %+v", result.EvidenceSources[0])
 	}
+	if len(result.RawSnapshots) != 2 || result.RawSnapshots[0].Platform != "development" || len(result.RawSnapshots[0].Payload) == 0 {
+		t.Fatalf("snapshots = %+v, want one internal snapshot per target", result.RawSnapshots)
+	}
 }

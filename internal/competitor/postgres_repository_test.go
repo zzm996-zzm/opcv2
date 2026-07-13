@@ -164,7 +164,9 @@ func TestPostgresRepositoryStoresScanResults(t *testing.T) {
 		t.Fatalf("NewPool() error = %v", err)
 	}
 	defer db.Close()
+	now := time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC)
 
+	db.ExpectBegin()
 	db.ExpectExec(regexp.QuoteMeta(`
 		UPDATE competitor_scans
 		SET competitors = $2, conclusions = $3, evidence_sources = $4, updated_at = NOW()
@@ -177,18 +179,36 @@ func TestPostgresRepositoryStoresScanResults(t *testing.T) {
 			pgxmock.AnyArg(),
 		).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	db.ExpectExec(regexp.QuoteMeta(`DELETE FROM competitor_raw_snapshots WHERE scan_id = $1`)).
+		WithArgs(int64(99)).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	db.ExpectExec(regexp.QuoteMeta(`DELETE FROM competitor_evidence_sources WHERE scan_id = $1`)).
+		WithArgs(int64(99)).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	db.ExpectExec(regexp.QuoteMeta(`
+			INSERT INTO competitor_raw_snapshots (scan_id, platform, raw_payload, object_key, captured_at)
+			VALUES ($1, $2, $3, $4, $5)
+		`)).WithArgs(int64(99), "official_site", []byte(`{"price_page":"AI assistant added"}`), "snapshots/99/pricing.json", now).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	db.ExpectExec(regexp.QuoteMeta(`
+			INSERT INTO competitor_evidence_sources (scan_id, source_type, platform, title, source_url, summary, screenshot_object_key, captured_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`)).WithArgs(int64(99), "official_site", "web", "小鹅通价格页", "https://example.com/pricing", "套餐页新增 AI 助教权益", "screenshots/99/pricing.png", now).
+		WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	db.ExpectCommit()
 
 	repository := NewPostgresRepository(db)
 	err = repository.StoreScanResults(context.Background(), 99, ScanResult{
 		Competitors: []Competitor{{Name: "小鹅通", Category: "知识付费", Score: 91, Risk: "high"}},
 		Conclusions: []Conclusion{{Title: "定位变化", Detail: "竞品正在强化 AI 私域能力。"}},
 		EvidenceSources: []EvidenceSource{{
-			SourceType: "official_site",
-			Title:      "小鹅通价格页",
-			URL:        "https://example.com/pricing",
-			Summary:    "套餐页新增 AI 助教权益",
-			CapturedAt: time.Date(2026, 6, 30, 14, 0, 0, 0, time.UTC),
+			SourceType:          "official_site",
+			Platform:            "web",
+			Title:               "小鹅通价格页",
+			URL:                 "https://example.com/pricing",
+			Summary:             "套餐页新增 AI 助教权益",
+			ScreenshotObjectKey: "screenshots/99/pricing.png",
+			CapturedAt:          now,
 		}},
+		RawSnapshots: []RawSnapshot{{Platform: "official_site", Payload: []byte(`{"price_page":"AI assistant added"}`), ObjectKey: "snapshots/99/pricing.json", CapturedAt: now}},
 	})
 	if err != nil {
 		t.Fatalf("StoreScanResults() error = %v", err)

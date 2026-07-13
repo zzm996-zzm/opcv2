@@ -13,6 +13,7 @@ type postgresDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Begin(ctx context.Context) (pgx.Tx, error)
 }
 
 type PostgresRepository struct {
@@ -113,7 +114,12 @@ func (r *PostgresRepository) StoreScanResults(ctx context.Context, id int64, res
 	if err != nil {
 		return err
 	}
-	tag, err := r.db.Exec(ctx, `
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	tag, err := tx.Exec(ctx, `
 		UPDATE competitor_scans
 		SET competitors = $2, conclusions = $3, evidence_sources = $4, updated_at = NOW()
 		WHERE id = $1
@@ -124,7 +130,36 @@ func (r *PostgresRepository) StoreScanResults(ctx context.Context, id int64, res
 	if tag.RowsAffected() == 0 {
 		return ErrScanNotFound
 	}
-	return nil
+	if _, err := tx.Exec(ctx, `DELETE FROM competitor_raw_snapshots WHERE scan_id = $1`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM competitor_evidence_sources WHERE scan_id = $1`, id); err != nil {
+		return err
+	}
+	for _, snapshot := range result.RawSnapshots {
+		payload := snapshot.Payload
+		if len(payload) == 0 {
+			payload = json.RawMessage(`{}`)
+		}
+		if !json.Valid(payload) {
+			return errors.New("invalid competitor raw snapshot payload")
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO competitor_raw_snapshots (scan_id, platform, raw_payload, object_key, captured_at)
+			VALUES ($1, $2, $3, $4, $5)
+		`, id, snapshot.Platform, []byte(payload), snapshot.ObjectKey, snapshot.CapturedAt); err != nil {
+			return err
+		}
+	}
+	for _, source := range result.EvidenceSources {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO competitor_evidence_sources (scan_id, source_type, platform, title, source_url, summary, screenshot_object_key, captured_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`, id, source.SourceType, source.Platform, source.Title, source.URL, source.Summary, source.ScreenshotObjectKey, source.CapturedAt); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *PostgresRepository) CreateWatchItem(ctx context.Context, item WatchItem) (WatchItem, error) {
