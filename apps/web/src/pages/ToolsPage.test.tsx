@@ -26,7 +26,7 @@ describe("ToolsPage", () => {
     );
   }
 
-  it("renders curated tool defaults when the content API is empty", async () => {
+  it("renders an explicit empty catalog without static tool defaults", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ tools: [] }), { status: 200 })
     );
@@ -34,40 +34,40 @@ describe("ToolsPage", () => {
 
     expect(screen.getByRole("heading", { name: "工具箱" })).toBeInTheDocument();
     expect(screen.getByLabelText("搜索工具")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /本周热门工具/ })).toBeInTheDocument();
-    expect(await screen.findByText("Notion AI")).toBeInTheDocument();
-    expect(screen.getByText("Midjourney")).toBeInTheDocument();
-    expect(screen.getByText("Runway")).toBeInTheDocument();
-    expect(screen.queryByText("暂无工具数据")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /推荐工具/ })).toHaveAttribute("href", "/tools/recommend");
+    expect(screen.getByRole("heading", { name: "常见工具场景" })).toBeInTheDocument();
+    expect(await screen.findByText("没有匹配的工具，换个关键词或分类试试")).toBeInTheDocument();
+    expect(screen.queryByText("Notion AI")).not.toBeInTheDocument();
+    expect(screen.queryByText("Midjourney")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /开始匹配/ })).toHaveAttribute("href", "/tools/recommend");
   });
 
-  it("renders curated defaults in the full tool library when the API is empty", async () => {
+  it("renders the full catalog empty state when the API is empty", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ tools: [] }), { status: 200 })
     );
     renderPage("all");
 
-    expect(await screen.findByText("Perplexity")).toBeInTheDocument();
-    expect(screen.getByText("Similarweb")).toBeInTheDocument();
-    expect(screen.queryByText("暂无工具数据")).not.toBeInTheDocument();
+    expect(await screen.findByText("没有匹配的工具，换个关键词或分类试试")).toBeInTheDocument();
+    expect(screen.queryByText("Perplexity")).not.toBeInTheDocument();
+    expect(screen.queryByText("Similarweb")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台⌄" })).toBeInTheDocument();
     expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
   });
 
-  it("filters curated tool defaults from the left category rail", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+  it("refetches the real catalog from the left category rail", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ tools: [] }), { status: 200 })
     );
     renderPage();
 
-    expect(await screen.findByText("Notion AI")).toBeInTheDocument();
+    expect(await screen.findByText("没有匹配的工具，换个关键词或分类试试")).toBeInTheDocument();
     const leadCategory = screen.getByRole("button", { name: "创业获客" });
     fireEvent.click(leadCategory);
 
     expect(leadCategory).toHaveClass("active");
-    await waitFor(() => expect(screen.getByText("Canva AI")).toBeInTheDocument());
-    expect(screen.getByText("Apollo AI")).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(expect.stringContaining("category=%E5%88%9B%E4%B8%9A%E8%8E%B7%E5%AE%A2"), expect.any(Object)));
+    expect(screen.queryByText("Canva AI")).not.toBeInTheDocument();
+    expect(screen.queryByText("Apollo AI")).not.toBeInTheDocument();
     expect(screen.queryByText("Similarweb")).not.toBeInTheDocument();
   });
 
@@ -167,13 +167,21 @@ describe("ToolsPage", () => {
     expect(screen.getByRole("link", { name: "访问官网" })).toHaveAttribute("href", "https://example.com");
   });
 
-  it("renders tool recommendations", () => {
+  it("submits catalog recommendation criteria and renders real matches", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      basis: "catalog_match",
+      criteria: { goal: "获客", scenario: "社媒海报", limit: 6 },
+      tools: [{ id: 9, slug: "canva-ai", name: "Canva AI", description: "海报设计", status: "published", category: "创业获客", tags: ["设计"], platforms: ["Web"], features: [], use_cases: ["社媒海报"], limitations: [], sort_weight: 10, created_at: "", updated_at: "" }]
+    }), { status: 200 }));
     renderPage("recommend");
 
     expect(screen.getByRole("heading", { name: "工具推荐结果" })).toBeInTheDocument();
-    expect(screen.getByText("暂无工具推荐结果")).toBeInTheDocument();
-    expect(screen.queryByText("ChatGPT")).not.toBeInTheDocument();
-    expect(screen.queryByText("Canva AI")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("工具匹配目标"), { target: { value: "获客" } });
+    fireEvent.change(screen.getByLabelText("工具使用场景"), { target: { value: "社媒海报" } });
+    fireEvent.click(screen.getByRole("button", { name: "匹配目录工具" }));
+
+    expect(await screen.findByText("Canva AI")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/content/tools/recommendations", expect.objectContaining({ method: "POST" }));
   });
 
   it("renders the recommendation plan", () => {

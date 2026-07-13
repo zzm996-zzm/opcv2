@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
@@ -21,10 +21,9 @@ type DisplayTool = {
   category: string;
   url?: string;
   favorited?: boolean;
-  curated?: boolean;
 };
 
-const categories = ["精选", "最新", "热门", "收藏"] as const;
+const categories = ["精选", "最新", "热门"] as const;
 const sidebarCategories = ["全部工具", "创业获客", "内容生产", "图片设计", "视频剪辑", "客户管理", "数据分析", "跨境外贸"] as const;
 
 const hotScenarios = [
@@ -34,116 +33,14 @@ const hotScenarios = [
   ["自动化省时神器", "解放重复性工作", "robot"]
 ] as const;
 
-const defaultTools: DisplayTool[] = [
-  {
-    slug: "notion-ai",
-    name: "Notion AI",
-    desc: "智能写作助手，帮助你快速总结、起草文档和管理知识。",
-    tags: ["写作", "办公", "知识管理"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "notion",
-    category: "内容生产",
-    curated: true
-  },
-  {
-    slug: "midjourney",
-    name: "Midjourney",
-    desc: "根据文本生成高质量图像，适合创意构思和营销视觉。",
-    tags: ["绘图", "设计", "创意"],
-    price: "付费",
-    platform: "Web",
-    accent: "midjourney",
-    category: "图片设计",
-    curated: true
-  },
-  {
-    slug: "runway",
-    name: "Runway",
-    desc: "AI 视频创作平台，轻松生成、编辑和特效处理视频。",
-    tags: ["视频", "创作", "剪辑"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "runway",
-    category: "视频剪辑",
-    curated: true
-  },
-  {
-    slug: "perplexity",
-    name: "Perplexity",
-    desc: "基于 AI 的智能搜索引擎，提供精准可靠的答案与来源。",
-    tags: ["搜索", "研究", "信息检索"],
-    price: "免费",
-    platform: "Web / iOS / Android",
-    accent: "perplexity",
-    category: "数据分析",
-    curated: true
-  },
-  {
-    slug: "gamma",
-    name: "Gamma",
-    desc: "AI 生成演示文稿和文档，快速将想法变成精美内容。",
-    tags: ["办公", "演示", "文档"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "gamma",
-    category: "内容生产",
-    curated: true
-  },
-  {
-    slug: "zapier-ai",
-    name: "Zapier AI",
-    desc: "自动化连接数千款应用，让 AI 帮你构建智能工作流。",
-    tags: ["自动化", "集成", "效率提升"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "zapier",
-    category: "客户管理",
-    curated: true
-  },
-  {
-    slug: "canva-ai",
-    name: "Canva AI",
-    desc: "适合海报、社媒图和品牌物料的 AI 设计套件。",
-    tags: ["设计", "海报", "营销"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "canva",
-    category: "创业获客",
-    curated: true
-  },
-  {
-    slug: "apollo-ai",
-    name: "Apollo AI",
-    desc: "面向 B2B 获客的线索搜索、触达和销售协同工具。",
-    tags: ["获客", "销售", "CRM"],
-    price: "付费",
-    platform: "Web",
-    accent: "apollo",
-    category: "创业获客",
-    curated: true
-  },
-  {
-    slug: "similarweb",
-    name: "Similarweb",
-    desc: "查看网站流量、竞品来源和行业趋势，辅助增长决策。",
-    tags: ["竞品", "流量", "洞察"],
-    price: "免费试用",
-    platform: "Web",
-    accent: "similarweb",
-    category: "跨境外贸",
-    curated: true
-  }
-];
-
 function toDisplayTool(tool: ContentTool): DisplayTool {
   return {
     slug: tool.slug,
     name: tool.name,
     desc: tool.description || "AI 工具能力已收录，可进入详情查看适用场景。",
-    tags: ["AI工具", tool.category || "已收录", tool.status === "published" ? "公开可见" : "草稿"],
-    price: "可用",
-    platform: tool.url ? "Web" : "待补充",
+    tags: tool.tags?.length ? tool.tags : [tool.category || "未分类"],
+    price: tool.price_label || "价格待补充",
+    platform: tool.platforms?.join(" / ") || "平台待补充",
     accent: "notion",
     category: tool.category || "办公",
     url: tool.url
@@ -200,17 +97,7 @@ function ToolLibrary({ full }: { full: boolean }) {
     };
   }, [full, search, selectedCategory, selectedTab]);
 
-  const normalizedSearch = search.trim().toLowerCase();
-  const hasDefaultFilter = selectedCategory !== "全部工具" || Boolean(normalizedSearch);
-  const defaultMatches = defaultTools.filter((tool) => {
-    const matchesCategory = selectedCategory === "全部工具" || tool.category === selectedCategory;
-    const matchesSearch = !normalizedSearch || [tool.name, tool.desc, ...tool.tags, tool.category]
-      .some((item) => item.toLowerCase().includes(normalizedSearch));
-    return matchesCategory && matchesSearch;
-  });
-  const toolSource = apiTools.length > 0 ? apiTools : hasDefaultFilter ? defaultMatches : defaultTools;
-  const showingDefaultTools = apiTools.length === 0;
-  const visibleTools = full ? toolSource : toolSource.slice(0, 6);
+  const visibleTools = full ? apiTools : apiTools.slice(0, 6);
   const visibleScenarios = full ? hotScenarios : hotScenarios.slice(0, 3);
 
   return (
@@ -253,10 +140,10 @@ function ToolLibrary({ full }: { full: boolean }) {
         </div>
       </section>
 
-      <section className="toolhub-hot" aria-label="本周热门工具">
+      <section className="toolhub-hot" aria-label="常见工具场景">
         <header>
-          <h2>🔥 本周热门工具</h2>
-          <p>结合你的画像推荐适合营销与内容增长的工具</p>
+          <h2>常见工具场景</h2>
+          <p>按目标场景检索已发布的工具目录</p>
           {full && <Link to="/tools/recommend">查看全部推荐 ›</Link>}
         </header>
         <div className="toolhub-hot-grid">
@@ -283,21 +170,20 @@ function ToolLibrary({ full }: { full: boolean }) {
             </button>
           ))}
           <div>
-            <strong>提交优质工具</strong>
-            <p>推荐好工具，帮助更多创业者</p>
-            <Link to="/tools/recommend">立即推荐 ›</Link>
+            <strong>按需求找工具</strong>
+            <p>输入目标与场景，从已发布目录中匹配</p>
+            <Link to="/tools/recommend">开始匹配 ›</Link>
           </div>
         </aside>
 
         <div className={`toolhub-grid ${full ? "full" : ""}`} aria-label="工具列表">
-          {error && !showingDefaultTools && <p className="form-error" role="alert">{error}</p>}
+          {error && <p className="form-error" role="alert">{error}</p>}
           {visibleTools.length === 0 ? (
             <div className="cdk-toolhub-empty" role="status">没有匹配的工具，换个关键词或分类试试</div>
           ) : visibleTools.map((tool) => <ToolCard key={tool.name} tool={tool} />)}
         </div>
       </section>
 
-      <ToolPagination />
     </>
   );
 }
@@ -309,10 +195,6 @@ function ToolCard({ tool }: { tool: DisplayTool }) {
 
   async function toggleFavorite() {
     if (!tool.slug || pending) return;
-    if (tool.curated) {
-      setFavorited((current) => !current);
-      return;
-    }
     setPending(true);
     setError("");
     try {
@@ -357,16 +239,49 @@ function ToolCard({ tool }: { tool: DisplayTool }) {
 }
 
 function ToolRecommendation() {
+  const [goal, setGoal] = useState("");
+  const [scenario, setScenario] = useState("");
+  const [tools, setTools] = useState<DisplayTool[]>([]);
+  const [submitted, setSubmitted] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!goal.trim() || !scenario.trim() || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      const result = await contentApi.recommendTools({ goal, scenario, limit: 6 });
+      setTools(result.tools.map(toDisplayTool));
+      setSubmitted(true);
+    } catch (error) {
+      setTools([]);
+      setSubmitted(true);
+      setError(apiErrorMessage(error, "暂时无法匹配工具"));
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <>
       <header className="toolhub-title">
         <h1>工具推荐结果</h1>
-        <p>根据你的问题与画像，为你匹配适合的 AI 工具</p>
+        <p>根据你明确提交的目标和场景，从已发布工具目录中匹配</p>
       </header>
-      <section className="toolhub-recommend">
+      <form className="toolhub-recommend" onSubmit={submit}>
         <h2>为你推荐的 AI 工具</h2>
-        <div className="module-empty-state" role="status">暂无工具推荐结果</div>
-      </section>
+        <label>目标<input aria-label="工具匹配目标" onChange={(event) => setGoal(event.target.value)} value={goal} /></label>
+        <label>使用场景<input aria-label="工具使用场景" onChange={(event) => setScenario(event.target.value)} value={scenario} /></label>
+        <button disabled={pending || !goal.trim() || !scenario.trim()} type="submit">{pending ? "匹配中..." : "匹配目录工具"}</button>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        {submitted && tools.length === 0 ? (
+          <div className="module-empty-state" role="status">已发布目录中暂无匹配工具</div>
+        ) : tools.length > 0 ? (
+          <div className="toolhub-grid" aria-label="工具推荐结果">{tools.map((tool) => <ToolCard key={tool.slug} tool={tool} />)}</div>
+        ) : <p role="status">提交目标和场景后，仅展示已发布目录中的匹配结果。</p>}
+      </form>
     </>
   );
 }
@@ -388,11 +303,16 @@ function ToolPlan() {
 
 function ToolDetail() {
   const location = useLocation();
-  const toolSlug = new URLSearchParams(location.search).get("tool") || "midjourney";
+  const toolSlug = new URLSearchParams(location.search).get("tool") || "";
   const [tool, setTool] = useState<ContentTool | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!toolSlug) {
+      setTool(null);
+      setError("");
+      return;
+    }
     let active = true;
     setError("");
     contentApi
@@ -440,13 +360,12 @@ function ToolDetail() {
             <h1>{title}</h1>
             <p>{description}</p>
             <div className="toolhub-tag-row">
-              {[category, "AI工具", tool?.status === "draft" ? "草稿" : "公开"].map((tag) => <span key={tag}>{tag}</span>)}
+              {(tool.tags?.length ? tool.tags : [category]).map((tag) => <span key={tag}>{tag}</span>)}
             </div>
           </div>
           <div className="toolhub-detail-actions">
             {website ? <a href={website}>访问官网</a> : <span>暂无官网</span>}
-            <button type="button">收藏工具</button>
-            <Link to="/tools/recommend">让智活 Copilot 评估是否适合我 ›</Link>
+            <Link to="/tools/recommend">按需求匹配目录工具 ›</Link>
           </div>
         </div>
         <figure className="toolhub-detail-visual" aria-label={`${title} 工具能力预览`}>
@@ -460,11 +379,11 @@ function ToolDetail() {
             <h3>功能简介</h3>
             <p>{description}</p>
             <h3>适用场景</h3>
-            <p>{category}、内容生产、营销素材、增长分析等。</p>
-            <h3>优点</h3>
-            <p>暂无优点说明</p>
+            <p>{tool.use_cases?.length ? tool.use_cases.join("、") : "暂无适用场景说明"}</p>
+            <h3>主要功能</h3>
+            <p>{tool.features?.length ? tool.features.join("、") : "暂无功能说明"}</p>
             <h3>注意点</h3>
-            <p>暂无注意事项</p>
+            <p>{tool.limitations?.length ? tool.limitations.join("、") : "暂无注意事项"}</p>
           </article>
           <article>
             <h3>使用步骤</h3>
@@ -472,9 +391,11 @@ function ToolDetail() {
             <h3>入口链接</h3>
             <p>{website ? <a href={website}>{website}</a> : "暂无入口链接"}</p>
             <h3>价格信息</h3>
-            <p>暂无价格信息</p>
-            <h3>适合人群</h3>
-            <p>暂无适合人群说明</p>
+            <p>{tool.price_label || "暂无价格信息"}</p>
+            <h3>平台</h3>
+            <p>{tool.platforms?.length ? tool.platforms.join("、") : "暂无平台信息"}</p>
+            <h3>数据来源</h3>
+            <p>{tool.source_url ? <a href={tool.source_url}>{tool.provider_name || tool.source_url}</a> : "暂无来源链接"}</p>
           </article>
         </div>
       </section>
@@ -493,71 +414,26 @@ function toolSort(tab: string) {
   return "featured";
 }
 
-function ToolPagination() {
-  return (
-    <footer className="toolhub-pagination" aria-label="工具分页">
-      <button type="button">‹</button>
-      {[1, 2, 3, 4, 5].map((page) => <button className={page === 1 ? "active" : ""} key={page} type="button">{page}</button>)}
-      <span>…</span>
-      <button type="button">20</button>
-      <button type="button">›</button>
-      <small>每页显示 12 条⌄</small>
-    </footer>
-  );
-}
-
 function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["variant"]> }) {
-  const isRecommend = variant === "recommend";
-  const isPlan = variant === "plan";
-  const isDetail = variant === "detail";
-
   return (
     <aside className="learning-copilot toolhub-copilot" aria-label="智活 Copilot 工具助手">
       <header className="toolhub-ai-head">
         <div>
-          <strong><span aria-hidden="true">✦</span> AI 工具助手</strong>
-          <p>告诉我你想做什么，我会帮你匹配合适工具</p>
+          <strong><span aria-hidden="true">✦</span> 工具目录助手</strong>
+          <p>目录匹配只使用你提交的目标、场景与后台发布的工具资料。</p>
         </div>
-        <button aria-label="关闭工具助手" type="button">×</button>
       </header>
-      <label className="toolhub-ai-input">
-        <input aria-label="工具需求输入" placeholder="例如：我想做小红书海报，还想配套文案和数据复盘" />
-        <button type="button">开始分析</button>
-      </label>
       <div className="learning-chat toolhub-chat">
-        {isPlan ? (
-          <>
-            <article><span className="ai-avatar">A</span><p>暂无工具方案，待推荐接口接入后这里会展示生成结果。</p></article>
-          </>
-        ) : isRecommend ? (
-          <>
-            <article><span className="ai-avatar">A</span><p>暂无工具推荐结果，待推荐接口接入后这里会展示匹配工具。</p></article>
-          </>
-        ) : isDetail ? (
-          <>
-            <article><span className="ai-avatar">A</span><p>嗨，张婧！今天我能帮你分析竞品、推荐工具或制定落地计划。</p></article>
-            <article className="user"><p>试试问问我：“帮我生成新品上市推广方案”或“分析本月竞品动态”</p></article>
-            <article><span className="ai-avatar">A</span><p>好的，已为你生成分析报告，包含市场规模、竞争格局和增长要点。</p></article>
-          </>
-        ) : (
-          <>
-            <article><span className="ai-avatar">A</span><p>嗨，张婧！今天想聚焦哪个方向？我可以帮你分析机会，推荐工具或制定落地计划。</p></article>
-            <article className="user"><p>帮我分析一下智能硬件赛道的市场机会和潜在关键点。</p></article>
-            <article><span className="ai-avatar">A</span><p>好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点。</p></article>
-          </>
-        )}
+        <article>
+          <span className="ai-avatar">A</span>
+          <p>{variant === "recommend" ? "请在左侧提交目标和使用场景。匹配结果不会补充目录中不存在的工具或能力。" : "可先浏览工具目录，或进入按需求匹配页提交明确条件。"}</p>
+        </article>
       </div>
       <nav className="learning-copilot-actions" aria-label="工具助手快捷入口">
-        <Link to="/analysis">分析项目机会 <span aria-hidden="true">›</span></Link>
-        <Link to="/tools/recommend">推荐工具 <span aria-hidden="true">›</span></Link>
-        <Link to="/learning/plan">制定落地计划 <span aria-hidden="true">›</span></Link>
-        {isRecommend && <Link to="/tools/recommendation-plan">生成整套方案 <span aria-hidden="true">›</span></Link>}
+        <Link to="/tools">浏览工具目录 <span aria-hidden="true">›</span></Link>
+        <Link to="/tools/recommend">按需求匹配 <span aria-hidden="true">›</span></Link>
       </nav>
       <MiniCopilotForm className="learning-copilot-input" inputAriaLabel="向工具箱 Copilot 提问" />
-      <section className="toolhub-ai-results" aria-label="AI 推荐结果">
-        <header><h2>AI 推荐结果</h2><button type="button">×</button></header>
-        <p className="module-empty-state">暂无AI推荐结果</p>
-      </section>
     </aside>
   );
 }

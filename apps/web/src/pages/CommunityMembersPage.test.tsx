@@ -29,7 +29,8 @@ describe("CommunityMembersPage", () => {
     expect(screen.getByText("创业成长互助社区")).toBeInTheDocument();
     expect(screen.getByText("企业决策者交流圈")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "加入会员社群" })).toBeInTheDocument();
-    expect(screen.getByText("使用微信扫一扫，添加社群小助手，拉你入群")).toBeInTheDocument();
+    expect(screen.getByText("二维码未配置")).toBeInTheDocument();
+    expect(screen.getAllByText("提交申请后由社群助手联系入群").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "提交会员社群申请" })).toBeInTheDocument();
     expect(screen.getByText("社群价值")).toBeInTheDocument();
     expect(screen.getByText("社群动态")).toBeInTheDocument();
@@ -49,6 +50,7 @@ describe("CommunityMembersPage", () => {
         id: 1,
         headline: "加入智活会员社群",
         description: "一起交流真实增长问题",
+        qr_variants: [{ key: "members", label: "会员社群二维码", description: "扫码添加社群助手", image_url: "/qr/members.png", join_url: "https://example.com/members", status: "published" }],
         created_at: "2026-07-02T10:00:00Z",
         updated_at: "2026-07-02T10:00:00Z"
       }), { status: 200 }))
@@ -67,6 +69,8 @@ describe("CommunityMembersPage", () => {
     );
 
     expect(await screen.findByText("加入智活会员社群")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "会员社群二维码" })).toHaveAttribute("src", "/qr/members.png");
+    expect(screen.getByRole("link", { name: "打开入群链接" })).toHaveAttribute("href", "https://example.com/members");
     fireEvent.click(screen.getByRole("button", { name: "提交会员社群申请" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(

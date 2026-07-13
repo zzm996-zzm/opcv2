@@ -7,9 +7,31 @@ export type ContentArticle = {
   summary?: string;
   body?: string;
   status: "draft" | "published";
+  source_name?: string;
+  source_url?: string;
+  author?: string;
+  category?: string;
+  tags: string[];
+  citations: ContentArticleCitation[];
+  source_published_at?: string;
   published_at?: string;
   created_at: string;
   updated_at: string;
+};
+
+export type ContentArticleCitation = {
+  id: string;
+  label: string;
+  source_name: string;
+  source_url: string;
+  excerpt?: string;
+  published_at?: string;
+};
+
+export type ArticleFilters = {
+  category?: string;
+  q?: string;
+  limit?: number;
 };
 
 export type ContentTool = {
@@ -20,8 +42,31 @@ export type ContentTool = {
   url?: string;
   status: "draft" | "published";
   category?: string;
+  tags: string[];
+  provider_name?: string;
+  price_label?: string;
+  platforms: string[];
+  features: string[];
+  use_cases: string[];
+  limitations: string[];
+  source_url?: string;
+  source_updated_at?: string;
+  sort_weight: number;
   created_at: string;
   updated_at: string;
+};
+
+export type ToolRecommendationInput = {
+  goal: string;
+  scenario: string;
+  category?: string;
+  limit?: number;
+};
+
+export type ToolRecommendations = {
+  basis: "catalog_match" | string;
+  criteria: ToolRecommendationInput;
+  tools: ContentTool[];
 };
 
 export type ToolFilters = {
@@ -46,8 +91,33 @@ export type CommunityConfig = {
   headline: string;
   description?: string;
   join_url?: string;
+  qr_variants: CommunityQRVariant[];
   created_at: string;
   updated_at: string;
+};
+
+export type CommunityQRVariant = {
+  key: string;
+  label: string;
+  description?: string;
+  image_url?: string;
+  join_url?: string;
+  status: "draft" | "published";
+};
+
+export type InsightAnswer = {
+  answer: string;
+  citations: Array<{
+    id: string;
+    article_slug: string;
+    label: string;
+    source_name: string;
+    source_url: string;
+    excerpt?: string;
+  }>;
+  assumptions: string[];
+  basis: "catalog_citations" | string;
+  disclaimer: string;
 };
 
 export type CommunityJoinInput = {
@@ -119,12 +189,12 @@ function queryString(params: Record<string, string | number | undefined>) {
 }
 
 export const contentApi = {
-  listArticles() {
-    return apiRequest<{ articles: ContentArticle[] }>("/api/v1/content/articles");
+  listArticles(filters: ArticleFilters = {}) {
+    return apiRequest<{ articles: ContentArticle[] }>(`/api/v1/content/articles${queryString(filters)}`);
   },
 
   getArticle(slug: string) {
-    return apiRequest<ContentArticle>(`/api/v1/content/articles/${slug}`);
+    return apiRequest<ContentArticle>(`/api/v1/content/articles/${encodeURIComponent(slug)}`);
   },
 
   bookmarkArticle(slug: string) {
@@ -144,7 +214,14 @@ export const contentApi = {
   },
 
   getTool(slug: string) {
-    return apiRequest<ContentTool>(`/api/v1/content/tools/${slug}`);
+    return apiRequest<ContentTool>(`/api/v1/content/tools/${encodeURIComponent(slug)}`);
+  },
+
+  recommendTools(input: ToolRecommendationInput) {
+    return apiRequest<ToolRecommendations>("/api/v1/content/tools/recommendations", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
   },
 
   favoriteTool(slug: string) {
@@ -161,6 +238,13 @@ export const contentApi = {
 
   getCommunityConfig() {
     return apiRequest<CommunityConfig>("/api/v1/content/community");
+  },
+
+  answerInsightQuestion(question: string, articleSlugs: string[]) {
+    return apiRequest<InsightAnswer>("/api/v1/content/insights/qa", {
+      method: "POST",
+      body: JSON.stringify({ question, article_slugs: articleSlugs })
+    });
   },
 
   joinCommunity(input: CommunityJoinInput) {

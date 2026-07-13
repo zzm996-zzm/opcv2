@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 
-import { MiniCopilotForm } from "../components/MiniCopilot";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { contentApi, type ContentArticle } from "../lib/contentApi";
 import { CdkTopNav } from "./AnalysisPage";
@@ -11,13 +10,6 @@ type InsightsPageProps = {
 };
 
 const articleVisuals = ["bot", "map", "target", "chip", "growth", "cloud"] as const;
-
-const references = [
-  ["艾瑞咨询", "《2024年中国智能客服行业研究报告》", "2024-04-18"],
-  ["IDC", "《中国AI应用市场（2024）预测》", "2024-05-22"],
-  ["赛迪顾问", "《2024中国企业AI应用白皮书》", "2024-06-12"],
-  ["Gartner", "Cool Vendors in Customer Service and Support, 2024", "2024-07-15"]
-] as const;
 
 type DisplayArticle = {
   slug: string;
@@ -34,9 +26,9 @@ function toDisplayArticle(article: ContentArticle, index: number): DisplayArticl
     slug: article.slug,
     title: article.title,
     summary: article.summary || "资讯正文已收录，进入详情查看完整内容。",
-    source: "智活AI研究院",
-    time: formatInsightTime(article.published_at || article.created_at),
-    tags: ["AI创业", "增长洞察", article.status === "published" ? "已发布" : "草稿"],
+    source: article.source_name || "来源待补充",
+    time: formatInsightTime(article.source_published_at || article.published_at || article.created_at),
+    tags: article.tags?.length ? article.tags : [article.category || "未分类"],
     visual: articleVisuals[index % articleVisuals.length]
   };
 }
@@ -57,12 +49,14 @@ function InsightsPage({ variant = "list" }: InsightsPageProps) {
 
 function InsightList({ compact }: { compact: boolean }) {
   const [apiArticles, setApiArticles] = useState<DisplayArticle[]>([]);
+  const [category, setCategory] = useState("");
+  const [search, setSearch] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
     contentApi
-      .listArticles()
+      .listArticles({ category: category || undefined, q: search, limit: compact ? 6 : 20 })
       .then((payload) => {
         if (!active) return;
         setApiArticles(payload.articles.map(toDisplayArticle));
@@ -75,7 +69,7 @@ function InsightList({ compact }: { compact: boolean }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [category, compact, search]);
 
   const visibleArticles = apiArticles;
   const focusArticles = visibleArticles.slice(0, 3);
@@ -86,9 +80,9 @@ function InsightList({ compact }: { compact: boolean }) {
         <span className="insights-title-icon" aria-hidden="true">•••</span>
         <div>
           <h1>咨询通</h1>
-          <p>AI创业资讯、案例、政策、经营趋势，一站掌握，助你决策快人一步</p>
+          <p>查看后台发布的资讯、来源和引用，并基于已保存证据提问</p>
           <div className="insights-benefits">
-            {["AI筛选高价值内容", "行业主题实时追踪", "每日更新，节省信息搜集时间"].map((item) => (
+            {["只展示已发布内容", "详情保留原始来源", "AI回答返回引用"].map((item) => (
               <span key={item}>✓ {item}</span>
             ))}
           </div>
@@ -96,24 +90,25 @@ function InsightList({ compact }: { compact: boolean }) {
       </header>
 
       <section className="insights-filter-bar" aria-label="资讯筛选">
+        <label className="insights-search"><span>搜索</span><input aria-label="搜索资讯目录" onChange={(event) => setSearch(event.target.value)} value={search} /></label>
         <div className="insights-tabs" role="tablist" aria-label="资讯分类">
-          {["精选", "融资", "获客案例", "工具更新", "政策风险", "行业趋势"].map((category, index) => (
-            <button className={index === 0 ? "active" : ""} key={category} role="tab" type="button">
-              {category}
+          {["精选", "融资", "获客案例", "工具更新", "政策风险", "行业趋势"].map((item) => (
+            <button className={(item === "精选" ? category === "" : category === item) ? "active" : ""} key={item} onClick={() => setCategory(item === "精选" ? "" : item)} role="tab" type="button">
+              {item}
             </button>
           ))}
         </div>
       </section>
 
-      <section className="insights-focus" aria-label="今日关注">
+      <section className="insights-focus" aria-label="最新发布">
         <div>
-          <h2>今日关注</h2>
-          <small>更新 {visibleArticles.length} 条</small>
+          <h2>最新发布</h2>
+          <small>当前 {visibleArticles.length} 条</small>
         </div>
         {focusArticles.length === 0 ? (
           <div className="insights-focus-empty" role="status">
-            <strong>暂无今日关注</strong>
-            <span>内容入库后会自动展示最新关注主题。</span>
+            <strong>暂无已发布资讯</strong>
+            <span>内容由后台发布后会在这里展示。</span>
           </div>
         ) : focusArticles.map((article) => (
             <article key={article.slug}>
@@ -122,7 +117,7 @@ function InsightList({ compact }: { compact: boolean }) {
               <p>{article.summary}</p>
             </article>
           ))}
-        <Link to="/insights/file-analysis">查看全部专题 ›</Link>
+        <Link to="/insights/file-analysis">基于已发布资讯提问 ›</Link>
       </section>
 
       <section className={`insight-list-card ${compact ? "compact" : ""}`} aria-label="资讯列表">
@@ -132,10 +127,10 @@ function InsightList({ compact }: { compact: boolean }) {
             <span className="insights-empty-visual" aria-hidden="true" />
             <div>
               <h2>暂无资讯数据</h2>
-              <p>接口当前没有返回资讯内容。你可以先使用右侧 AI 助手检索方向，或等内容入库后在这里查看文章列表。</p>
+              <p>接口当前没有返回已发布资讯。请等待内容管理员完成入库和发布。</p>
             </div>
             <div className="insights-empty-actions">
-              <Link to="/insights/file-analysis">让 AI 总结重点</Link>
+              <Link to="/insights/file-analysis">基于已发布资讯提问</Link>
               <Link to="/tools">查看相关工具</Link>
             </div>
           </div>
@@ -157,30 +152,23 @@ function InsightList({ compact }: { compact: boolean }) {
           ))}
       </section>
 
-      {visibleArticles.length > 0 && (
-        <footer className="insights-pagination" aria-label="资讯分页">
-          <button type="button">‹</button>
-          {[1, 2, 3, 4, 5].map((page) => (
-            <button className={page === 1 ? "active" : ""} key={page} type="button">{page}</button>
-          ))}
-          <span>…</span>
-          <button type="button">20</button>
-          <button type="button">›</button>
-          <small>每页显示 12 条⌄</small>
-        </footer>
-      )}
     </>
   );
 }
 
 function InsightDetail() {
   const location = useLocation();
-  const articleSlug = new URLSearchParams(location.search).get("article") || "ai-customer-service";
+  const articleSlug = new URLSearchParams(location.search).get("article") || "";
   const [article, setArticle] = useState<ContentArticle | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!articleSlug) {
+      setArticle(null);
+      setError("");
+      return;
+    }
     let active = true;
     setError("");
     contentApi
@@ -220,7 +208,7 @@ function InsightDetail() {
         </nav>
         <header>
           <div className="insight-detail-actions">
-            <Link className="primary" to="/insights/file-analysis">分析我能学到什么</Link>
+            <Link className="primary" to="/insights/file-analysis">选择资讯后提问</Link>
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
         </header>
@@ -232,7 +220,7 @@ function InsightDetail() {
   const title = article.title;
   const summary = article.summary || "暂无资讯摘要";
   const body = article.body || "暂无资讯正文";
-  const publishedAt = formatInsightTime(article.published_at || article.created_at);
+  const publishedAt = formatInsightTime(article.source_published_at || article.published_at || article.created_at);
 
   return (
     <article className="insight-detail-page">
@@ -246,19 +234,19 @@ function InsightDetail() {
       <header>
         <h1>{title}</h1>
         <div className="insight-meta-row">
-          <span>来源：智活AI研究院</span>
+          <span>来源：{article.source_name || "待补充"}</span>
           <time>发布时间：{publishedAt}</time>
-          <span>作者：量子位智库团队</span>
+          <span>作者：{article.author || "待补充"}</span>
         </div>
         <div className="insight-tag-row">
-          {["智能客服", "大模型应用", "客户体验", "降本增效", "增长引擎"].map((tag) => <span key={tag}>{tag}</span>)}
+          {(article.tags?.length ? article.tags : [article.category || "未分类"]).map((tag) => <span key={tag}>{tag}</span>)}
         </div>
         <div className="insight-detail-actions">
-          <Link className="primary" to="/insights/file-analysis">分析我能学到什么</Link>
+          <Link className="primary" to={`/insights/file-analysis?article=${article.slug}`}>基于这篇资讯提问</Link>
           <button aria-label={bookmarked ? "取消收藏资讯" : "收藏资讯"} onClick={toggleBookmark} type="button">
             {bookmarked ? "★ 已收藏" : "☆ 收藏"}
           </button>
-          <button type="button">原始来源 ↗</button>
+          {article.source_url && <a href={article.source_url}>原始来源 ↗</a>}
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
       </header>
@@ -266,7 +254,7 @@ function InsightDetail() {
         <div className="insight-article">
           <span className="insight-article-cover bot" aria-hidden="true" />
           <section>
-            <h2>市场背景</h2>
+            <h2>正文</h2>
             <p>{body}</p>
           </section>
         </div>
@@ -278,15 +266,11 @@ function InsightDetail() {
             <p>{summary}</p>
           </section>
           <section>
-            <strong>适合谁关注</strong>
+            <strong>已保存引用</strong>
             <div>
-              {["客户服务负责人", "数字化转型负责人", "产品负责人", "增长与运营负责人", "IT与数据团队"].map((tag) => <span key={tag}>{tag}</span>)}
-            </div>
-          </section>
-          <section>
-            <strong>相关主题</strong>
-            <div>
-              {["大模型应用", "客户体验管理", "数字化运营", "智能营销", "数据智能"].map((tag) => <span key={tag}>{tag}</span>)}
+              {article.citations?.length ? article.citations.map((citation) => (
+                <a href={citation.source_url} key={citation.id}>{citation.source_name}：{citation.label}</a>
+              )) : <span>暂无结构化引用</span>}
             </div>
           </section>
         </aside>
@@ -297,141 +281,100 @@ function InsightDetail() {
 
 function InsightsCopilot({ variant }: { variant: NonNullable<InsightsPageProps["variant"]> }) {
   const isFileAnalysis = variant === "fileAnalysis";
-  const isDetail = variant === "detail";
-
   return (
     <aside className={`learning-copilot insights-copilot ${isFileAnalysis ? "analysis-open" : ""}`} aria-label="智活 Copilot 咨询助手">
       <header className="insights-ai-head">
         <span className="insights-bot-art" aria-hidden="true" />
         <div>
-          <strong><span aria-hidden="true">✦</span> AI咨询通助手 <b>✦</b></strong>
-          <p>有什么想了解的咨询？输入关键词，AI为你推荐相关文章</p>
+          <strong><span aria-hidden="true">✦</span> 资讯来源助手</strong>
+          <p>问答只使用你选择的已发布资讯及其后台保存引用。</p>
         </div>
       </header>
-
-      <label className="insights-side-search">
-        <input aria-label="搜索资讯" placeholder="输入关键词，例如：AI获客、政策补贴、内容营销..." />
-        <button type="button">⌕</button>
-      </label>
-
-      {isFileAnalysis ? <FileAnalysisChat /> : isDetail ? <DetailChat /> : <ListChat />}
-
+      {isFileAnalysis ? (
+        <FileAnalysisChat />
+      ) : (
+        <div className="learning-chat insights-chat">
+          <article><span className="ai-avatar">A</span><p>打开资讯详情可核对原始来源；进入“基于资讯提问”可获得带引用的回答。</p></article>
+        </div>
+      )}
       <nav className="learning-copilot-actions" aria-label="咨询助手快捷入口">
-        <Link to="/insights/file-analysis">总结这篇资讯重点 <span aria-hidden="true">›</span></Link>
-        <Link to="/insights/detail">提炼行业启示 <span aria-hidden="true">›</span></Link>
-        <Link to="/tools/recommend">推荐相关工具/报告 <span aria-hidden="true">›</span></Link>
+        <Link to="/insights">浏览已发布资讯 <span aria-hidden="true">›</span></Link>
+        <Link to="/insights/file-analysis">基于资讯提问 <span aria-hidden="true">›</span></Link>
       </nav>
-
-      <MiniCopilotForm
-        className="learning-copilot-input"
-        inputAriaLabel="向咨询通 Copilot 提问"
-        placeholder={isFileAnalysis ? "继续提问，获取更精准的资讯..." : "询问任何问题..."}
-      />
-
-      <section className="insights-question-card" aria-label="可复用选题">
-        <header><h2>可复用选题</h2><button type="button">换一批</button></header>
-        {["AI创业如何选择第一个落地场景？", "AI产品冷启动的3种低成本获客策略", "2024年AI创业的政策红利有哪些？"].map((topic, index) => (
-          <p key={topic}><span>{topic}</span><small>热度 {index === 0 ? 86 : index === 1 ? 74 : 68}</small></p>
-        ))}
-      </section>
-
-      <section className="insights-topic-card" aria-label="社群讨论话题">
-        <header><h2>社群讨论话题</h2><Link to="/community">去社群 ›</Link></header>
-        {["你在用哪些AI工具提升团队效率？", "AI创业者如何构建自己的护城河？", "最近有哪些值得关注的AI融资事件？"].map((topic, index) => (
-          <p key={topic}><span>{topic}</span><small>{[128, 96, 73][index]}条讨论</small></p>
-        ))}
-      </section>
     </aside>
   );
 }
 
-function ListChat() {
-  return (
-    <div className="learning-chat insights-chat">
-      <article>
-        <span className="ai-avatar">A</span>
-        <p>嗨，张婧！<br />今天想聚焦哪个方向？我可以帮你分析机会，推荐工具或制定落地计划。</p>
-      </article>
-      <article className="user">
-        <p>帮我追踪 AI 客服行业资讯并总结今日重点动态。</p>
-      </article>
-      <article>
-        <span className="ai-avatar">A</span>
-        <div>
-          <p>好的，已为你生成今日重点资讯摘要，包含趋势、机会与行动建议。</p>
-          <span className="learning-file-chip">今日 AI 客服行业资讯摘要<small>PDF · 1.2 MB</small></span>
-        </div>
-      </article>
-    </div>
-  );
-}
-
-function DetailChat() {
-  return (
-    <div className="learning-chat insights-chat">
-      <article>
-        <span className="ai-avatar">A</span>
-        <p>您好，我是智活 Copilot。您可以问我这篇资讯、分析内容并提供权威出处引用。</p>
-      </article>
-      <article>
-        <span className="ai-avatar">A</span>
-        <div>
-          <p>您可以这样问（与资讯相关）</p>
-          <ul>
-            <li>行业趋势、市场动态</li>
-            <li>企业动态、投融资信息</li>
-            <li>政策法规、行业标准</li>
-            <li>技术发展、产品对比</li>
-          </ul>
-        </div>
-      </article>
-      <article>
-        <span className="ai-avatar">A</span>
-        <div>
-          <p>例如：</p>
-          <ul>
-            <li>2024 年智能客服行业的最新趋势</li>
-            <li>国内 AI 客服领域的头部企业</li>
-            <li>AI 客服在金融行业的落地案例</li>
-          </ul>
-        </div>
-      </article>
-    </div>
-  );
-}
-
 function FileAnalysisChat() {
+  const location = useLocation();
+  const requestedArticle = new URLSearchParams(location.search).get("article") || "";
+  const [articles, setArticles] = useState<ContentArticle[]>([]);
+  const [selectedArticle, setSelectedArticle] = useState(requestedArticle);
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState<Awaited<ReturnType<typeof contentApi.answerInsightQuestion>> | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    contentApi.listArticles({ limit: 20 }).then((payload) => {
+      if (!active) return;
+      setArticles(payload.articles);
+      const requestedExists = payload.articles.some((article) => article.slug === requestedArticle);
+      setSelectedArticle(requestedExists ? requestedArticle : payload.articles[0]?.slug || "");
+    }).catch((error) => {
+      if (active) setError(apiErrorMessage(error, "暂时无法读取可提问资讯"));
+    });
+    return () => { active = false; };
+  }, [requestedArticle]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedArticle || !question.trim() || pending) return;
+    setPending(true);
+    setError("");
+    try {
+      setAnswer(await contentApi.answerInsightQuestion(question, [selectedArticle]));
+    } catch (error) {
+      setAnswer(null);
+      setError(apiErrorMessage(error, "暂时无法生成带引用回答"));
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <div className="learning-chat insights-chat">
-      <article className="user">
-        <p>请帮我分析 2024 年企业 AI 客服的市场趋势、代表企业和落地机会。</p>
-      </article>
-      <article>
-        <span className="ai-avatar">A</span>
-        <div className="analysis-answer">
-          <p>为您分析如下：</p>
-          <strong>市场趋势</strong>
-          <p>2024 年企业 AI 客服市场持续向智能化、全渠道融合和场景化落地演进。大模型与 RAG 技术提升了复杂问题解决率，多模态交互增强体验。</p>
-          <strong>代表企业</strong>
-          <p>国内：阿里云、腾讯云、百度智能云、华为云；垂直厂商：Salesforce、Intercom、Ada、Zendesk 等在售前售后链路赋能方面能力突出。</p>
-          <strong>落地机会</strong>
-          <p>重点机会在于服务自动化、知识库平台、行业专属问答、客户数据分析与销售转化联动。</p>
-          <strong>建议动作</strong>
-          <p>建议企业从高频场景切入，优先梳理高价值知识库与自动化流程，并同步建立 ROI 与客户体验指标。</p>
-        </div>
-      </article>
-      <section className="insights-reference-panel" aria-label="出处引用">
-        <h2>出处引用（点击查看原文）</h2>
-        <div>
-          {references.map(([source, title, time]) => (
-            <Link key={title} to="/insights/detail">
-              <b>{source}</b>
-              <span>{title}</span>
-              <small>{time}</small>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <form onSubmit={submit}>
+        <label>选择资讯
+          <select aria-label="问答资讯" onChange={(event) => setSelectedArticle(event.target.value)} value={selectedArticle}>
+            <option value="">请选择已发布资讯</option>
+            {articles.map((article) => <option key={article.slug} value={article.slug}>{article.title}</option>)}
+          </select>
+        </label>
+        <label>问题
+          <textarea aria-label="资讯问答问题" onChange={(event) => setQuestion(event.target.value)} value={question} />
+        </label>
+        <button disabled={!selectedArticle || !question.trim() || pending} type="submit">{pending ? "回答中..." : "生成带引用回答"}</button>
+      </form>
+      {articles.length === 0 && !error && <p role="status">暂无带来源的已发布资讯，当前不能生成回答。</p>}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      {answer && (
+        <article className="analysis-answer">
+          <span className="ai-avatar">A</span>
+          <div>
+            <p>{answer.answer}</p>
+            <small>{answer.disclaimer}</small>
+            {answer.assumptions.length > 0 && <ul>{answer.assumptions.map((item) => <li key={item}>{item}</li>)}</ul>}
+            <section className="insights-reference-panel" aria-label="出处引用">
+              <h2>出处引用</h2>
+              <div>{answer.citations.map((citation) => (
+                <a href={citation.source_url} key={citation.id}><b>{citation.source_name}</b><span>{citation.label}</span><small>{citation.excerpt}</small></a>
+              ))}</div>
+            </section>
+          </div>
+        </article>
+      )}
     </div>
   );
 }

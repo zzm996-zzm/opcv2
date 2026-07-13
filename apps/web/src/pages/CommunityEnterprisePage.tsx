@@ -30,6 +30,7 @@ function CommunityEnterprisePage() {
   const [config, setConfig] = useState<CommunityConfig | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const qrVariant = config?.qr_variants?.find((variant) => variant.key === "enterprise");
 
   useEffect(() => {
     let active = true;
@@ -154,9 +155,10 @@ function CommunityEnterprisePage() {
             <h2>加入企业社群</h2>
             <p>{config?.headline ?? "提交申请后由社群顾问联系入群"}</p>
             <div className="community-qr community-enterprise-qr" aria-label="企业社群二维码">
-              <i aria-hidden="true" />
+              {qrVariant?.image_url ? <img alt={qrVariant.label} src={qrVariant.image_url} /> : <span>二维码未配置</span>}
             </div>
-            <small>使用微信扫一扫，添加社群顾问，拉你入群</small>
+            <small>{qrVariant?.description || "提交申请后由社群顾问联系入群"}</small>
+            {qrVariant?.join_url && <a href={qrVariant.join_url}>打开入群链接</a>}
             {status && <strong>{status}</strong>}
             <button onClick={submitJoinRequest} type="button">提交企业社群申请</button>
           </section>

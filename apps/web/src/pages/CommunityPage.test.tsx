@@ -49,6 +49,7 @@ describe("CommunityPage", () => {
         headline: "加入实战增长社区",
         description: "和创业者一起复盘获客案例",
         join_url: "https://example.com/community",
+        qr_variants: [],
         created_at: "2026-07-02T10:00:00Z",
         updated_at: "2026-07-02T10:00:00Z"
       }), { status: 200 })

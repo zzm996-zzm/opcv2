@@ -36,6 +36,22 @@ describe("contentApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/content/tools/canva-ai", expect.any(Object));
   });
 
+  it("matches catalog tools and answers insight questions with citations", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ basis: "catalog_match", criteria: {}, tools: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ answer: "结论", basis: "catalog_citations", citations: [], assumptions: [], disclaimer: "说明" }), { status: 200 }));
+
+    await contentApi.recommendTools({ goal: "获客", scenario: "社媒海报", limit: 6 });
+    await contentApi.answerInsightQuestion("市场趋势？", ["ai-growth-playbook"]);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/content/tools/recommendations", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ goal: "获客", scenario: "社媒海报", limit: 6 })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/content/insights/qa", expect.objectContaining({
+      method: "POST", body: JSON.stringify({ question: "市场趋势？", article_slugs: ["ai-growth-playbook"] })
+    }));
+  });
+
   it("favorites tools, joins community and reads help articles", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ slug: "canva-ai", favorited: true }), { status: 200 }))
@@ -72,7 +88,7 @@ describe("contentApi", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 1, headline: "加入社群" }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ metrics: [], cases: [] }), { status: 200 }));
 
-    await contentApi.listArticles();
+    await contentApi.listArticles({ category: "行业趋势", q: "客服", limit: 20 });
     await contentApi.bookmarkArticle("ai-customer-service");
     await contentApi.unbookmarkArticle("ai-customer-service");
     await contentApi.getCommunityConfig();
@@ -80,7 +96,7 @@ describe("contentApi", () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
-      "/api/v1/content/articles",
+      "/api/v1/content/articles?category=%E8%A1%8C%E4%B8%9A%E8%B6%8B%E5%8A%BF&q=%E5%AE%A2%E6%9C%8D&limit=20",
       expect.any(Object)
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
