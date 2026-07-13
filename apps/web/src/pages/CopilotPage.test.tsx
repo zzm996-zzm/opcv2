@@ -50,6 +50,14 @@ describe("CopilotPage", () => {
     expect(screen.getByRole("complementary", { name: "会话记录" })).toBeInTheDocument();
   });
 
+  it("shows backend copilot quota usage", async () => {
+    mockCopilotBackend();
+
+    renderPage();
+
+    expect(await screen.findByText("Copilot 对话 28/30")).toBeInTheDocument();
+  });
+
   it("collapses and expands the conversation history rail", () => {
     renderPage();
 
@@ -151,7 +159,7 @@ describe("CopilotPage", () => {
         "/api/v1/copilot/threads/99/messages",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ content: "结合文件分析机会", model: "deepseek", reference_ids: [17] })
+          body: expect.stringMatching(/^\{"content":"结合文件分析机会","model":"deepseek","reference_ids":\[17\],"request_id":"message-.+"\}$/)
         })
       );
     });
@@ -308,7 +316,7 @@ describe("CopilotPage", () => {
         "/api/v1/copilot/threads/99/compare",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ content: "帮我对比三个模型的建议", models: ["deepseek"] })
+          body: expect.stringMatching(/^\{"content":"帮我对比三个模型的建议","models":\["deepseek"\],"request_id":"compare-.+"\}$/)
         })
       );
     });
@@ -391,7 +399,7 @@ describe("CopilotPage", () => {
         "/api/v1/copilot/threads/99/compare",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ content: "对比模型能力", models: ["claude"] })
+          body: expect.stringMatching(/^\{"content":"对比模型能力","models":\["claude"\],"request_id":"compare-.+"\}$/)
         })
       );
     });
@@ -524,6 +532,14 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
           { name: "DeepSeek", value: "deepseek", provider: "openai-compatible", is_default: true },
           { name: "GPT-4o", value: "gpt-main", provider: "openai-responses", is_default: false },
           { name: "Claude", value: "claude", provider: "openai-compatible", is_default: false }
+        ]
+      }), { status: 200 }));
+    }
+    if (url === "/api/v1/membership/usage") {
+      return Promise.resolve(new Response(JSON.stringify({
+        usage: [
+          { key: "copilot_messages", label: "Copilot 对话", used: 2, limit: 30, unit: "次/月" },
+          { key: "copilot_compare_calls", label: "Copilot 多模型对比", used: 0, limit: 30, unit: "模型次/月" }
         ]
       }), { status: 200 }));
     }

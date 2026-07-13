@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotFile, type CopilotMemory, type CopilotMessage, type CopilotModelOption, type CopilotThread, type ModelSmokeResult } from "../lib/copilotApi";
+import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
+import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
 
 export type CopilotVariant = "home" | "new" | "models" | "files" | "memories" | "compare" | "rename" | "delete";
 type ComposerPopover = "models" | "files" | "memories" | null;
@@ -84,6 +86,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [compareModelValues, setCompareModelValues] = useState<string[]>([fallbackModels[0].value]);
   const [memories, setMemories] = useState<CopilotMemory[]>([]);
   const [files, setFiles] = useState<CopilotFile[]>([]);
+  const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
   const [selectedReferenceIDs, setSelectedReferenceIDs] = useState<number[]>([]);
   const [aiRuns, setAIRuns] = useState<CopilotAIRun[]>([]);
   const [smokeResult, setSmokeResult] = useState<ModelSmokeResult | null>(null);
@@ -106,6 +109,11 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const activeThread = useMemo(
     () => threads.find((thread) => thread.id === activeThreadID) ?? null,
     [activeThreadID, threads]
+  );
+  const activeQuota = quotaSummary(
+    usage,
+    isCompare ? quotaKeys.copilotCompareCalls : quotaKeys.copilotMessages,
+    isCompare ? "Copilot 多模型对比" : "Copilot 对话"
   );
 
   useEffect(() => {
@@ -132,6 +140,20 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       active = false;
     };
   }, [isNew]);
+
+  useEffect(() => {
+    let active = true;
+    void membershipApi.usage()
+      .then((payload) => {
+        if (active) setUsage(payload.usage ?? []);
+      })
+      .catch(() => {
+        if (active) setUsage([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     setActivePopover(routePopover);
@@ -305,12 +327,13 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         setCompareQuestion(optimisticQuestion);
         setCompareAnswers([]);
         setCompareSummary(null);
-        const result = await copilotApi.compareMessages(thread.id, { content, models }, abortController.signal);
+        const result = await copilotApi.compareMessages(thread.id, { content, models, request_id: newRequestID("compare") }, abortController.signal);
         if (abortController.signal.aborted) return;
         setCompareQuestion(result.user_message);
         setCompareAnswers(result.answers);
         setCompareSummary(null);
         setThreads((current) => current.map((item) => item.id === thread.id ? { ...item, updated_at: result.user_message.created_at } : item));
+        await refreshUsage();
         return;
       }
       const optimisticUserMessage = optimisticMessage({
@@ -324,7 +347,8 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       const result = await copilotApi.sendMessage(thread.id, {
         content,
         model: selectedModel,
-        reference_ids: selectedReferenceIDs
+        reference_ids: selectedReferenceIDs,
+        request_id: newRequestID("message")
       }, abortController.signal);
       if (abortController.signal.aborted) return;
       setMessages((current) => [
@@ -334,6 +358,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       ]);
       startTypewriter(result.assistant_message);
       setThreads((current) => current.map((item) => item.id === thread.id ? { ...item, updated_at: result.assistant_message.created_at } : item));
+      await refreshUsage();
     } catch (requestError) {
       if (abortController.signal.aborted) {
         setMessages((current) => current.filter((message) => message.id >= 0));
@@ -417,6 +442,11 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     setAIRuns(payload.runs);
   }
 
+  async function refreshUsage() {
+    const payload = await membershipApi.usage().catch(() => null);
+    if (payload) setUsage(payload.usage ?? []);
+  }
+
   async function handleSmokeModel() {
     setIsTestingModel(true);
     setError("");
@@ -484,10 +514,12 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       const result = await copilotApi.summarizeComparison(activeThreadID, {
         content: compareQuestion.content,
         model: selectedModel,
-        answers: compareAnswers
+        answers: compareAnswers,
+        request_id: newRequestID("summary")
       });
       setCompareSummary(result.summary_message);
       setThreads((current) => current.map((item) => item.id === activeThreadID ? { ...item, updated_at: result.summary_message.created_at } : item));
+      await refreshUsage();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "总结失败，请稍后重试");
     } finally {
@@ -540,6 +572,11 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
             )}
           </div>
 
+          <div className={activeQuota.blocked ? "copilot-quota-inline depleted" : "copilot-quota-inline"}>
+            <span>{activeQuota.label} {activeQuota.value}</span>
+            <small>{activeQuota.unit}</small>
+            {activeQuota.blocked && <Link to="/membership">升级套餐</Link>}
+          </div>
           <Composer
             draft={draft}
             model={selectedModel}
@@ -1406,6 +1443,13 @@ function readFileAsText(file: File) {
     reader.onerror = () => reject(reader.error ?? new Error("文件读取失败"));
     reader.readAsText(file);
   });
+}
+
+function newRequestID(prefix: string) {
+  const randomID = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${randomID}`;
 }
 
 function toDisplayModels(models: CopilotModelOption[]): CopilotModel[] {

@@ -160,7 +160,7 @@ export const copilotApi = {
     });
   },
 
-  sendMessage(threadId: number, input: { content: string; model?: string; reference_ids?: number[] }, signal?: AbortSignal) {
+  sendMessage(threadId: number, input: { content: string; model?: string; reference_ids?: number[]; request_id?: string }, signal?: AbortSignal) {
     return apiRequest<SendMessageResult>(`/api/v1/copilot/threads/${threadId}/messages`, {
       method: "POST",
       signal,
@@ -168,7 +168,7 @@ export const copilotApi = {
     });
   },
 
-  compareMessages(threadId: number, input: { content: string; models?: string[] }, signal?: AbortSignal) {
+  compareMessages(threadId: number, input: { content: string; models?: string[]; request_id?: string }, signal?: AbortSignal) {
     return apiRequest<CompareMessagesResult>(`/api/v1/copilot/threads/${threadId}/compare`, {
       method: "POST",
       signal,
@@ -176,7 +176,7 @@ export const copilotApi = {
     });
   },
 
-  summarizeComparison(threadId: number, input: { content: string; model?: string; answers: CompareAnswer[] }) {
+  summarizeComparison(threadId: number, input: { content: string; model?: string; answers: CompareAnswer[]; request_id?: string }) {
     return apiRequest<CompareSummaryResult>(`/api/v1/copilot/threads/${threadId}/compare/summary`, {
       method: "POST",
       body: JSON.stringify(input)

@@ -26946,6 +26946,35 @@ a {
 .copilot-thinking span:nth-child(4) { opacity: 0.6; }
 .copilot-thinking span:nth-child(5) { opacity: 0.4; }
 
+.copilot-quota-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 38px 6px;
+  color: #4c6097;
+  background: #fcfdff;
+  font-size: 12px;
+}
+
+.copilot-quota-inline span {
+  color: #183c98;
+  font-weight: 800;
+}
+
+.copilot-quota-inline small {
+  font-size: 11px;
+}
+
+.copilot-quota-inline.depleted span {
+  color: #a53a2d;
+}
+
+.copilot-quota-inline a {
+  color: #245dff;
+  font-weight: 800;
+}
+
 .copilot-composer-wrap {
   position: relative;
   z-index: 12;

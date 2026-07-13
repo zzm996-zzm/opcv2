@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { quotaSummary } from "./quotaUsage";
+import { quotaKeys, quotaSummary } from "./quotaUsage";
 
 describe("quotaSummary", () => {
   it("computes remaining quota and depleted state", () => {
@@ -25,5 +25,12 @@ describe("quotaSummary", () => {
       blocked: false,
       value: "读取中"
     });
+  });
+});
+
+describe("quotaKeys", () => {
+  it("exposes copilot quota ledger keys", () => {
+    expect(quotaKeys.copilotMessages).toBe("copilot_messages");
+    expect(quotaKeys.copilotCompareCalls).toBe("copilot_compare_calls");
   });
 });

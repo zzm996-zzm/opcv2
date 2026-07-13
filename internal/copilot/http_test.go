@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type fakeApplication struct {
@@ -202,6 +203,19 @@ func TestSendMessageEndpointUsesAuthenticatedUserAndThread(t *testing.T) {
 	}
 	if app.sendMessageInput.UserID != 42 || app.sendMessageInput.ThreadID != 99 || app.sendMessageInput.Content != "你好" {
 		t.Fatalf("input = %+v", app.sendMessageInput)
+	}
+}
+
+func TestSendMessageEndpointReturnsPaymentRequiredWhenQuotaExceeded(t *testing.T) {
+	router := copilotTestRouter(&fakeApplication{err: membership.ErrQuotaExceeded})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/threads/99/messages", strings.NewReader(`{"content":"你好","request_id":"msg-001"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusPaymentRequired || !strings.Contains(recorder.Body.String(), `"error":"quota_exceeded"`) {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 

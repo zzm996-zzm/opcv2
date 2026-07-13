@@ -184,7 +184,12 @@ func main() {
 	learningService := learning.NewService(learningRepository)
 	learningHTTP := learning.NewHTTPHandler(learningService)
 	copilotRepository := copilot.NewPostgresRepository(db)
-	copilotService := copilot.NewServiceWithModels(copilotRepository, aiService, copilotModelOptions(cfg))
+	copilotService := copilot.NewServiceWithModels(
+		copilotRepository,
+		aiService,
+		copilotModelOptions(cfg),
+		copilot.WithQuotaConsumer(membershipService),
+	)
 	copilotHTTP := copilot.NewHTTPHandler(copilotService)
 
 	checker := health.NewChecker(db, redisClient)

@@ -40,21 +40,24 @@ type SendMessageInput struct {
 	Content      string  `json:"content"`
 	Model        string  `json:"model,omitempty"`
 	ReferenceIDs []int64 `json:"reference_ids,omitempty"`
+	RequestID    string  `json:"request_id,omitempty"`
 }
 
 type CompareMessagesInput struct {
-	UserID   int64    `json:"-"`
-	ThreadID int64    `json:"-"`
-	Content  string   `json:"content"`
-	Models   []string `json:"models,omitempty"`
+	UserID    int64    `json:"-"`
+	ThreadID  int64    `json:"-"`
+	Content   string   `json:"content"`
+	Models    []string `json:"models,omitempty"`
+	RequestID string   `json:"request_id,omitempty"`
 }
 
 type CompareSummaryInput struct {
-	UserID   int64           `json:"-"`
-	ThreadID int64           `json:"-"`
-	Content  string          `json:"content"`
-	Model    string          `json:"model,omitempty"`
-	Answers  []CompareAnswer `json:"answers"`
+	UserID    int64           `json:"-"`
+	ThreadID  int64           `json:"-"`
+	Content   string          `json:"content"`
+	Model     string          `json:"model,omitempty"`
+	Answers   []CompareAnswer `json:"answers"`
+	RequestID string          `json:"request_id,omitempty"`
 }
 
 type ModelSmokeInput struct {

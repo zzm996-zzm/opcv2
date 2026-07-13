@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type Repository interface {
@@ -32,10 +33,18 @@ type JSONGenerator interface {
 	GenerateJSON(ctx context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error)
 }
 
+type QuotaConsumer interface {
+	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
+	RefundUsage(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
+}
+
+type Option func(*Service)
+
 type Service struct {
 	repository Repository
 	generator  JSONGenerator
 	models     []ModelOption
+	quota      QuotaConsumer
 	now        func() time.Time
 }
 
@@ -62,14 +71,24 @@ const (
 	maxReferencePromptBytes    = 6000
 )
 
-func NewService(repository Repository, generator JSONGenerator) *Service {
-	return &Service{repository: repository, generator: generator, now: time.Now}
+func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
+	service := &Service{repository: repository, generator: generator, now: time.Now}
+	for _, option := range options {
+		option(service)
+	}
+	return service
 }
 
-func NewServiceWithModels(repository Repository, generator JSONGenerator, models []ModelOption) *Service {
-	service := NewService(repository, generator)
+func NewServiceWithModels(repository Repository, generator JSONGenerator, models []ModelOption, options ...Option) *Service {
+	service := NewService(repository, generator, options...)
 	service.models = normalizeModelOptions(models)
 	return service
+}
+
+func WithQuotaConsumer(quota QuotaConsumer) Option {
+	return func(service *Service) {
+		service.quota = quota
+	}
 }
 
 func (s *Service) ListModels(_ context.Context) ([]ModelOption, error) {
@@ -202,6 +221,10 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 	if err != nil {
 		return SendMessageResult{}, err
 	}
+	quotaKey := "copilot-message-" + s.normalizeRequestID(input.RequestID, input.UserID, input.ThreadID)
+	if err := s.consumeQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey); err != nil {
+		return SendMessageResult{}, err
+	}
 	userMessage, err := s.repository.CreateMessage(ctx, Message{
 		UserID:    input.UserID,
 		ThreadID:  input.ThreadID,
@@ -213,6 +236,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 		CreatedAt: now,
 	})
 	if err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "user-message")
 		return SendMessageResult{}, err
 	}
 	aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, references)
@@ -228,6 +252,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 			Metadata:  referenceMetadata(input.ReferenceIDs),
 			CreatedAt: s.now(),
 		})
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "generation")
 		return SendMessageResult{}, err
 	}
 	assistantMessage, err := s.repository.CreateMessage(ctx, Message{
@@ -242,6 +267,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 		CreatedAt:    s.now(),
 	})
 	if err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "assistant-message")
 		return SendMessageResult{}, err
 	}
 	s.saveMemoryCandidates(ctx, input.UserID, result.MemoryCandidates)
@@ -264,6 +290,10 @@ func (s *Service) CompareMessages(ctx context.Context, input CompareMessagesInpu
 	if err != nil {
 		return CompareMessagesResult{}, err
 	}
+	quotaKey := "copilot-compare-" + s.normalizeRequestID(input.RequestID, input.UserID, input.ThreadID)
+	if err := s.consumeQuota(ctx, input.UserID, membership.FeatureCopilotCompareCalls, len(models), quotaKey); err != nil {
+		return CompareMessagesResult{}, err
+	}
 	now := s.now()
 	userMessage, err := s.repository.CreateMessage(ctx, Message{
 		UserID:    input.UserID,
@@ -276,13 +306,16 @@ func (s *Service) CompareMessages(ctx context.Context, input CompareMessagesInpu
 		CreatedAt: now,
 	})
 	if err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotCompareCalls, len(models), quotaKey, "user-message")
 		return CompareMessagesResult{}, err
 	}
 
 	answers := make([]CompareAnswer, 0, len(models))
+	failedCalls := 0
 	for _, model := range models {
 		aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, nil)
 		if err != nil {
+			failedCalls++
 			message, _ := s.repository.CreateMessage(ctx, Message{
 				UserID:    input.UserID,
 				ThreadID:  input.ThreadID,
@@ -310,10 +343,14 @@ func (s *Service) CompareMessages(ctx context.Context, input CompareMessagesInpu
 			CreatedAt:    s.now(),
 		})
 		if err != nil {
+			s.refundQuota(ctx, input.UserID, membership.FeatureCopilotCompareCalls, len(models)-len(answers), quotaKey, "assistant-message")
 			return CompareMessagesResult{}, err
 		}
 		s.saveMemoryCandidates(ctx, input.UserID, result.MemoryCandidates)
 		answers = append(answers, CompareAnswer{Model: model, AssistantMessage: assistantMessage})
+	}
+	if failedCalls > 0 {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotCompareCalls, failedCalls, quotaKey, "generation")
 	}
 
 	return CompareMessagesResult{UserMessage: userMessage, Answers: answers}, nil
@@ -346,8 +383,13 @@ func (s *Service) SummarizeComparison(ctx context.Context, input CompareSummaryI
 	if err != nil {
 		return CompareSummaryResult{}, err
 	}
+	quotaKey := "copilot-summary-" + s.normalizeRequestID(input.RequestID, input.UserID, input.ThreadID)
+	if err := s.consumeQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey); err != nil {
+		return CompareSummaryResult{}, err
+	}
 	aiResult, result, err := s.generateSummary(ctx, input.UserID, prompt, model)
 	if err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "generation")
 		return CompareSummaryResult{}, err
 	}
 	summaryMessage, err := s.repository.CreateMessage(ctx, Message{
@@ -363,6 +405,7 @@ func (s *Service) SummarizeComparison(ctx context.Context, input CompareSummaryI
 		CreatedAt:    s.now(),
 	})
 	if err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "assistant-message")
 		return CompareSummaryResult{}, err
 	}
 	return CompareSummaryResult{SummaryMessage: summaryMessage}, nil
@@ -408,6 +451,42 @@ func (s *Service) SmokeModel(ctx context.Context, input ModelSmokeInput) (ModelS
 		InputTokens:  aiResult.InputTokens,
 		OutputTokens: aiResult.OutputTokens,
 	}, nil
+}
+
+func (s *Service) consumeQuota(ctx context.Context, userID int64, feature string, amount int, idempotencyKey string) error {
+	if s.quota == nil {
+		return nil
+	}
+	_, err := s.quota.CheckAndConsume(ctx, membership.ConsumeInput{
+		UserID:         userID,
+		FeatureKey:     feature,
+		Amount:         amount,
+		IdempotencyKey: idempotencyKey,
+	})
+	return err
+}
+
+func (s *Service) refundQuota(ctx context.Context, userID int64, feature string, amount int, idempotencyKey, reason string) {
+	if s.quota == nil || amount <= 0 {
+		return
+	}
+	_, _ = s.quota.RefundUsage(ctx, membership.ConsumeInput{
+		UserID:         userID,
+		FeatureKey:     feature,
+		Amount:         amount,
+		IdempotencyKey: idempotencyKey + "-refund-" + reason,
+	})
+}
+
+func (s *Service) normalizeRequestID(requestID string, userID, threadID int64) string {
+	requestID = strings.TrimSpace(requestID)
+	if requestID != "" {
+		if len(requestID) > 96 {
+			return requestID[:96]
+		}
+		return requestID
+	}
+	return fmt.Sprintf("%d-%d-%d", userID, threadID, s.now().UnixNano())
 }
 
 func (s *Service) ListMemories(ctx context.Context, userID int64, limit int) ([]Memory, error) {

@@ -14,9 +14,11 @@ const (
 )
 
 const (
-	FeatureSandboxRuns     = "sandbox_runs"
-	FeatureCompetitorScans = "competitor_scans"
-	FeatureLeadTasks       = "lead_tasks"
+	FeatureSandboxRuns         = "sandbox_runs"
+	FeatureCompetitorScans     = "competitor_scans"
+	FeatureLeadTasks           = "lead_tasks"
+	FeatureCopilotMessages     = "copilot_messages"
+	FeatureCopilotCompareCalls = "copilot_compare_calls"
 )
 
 var (

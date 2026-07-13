@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/membership"
 )
 
 type fakeRepository struct {
@@ -209,6 +210,22 @@ type fakeGeneratorQueue struct {
 	err      error
 }
 
+type fakeQuotaConsumer struct {
+	consumed []membership.ConsumeInput
+	refunded []membership.ConsumeInput
+	err      error
+}
+
+func (q *fakeQuotaConsumer) CheckAndConsume(_ context.Context, input membership.ConsumeInput) (membership.UsageItem, error) {
+	q.consumed = append(q.consumed, input)
+	return membership.UsageItem{}, q.err
+}
+
+func (q *fakeQuotaConsumer) RefundUsage(_ context.Context, input membership.ConsumeInput) (membership.UsageItem, error) {
+	q.refunded = append(q.refunded, input)
+	return membership.UsageItem{}, nil
+}
+
 func (g *fakeGeneratorQueue) GenerateJSON(_ context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
 	g.requests = append(g.requests, request)
 	if g.err != nil {
@@ -296,6 +313,61 @@ func TestServiceSendMessageGeneratesAssistantReplyAndMemory(t *testing.T) {
 	}
 	if generator.request.Feature != "copilot.chat" || generator.request.SchemaName != "copilot_chat_response" {
 		t.Fatalf("ai request = %+v", generator.request)
+	}
+}
+
+func TestServiceSendMessageConsumesQuotaWithRequestID(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "机会分析", Mode: ModeChat}}}
+	quota := &fakeQuotaConsumer{}
+	service := NewService(repository, &fakeGenerator{content: []byte(`{"reply":"先验证需求。"}`)}, WithQuotaConsumer(quota))
+
+	_, err := service.SendMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "分析机会", RequestID: "msg-001",
+	})
+
+	if err != nil {
+		t.Fatalf("SendMessage() error = %v", err)
+	}
+	if len(quota.consumed) != 1 {
+		t.Fatalf("consumed = %+v", quota.consumed)
+	}
+	consume := quota.consumed[0]
+	if consume.FeatureKey != membership.FeatureCopilotMessages || consume.Amount != 1 || consume.IdempotencyKey != "copilot-message-msg-001" {
+		t.Fatalf("consume = %+v", consume)
+	}
+}
+
+func TestServiceSendMessageRefundsQuotaWhenGenerationFails(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "机会分析", Mode: ModeChat}}}
+	quota := &fakeQuotaConsumer{}
+	service := NewService(repository, &fakeGenerator{err: errors.New("provider unavailable")}, WithQuotaConsumer(quota))
+
+	_, err := service.SendMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "分析机会", RequestID: "msg-002",
+	})
+
+	if !errors.Is(err, ErrInvalidAIResult) {
+		t.Fatalf("err = %v, want ErrInvalidAIResult", err)
+	}
+	if len(quota.refunded) != 1 || quota.refunded[0].IdempotencyKey != "copilot-message-msg-002-refund-generation" {
+		t.Fatalf("refunded = %+v", quota.refunded)
+	}
+}
+
+func TestServiceSendMessageStopsWhenQuotaIsExceeded(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "机会分析", Mode: ModeChat}}}
+	quota := &fakeQuotaConsumer{err: membership.ErrQuotaExceeded}
+	service := NewService(repository, &fakeGenerator{content: []byte(`{"reply":"不会生成"}`)}, WithQuotaConsumer(quota))
+
+	_, err := service.SendMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "分析机会", RequestID: "msg-003",
+	})
+
+	if !errors.Is(err, membership.ErrQuotaExceeded) {
+		t.Fatalf("err = %v, want ErrQuotaExceeded", err)
+	}
+	if len(repository.createdMessages) != 0 {
+		t.Fatalf("createdMessages = %+v, want none", repository.createdMessages)
 	}
 }
 
@@ -432,6 +504,32 @@ func TestServiceCompareMessagesGeneratesOneAnswerPerModel(t *testing.T) {
 	if string(repository.createdMessages[1].Metadata) != `{"kind":"compare_answer"}` ||
 		string(repository.createdMessages[2].Metadata) != `{"kind":"compare_answer"}` {
 		t.Fatalf("answer metadata = %s / %s", repository.createdMessages[1].Metadata, repository.createdMessages[2].Metadata)
+	}
+}
+
+func TestServiceCompareMessagesConsumesOneQuotaUnitPerModel(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "机会分析", Mode: ModeCompare}}}
+	quota := &fakeQuotaConsumer{}
+	service := NewServiceWithModels(repository, &fakeGeneratorQueue{contents: [][]byte{
+		[]byte(`{"reply":"回答一"}`), []byte(`{"reply":"回答二"}`),
+	}}, []ModelOption{
+		{Name: "A", Value: "model-a", IsDefault: true},
+		{Name: "B", Value: "model-b"},
+	}, WithQuotaConsumer(quota))
+
+	_, err := service.CompareMessages(context.Background(), CompareMessagesInput{
+		UserID: 42, ThreadID: 99, Content: "分析机会", Models: []string{"model-a", "model-b"}, RequestID: "compare-001",
+	})
+
+	if err != nil {
+		t.Fatalf("CompareMessages() error = %v", err)
+	}
+	if len(quota.consumed) != 1 {
+		t.Fatalf("consumed = %+v", quota.consumed)
+	}
+	consume := quota.consumed[0]
+	if consume.FeatureKey != membership.FeatureCopilotCompareCalls || consume.Amount != 2 || consume.IdempotencyKey != "copilot-compare-compare-001" {
+		t.Fatalf("consume = %+v", consume)
 	}
 }
 
