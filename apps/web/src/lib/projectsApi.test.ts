@@ -92,6 +92,12 @@ describe("projectsApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/projects/comparisons/61", expect.objectContaining({ method: "GET" }));
   });
 
+  it("creates a project export", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ id:71, status:"ready" }), { status:200 }));
+    await projectsApi.createExport("match", 99);
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/exports", expect.objectContaining({ method:"POST", body:JSON.stringify({ source_type:"match", source_id:99 }) }));
+  });
+
   it("favorites a project match", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: 7, user_id: 42, session_id: 99 }), { status: 200 })

@@ -68,6 +68,12 @@ func (a *fakeApplication) CreateComparison(_ context.Context, input CreateCompar
 func (a *fakeApplication) GetComparison(_ context.Context, userID, id int64) (Comparison, error) {
 	return Comparison{ID: id, UserID: userID}, a.err
 }
+func (a *fakeApplication) CreateExport(_ context.Context, input CreateExportInput) (Export, error) {
+	return Export{ID: 71, UserID: input.UserID, Status: "ready"}, a.err
+}
+func (a *fakeApplication) GetExport(_ context.Context, userID, id int64) (Export, error) {
+	return Export{ID: id, UserID: userID, Payload: []byte(`{}`)}, a.err
+}
 
 func (a *fakeApplication) FavoriteMatch(_ context.Context, userID, id int64) (Favorite, error) {
 	a.userID = userID

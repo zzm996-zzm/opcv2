@@ -20,11 +20,55 @@ type Repository interface {
 	GetCase(ctx context.Context, slug string) (CaseStudy, error)
 	CreateComparison(ctx context.Context, comparison Comparison) (Comparison, error)
 	GetComparison(ctx context.Context, userID, id int64) (Comparison, error)
+	CreateExport(ctx context.Context, item Export) (Export, error)
+	GetExport(ctx context.Context, userID, id int64) (Export, error)
 	CreateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetSession(ctx context.Context, userID, id int64) (MatchSession, error)
 	UpdateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	SaveFavorite(ctx context.Context, favorite Favorite) (Favorite, error)
+}
+
+func (s *Service) CreateExport(ctx context.Context, input CreateExportInput) (Export, error) {
+	if s.repository == nil {
+		return Export{}, ErrServiceNotReady
+	}
+	if input.SourceID <= 0 {
+		return Export{}, ErrInvalidExport
+	}
+	var source any
+	switch input.SourceType {
+	case ExportSourceMatch:
+		item, err := s.repository.GetSession(ctx, input.UserID, input.SourceID)
+		if err != nil {
+			return Export{}, err
+		}
+		source = item
+	case ExportSourceComparison:
+		item, err := s.repository.GetComparison(ctx, input.UserID, input.SourceID)
+		if err != nil {
+			return Export{}, err
+		}
+		source = item
+	default:
+		return Export{}, ErrInvalidExport
+	}
+	payload, err := json.Marshal(source)
+	if err != nil {
+		return Export{}, err
+	}
+	item, err := s.repository.CreateExport(ctx, Export{UserID: input.UserID, SourceType: input.SourceType, SourceID: input.SourceID, Status: "ready", Payload: payload, CreatedAt: s.now()})
+	if err != nil {
+		return Export{}, err
+	}
+	item.DownloadURL = fmt.Sprintf("/api/v1/projects/exports/%d/download", item.ID)
+	return item, nil
+}
+func (s *Service) GetExport(ctx context.Context, userID, id int64) (Export, error) {
+	if s.repository == nil {
+		return Export{}, ErrServiceNotReady
+	}
+	return s.repository.GetExport(ctx, userID, id)
 }
 
 func (s *Service) CreateComparison(ctx context.Context, input CreateComparisonInput) (Comparison, error) {

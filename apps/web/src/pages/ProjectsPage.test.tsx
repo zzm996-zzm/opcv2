@@ -100,6 +100,20 @@ describe("ProjectsPage", () => {
     expect(await screen.findByRole("heading", { name:"AI销售顾问" })).toBeInTheDocument();
   });
 
+  it("syncs a persisted match result to task center", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (String(input) === "/api/v1/projects/matches" ) return Promise.resolve(new Response(JSON.stringify({ session_id:99, status:"completed", projects:[{ rank:1, title:"AI销售顾问", score:90, tags:["B端"], budget:"1万", reasons:["经验匹配"], risk:"需验证" }] }), { status:200 }));
+      if (String(input) === "/api/v1/tasks/generate" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ tasks:[{ id:1 }] }), { status:200 }));
+      return Promise.reject(new Error("unexpected"));
+    });
+    renderProjectRoute("/projects/match");
+    fireEvent.change(screen.getByLabelText("项目匹配需求"), { target:{ value:"完整的项目需求，预算1万，每周20小时，偏好线上服务型项目" } });
+    fireEvent.click(screen.getByRole("button", { name:"提交给 AI 分析" }));
+    fireEvent.click(await screen.findByRole("button", { name:"生成落地任务" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/generate", expect.objectContaining({ method:"POST" })));
+    expect(await screen.findByText("已创建 1 个项目任务")).toBeInTheDocument();
+  });
+
   it("renders opportunity exploration from API", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ opportunities: [{
       id: 42,
@@ -261,11 +275,21 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "AI内容" })).toBeInTheDocument();
   });
 
-  it("renders export modal state", () => {
-    authSession.clear();
+  it("creates and exposes a downloadable match export", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/projects/opportunities") return Promise.resolve(new Response(JSON.stringify({ opportunities: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/matches") return Promise.resolve(new Response(JSON.stringify({ matches: [{ id: 99, status: "completed", intent: "AI项目", result: { status: "completed", projects: [] } }] }), { status: 200 }));
+      if (url === "/api/v1/projects/exports" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 71, status: "ready", download_url: "/api/v1/projects/exports/71/download" }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
     renderProjectRoute("/projects/export");
 
     expect(screen.getByRole("heading", { name: "导出匹配报告" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "确认导出" })).toBeInTheDocument();
+    const exportButton = await screen.findByRole("button", { name: "确认导出" });
+    await waitFor(() => expect(exportButton).toBeEnabled());
+    fireEvent.click(exportButton);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/exports", expect.objectContaining({ method: "POST" })));
+    expect(await screen.findByRole("link", { name: "下载 JSON 报告" })).toHaveAttribute("href", "/api/v1/projects/exports/71/download");
   });
 });

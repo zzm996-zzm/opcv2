@@ -18,7 +18,22 @@ type memoryRepository struct {
 	opportunities []Opportunity
 	cases         []CaseStudy
 	comparisons   []Comparison
+	exports       []Export
 	nextID        int64
+}
+
+func (r *memoryRepository) CreateExport(_ context.Context, item Export) (Export, error) {
+	item.ID = int64(len(r.exports) + 1)
+	r.exports = append(r.exports, item)
+	return item, nil
+}
+func (r *memoryRepository) GetExport(_ context.Context, userID, id int64) (Export, error) {
+	for _, item := range r.exports {
+		if item.UserID == userID && item.ID == id {
+			return item, nil
+		}
+	}
+	return Export{}, ErrExportNotFound
 }
 
 func (r *memoryRepository) CreateComparison(_ context.Context, comparison Comparison) (Comparison, error) {

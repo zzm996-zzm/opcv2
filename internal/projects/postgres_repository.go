@@ -113,6 +113,19 @@ func (r *PostgresRepository) GetComparison(ctx context.Context, userID, id int64
 	return comparison, nil
 }
 
+func (r *PostgresRepository) CreateExport(ctx context.Context, item Export) (Export, error) {
+	err := r.db.QueryRow(ctx, `INSERT INTO project_exports (user_id, source_type, source_id, status, payload, created_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, item.UserID, item.SourceType, item.SourceID, item.Status, item.Payload, item.CreatedAt).Scan(&item.ID)
+	return item, err
+}
+func (r *PostgresRepository) GetExport(ctx context.Context, userID, id int64) (Export, error) {
+	var item Export
+	err := r.db.QueryRow(ctx, `SELECT id, user_id, source_type, source_id, status, payload, created_at FROM project_exports WHERE user_id = $1 AND id = $2`, userID, id).Scan(&item.ID, &item.UserID, &item.SourceType, &item.SourceID, &item.Status, &item.Payload, &item.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Export{}, ErrExportNotFound
+	}
+	return item, err
+}
+
 func (r *PostgresRepository) CreateSession(ctx context.Context, session MatchSession) (MatchSession, error) {
 	questions, err := json.Marshal(session.Questions)
 	if err != nil {

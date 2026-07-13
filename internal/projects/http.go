@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -21,6 +22,8 @@ type Application interface {
 	AnswerMatch(ctx context.Context, input AnswerMatchInput) (MatchResult, error)
 	CreateComparison(ctx context.Context, input CreateComparisonInput) (Comparison, error)
 	GetComparison(ctx context.Context, userID, id int64) (Comparison, error)
+	CreateExport(ctx context.Context, input CreateExportInput) (Export, error)
+	GetExport(ctx context.Context, userID, id int64) (Export, error)
 	FavoriteMatch(ctx context.Context, userID, id int64) (Favorite, error)
 }
 
@@ -44,6 +47,36 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/projects/matches/:id/favorite", h.favoriteMatch)
 	router.POST("/projects/comparisons", h.createComparison)
 	router.GET("/projects/comparisons/:id", h.getComparison)
+	router.POST("/projects/exports", h.createExport)
+	router.GET("/projects/exports/:id/download", h.downloadExport)
+}
+
+func (h *HTTPHandler) createExport(c *gin.Context) {
+	var request CreateExportInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	item, err := h.app.CreateExport(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+func (h *HTTPHandler) downloadExport(c *gin.Context) {
+	id, ok := matchID(c)
+	if !ok {
+		return
+	}
+	item, err := h.app.GetExport(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="project-export-%d.json"`, item.ID))
+	c.Data(http.StatusOK, "application/json; charset=utf-8", item.Payload)
 }
 
 func (h *HTTPHandler) createComparison(c *gin.Context) {
@@ -225,6 +258,10 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "comparison_not_found"})
 	case errors.Is(err, ErrInvalidComparison):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_comparison"})
+	case errors.Is(err, ErrExportNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "export_not_found"})
+	case errors.Is(err, ErrInvalidExport):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_export"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	case errors.Is(err, ErrInvalidAIResult):

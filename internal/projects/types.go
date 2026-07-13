@@ -12,6 +12,8 @@ const (
 	OpportunityStatusPublished = "published"
 	CaseStatusDraft            = "draft"
 	CaseStatusPublished        = "published"
+	ExportSourceMatch          = "match"
+	ExportSourceComparison     = "comparison"
 )
 
 var (
@@ -23,7 +25,25 @@ var (
 	ErrInvalidMatchAnswers = errors.New("invalid project match answers")
 	ErrComparisonNotFound  = errors.New("project comparison not found")
 	ErrInvalidComparison   = errors.New("invalid project comparison")
+	ErrExportNotFound      = errors.New("project export not found")
+	ErrInvalidExport       = errors.New("invalid project export")
 )
+
+type CreateExportInput struct {
+	UserID     int64  `json:"-"`
+	SourceType string `json:"source_type"`
+	SourceID   int64  `json:"source_id"`
+}
+type Export struct {
+	ID          int64     `json:"id"`
+	UserID      int64     `json:"user_id"`
+	SourceType  string    `json:"source_type"`
+	SourceID    int64     `json:"source_id"`
+	Status      string    `json:"status"`
+	Payload     []byte    `json:"-"`
+	DownloadURL string    `json:"download_url"`
+	CreatedAt   time.Time `json:"created_at"`
+}
 
 type CreateComparisonInput struct {
 	UserID           int64    `json:"-"`

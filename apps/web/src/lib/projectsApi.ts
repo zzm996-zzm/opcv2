@@ -97,6 +97,7 @@ export const projectsApi = {
   },
   createComparison(opportunitySlugs: string[]) { return apiRequest<ProjectComparison>("/api/v1/projects/comparisons", { method:"POST", body:JSON.stringify({ opportunity_slugs:opportunitySlugs }) }); },
   getComparison(id: number) { return apiRequest<ProjectComparison>(`/api/v1/projects/comparisons/${id}`, { method:"GET" }); },
+  createExport(sourceType: "match" | "comparison", sourceId: number) { return apiRequest<{ id:number; status:string; download_url:string }>("/api/v1/projects/exports", { method:"POST", body:JSON.stringify({ source_type:sourceType, source_id:sourceId }) }); },
 
   favoriteMatch(id: number) {
     return apiRequest<ProjectFavorite>(`/api/v1/projects/matches/${id}/favorite`, {

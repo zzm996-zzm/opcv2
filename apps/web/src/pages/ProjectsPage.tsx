@@ -5,6 +5,7 @@ import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { projectsApi, type ProjectCase, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
+import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
   | "home"
@@ -558,6 +559,15 @@ function MatchQuestions() {
 
 function MatchResults({ projects = resultProjects, sessionId }: { projects?: readonly DisplayProject[]; sessionId?: number }) {
   const detailHref = sessionId ? `/projects/matches/${sessionId}` : "/projects/detail";
+  const [taskMessage, setTaskMessage] = useState("");
+  const [taskError, setTaskError] = useState("");
+  async function generateTasks() {
+    if (!sessionId || projects.length === 0) return;
+    try {
+      const result = await tasksApi.generateTasks(`验证并落地项目：${projects.map((item) => item.title).join("、")}`, { sourceType:"project_match", sourceId:sessionId, sourceTitle:projects[0].title, sourceUrl:`/projects/matches/${sessionId}` });
+      setTaskMessage(`已创建 ${result.tasks.length} 个项目任务`); setTaskError("");
+    } catch { setTaskError("生成任务失败，请稍后重试"); }
+  }
 
   return (
     <>
@@ -572,8 +582,11 @@ function MatchResults({ projects = resultProjects, sessionId }: { projects?: rea
           <button type="button">收藏结果</button>
           <Link to="/projects/export">导出报告</Link>
           <Link to="/projects/compare">加入对比</Link>
+          <button disabled={!sessionId} onClick={() => void generateTasks()} type="button">生成落地任务</button>
         </div>
       </div>
+      {taskMessage ? <p className="form-success" role="status">{taskMessage}</p> : null}
+      {taskError ? <p className="form-error" role="alert">{taskError}</p> : null}
       <div className="pm-condition-strip">
         {["一人公司", "预算 1-3万", "内容创作优势", "轻资产偏好", "希望 1-3个月启动"].map((item) => <span key={item}>{item}</span>)}
       </div>
@@ -1009,20 +1022,41 @@ function PaywallOverlay() {
 }
 
 function ExportOverlay() {
+  const [sourceID, setSourceID] = useState<number | null>(null);
+  const [downloadURL, setDownloadURL] = useState("");
+  const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  useEffect(() => {
+    let active = true;
+    projectsApi.listMatches().then((payload) => {
+      if (!active) return;
+      const latest = payload.matches.find((item) => item.status === "completed");
+      setSourceID(latest?.id ?? null);
+      if (!latest) setError("暂无可导出的已完成匹配记录");
+    }).catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取匹配记录")); });
+    return () => { active = false; };
+  }, []);
+  async function createExport() {
+    if (!sourceID || exporting) return;
+    setExporting(true); setError("");
+    try { const item = await projectsApi.createExport("match", sourceID); setDownloadURL(item.download_url); }
+    catch (createError) { setError(apiErrorMessage(createError, "暂时无法导出报告")); }
+    finally { setExporting(false); }
+  }
   return (
     <div className="pm-modal-scrim">
       <section className="pm-export-modal" role="dialog" aria-label="导出匹配报告">
         <h2>导出匹配报告</h2>
-        <div>
-          {["PDF报告", "Excel对比表", "落地任务清单"].map((item) => <button key={item} type="button">{item}</button>)}
-        </div>
+        <div><button className="active" type="button">JSON 数据快照</button></div>
         <article>
           <strong>报告内容</strong>
-          <small>匹配条件、推荐项目、对比结论、启动路径与风险提示</small>
+          <small>匹配需求、补充问题、推荐项目与风险提示的服务端快照</small>
         </article>
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        {downloadURL ? <a href={downloadURL}>下载 JSON 报告</a> : null}
         <footer>
           <button type="button">取消</button>
-          <button type="button">确认导出</button>
+          <button disabled={!sourceID || exporting} onClick={() => void createExport()} type="button">{exporting ? "导出中..." : "确认导出"}</button>
         </footer>
       </section>
     </div>
