@@ -44,7 +44,7 @@ Current coverage by product area:
 | Project market | Opportunity and evidence catalog, match sessions, persistent follow-up Q&A, compare, export, task sync, list/detail/favorite APIs | Remove remaining frontend static fallbacks, complete saved-project UX, paid unlock policy |
 | Sandbox | Create/list/get/run session; AI JSON report | Draft step persistence, roles catalog, async progress, per-role conversation, quota check/charge, report evidence/labels |
 | Tasks | CRUD, filters, stats | Reminder rules, notification delivery, AI task generation, source links from other modules, batch operations |
-| Competitor | Scan create/list/get, monitoring read model | Currently uses generated default conclusions; needs script job queue, account pool, source evidence, status/progress, CRUD monitoring rules |
+| Competitor | Queued scans, worker/provider interface, status/progress/retry, normalized raw snapshots/evidence, safe admin account pool, monitoring read/write flow | Real platform-specific scripts are intentionally not connected; monitoring schedules/events still need worker depth |
 | Growth | Models plus derived scenarios/forecast/recommendations | Dynamic AI clarification, saved snapshots, transparent assumptions, export/share, quota/paid gates |
 | Learning | Courses, progress read, diagnoses and derived gap/recommendation/plan/report | Assessment submit/read, progress writes, course materials, recommendation snapshots |
 | GEO | Overview and queued analysis request skeleton | Product doc says GEO is mostly locked/placeholder in this version; if kept, mark example data and avoid pretending real execution |
@@ -104,6 +104,41 @@ Final verification:
 - `npm run build`: passed (existing bundle-size warning only).
 - `npm run lint`: 0 errors; the same 2 pre-existing Hook dependency warnings remain in `CompetitorDataPage.tsx` and `CrmPage.tsx`.
 - Protected-route visual inspection could not reach the Project Market screen because the local PostgreSQL dependency was not running; the browser confirmed the expected login redirect and no console errors.
+
+No production deployment was performed for this module.
+
+### 2.3 Competitor script-job/evidence handoff (2026-07-13)
+
+The **competitor script-job/evidence architecture** foundation is complete in
+four small commits on `feature/bootstrap`:
+
+| Commit | Completed scope |
+| --- | --- |
+| `da4edfa` | Added normalized raw snapshot and evidence tables with transactional scan artifact persistence. |
+| `5a96b3f` | Added admin-only script account pool APIs using non-returned secret references, cooldown and frequency metadata. |
+| `7786bcc` | Added atomic worker account leasing, hourly rate enforcement, run audit rows, failure cooldown/disable policy, stale-lease recovery, and safe scan errors. |
+| `b860a68` | Removed static frontend data-source statuses, displayed only stored evidence sources, and documented the complete API contract. |
+
+Database migrations added:
+
+- `000050_competitor_scan_artifacts`
+- `000051_competitor_script_accounts`
+
+Safety boundaries:
+
+- Raw snapshot payloads are internal and never returned by user APIs.
+- Account pool APIs accept only `op://`, `vault://`, or `secret://` references;
+  raw credentials are rejected and references are never returned.
+- The account-pool/runner interface is ready, but no unofficial real-platform
+  script has been enabled. The development scanner remains explicitly labeled.
+
+Final verification:
+
+- `go test ./...`: passed.
+- Frontend tests: 66 files and 360 tests passed.
+- `npm run build`: passed (existing bundle-size warning only).
+- `npm run lint`: 0 errors; 1 pre-existing Hook dependency warning remains in `CrmPage.tsx`.
+- A PostgreSQL empty-database migration run was not available because local PostgreSQL was not running; migration and repository behavior are covered by automated tests.
 
 No production deployment was performed for this module.
 
@@ -250,7 +285,9 @@ Next backend slice:
 
 ### 4.6 Competitor full-data scan and dynamic monitoring
 
-This is the biggest backend risk in the product doc. The doc explicitly says "script login member account, non-official API". Current implementation does not do that yet; it creates completed scans with default generated conclusions.
+This was the biggest backend risk in the product doc. The script-job/evidence
+foundation is now implemented, while real platform scripts remain deliberately
+disabled until a compliant provider implementation and operator approval exist.
 
 Target architecture:
 
@@ -396,6 +433,8 @@ scope was delivered as five backend/frontend-verified parts:
 4. Connect saved/favorite projects to real records and complete the save/unsave UX.
 5. Remove static `ProjectCopilot` business recommendations, make displayed claims traceable, run backend/frontend tests and build, then push the completed large module.
 
-The next large module is now **competitor script-job/evidence architecture**.
-After that, continue with sandbox workflow depth, learning writes,
-content/admin catalog depth, and enterprise public conversion flows.
+**Completed on 2026-07-13:** competitor script-job/evidence architecture.
+
+The next large module is now **sandbox workflow depth**. After that, continue
+with learning writes, content/admin catalog depth, and enterprise public
+conversion flows.
