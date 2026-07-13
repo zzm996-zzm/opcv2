@@ -1,7 +1,9 @@
 package copilot
 
 import (
+	"bytes"
 	"context"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,6 +24,7 @@ type fakeApplication struct {
 	smokeInput        ModelSmokeInput
 	memoryInput       MemoryInput
 	fileInput         FileInput
+	uploadInput       UploadFileInput
 	userID            int64
 	threadID          int64
 	memoryID          int64
@@ -123,6 +126,11 @@ func (a *fakeApplication) ListFiles(_ context.Context, userID int64, limit int) 
 func (a *fakeApplication) SaveFile(_ context.Context, input FileInput) (File, error) {
 	a.fileInput = input
 	return File{ID: 17, UserID: input.UserID, Name: input.Name, MimeType: input.MimeType, Content: input.Content}, a.err
+}
+
+func (a *fakeApplication) UploadFile(_ context.Context, input UploadFileInput) (File, error) {
+	a.uploadInput = input
+	return File{ID: 18, UserID: input.UserID, Name: input.Name, MimeType: input.MimeType, SizeBytes: len(input.Data)}, a.err
 }
 
 func (a *fakeApplication) ListModels(_ context.Context) ([]ModelOption, error) {
@@ -301,6 +309,31 @@ func TestCopilotFilesEndpointsUseAuthenticatedUser(t *testing.T) {
 	}
 	if app.fileInput.UserID != 42 || app.fileInput.Name != "竞品对比.txt" || app.fileInput.Content == "" {
 		t.Fatalf("file input = %+v", app.fileInput)
+	}
+}
+
+func TestUploadCopilotFileEndpointReadsMultipartFile(t *testing.T) {
+	app := &fakeApplication{}
+	router := copilotTestRouter(app)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "客户访谈.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write([]byte("客户关注交付周期。"))
+	_ = writer.Close()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/files/upload", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.uploadInput.UserID != 42 || app.uploadInput.Name != "客户访谈.txt" || string(app.uploadInput.Data) != "客户关注交付周期。" {
+		t.Fatalf("uploadInput = %+v", app.uploadInput)
 	}
 }
 

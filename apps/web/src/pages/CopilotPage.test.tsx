@@ -217,17 +217,10 @@ describe("CopilotPage", () => {
     fireEvent.change(screen.getByLabelText("选择上传文件"), { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/copilot/files",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            name: "客户访谈.txt",
-            mime_type: "text/plain",
-            content: "客户提到预算和交付周期。"
-          })
-        })
-      );
+      const uploadCall = fetchMock.mock.calls.find(([url]) => String(url) === "/api/v1/copilot/files/upload");
+      expect(uploadCall?.[1]?.method).toBe("POST");
+      expect(uploadCall?.[1]?.body).toBeInstanceOf(FormData);
+      expect((uploadCall?.[1]?.body as FormData).get("file")).toBe(file);
     });
     await waitFor(() => {
       expect(screen.getAllByText("客户访谈.txt").length).toBeGreaterThan(0);
@@ -588,6 +581,18 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
         content: payload.content,
         created_at: "2026-07-02T09:15:00Z",
         updated_at: "2026-07-02T09:15:00Z"
+      }), { status: 200 }));
+    }
+    if (url === "/api/v1/copilot/files/upload" && init?.method === "POST") {
+      const upload = (init.body as FormData).get("file") as File;
+      return Promise.resolve(new Response(JSON.stringify({
+        id: 19,
+        user_id: 7,
+        name: upload.name,
+        mime_type: upload.type || "text/plain",
+        size_bytes: upload.size,
+        created_at: "2026-07-02T09:16:00Z",
+        updated_at: "2026-07-02T09:16:00Z"
       }), { status: 200 }));
     }
     if (url === "/api/v1/copilot/models/smoke" && init?.method === "POST") {

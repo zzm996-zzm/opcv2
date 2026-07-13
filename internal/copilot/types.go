@@ -19,12 +19,15 @@ const (
 )
 
 var (
-	ErrServiceNotReady = errors.New("copilot service is not configured")
-	ErrInvalidInput    = errors.New("invalid copilot input")
-	ErrInvalidAIResult = errors.New("invalid copilot ai result")
-	ErrThreadNotFound  = errors.New("copilot thread not found")
-	ErrMemoryNotFound  = errors.New("copilot memory not found")
-	ErrFileNotFound    = errors.New("copilot file not found")
+	ErrServiceNotReady     = errors.New("copilot service is not configured")
+	ErrInvalidInput        = errors.New("invalid copilot input")
+	ErrInvalidAIResult     = errors.New("invalid copilot ai result")
+	ErrThreadNotFound      = errors.New("copilot thread not found")
+	ErrMemoryNotFound      = errors.New("copilot memory not found")
+	ErrFileNotFound        = errors.New("copilot file not found")
+	ErrFileTooLarge        = errors.New("copilot file is too large")
+	ErrUnsupportedFileType = errors.New("unsupported copilot file type")
+	ErrInvalidFileEncoding = errors.New("invalid copilot file encoding")
 )
 
 type CreateThreadInput struct {
@@ -79,6 +82,13 @@ type FileInput struct {
 	Name     string `json:"name"`
 	MimeType string `json:"mime_type,omitempty"`
 	Content  string `json:"content"`
+}
+
+type UploadFileInput struct {
+	UserID   int64  `json:"-"`
+	Name     string `json:"name"`
+	MimeType string `json:"mime_type,omitempty"`
+	Data     []byte `json:"-"`
 }
 
 type Thread struct {

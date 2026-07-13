@@ -56,6 +56,10 @@ const errorMessages: Record<string, string> = {
   invalid_crm_input: "客户跟进参数有误，请检查后重试",
   thread_not_found: "对话不存在或已无权限访问",
   memory_not_found: "记忆不存在或已无权限访问",
+  file_not_found: "文件不存在或已无权限访问",
+  file_too_large: "单个文件不能超过 10MB",
+  unsupported_file_type: "暂不支持该文件类型",
+  invalid_file_encoding: "文件内容无法识别，请上传 UTF-8 文本或有效 DOCX",
   invalid_thread_id: "对话 ID 不正确",
   invalid_memory_id: "记忆 ID 不正确",
   notification_not_found: "消息不存在或已无权限访问",
@@ -82,11 +86,12 @@ function apiUrl(path: string) {
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = authSession.get().accessToken;
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   const response = await fetch(apiUrl(path), {
     ...init,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers
     }

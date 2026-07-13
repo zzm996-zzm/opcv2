@@ -1,6 +1,8 @@
 package copilot
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -400,6 +402,63 @@ func TestServiceSavesAndListsReferenceFiles(t *testing.T) {
 	}
 	if len(files) != 1 || files[0].Name != "智能客服竞品功能对比表.txt" {
 		t.Fatalf("files = %+v", files)
+	}
+}
+
+func TestServiceUploadsTextFileAndConsumesAnalysisQuota(t *testing.T) {
+	repository := &fakeRepository{}
+	quota := &fakeQuotaConsumer{}
+	service := NewService(repository, nil, WithQuotaConsumer(quota))
+
+	file, err := service.UploadFile(context.Background(), UploadFileInput{
+		UserID: 42, Name: "客户访谈.txt", MimeType: "text/plain", Data: []byte("客户最关注响应速度。"),
+	})
+
+	if err != nil {
+		t.Fatalf("UploadFile() error = %v", err)
+	}
+	if file.Name != "客户访谈.txt" || file.Content != "客户最关注响应速度。" || file.SizeBytes != len([]byte("客户最关注响应速度。")) {
+		t.Fatalf("file = %+v", file)
+	}
+	if len(quota.consumed) != 1 || quota.consumed[0].FeatureKey != membership.FeatureCopilotFileAnalysis {
+		t.Fatalf("consumed = %+v", quota.consumed)
+	}
+}
+
+func TestServiceUploadsDOCXAndExtractsDocumentText(t *testing.T) {
+	var document bytes.Buffer
+	writer := zip.NewWriter(&document)
+	part, err := writer.Create("word/document.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write([]byte(`<?xml version="1.0"?><w:document xmlns:w="urn:test"><w:body><w:p><w:r><w:t>第一段</w:t></w:r></w:p><w:p><w:r><w:t>第二段</w:t></w:r></w:p></w:body></w:document>`))
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(&fakeRepository{}, nil)
+
+	file, err := service.UploadFile(context.Background(), UploadFileInput{
+		UserID: 42, Name: "访谈.docx", MimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", Data: document.Bytes(),
+	})
+
+	if err != nil {
+		t.Fatalf("UploadFile() error = %v", err)
+	}
+	if !strings.Contains(file.Content, "第一段") || !strings.Contains(file.Content, "第二段") {
+		t.Fatalf("content = %q", file.Content)
+	}
+}
+
+func TestServiceUploadFileRejectsUnsupportedExecutable(t *testing.T) {
+	service := NewService(&fakeRepository{}, nil)
+
+	_, err := service.UploadFile(context.Background(), UploadFileInput{
+		UserID: 42, Name: "tool.exe", MimeType: "application/octet-stream", Data: []byte("MZbinary"),
+	})
+
+	if !errors.Is(err, ErrUnsupportedFileType) {
+		t.Fatalf("err = %v, want ErrUnsupportedFileType", err)
 	}
 }
 

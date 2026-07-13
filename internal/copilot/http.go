@@ -3,6 +3,7 @@ package copilot
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ type Application interface {
 	DeleteMemory(ctx context.Context, userID, id int64) error
 	ListFiles(ctx context.Context, userID int64, limit int) ([]File, error)
 	SaveFile(ctx context.Context, input FileInput) (File, error)
+	UploadFile(ctx context.Context, input UploadFileInput) (File, error)
 	ListModels(ctx context.Context) ([]ModelOption, error)
 	ListAIRuns(ctx context.Context, userID int64, limit int) ([]AIRun, error)
 }
@@ -56,6 +58,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.DELETE("/copilot/memories/:id", h.deleteMemory)
 	router.GET("/copilot/files", h.listFiles)
 	router.POST("/copilot/files", h.saveFile)
+	router.POST("/copilot/files/upload", h.uploadFile)
 	router.GET("/copilot/models", h.listModels)
 	router.POST("/copilot/models/smoke", h.smokeModel)
 	router.GET("/copilot/ai-runs", h.listAIRuns)
@@ -279,6 +282,53 @@ func (h *HTTPHandler) saveFile(c *gin.Context) {
 	c.JSON(http.StatusOK, file)
 }
 
+func (h *HTTPHandler) uploadFile(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadFileBytes+(1<<20))
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			writeError(c, ErrFileTooLarge)
+			return
+		}
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	if c.Request.MultipartForm != nil {
+		defer c.Request.MultipartForm.RemoveAll()
+	}
+	if fileHeader.Size > maxUploadFileBytes {
+		writeError(c, ErrFileTooLarge)
+		return
+	}
+	stream, err := fileHeader.Open()
+	if err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	defer stream.Close()
+	data, err := io.ReadAll(io.LimitReader(stream, maxUploadFileBytes+1))
+	if err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	if len(data) > maxUploadFileBytes {
+		writeError(c, ErrFileTooLarge)
+		return
+	}
+	file, err := h.app.UploadFile(c.Request.Context(), UploadFileInput{
+		UserID:   c.GetInt64(auth.UserIDContextKey),
+		Name:     fileHeader.Filename,
+		MimeType: fileHeader.Header.Get("Content-Type"),
+		Data:     data,
+	})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, file)
+}
+
 func (h *HTTPHandler) listModels(c *gin.Context) {
 	models, err := h.app.ListModels(c.Request.Context())
 	if err != nil {
@@ -337,6 +387,12 @@ func writeError(c *gin.Context, err error) {
 		httpapi.BadRequest(c, "invalid_request")
 	case errors.Is(err, membership.ErrQuotaExceeded):
 		httpapi.Error(c, http.StatusPaymentRequired, "quota_exceeded")
+	case errors.Is(err, ErrFileTooLarge):
+		httpapi.Error(c, http.StatusRequestEntityTooLarge, "file_too_large")
+	case errors.Is(err, ErrUnsupportedFileType):
+		httpapi.Error(c, http.StatusUnsupportedMediaType, "unsupported_file_type")
+	case errors.Is(err, ErrInvalidFileEncoding):
+		httpapi.BadRequest(c, "invalid_file_encoding")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	case errors.Is(err, ErrInvalidAIResult):

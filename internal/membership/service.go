@@ -19,6 +19,7 @@ const (
 	FeatureLeadTasks           = "lead_tasks"
 	FeatureCopilotMessages     = "copilot_messages"
 	FeatureCopilotCompareCalls = "copilot_compare_calls"
+	FeatureCopilotFileAnalysis = "copilot_file_analysis"
 )
 
 var (

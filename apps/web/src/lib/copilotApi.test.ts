@@ -206,4 +206,20 @@ describe("copilotApi", () => {
       })
     );
   });
+
+  it("uploads a local file as multipart form data", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 18, name: "客户访谈.txt" }), { status: 200 })
+    );
+    const file = new File(["客户关注交付周期。"], "客户访谈.txt", { type: "text/plain" });
+
+    await copilotApi.uploadFile(file);
+
+    const [, request] = fetchMock.mock.calls[0];
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/copilot/files/upload");
+    expect(request?.method).toBe("POST");
+    expect(request?.body).toBeInstanceOf(FormData);
+    expect((request?.body as FormData).get("file")).toBe(file);
+    expect((request?.headers as Record<string, string>)["Content-Type"]).toBeUndefined();
+  });
 });

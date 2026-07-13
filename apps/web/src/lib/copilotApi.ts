@@ -213,5 +213,14 @@ export const copilotApi = {
       method: "POST",
       body: JSON.stringify(input)
     });
+  },
+
+  uploadFile(file: File) {
+    const body = new FormData();
+    body.append("file", file);
+    return apiRequest<CopilotFile>("/api/v1/copilot/files/upload", {
+      method: "POST",
+      body
+    });
   }
 };

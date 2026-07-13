@@ -1,12 +1,19 @@
 package copilot
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
+	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/membership"
@@ -69,6 +76,8 @@ const (
 	maxFileContentBytes        = 120000
 	maxReferenceFiles          = 5
 	maxReferencePromptBytes    = 6000
+	maxUploadFileBytes         = 10 * 1024 * 1024
+	maxDOCXXMLBytes            = 4 * 1024 * 1024
 )
 
 func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
@@ -525,6 +534,41 @@ func (s *Service) SaveFile(ctx context.Context, input FileInput) (File, error) {
 	return s.repository.CreateFile(ctx, file)
 }
 
+func (s *Service) UploadFile(ctx context.Context, input UploadFileInput) (File, error) {
+	if s.repository == nil {
+		return File{}, ErrServiceNotReady
+	}
+	name := normalizeUploadName(input.Name)
+	if name == "" || len(input.Data) == 0 {
+		return File{}, ErrInvalidInput
+	}
+	if len(input.Data) > maxUploadFileBytes {
+		return File{}, ErrFileTooLarge
+	}
+	content, mimeType, err := extractUploadedText(name, input.MimeType, input.Data)
+	if err != nil {
+		return File{}, err
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(input.Data))
+	quotaKey := "copilot-file-" + digest
+	if err := s.consumeQuota(ctx, input.UserID, membership.FeatureCopilotFileAnalysis, 1, quotaKey); err != nil {
+		return File{}, err
+	}
+	file, err := s.repository.CreateFile(ctx, File{
+		UserID:    input.UserID,
+		Name:      name,
+		MimeType:  mimeType,
+		SizeBytes: len(input.Data),
+		Content:   content,
+		CreatedAt: s.now(),
+	})
+	if err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotFileAnalysis, 1, quotaKey, "persistence")
+		return File{}, err
+	}
+	return file, nil
+}
+
 func (s *Service) ListFiles(ctx context.Context, userID int64, limit int) ([]File, error) {
 	if s.repository == nil {
 		return nil, ErrServiceNotReady
@@ -762,6 +806,104 @@ func fileFromInput(input FileInput, now time.Time) (File, error) {
 		Content:   content,
 		CreatedAt: now,
 	}, nil
+}
+
+func normalizeUploadName(name string) string {
+	name = strings.TrimSpace(strings.ReplaceAll(name, "\\", "/"))
+	name = filepath.Base(name)
+	if name == "." || name == "/" {
+		return ""
+	}
+	return name
+}
+
+func extractUploadedText(name, providedMimeType string, data []byte) (string, string, error) {
+	extension := strings.ToLower(filepath.Ext(name))
+	if extension == ".docx" {
+		content, err := extractDOCXText(data)
+		if err != nil {
+			if errors.Is(err, ErrFileTooLarge) {
+				return "", "", err
+			}
+			return "", "", ErrInvalidFileEncoding
+		}
+		return limitExtractedText(content), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", nil
+	}
+	allowedTextExtensions := map[string]bool{
+		".txt": true, ".md": true, ".markdown": true, ".csv": true, ".tsv": true,
+		".json": true, ".yaml": true, ".yml": true, ".xml": true, ".html": true, ".htm": true,
+	}
+	if !allowedTextExtensions[extension] {
+		return "", "", ErrUnsupportedFileType
+	}
+	if !utf8.Valid(data) {
+		return "", "", ErrInvalidFileEncoding
+	}
+	content := strings.TrimSpace(strings.TrimPrefix(string(data), "\ufeff"))
+	if content == "" {
+		return "", "", ErrInvalidInput
+	}
+	mimeType := strings.TrimSpace(strings.Split(providedMimeType, ";")[0])
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		mimeType = "text/plain"
+	}
+	return limitExtractedText(content), mimeType, nil
+}
+
+func extractDOCXText(data []byte) (string, error) {
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return "", err
+	}
+	for _, part := range reader.File {
+		if part.Name != "word/document.xml" {
+			continue
+		}
+		if part.UncompressedSize64 > maxDOCXXMLBytes {
+			return "", ErrFileTooLarge
+		}
+		stream, err := part.Open()
+		if err != nil {
+			return "", err
+		}
+		defer stream.Close()
+		return decodeDOCXDocument(io.LimitReader(stream, maxDOCXXMLBytes+1))
+	}
+	return "", ErrInvalidFileEncoding
+}
+
+func decodeDOCXDocument(reader io.Reader) (string, error) {
+	decoder := xml.NewDecoder(reader)
+	var builder strings.Builder
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		switch value := token.(type) {
+		case xml.CharData:
+			builder.Write([]byte(value))
+		case xml.EndElement:
+			if value.Name.Local == "p" && builder.Len() > 0 {
+				builder.WriteByte('\n')
+			}
+		}
+	}
+	content := strings.TrimSpace(builder.String())
+	if content == "" {
+		return "", ErrInvalidFileEncoding
+	}
+	return content, nil
+}
+
+func limitExtractedText(content string) string {
+	if len([]byte(content)) <= maxFileContentBytes {
+		return content
+	}
+	return truncateForPrompt(content, maxFileContentBytes)
 }
 
 func normalizeReferenceIDs(ids []int64) []int64 {

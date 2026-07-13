@@ -490,6 +490,21 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     }
   }
 
+  async function handleUploadFile(upload: File) {
+    setIsSavingFile(true);
+    setError("");
+    try {
+      const file = await copilotApi.uploadFile(upload);
+      setFiles((current) => [file, ...current.filter((item) => item.id !== file.id)]);
+      setSelectedReferenceIDs((current) => current.includes(file.id) ? current : [...current, file.id]);
+      await refreshUsage();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "上传文件失败");
+    } finally {
+      setIsSavingFile(false);
+    }
+  }
+
   function handleToggleReference(id: number) {
     setSelectedReferenceIDs((current) => (
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
@@ -598,6 +613,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
             onSaveMemory={handleSaveMemory}
             onDeleteMemory={handleDeleteMemory}
             onSaveFile={handleSaveFile}
+            onUploadFile={handleUploadFile}
             onToggleReference={handleToggleReference}
             onInsertReferences={() => setActivePopover(null)}
             compare={isCompare}
@@ -883,6 +899,7 @@ const Composer = forwardRef<HTMLDivElement, {
   onSaveMemory: (input: { key: string; value: string }) => void;
   onDeleteMemory: (id: number) => void;
   onSaveFile: (input: { name: string; content: string; mime_type?: string }) => Promise<void>;
+  onUploadFile: (file: File) => Promise<void>;
   onToggleReference: (id: number) => void;
   onInsertReferences: () => void;
   onSubmit: (event: FormEvent) => void;
@@ -906,6 +923,7 @@ const Composer = forwardRef<HTMLDivElement, {
   onSaveMemory,
   onDeleteMemory,
   onSaveFile,
+  onUploadFile,
   onToggleReference,
   onInsertReferences,
   onSubmit,
@@ -985,6 +1003,7 @@ const Composer = forwardRef<HTMLDivElement, {
           selectedIDs={selectedReferenceIDs}
           onInsert={onInsertReferences}
           onSaveFile={onSaveFile}
+          onUploadFile={onUploadFile}
           onToggle={onToggleReference}
         />
       )}
@@ -1211,6 +1230,7 @@ function ReferencePicker({
   isSavingFile,
   selectedIDs,
   onSaveFile,
+  onUploadFile,
   onToggle,
   onInsert
 }: {
@@ -1218,6 +1238,7 @@ function ReferencePicker({
   isSavingFile: boolean;
   selectedIDs: number[];
   onSaveFile: (input: { name: string; content: string; mime_type?: string }) => Promise<void>;
+  onUploadFile: (file: File) => Promise<void>;
   onToggle: (id: number) => void;
   onInsert: () => void;
 }) {
@@ -1240,10 +1261,9 @@ function ReferencePicker({
   async function saveDroppedFiles(fileList: FileList | File[]) {
     const nextFiles = Array.from(fileList);
     if (nextFiles.length === 0 || isSavingFile) return;
-    setUploadStatus(`正在读取 ${nextFiles.length} 个文件`);
+    setUploadStatus(`正在上传 ${nextFiles.length} 个文件`);
     for (const file of nextFiles) {
-      const content = await readFileAsText(file);
-      await onSaveFile({ name: file.name, content, mime_type: file.type || "text/plain" });
+      await onUploadFile(file);
     }
     setUploadStatus(`已上传 ${nextFiles.length} 个文件`);
   }
@@ -1275,10 +1295,16 @@ function ReferencePicker({
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
       >
-        <input aria-label="选择上传文件" multiple onChange={handleFileInput} type="file" />
+        <input
+          accept=".txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.html,.htm,.docx"
+          aria-label="选择上传文件"
+          multiple
+          onChange={handleFileInput}
+          type="file"
+        />
         <span className="copilot-ui-icon clip" aria-hidden="true" />
         <strong>拖拽文件到这里，或点击选择</strong>
-        <small>文本、Markdown、CSV 等内容会保存为可引用资料</small>
+        <small>支持文本、Markdown、CSV、JSON、YAML、XML、HTML、DOCX，单个不超过 10MB</small>
       </label>
       {uploadStatus && <p className="reference-upload-status">{uploadStatus}</p>}
       <form className="reference-upload-form" onSubmit={handleSave}>
@@ -1433,16 +1459,6 @@ function formatFileSize(bytes?: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function readFileAsText(file: File) {
-  if ("text" in file && typeof file.text === "function") return file.text();
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ""));
-    reader.onerror = () => reject(reader.error ?? new Error("文件读取失败"));
-    reader.readAsText(file);
-  });
 }
 
 function newRequestID(prefix: string) {
