@@ -185,6 +185,19 @@ type SendMessageResult struct {
 	AssistantMessage Message `json:"assistant_message"`
 }
 
+const (
+	StreamEventUserMessage      = "user_message"
+	StreamEventDelta            = "delta"
+	StreamEventAssistantMessage = "assistant_message"
+)
+
+type StreamEvent struct {
+	Type             string   `json:"type"`
+	Delta            string   `json:"delta,omitempty"`
+	UserMessage      *Message `json:"user_message,omitempty"`
+	AssistantMessage *Message `json:"assistant_message,omitempty"`
+}
+
 type CompareAnswer struct {
 	Model            string  `json:"model"`
 	AssistantMessage Message `json:"assistant_message"`

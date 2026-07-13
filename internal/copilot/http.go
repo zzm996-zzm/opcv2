@@ -2,7 +2,9 @@ package copilot
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -37,6 +39,10 @@ type Application interface {
 	ListAIRuns(ctx context.Context, userID int64, limit int) ([]AIRun, error)
 }
 
+type StreamingApplication interface {
+	StreamMessage(ctx context.Context, input SendMessageInput, onEvent func(StreamEvent) error) (SendMessageResult, error)
+}
+
 type HTTPHandler struct {
 	app Application
 }
@@ -53,6 +59,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.DELETE("/copilot/threads/:id", h.archiveThread)
 	router.GET("/copilot/threads/:id/messages", h.listMessages)
 	router.POST("/copilot/threads/:id/messages", h.sendMessage)
+	router.POST("/copilot/threads/:id/messages/stream", h.sendMessageStream)
 	router.POST("/copilot/threads/:id/compare", h.compareMessages)
 	router.POST("/copilot/threads/:id/compare/summary", h.summarizeComparison)
 	router.GET("/copilot/memories", h.listMemories)
@@ -176,6 +183,64 @@ func (h *HTTPHandler) sendMessage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *HTTPHandler) sendMessageStream(c *gin.Context) {
+	id, ok := parseID(c, "id", "invalid_thread_id")
+	if !ok {
+		return
+	}
+	var request SendMessageInput
+	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.Content) == "" {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	streamingApp, ok := h.app.(StreamingApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusNotImplemented, "streaming_not_supported")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.ThreadID = id
+	c.Header("Content-Type", "text/event-stream; charset=utf-8")
+	c.Header("Cache-Control", "no-cache, no-transform")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+	_, err := streamingApp.StreamMessage(c.Request.Context(), request, func(event StreamEvent) error {
+		return writeSSEEvent(c, event.Type, event)
+	})
+	if err != nil {
+		_ = writeSSEEvent(c, "error", map[string]string{"error": streamErrorCode(err)})
+		return
+	}
+	_ = writeSSEEvent(c, "done", map[string]bool{"ok": true})
+}
+
+func writeSSEEvent(c *gin.Context, event string, payload any) error {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(c.Writer, "event: %s\ndata: %s\n\n", event, data); err != nil {
+		return err
+	}
+	c.Writer.Flush()
+	return nil
+}
+
+func streamErrorCode(err error) string {
+	switch {
+	case errors.Is(err, membership.ErrQuotaExceeded):
+		return "quota_exceeded"
+	case errors.Is(err, ErrThreadNotFound):
+		return "thread_not_found"
+	case errors.Is(err, ErrFileNotFound):
+		return "file_not_found"
+	case errors.Is(err, ErrInvalidInput):
+		return "invalid_request"
+	default:
+		return "stream_failed"
+	}
 }
 
 func (h *HTTPHandler) compareMessages(c *gin.Context) {

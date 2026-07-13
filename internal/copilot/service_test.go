@@ -214,6 +214,31 @@ type fakeGenerator struct {
 	err     error
 }
 
+type fakeTextStreamer struct {
+	deltas  []string
+	request ai.GenerateTextRequest
+	err     error
+}
+
+func (g *fakeTextStreamer) GenerateJSON(_ context.Context, _ ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
+	return ai.GenerateJSONResult{}, errors.New("unexpected GenerateJSON call")
+}
+
+func (g *fakeTextStreamer) GenerateTextStream(_ context.Context, request ai.GenerateTextRequest, onDelta func([]byte) error) (ai.GenerateTextResult, error) {
+	g.request = request
+	if g.err != nil {
+		return ai.GenerateTextResult{}, g.err
+	}
+	var content strings.Builder
+	for _, delta := range g.deltas {
+		content.WriteString(delta)
+		if err := onDelta([]byte(delta)); err != nil {
+			return ai.GenerateTextResult{}, err
+		}
+	}
+	return ai.GenerateTextResult{Content: content.String(), InputTokens: 5, OutputTokens: 8}, nil
+}
+
 func (g *fakeGenerator) GenerateJSON(_ context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
 	g.request = request
 	if g.err != nil {
@@ -357,6 +382,33 @@ func TestServiceSendMessageConsumesQuotaWithRequestID(t *testing.T) {
 	consume := quota.consumed[0]
 	if consume.FeatureKey != membership.FeatureCopilotMessages || consume.Amount != 1 || consume.IdempotencyKey != "copilot-message-msg-001" {
 		t.Fatalf("consume = %+v", consume)
+	}
+}
+
+func TestServiceStreamsMessageDeltasAndPersistsFinalReply(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "机会分析", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"先验证", "客户需求。"}}
+	service := NewService(repository, streamer)
+	var events []StreamEvent
+
+	result, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "分析机会", RequestID: "stream-001",
+	}, func(event StreamEvent) error {
+		events = append(events, event)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if result.AssistantMessage.Content != "先验证客户需求。" || len(events) != 4 {
+		t.Fatalf("result/events = %+v/%+v", result, events)
+	}
+	if events[0].Type != StreamEventUserMessage || events[1].Delta != "先验证" || events[3].Type != StreamEventAssistantMessage {
+		t.Fatalf("events = %+v", events)
+	}
+	if streamer.request.Feature != "copilot.chat_stream" {
+		t.Fatalf("request = %+v", streamer.request)
 	}
 }
 

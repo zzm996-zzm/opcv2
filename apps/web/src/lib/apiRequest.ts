@@ -60,6 +60,8 @@ const errorMessages: Record<string, string> = {
   file_too_large: "单个文件不能超过 10MB",
   unsupported_file_type: "暂不支持该文件类型",
   invalid_file_encoding: "文件内容无法识别，请上传 UTF-8 文本或有效 DOCX",
+  streaming_not_supported: "当前服务暂不支持流式回复",
+  stream_failed: "流式回复中断，请重试",
   invalid_thread_id: "对话 ID 不正确",
   invalid_memory_id: "记忆 ID 不正确",
   invalid_file_id: "文件 ID 不正确",
@@ -86,6 +88,14 @@ function apiUrl(path: string) {
 }
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await apiStreamRequest(path, init);
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  return (await response.json()) as T;
+}
+
+export async function apiStreamRequest(path: string, init: RequestInit = {}) {
   const token = authSession.get().accessToken;
   const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
   const response = await fetch(apiUrl(path), {
@@ -101,8 +111,5 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     throw new ApiRequestError(payload.error ?? "request_failed", response.status);
   }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return (await response.json()) as T;
+  return response;
 }

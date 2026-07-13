@@ -1,4 +1,4 @@
-import { apiRequest } from "./apiRequest";
+import { ApiRequestError, apiRequest, apiStreamRequest } from "./apiRequest";
 
 export type CopilotThread = {
   id: number;
@@ -92,6 +92,12 @@ export type SendMessageResult = {
   assistant_message: CopilotMessage;
 };
 
+export type StreamMessageHandlers = {
+  onUserMessage?: (message: CopilotMessage) => void;
+  onDelta?: (delta: string) => void;
+  onAssistantMessage?: (message: CopilotMessage) => void;
+};
+
 export type CompareAnswer = {
   model: string;
   assistant_message: CopilotMessage;
@@ -171,6 +177,67 @@ export const copilotApi = {
       signal,
       body: JSON.stringify(input)
     });
+  },
+
+  async streamMessage(
+    threadId: number,
+    input: { content: string; model?: string; reference_ids?: number[]; request_id?: string },
+    handlers: StreamMessageHandlers = {},
+    signal?: AbortSignal
+  ): Promise<SendMessageResult> {
+    const response = await apiStreamRequest(`/api/v1/copilot/threads/${threadId}/messages/stream`, {
+      method: "POST",
+      signal,
+      body: JSON.stringify(input)
+    });
+    if (!response.body) throw new ApiRequestError("streaming_not_supported", response.status);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let userMessage: CopilotMessage | undefined;
+    let assistantMessage: CopilotMessage | undefined;
+
+    const processBlock = (block: string) => {
+      let event = "message";
+      const data: string[] = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        if (line.startsWith("data:")) data.push(line.slice(5).trim());
+      }
+      if (data.length === 0) return;
+      const payload = JSON.parse(data.join("\n")) as {
+        error?: string;
+        delta?: string;
+        user_message?: CopilotMessage;
+        assistant_message?: CopilotMessage;
+      };
+      if (event === "error") throw new ApiRequestError(payload.error ?? "stream_failed", response.status);
+      if (event === "user_message" && payload.user_message) {
+        userMessage = payload.user_message;
+        handlers.onUserMessage?.(payload.user_message);
+      }
+      if (event === "delta" && payload.delta) handlers.onDelta?.(payload.delta);
+      if (event === "assistant_message" && payload.assistant_message) {
+        assistantMessage = payload.assistant_message;
+        handlers.onAssistantMessage?.(payload.assistant_message);
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      buffer = buffer.replace(/\r\n/g, "\n");
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary >= 0) {
+        processBlock(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+        boundary = buffer.indexOf("\n\n");
+      }
+      if (done) break;
+    }
+    if (buffer.trim()) processBlock(buffer.trim());
+    if (!userMessage || !assistantMessage) throw new ApiRequestError("stream_failed", response.status);
+    return { user_message: userMessage, assistant_message: assistantMessage };
   },
 
   compareMessages(threadId: number, input: { content: string; models?: string[]; request_id?: string }, signal?: AbortSignal) {

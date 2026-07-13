@@ -42,6 +42,10 @@ type JSONGenerator interface {
 	GenerateJSON(ctx context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error)
 }
 
+type TextStreamer interface {
+	GenerateTextStream(ctx context.Context, request ai.GenerateTextRequest, onDelta func([]byte) error) (ai.GenerateTextResult, error)
+}
+
 type QuotaConsumer interface {
 	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
 	RefundUsage(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
@@ -52,6 +56,7 @@ type Option func(*Service)
 type Service struct {
 	repository Repository
 	generator  JSONGenerator
+	streamer   TextStreamer
 	models     []ModelOption
 	quota      QuotaConsumer
 	now        func() time.Time
@@ -84,10 +89,86 @@ const (
 
 func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
 	service := &Service{repository: repository, generator: generator, now: time.Now}
+	if streamer, ok := generator.(TextStreamer); ok {
+		service.streamer = streamer
+	}
 	for _, option := range options {
 		option(service)
 	}
 	return service
+}
+
+func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onEvent func(StreamEvent) error) (SendMessageResult, error) {
+	if s.repository == nil || s.streamer == nil || onEvent == nil {
+		return SendMessageResult{}, ErrServiceNotReady
+	}
+	content := strings.TrimSpace(input.Content)
+	if content == "" {
+		return SendMessageResult{}, ErrInvalidInput
+	}
+	thread, err := s.repository.GetThread(ctx, input.UserID, input.ThreadID)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+	model := strings.TrimSpace(input.Model)
+	if model == "" {
+		model = thread.Model
+	}
+	model, err = s.normalizeRequestedModel(model)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+	references, err := s.referenceFiles(ctx, input.UserID, input.ReferenceIDs)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+	memories, _ := s.repository.ListMemories(ctx, input.UserID, 20)
+	messages, _ := s.repository.ListMessages(ctx, input.UserID, thread.ID, 12)
+	quotaKey := "copilot-message-" + s.normalizeRequestID(input.RequestID, input.UserID, input.ThreadID)
+	if err := s.consumeQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey); err != nil {
+		return SendMessageResult{}, err
+	}
+	userMessage, err := s.repository.CreateMessage(ctx, Message{
+		UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleUser, Content: content,
+		Status: MessageStatusCompleted, Model: model, Metadata: referenceMetadata(input.ReferenceIDs), CreatedAt: s.now(),
+	})
+	if err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "user-message")
+		return SendMessageResult{}, err
+	}
+	if err := onEvent(StreamEvent{Type: StreamEventUserMessage, UserMessage: &userMessage}); err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "client")
+		return SendMessageResult{}, err
+	}
+	streamResult, err := s.streamer.GenerateTextStream(ctx, ai.GenerateTextRequest{
+		UserID: input.UserID, Feature: "copilot.chat_stream", PromptVersion: "copilot_chat_stream_v1", Model: model,
+		SystemPrompt: "你是智活 Copilot，回答要直接、可执行。请使用清晰的 Markdown，不要返回 JSON。",
+		UserPrompt:   buildUserPrompt(thread, memories, messages, references, content),
+	}, func(delta []byte) error {
+		return onEvent(StreamEvent{Type: StreamEventDelta, Delta: string(delta)})
+	})
+	if err != nil {
+		_, _ = s.repository.CreateMessage(ctx, Message{
+			UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleAssistant,
+			Content: "AI 回复暂时不可用，请稍后重试。", Status: MessageStatusFailed,
+			Model: model, ErrorCode: "stream_failed", CreatedAt: s.now(),
+		})
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "generation")
+		return SendMessageResult{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
+	}
+	assistantMessage, err := s.repository.CreateMessage(ctx, Message{
+		UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleAssistant, Content: strings.TrimSpace(streamResult.Content),
+		Status: MessageStatusCompleted, Model: model, InputTokens: streamResult.InputTokens,
+		OutputTokens: streamResult.OutputTokens, CreatedAt: s.now(),
+	})
+	if err != nil {
+		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "assistant-message")
+		return SendMessageResult{}, err
+	}
+	if err := onEvent(StreamEvent{Type: StreamEventAssistantMessage, AssistantMessage: &assistantMessage}); err != nil {
+		return SendMessageResult{}, err
+	}
+	return SendMessageResult{UserMessage: userMessage, AssistantMessage: assistantMessage}, nil
 }
 
 func NewServiceWithModels(repository Repository, generator JSONGenerator, models []ModelOption, options ...Option) *Service {

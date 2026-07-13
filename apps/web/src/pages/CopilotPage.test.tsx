@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -172,7 +172,7 @@ describe("CopilotPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/copilot/threads/99/messages",
+        "/api/v1/copilot/threads/99/messages/stream",
         expect.objectContaining({
           method: "POST",
           body: expect.stringMatching(/^\{"content":"结合文件分析机会","model":"deepseek","reference_ids":\[17\],"request_id":"message-.+"\}$/)
@@ -346,11 +346,12 @@ describe("CopilotPage", () => {
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/v1/copilot/threads/99/messages",
+        "/api/v1/copilot/threads/99/messages/stream",
         expect.objectContaining({ method: "POST" })
       );
     });
-    expect(await screen.findByText("后端返回的聊天回复。")).toBeInTheDocument();
+    await screen.findByRole("button", { name: "发送" });
+    expect(screen.getByText("后端返回的聊天回复。")).toBeInTheDocument();
   });
 
   it("pauses an in-flight chat request", async () => {
@@ -368,27 +369,15 @@ describe("CopilotPage", () => {
     });
   });
 
-  it("renders new assistant chat replies with a typewriter effect", async () => {
+  it("renders streamed assistant chat replies", async () => {
     mockCopilotBackend();
     renderPage();
 
     await screen.findByText("智能客服系统项目机会分析");
-    vi.useFakeTimers();
-    fireEvent.change(screen.getByLabelText("输入你的问题"), { target: { value: "打字机测试" } });
+    fireEvent.change(screen.getByLabelText("输入你的问题"), { target: { value: "流式测试" } });
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
 
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(screen.getByText("后")).toBeInTheDocument();
-    expect(screen.queryByText("后端返回的聊天回复。")).not.toBeInTheDocument();
-
-    await act(async () => {
-      vi.advanceTimersByTime(600);
-    });
-
+    await screen.findByRole("button", { name: "发送" });
     expect(screen.getByText("后端返回的聊天回复。")).toBeInTheDocument();
   });
 
@@ -728,6 +717,37 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
           created_at: "2026-07-01T09:56:00Z"
         }
       }), { status: 200 });
+      return options.delayMessage ? delayedResponse(response, init?.signal) : Promise.resolve(response);
+    }
+    if (url === "/api/v1/copilot/threads/99/messages/stream" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body)) as { content: string };
+      const userMessage = {
+        id: 30,
+        user_id: 7,
+        thread_id: 99,
+        role: "user",
+        content: request.content,
+        status: "completed",
+        model: "deepseek",
+        created_at: "2026-07-01T09:55:00Z"
+      };
+      const assistantMessage = {
+        id: 31,
+        user_id: 7,
+        thread_id: 99,
+        role: "assistant",
+        content: "后端返回的聊天回复。",
+        status: "completed",
+        model: "deepseek",
+        created_at: "2026-07-01T09:56:00Z"
+      };
+      const response = new Response([
+        `event: user_message\ndata: ${JSON.stringify({ type: "user_message", user_message: userMessage })}`,
+        `event: delta\ndata: ${JSON.stringify({ type: "delta", delta: "后端返回的" })}`,
+        `event: delta\ndata: ${JSON.stringify({ type: "delta", delta: "聊天回复。" })}`,
+        `event: assistant_message\ndata: ${JSON.stringify({ type: "assistant_message", assistant_message: assistantMessage })}`,
+        "event: done\ndata: {\"ok\":true}"
+      ].join("\n\n") + "\n\n", { status: 200, headers: { "Content-Type": "text/event-stream" } });
       return options.delayMessage ? delayedResponse(response, init?.signal) : Promise.resolve(response);
     }
     if (url === "/api/v1/copilot/threads/99/compare/summary" && init?.method === "POST") {

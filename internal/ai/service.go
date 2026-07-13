@@ -45,6 +45,21 @@ type GenerateJSONResult struct {
 	OutputTokens int
 }
 
+type GenerateTextRequest struct {
+	UserID        int64
+	Feature       string
+	PromptVersion string
+	Model         string
+	SystemPrompt  string
+	UserPrompt    string
+}
+
+type GenerateTextResult struct {
+	Content      string
+	InputTokens  int
+	OutputTokens int
+}
+
 func NewService(repository Repository, provider Provider, config Config) *Service {
 	return &Service{
 		repository: repository,
@@ -100,6 +115,44 @@ func (s *Service) GenerateJSON(ctx context.Context, request GenerateJSONRequest)
 		return GenerateJSONResult{}, err
 	}
 	return result, nil
+}
+
+func (s *Service) GenerateTextStream(ctx context.Context, request GenerateTextRequest, onDelta func([]byte) error) (GenerateTextResult, error) {
+	streamingProvider, ok := s.provider.(StreamingProvider)
+	if s.repository == nil || !ok || onDelta == nil {
+		return GenerateTextResult{}, ErrServiceNotReady
+	}
+	startedAt := s.now()
+	run, err := s.repository.CreateRun(ctx, Run{
+		UserID: request.UserID, Feature: request.Feature, PromptVersion: request.PromptVersion,
+		Provider: s.config.Provider, Model: s.config.Model, Status: StatusPending,
+		Request:   []byte(fmt.Sprintf(`{"feature":%q,"prompt_version":%q}`, request.Feature, request.PromptVersion)),
+		CreatedAt: startedAt,
+	})
+	if err != nil {
+		return GenerateTextResult{}, err
+	}
+	response, err := streamingProvider.Stream(ctx, ProviderRequest{
+		Feature: request.Feature, PromptVersion: request.PromptVersion, Model: request.Model,
+		SystemPrompt: request.SystemPrompt, UserPrompt: request.UserPrompt,
+	}, onDelta)
+	if err != nil {
+		failure := RunFailure{Code: failureCode(err), Message: safeFailureMessage(err), LatencyMS: elapsedMS(startedAt, s.now())}
+		_ = s.repository.FailRun(ctx, run.ID, failure)
+		return GenerateTextResult{}, err
+	}
+	if len(response.Content) == 0 {
+		err := fmt.Errorf("%w: empty stream", ErrProviderUnavailable)
+		_ = s.repository.FailRun(ctx, run.ID, RunFailure{Code: failureCode(err), Message: safeFailureMessage(err), LatencyMS: elapsedMS(startedAt, s.now())})
+		return GenerateTextResult{}, err
+	}
+	if err := s.repository.CompleteRun(ctx, run.ID, RunResult{
+		Response: response.Content, InputTokens: response.InputTokens, OutputTokens: response.OutputTokens,
+		LatencyMS: elapsedMS(startedAt, s.now()),
+	}); err != nil {
+		return GenerateTextResult{}, err
+	}
+	return GenerateTextResult{Content: string(response.Content), InputTokens: response.InputTokens, OutputTokens: response.OutputTokens}, nil
 }
 
 func (s *Service) generateValidJSON(ctx context.Context, request GenerateJSONRequest) (GenerateJSONResult, RunFailure, error) {

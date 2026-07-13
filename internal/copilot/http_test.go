@@ -86,6 +86,16 @@ func (a *fakeApplication) SendMessage(_ context.Context, input SendMessageInput)
 	return a.sendResult, a.err
 }
 
+func (a *fakeApplication) StreamMessage(_ context.Context, input SendMessageInput, onEvent func(StreamEvent) error) (SendMessageResult, error) {
+	a.sendMessageInput = input
+	user := Message{ID: 1, UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleUser, Content: input.Content}
+	assistant := Message{ID: 2, UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleAssistant, Content: "实时回答"}
+	_ = onEvent(StreamEvent{Type: StreamEventUserMessage, UserMessage: &user})
+	_ = onEvent(StreamEvent{Type: StreamEventDelta, Delta: "实时回答"})
+	_ = onEvent(StreamEvent{Type: StreamEventAssistantMessage, AssistantMessage: &assistant})
+	return SendMessageResult{UserMessage: user, AssistantMessage: assistant}, a.err
+}
+
 func (a *fakeApplication) CompareMessages(_ context.Context, input CompareMessagesInput) (CompareMessagesResult, error) {
 	a.compareInput = input
 	return a.compareResult, a.err
@@ -224,6 +234,24 @@ func TestSendMessageEndpointUsesAuthenticatedUserAndThread(t *testing.T) {
 	}
 	if app.sendMessageInput.UserID != 42 || app.sendMessageInput.ThreadID != 99 || app.sendMessageInput.Content != "你好" {
 		t.Fatalf("input = %+v", app.sendMessageInput)
+	}
+}
+
+func TestStreamMessageEndpointWritesSSEEvents(t *testing.T) {
+	app := &fakeApplication{}
+	router := copilotTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/threads/99/messages/stream", strings.NewReader(`{"content":"分析机会","request_id":"stream-001"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Header().Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("status/content-type = %d/%s", recorder.Code, recorder.Header().Get("Content-Type"))
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, "event: delta") || !strings.Contains(body, `"delta":"实时回答"`) || !strings.Contains(body, "event: done") {
+		t.Fatalf("body = %s", body)
 	}
 }
 

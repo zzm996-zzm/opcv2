@@ -2,7 +2,8 @@ import { ChangeEvent, DragEvent, FormEvent, forwardRef, useEffect, useMemo, useR
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
-import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotFile, type CopilotMemory, type CopilotMessage, type CopilotModelOption, type CopilotThread, type ModelSmokeResult } from "../lib/copilotApi";
+import { ApiRequestError } from "../lib/apiRequest";
+import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotFile, type CopilotMemory, type CopilotMessage, type CopilotModelOption, type CopilotThread, type ModelSmokeResult, type SendMessageResult } from "../lib/copilotApi";
 import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
 import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
 
@@ -93,6 +94,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [draft, setDraft] = useState("");
   const [activePopover, setActivePopover] = useState<ComposerPopover>(routePopover);
   const [typewriterContent, setTypewriterContent] = useState<Record<number, string>>({});
+  const [streamingContent, setStreamingContent] = useState("");
   const [selectedModel, setSelectedModel] = useState(fallbackModels[0].value);
   const [isSending, setIsSending] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -309,6 +311,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     const abortController = new AbortController();
     sendAbortRef.current = abortController;
     setDraft("");
+    setStreamingContent("");
     setError("");
     setIsSending(true);
     try {
@@ -344,29 +347,49 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         userID: thread.user_id
       });
       setMessages((current) => [...current, optimisticUserMessage]);
-      const result = await copilotApi.sendMessage(thread.id, {
+      const messageInput = {
         content,
         model: selectedModel,
         reference_ids: selectedReferenceIDs,
         request_id: newRequestID("message")
-      }, abortController.signal);
+      };
+      let usedFallback = false;
+      let result: SendMessageResult;
+      try {
+        result = await copilotApi.streamMessage(thread.id, messageInput, {
+          onUserMessage: (message) => {
+            setMessages((current) => [...current.filter((item) => item.id !== optimisticUserMessage.id && item.id !== message.id), message]);
+          },
+          onDelta: (delta) => setStreamingContent((current) => current + delta)
+        }, abortController.signal);
+      } catch (streamError) {
+        const canFallback = streamError instanceof ApiRequestError && (
+          streamError.code === "streaming_not_supported" || streamError.status === 404 || streamError.status === 501
+        );
+        if (!canFallback) throw streamError;
+        usedFallback = true;
+        result = await copilotApi.sendMessage(thread.id, messageInput, abortController.signal);
+      }
       if (abortController.signal.aborted) return;
       setMessages((current) => [
-        ...current.filter((message) => message.id !== optimisticUserMessage.id),
+        ...current.filter((message) => message.id !== optimisticUserMessage.id && message.id !== result.user_message.id),
         result.user_message,
         result.assistant_message
       ]);
-      startTypewriter(result.assistant_message);
+      setStreamingContent("");
+      if (usedFallback) startTypewriter(result.assistant_message);
       setThreads((current) => current.map((item) => item.id === thread.id ? { ...item, updated_at: result.assistant_message.created_at } : item));
       await refreshUsage();
     } catch (requestError) {
       if (abortController.signal.aborted) {
         setMessages((current) => current.filter((message) => message.id >= 0));
+        setStreamingContent("");
         if (isCompare) setCompareQuestion((current) => current && current.id < 0 ? null : current);
         setError("已暂停本次对话");
         return;
       }
       setDraft(content);
+      setStreamingContent("");
       setMessages((current) => current.filter((message) => message.id >= 0));
       if (isCompare) {
         setCompareQuestion((current) => current && current.id < 0 ? null : current);
@@ -592,6 +615,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
               <ChatThread
                 messages={messages}
                 isSending={isSending}
+                streamingContent={streamingContent}
                 typewriterContent={typewriterContent}
                 onPrompt={(prompt) => setDraft(prompt)}
               />
@@ -727,11 +751,13 @@ function CompareHeader({
 function ChatThread({
   messages,
   isSending,
+  streamingContent,
   typewriterContent,
   onPrompt
 }: {
   messages: CopilotMessage[];
   isSending: boolean;
+  streamingContent: string;
   typewriterContent?: Record<number, string>;
   onPrompt: (prompt: string) => void;
 }) {
@@ -752,16 +778,25 @@ function ChatThread({
             {message.role === "user" && <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>}
           </article>
         ))}
-        {isSending && <ThinkingMessage />}
+        {isSending && (streamingContent ? <StreamingMessage content={streamingContent} /> : <ThinkingMessage />)}
       </div>
     );
   }
 
   return isSending ? (
     <div className="copilot-chat-thread" aria-label="会话内容">
-      <ThinkingMessage />
+      {streamingContent ? <StreamingMessage content={streamingContent} /> : <ThinkingMessage />}
     </div>
   ) : <EmptyConversation onPrompt={onPrompt} />;
+}
+
+function StreamingMessage({ content }: { content: string }) {
+  return (
+    <article className="copilot-message assistant streaming">
+      <span className="v4-logo" aria-hidden="true" />
+      <div className="copilot-bubble compact typing"><p>{content}</p></div>
+    </article>
+  );
 }
 
 function UserMessageBubble({ content, time }: { content: string; time: string }) {

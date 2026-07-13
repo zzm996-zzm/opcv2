@@ -15,11 +15,21 @@ func (p *DevelopmentProvider) Generate(_ context.Context, request ProviderReques
 	return ProviderResponse{Content: response}, nil
 }
 
+func (p *DevelopmentProvider) Stream(_ context.Context, request ProviderRequest, onDelta func([]byte) error) (ProviderResponse, error) {
+	content := p.responseFor(request.Feature)
+	if err := onDelta(content); err != nil {
+		return ProviderResponse{}, err
+	}
+	return ProviderResponse{Content: content}, nil
+}
+
 func (p *DevelopmentProvider) responseFor(feature string) []byte {
 	if len(p.Response) > 0 {
 		return p.Response
 	}
 	switch feature {
+	case "copilot.chat_stream":
+		return []byte("我会先明确目标客户，再验证最高频痛点，最后做一个低成本样板。")
 	case "analysis.direction":
 		return []byte(`{
 			"status":"completed",

@@ -49,3 +49,20 @@ func (r *ModelRouter) Generate(ctx context.Context, request ProviderRequest) (Pr
 	request.Model = route.Model
 	return route.Provider.Generate(ctx, request)
 }
+
+func (r *ModelRouter) Stream(ctx context.Context, request ProviderRequest, onDelta func([]byte) error) (ProviderResponse, error) {
+	alias := strings.TrimSpace(request.Model)
+	if alias == "" {
+		alias = r.defaultAlias
+	}
+	route, ok := r.routes[alias]
+	if !ok || route.Provider == nil {
+		return ProviderResponse{}, fmt.Errorf("%w: unknown model alias", ErrProviderUnavailable)
+	}
+	streamingProvider, ok := route.Provider.(StreamingProvider)
+	if !ok {
+		return ProviderResponse{}, fmt.Errorf("%w: model does not support streaming", ErrProviderUnavailable)
+	}
+	request.Model = route.Model
+	return streamingProvider.Stream(ctx, request, onDelta)
+}

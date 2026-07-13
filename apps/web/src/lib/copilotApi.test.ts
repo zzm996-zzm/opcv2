@@ -48,6 +48,30 @@ describe("copilotApi", () => {
     );
   });
 
+  it("streams message deltas and returns persisted messages", async () => {
+    const userMessage = { id: 1, content: "分析机会" };
+    const assistantMessage = { id: 2, content: "实时回答" };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response([
+      `event: user_message\ndata: ${JSON.stringify({ type: "user_message", user_message: userMessage })}`,
+      `event: delta\ndata: ${JSON.stringify({ type: "delta", delta: "实时" })}`,
+      `event: delta\ndata: ${JSON.stringify({ type: "delta", delta: "回答" })}`,
+      `event: assistant_message\ndata: ${JSON.stringify({ type: "assistant_message", assistant_message: assistantMessage })}`,
+      "event: done\ndata: {\"ok\":true}"
+    ].join("\n\n") + "\n\n", { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+    const deltas: string[] = [];
+
+    const result = await copilotApi.streamMessage(99, { content: "分析机会", request_id: "stream-001" }, {
+      onDelta: (delta) => deltas.push(delta)
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/copilot/threads/99/messages/stream",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ content: "分析机会", request_id: "stream-001" }) })
+    );
+    expect(deltas).toEqual(["实时", "回答"]);
+    expect(result).toEqual({ user_message: userMessage, assistant_message: assistantMessage });
+  });
+
   it("compares a message across selected models", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ user_message: {}, answers: [] }), { status: 200 })

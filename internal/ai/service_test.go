@@ -54,6 +54,24 @@ type fakeProvider struct {
 	requests  []ProviderRequest
 }
 
+func (p *fakeProvider) Stream(_ context.Context, request ProviderRequest, onDelta func([]byte) error) (ProviderResponse, error) {
+	p.requests = append(p.requests, request)
+	index := len(p.requests) - 1
+	if index < len(p.errs) && p.errs[index] != nil {
+		return ProviderResponse{}, p.errs[index]
+	}
+	response := ProviderResponse{}
+	if index < len(p.responses) {
+		response = p.responses[index]
+	}
+	if len(response.Content) > 0 {
+		if err := onDelta(response.Content); err != nil {
+			return ProviderResponse{}, err
+		}
+	}
+	return response, nil
+}
+
 func (p *fakeProvider) Generate(_ context.Context, request ProviderRequest) (ProviderResponse, error) {
 	p.requests = append(p.requests, request)
 	index := len(p.requests) - 1
@@ -123,6 +141,30 @@ func TestServiceGeneratesJSONAndCompletesRun(t *testing.T) {
 	}
 	if len(repository.failed) != 0 {
 		t.Fatalf("failed runs = %+v", repository.failed)
+	}
+}
+
+func TestServiceStreamsTextAndCompletesRun(t *testing.T) {
+	repository := &fakeRepository{}
+	provider := &fakeProvider{responses: []ProviderResponse{{Content: []byte("实时回答"), InputTokens: 3, OutputTokens: 4}}}
+	service := NewService(repository, provider, Config{Provider: "development", Model: "dev-model"})
+	var streamed bytes.Buffer
+
+	result, err := service.GenerateTextStream(context.Background(), GenerateTextRequest{
+		UserID: 42, Feature: "copilot.chat_stream", PromptVersion: "copilot_chat_stream_v1", UserPrompt: "分析机会",
+	}, func(delta []byte) error {
+		_, _ = streamed.Write(delta)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("GenerateTextStream() error = %v", err)
+	}
+	if streamed.String() != "实时回答" || result.Content != "实时回答" {
+		t.Fatalf("stream/result = %q/%q", streamed.String(), result.Content)
+	}
+	if len(repository.completed) != 1 || string(repository.completed[0].result.Response) != "实时回答" {
+		t.Fatalf("completed = %+v", repository.completed)
 	}
 }
 

@@ -75,6 +75,30 @@ func TestOpenAIProviderMapsResponsesAPIRequestAndResponse(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderStreamsResponseTextDeltas(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("event: response.output_text.delta\ndata: {\"delta\":\"实时\"}\n\n"))
+		_, _ = w.Write([]byte("event: response.output_text.delta\ndata: {\"delta\":\"回答\"}\n\n"))
+		_, _ = w.Write([]byte("event: response.completed\ndata: {\"response\":{\"usage\":{\"input_tokens\":3,\"output_tokens\":4}}}\n\n"))
+	}))
+	defer server.Close()
+	provider := NewOpenAIProvider(OpenAIConfig{BaseURL: server.URL, APIKey: "key", Model: "gpt-test", Timeout: time.Second})
+	var output strings.Builder
+
+	response, err := provider.Stream(context.Background(), ProviderRequest{UserPrompt: "分析机会"}, func(delta []byte) error {
+		output.Write(delta)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("Stream() error = %v", err)
+	}
+	if output.String() != "实时回答" || string(response.Content) != "实时回答" || response.OutputTokens != 4 {
+		t.Fatalf("output/response = %q/%+v", output.String(), response)
+	}
+}
+
 func TestOpenAIProviderExtractsNestedOutputText(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

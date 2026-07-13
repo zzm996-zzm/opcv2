@@ -85,6 +85,69 @@ func (p *OpenAIProvider) Generate(ctx context.Context, request ProviderRequest) 
 	}, nil
 }
 
+func (p *OpenAIProvider) Stream(ctx context.Context, request ProviderRequest, onDelta func([]byte) error) (ProviderResponse, error) {
+	payload := p.buildRequest(request)
+	payload.Text = nil
+	payload.Stream = true
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return ProviderResponse{}, fmt.Errorf("%w: encode request", ErrProviderUnavailable)
+	}
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/responses", bytes.NewReader(body))
+	if err != nil {
+		return ProviderResponse{}, fmt.Errorf("%w: build request", ErrProviderUnavailable)
+	}
+	httpRequest.Header.Set("Authorization", "Bearer "+p.apiKey)
+	httpRequest.Header.Set("Content-Type", "application/json")
+	response, err := p.client.Do(httpRequest)
+	if err != nil {
+		return ProviderResponse{}, classifyOpenAIClientError(err)
+	}
+	defer response.Body.Close()
+	if err := classifyOpenAIStatus(response.StatusCode); err != nil {
+		return ProviderResponse{}, err
+	}
+	var content strings.Builder
+	result := ProviderResponse{}
+	err = scanSSE(response.Body, func(event, data string) error {
+		switch event {
+		case "response.output_text.delta":
+			var payload struct {
+				Delta string `json:"delta"`
+			}
+			if err := json.Unmarshal([]byte(data), &payload); err != nil {
+				return err
+			}
+			if payload.Delta != "" {
+				content.WriteString(payload.Delta)
+				return onDelta([]byte(payload.Delta))
+			}
+		case "response.completed":
+			var payload struct {
+				Response struct {
+					Usage struct {
+						InputTokens  int `json:"input_tokens"`
+						OutputTokens int `json:"output_tokens"`
+					} `json:"usage"`
+				} `json:"response"`
+			}
+			if err := json.Unmarshal([]byte(data), &payload); err == nil {
+				result.InputTokens = payload.Response.Usage.InputTokens
+				result.OutputTokens = payload.Response.Usage.OutputTokens
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return ProviderResponse{}, fmt.Errorf("%w: decode stream", ErrProviderUnavailable)
+	}
+	result.Content = []byte(content.String())
+	if len(result.Content) == 0 {
+		return ProviderResponse{}, fmt.Errorf("%w: empty response", ErrProviderUnavailable)
+	}
+	return result, nil
+}
+
 func (p *OpenAIProvider) buildRequest(request ProviderRequest) openAIRequest {
 	input := []openAIMessage{
 		{Role: "system", Content: request.SystemPrompt},
@@ -100,16 +163,17 @@ func (p *OpenAIProvider) buildRequest(request ProviderRequest) openAIRequest {
 	return openAIRequest{
 		Model: model,
 		Input: input,
-		Text: openAITextConfig{
+		Text: &openAITextConfig{
 			Format: openAITextFormat{Type: "json_object"},
 		},
 	}
 }
 
 type openAIRequest struct {
-	Model string           `json:"model"`
-	Input []openAIMessage  `json:"input"`
-	Text  openAITextConfig `json:"text"`
+	Model  string            `json:"model"`
+	Input  []openAIMessage   `json:"input"`
+	Text   *openAITextConfig `json:"text,omitempty"`
+	Stream bool              `json:"stream,omitempty"`
 }
 
 type openAIMessage struct {

@@ -33,6 +33,10 @@ type Provider interface {
 	Generate(ctx context.Context, request ProviderRequest) (ProviderResponse, error)
 }
 
+type StreamingProvider interface {
+	Stream(ctx context.Context, request ProviderRequest, onDelta func([]byte) error) (ProviderResponse, error)
+}
+
 type ProviderRequest struct {
 	Feature           string
 	PromptVersion     string

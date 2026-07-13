@@ -72,6 +72,30 @@ func TestOpenAICompatibleProviderMapsChatCompletionJSONRequestAndResponse(t *tes
 	}
 }
 
+func TestOpenAICompatibleProviderStreamsChatCompletionDeltas(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"实时\"}}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"回答\"}}],\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":4}}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer server.Close()
+	provider := NewOpenAICompatibleProvider(OpenAICompatibleConfig{BaseURL: server.URL, APIKey: "key", Model: "deepseek", Timeout: time.Second})
+	var output strings.Builder
+
+	response, err := provider.Stream(context.Background(), ProviderRequest{UserPrompt: "分析机会"}, func(delta []byte) error {
+		output.Write(delta)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("Stream() error = %v", err)
+	}
+	if output.String() != "实时回答" || string(response.Content) != "实时回答" || response.OutputTokens != 4 {
+		t.Fatalf("output/response = %q/%+v", output.String(), response)
+	}
+}
+
 func TestOpenAICompatibleProviderClassifiesHTTPStatus(t *testing.T) {
 	tests := []struct {
 		name       string

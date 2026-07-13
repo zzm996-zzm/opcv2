@@ -298,7 +298,8 @@ func isExpensiveEndpoint(method, fullPath, requestPath string) bool {
 		"/api/v1/leads/tasks",
 		"/api/v1/crm/customers/:id/follow-up-copy",
 		"/api/v1/sandbox/sessions/:id/run",
-		"/api/v1/copilot/threads/:id/messages":
+		"/api/v1/copilot/threads/:id/messages",
+		"/api/v1/copilot/threads/:id/messages/stream":
 		return true
 	default:
 		return false
