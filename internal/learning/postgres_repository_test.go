@@ -108,7 +108,10 @@ func TestPostgresRepositoryGetsLatestDiagnosisForUser(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 15, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, user_id, goal, project, focus_abilities, weekly_time, bottleneck, status, overall_score, dimensions, recommendations, created_at, updated_at
+		SELECT id, user_id, goal, project, focus_abilities, weekly_time, bottleneck, answers,
+			status, overall_score, dimensions, recommendations, basis, disclaimer, assumptions,
+			evidence_sources, gaps_snapshot, recommendations_snapshot, plan_snapshot, report_snapshot,
+			created_at, updated_at
 		FROM learning_diagnoses
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -116,7 +119,9 @@ func TestPostgresRepositoryGetsLatestDiagnosisForUser(t *testing.T) {
 	`)).
 		WithArgs(int64(42)).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "goal", "project", "focus_abilities", "weekly_time", "bottleneck", "status", "overall_score", "dimensions", "recommendations", "created_at", "updated_at",
+			"id", "user_id", "goal", "project", "focus_abilities", "weekly_time", "bottleneck", "answers",
+			"status", "overall_score", "dimensions", "recommendations", "basis", "disclaimer", "assumptions",
+			"evidence_sources", "gaps_snapshot", "recommendations_snapshot", "plan_snapshot", "report_snapshot", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -125,10 +130,19 @@ func TestPostgresRepositoryGetsLatestDiagnosisForUser(t *testing.T) {
 			[]byte(`["数据洞察能力"]`),
 			"5-8 小时",
 			"缺少案例",
+			[]byte(`[{"key":"experience","question":"项目经验","answer":"一次试点"}]`),
 			DiagnosisCompleted,
 			72,
 			[]byte(`[{"name":"市场分析能力","score":78,"gap":12,"summary":"具备基础判断能力"}]`),
 			[]byte(`["优先学习 AI行业分析方法"]`),
+			"model_assessment",
+			"模型评估说明",
+			[]byte(`["基于用户自述"]`),
+			[]byte(`[{"type":"assessment_input","label":"用户输入","captured_at":"2026-06-30T15:00:00Z"}]`),
+			[]byte(`{"gaps":[{"name":"市场分析能力","current":78,"target":90,"gap":12,"priority":"high","summary":"需提升","evidence":"用户输入","recommended":"练习"}],"generated_at":"2026-06-30T15:00:00Z"}`),
+			[]byte(`{"focus":[{"name":"市场分析能力","priority":"high","summary":"练习"}],"generated_at":"2026-06-30T15:00:00Z"}`),
+			[]byte(`{"stages":[{"number":1,"title":"市场分析能力","status":"not_started","courses":[],"duration":"","goal":"练习","milestone":"提交练习"}],"generated_at":"2026-06-30T15:00:00Z"}`),
+			[]byte(`{"dimensions":[{"name":"市场分析能力","score":78,"gap":12,"summary":"具备基础判断能力"}],"generated_at":"2026-06-30T15:00:00Z"}`),
 			now,
 			now,
 		))
@@ -138,7 +152,7 @@ func TestPostgresRepositoryGetsLatestDiagnosisForUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LatestDiagnosis() error = %v", err)
 	}
-	if diagnosis.ID != 99 || diagnosis.UserID != 42 || diagnosis.Dimensions[0].Name == "" || diagnosis.FocusAbilities[0] != "数据洞察能力" || diagnosis.WeeklyTime != "5-8 小时" {
+	if diagnosis.ID != 99 || diagnosis.UserID != 42 || diagnosis.Dimensions[0].Name == "" || diagnosis.FocusAbilities[0] != "数据洞察能力" || diagnosis.WeeklyTime != "5-8 小时" || diagnosis.Basis != "model_assessment" || len(diagnosis.Answers) != 1 || len(diagnosis.GapsSnapshot.Gaps) != 1 {
 		t.Fatalf("diagnosis = %+v", diagnosis)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
@@ -155,8 +169,13 @@ func TestPostgresRepositoryCreatesDiagnosisWithIntake(t *testing.T) {
 
 	now := time.Date(2026, 7, 11, 15, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO learning_diagnoses (user_id, goal, project, focus_abilities, weekly_time, bottleneck, status, overall_score, dimensions, recommendations, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+		INSERT INTO learning_diagnoses (
+			user_id, goal, project, focus_abilities, weekly_time, bottleneck, answers,
+			status, overall_score, dimensions, recommendations, basis, disclaimer,
+			assumptions, evidence_sources, gaps_snapshot, recommendations_snapshot,
+			plan_snapshot, report_snapshot, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $20)
 		RETURNING id, updated_at
 	`)).WithArgs(
 		int64(42),
@@ -165,8 +184,17 @@ func TestPostgresRepositoryCreatesDiagnosisWithIntake(t *testing.T) {
 		[]byte(`["数据洞察能力"]`),
 		"5-8 小时",
 		"缺少案例",
+		pgxmock.AnyArg(),
 		DiagnosisCompleted,
 		72,
+		pgxmock.AnyArg(),
+		pgxmock.AnyArg(),
+		"model_assessment",
+		"模型评估说明",
+		pgxmock.AnyArg(),
+		pgxmock.AnyArg(),
+		pgxmock.AnyArg(),
+		pgxmock.AnyArg(),
 		pgxmock.AnyArg(),
 		pgxmock.AnyArg(),
 		now,
@@ -180,8 +208,11 @@ func TestPostgresRepositoryCreatesDiagnosisWithIntake(t *testing.T) {
 		FocusAbilities: []string{"数据洞察能力"},
 		WeeklyTime:     "5-8 小时",
 		Bottleneck:     "缺少案例",
+		Answers:        []AssessmentAnswer{{Key: "experience", Answer: "一次试点"}},
 		Status:         DiagnosisCompleted,
 		OverallScore:   72,
+		Basis:          "model_assessment",
+		Disclaimer:     "模型评估说明",
 		CreatedAt:      now,
 	})
 	if err != nil {

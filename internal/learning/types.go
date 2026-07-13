@@ -10,6 +10,8 @@ var (
 	ErrCourseNotFound    = errors.New("learning course not found")
 	ErrProgressNotFound  = errors.New("learning progress not found")
 	ErrInvalidProgress   = errors.New("invalid learning progress")
+	ErrInvalidDiagnosis  = errors.New("invalid learning diagnosis")
+	ErrInvalidAIResult   = errors.New("invalid learning ai result")
 	ErrDiagnosisNotFound = errors.New("learning diagnosis not found")
 )
 
@@ -62,29 +64,51 @@ type Dimension struct {
 	Summary string `json:"summary"`
 }
 
+type AssessmentAnswer struct {
+	Key      string `json:"key"`
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
+type DiagnosisEvidenceSource struct {
+	Type       string    `json:"type"`
+	Label      string    `json:"label"`
+	CapturedAt time.Time `json:"captured_at"`
+}
+
 type Diagnosis struct {
-	ID              int64       `json:"id"`
-	UserID          int64       `json:"user_id"`
-	Goal            string      `json:"goal"`
-	Project         string      `json:"project"`
-	FocusAbilities  []string    `json:"focus_abilities"`
-	WeeklyTime      string      `json:"weekly_time"`
-	Bottleneck      string      `json:"bottleneck"`
-	Status          string      `json:"status"`
-	OverallScore    int         `json:"overall_score"`
-	Dimensions      []Dimension `json:"dimensions"`
-	Recommendations []string    `json:"recommendations"`
-	CreatedAt       time.Time   `json:"created_at"`
-	UpdatedAt       time.Time   `json:"updated_at"`
+	ID                      int64                     `json:"id"`
+	UserID                  int64                     `json:"user_id"`
+	Goal                    string                    `json:"goal"`
+	Project                 string                    `json:"project"`
+	FocusAbilities          []string                  `json:"focus_abilities"`
+	WeeklyTime              string                    `json:"weekly_time"`
+	Bottleneck              string                    `json:"bottleneck"`
+	Answers                 []AssessmentAnswer        `json:"answers"`
+	Status                  string                    `json:"status"`
+	OverallScore            int                       `json:"overall_score"`
+	Dimensions              []Dimension               `json:"dimensions"`
+	Recommendations         []string                  `json:"recommendations"`
+	Basis                   string                    `json:"basis"`
+	Disclaimer              string                    `json:"disclaimer"`
+	Assumptions             []string                  `json:"assumptions"`
+	EvidenceSources         []DiagnosisEvidenceSource `json:"evidence_sources"`
+	CreatedAt               time.Time                 `json:"created_at"`
+	UpdatedAt               time.Time                 `json:"updated_at"`
+	GapsSnapshot            DiagnosisGaps             `json:"-"`
+	RecommendationsSnapshot DiagnosisRecommendations  `json:"-"`
+	PlanSnapshot            DiagnosisPlan             `json:"-"`
+	ReportSnapshot          DiagnosisReport           `json:"-"`
 }
 
 type CreateDiagnosisInput struct {
-	UserID         int64    `json:"-"`
-	Goal           string   `json:"goal"`
-	Project        string   `json:"project"`
-	FocusAbilities []string `json:"focus_abilities"`
-	WeeklyTime     string   `json:"weekly_time"`
-	Bottleneck     string   `json:"bottleneck"`
+	UserID         int64              `json:"-"`
+	Goal           string             `json:"goal"`
+	Project        string             `json:"project"`
+	FocusAbilities []string           `json:"focus_abilities"`
+	WeeklyTime     string             `json:"weekly_time"`
+	Bottleneck     string             `json:"bottleneck"`
+	Answers        []AssessmentAnswer `json:"answers"`
 }
 
 type GapItem struct {
@@ -99,13 +123,17 @@ type GapItem struct {
 }
 
 type DiagnosisGaps struct {
-	DiagnosisID  int64     `json:"diagnosis_id"`
-	Goal         string    `json:"goal"`
-	Project      string    `json:"project"`
-	OverallScore int       `json:"overall_score"`
-	Gaps         []GapItem `json:"gaps"`
-	Evidence     []string  `json:"evidence"`
-	GeneratedAt  time.Time `json:"generated_at"`
+	DiagnosisID     int64                     `json:"diagnosis_id"`
+	Goal            string                    `json:"goal"`
+	Project         string                    `json:"project"`
+	OverallScore    int                       `json:"overall_score"`
+	Gaps            []GapItem                 `json:"gaps"`
+	Evidence        []string                  `json:"evidence"`
+	Basis           string                    `json:"basis"`
+	Disclaimer      string                    `json:"disclaimer"`
+	Assumptions     []string                  `json:"assumptions"`
+	EvidenceSources []DiagnosisEvidenceSource `json:"evidence_sources"`
+	GeneratedAt     time.Time                 `json:"generated_at"`
 }
 
 type RecommendationFocus struct {
@@ -121,13 +149,17 @@ type LearningMethod struct {
 }
 
 type DiagnosisRecommendations struct {
-	DiagnosisID     int64                 `json:"diagnosis_id"`
-	Goal            string                `json:"goal"`
-	Project         string                `json:"project"`
-	Focus           []RecommendationFocus `json:"focus"`
-	Recommendations []string              `json:"recommendations"`
-	Methods         []LearningMethod      `json:"methods"`
-	GeneratedAt     time.Time             `json:"generated_at"`
+	DiagnosisID     int64                     `json:"diagnosis_id"`
+	Goal            string                    `json:"goal"`
+	Project         string                    `json:"project"`
+	Focus           []RecommendationFocus     `json:"focus"`
+	Recommendations []string                  `json:"recommendations"`
+	Methods         []LearningMethod          `json:"methods"`
+	Basis           string                    `json:"basis"`
+	Disclaimer      string                    `json:"disclaimer"`
+	Assumptions     []string                  `json:"assumptions"`
+	EvidenceSources []DiagnosisEvidenceSource `json:"evidence_sources"`
+	GeneratedAt     time.Time                 `json:"generated_at"`
 }
 
 type PlanStage struct {
@@ -141,24 +173,32 @@ type PlanStage struct {
 }
 
 type DiagnosisPlan struct {
-	DiagnosisID      int64       `json:"diagnosis_id"`
-	Title            string      `json:"title"`
-	Description      string      `json:"description"`
-	Recommendations  []string    `json:"recommendations"`
-	Stages           []PlanStage `json:"stages"`
-	EstimatedHours   int         `json:"estimated_hours"`
-	WeeklySuggestion string      `json:"weekly_suggestion"`
-	GeneratedAt      time.Time   `json:"generated_at"`
+	DiagnosisID      int64                     `json:"diagnosis_id"`
+	Title            string                    `json:"title"`
+	Description      string                    `json:"description"`
+	Recommendations  []string                  `json:"recommendations"`
+	Stages           []PlanStage               `json:"stages"`
+	EstimatedHours   int                       `json:"estimated_hours"`
+	WeeklySuggestion string                    `json:"weekly_suggestion"`
+	Basis            string                    `json:"basis"`
+	Disclaimer       string                    `json:"disclaimer"`
+	Assumptions      []string                  `json:"assumptions"`
+	EvidenceSources  []DiagnosisEvidenceSource `json:"evidence_sources"`
+	GeneratedAt      time.Time                 `json:"generated_at"`
 }
 
 type DiagnosisReport struct {
-	DiagnosisID     int64       `json:"diagnosis_id"`
-	Goal            string      `json:"goal"`
-	Project         string      `json:"project"`
-	OverallScore    int         `json:"overall_score"`
-	Dimensions      []Dimension `json:"dimensions"`
-	PriorityGaps    []GapItem   `json:"priority_gaps"`
-	Recommendations []string    `json:"recommendations"`
-	Evidence        []string    `json:"evidence"`
-	GeneratedAt     time.Time   `json:"generated_at"`
+	DiagnosisID     int64                     `json:"diagnosis_id"`
+	Goal            string                    `json:"goal"`
+	Project         string                    `json:"project"`
+	OverallScore    int                       `json:"overall_score"`
+	Dimensions      []Dimension               `json:"dimensions"`
+	PriorityGaps    []GapItem                 `json:"priority_gaps"`
+	Recommendations []string                  `json:"recommendations"`
+	Evidence        []string                  `json:"evidence"`
+	Basis           string                    `json:"basis"`
+	Disclaimer      string                    `json:"disclaimer"`
+	Assumptions     []string                  `json:"assumptions"`
+	EvidenceSources []DiagnosisEvidenceSource `json:"evidence_sources"`
+	GeneratedAt     time.Time                 `json:"generated_at"`
 }

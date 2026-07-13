@@ -3,8 +3,12 @@ package learning
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/zzm/opcv2/internal/account"
+	"github.com/zzm/opcv2/internal/ai"
 )
 
 type fakeRepository struct {
@@ -102,6 +106,49 @@ func (r *fakeRepository) LatestDiagnosis(_ context.Context, userID int64) (Diagn
 	return r.diagnosis, nil
 }
 
+func (r *fakeRepository) GetDiagnosis(_ context.Context, userID, id int64) (Diagnosis, error) {
+	if r.repository != nil {
+		return Diagnosis{}, r.repository
+	}
+	if r.diagnosis.UserID != userID || r.diagnosis.ID != id {
+		return Diagnosis{}, ErrDiagnosisNotFound
+	}
+	return r.diagnosis, nil
+}
+
+type fakeGenerator struct {
+	content []byte
+	request ai.GenerateJSONRequest
+}
+
+func (g *fakeGenerator) GenerateJSON(_ context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
+	g.request = request
+	if request.Validate != nil {
+		if err := request.Validate(g.content); err != nil {
+			return ai.GenerateJSONResult{}, err
+		}
+	}
+	return ai.GenerateJSONResult{Content: g.content}, nil
+}
+
+type fakeProfileProvider struct {
+	profile account.ProfileContext
+}
+
+func (p *fakeProfileProvider) GetProfileContext(context.Context, int64) (account.ProfileContext, error) {
+	return p.profile, nil
+}
+
+var diagnosisPayload = []byte(`{
+	"overall_score":74,
+	"dimensions":[
+		{"name":"数据洞察能力","score":62,"gap":24,"summary":"尚未提供可验证作品"},
+		{"name":"目标拆解能力","score":72,"gap":14,"summary":"目标明确但交付物不足"}
+	],
+	"recommendations":["完成一次项目数据分析练习","保留学习复盘记录"],
+	"assumptions":["用户自述代表当前学习需求"]
+}`)
+
 func TestServiceListsCoursesByCategory(t *testing.T) {
 	repository := &fakeRepository{courses: []Course{
 		{ID: 1, Slug: "ai-basics", Title: "AI基础入门", Category: "入门"},
@@ -155,7 +202,9 @@ func TestServiceRejectsInvalidCourseProgress(t *testing.T) {
 func TestServiceCreatesCompletedDiagnosis(t *testing.T) {
 	now := time.Date(2026, 6, 30, 15, 0, 0, 0, time.UTC)
 	repository := &fakeRepository{}
-	service := NewService(repository)
+	generator := &fakeGenerator{content: diagnosisPayload}
+	profile := &fakeProfileProvider{profile: account.ProfileContext{Groups: []account.ProfileGroup{{Title: "目标", Fields: map[string]string{"方向": "智能客服"}}}}}
+	service := NewService(repository, WithGenerator(generator), WithProfileContextProvider(profile))
 	service.now = func() time.Time { return now }
 
 	diagnosis, err := service.CreateDiagnosis(context.Background(), CreateDiagnosisInput{
@@ -165,6 +214,10 @@ func TestServiceCreatesCompletedDiagnosis(t *testing.T) {
 		FocusAbilities: []string{" 数据洞察能力 ", "数据洞察能力", "提示词工程实战"},
 		WeeklyTime:     " 5-8 小时 ",
 		Bottleneck:     " 缺少真实项目案例 ",
+		Answers: []AssessmentAnswer{
+			{Key: "experience", Question: "是否有项目经验？", Answer: " 有一次试点 "},
+			{Key: "experience", Question: "重复项", Answer: "忽略"},
+		},
 	})
 
 	if err != nil {
@@ -173,7 +226,7 @@ func TestServiceCreatesCompletedDiagnosis(t *testing.T) {
 	if diagnosis.ID != 99 || diagnosis.Status != DiagnosisCompleted {
 		t.Fatalf("diagnosis = %+v", diagnosis)
 	}
-	if len(diagnosis.Dimensions) == 0 || len(diagnosis.Recommendations) == 0 {
+	if diagnosis.OverallScore != 74 || len(diagnosis.Dimensions) == 0 || len(diagnosis.Recommendations) == 0 {
 		t.Fatalf("diagnosis missing generated content: %+v", diagnosis)
 	}
 	if repository.created.UserID != 42 || repository.created.CreatedAt != now {
@@ -187,6 +240,32 @@ func TestServiceCreatesCompletedDiagnosis(t *testing.T) {
 	}
 	if repository.created.WeeklyTime != "5-8 小时" || repository.created.Bottleneck != "缺少真实项目案例" {
 		t.Fatalf("created intake = %+v", repository.created)
+	}
+	if diagnosis.Basis != "model_assessment" || diagnosis.Disclaimer == "" || len(diagnosis.Assumptions) == 0 || len(diagnosis.EvidenceSources) != 2 {
+		t.Fatalf("diagnosis provenance = %+v", diagnosis)
+	}
+	if len(diagnosis.Answers) != 1 || diagnosis.Answers[0].Answer != "有一次试点" {
+		t.Fatalf("diagnosis answers = %+v", diagnosis.Answers)
+	}
+	if generator.request.Feature != "learning.diagnosis" || generator.request.PromptVersion != "learning_diagnosis_v2" || !strings.Contains(generator.request.UserPrompt, "用户画像上下文") {
+		t.Fatalf("generator request = %+v", generator.request)
+	}
+	if len(repository.created.GapsSnapshot.Gaps) == 0 || len(repository.created.ReportSnapshot.EvidenceSources) != 2 {
+		t.Fatalf("snapshots = %+v", repository.created)
+	}
+}
+
+func TestServiceRejectsInvalidAIDiagnosis(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository, WithGenerator(&fakeGenerator{content: []byte(`{"overall_score":0}`)}))
+
+	_, err := service.CreateDiagnosis(context.Background(), CreateDiagnosisInput{UserID: 42, Goal: "提升AI能力", Project: "智能客服"})
+
+	if !errors.Is(err, ErrInvalidAIResult) {
+		t.Fatalf("err = %v, want ErrInvalidAIResult", err)
+	}
+	if repository.created.ID != 0 {
+		t.Fatalf("invalid diagnosis should not persist: %+v", repository.created)
 	}
 }
 
@@ -229,7 +308,7 @@ func TestServiceDerivesLearningViewsFromLatestDiagnosis(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LatestRecommendations() error = %v", err)
 	}
-	if recommendations.Focus[0].Name != "业务场景拆解" || recommendations.Methods[2].Value == "" {
+	if recommendations.Focus[0].Name != "业务场景拆解" || len(recommendations.Methods) == 0 || recommendations.Methods[0].Value == "" {
 		t.Fatalf("recommendations = %+v", recommendations)
 	}
 
@@ -237,7 +316,7 @@ func TestServiceDerivesLearningViewsFromLatestDiagnosis(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LatestPlan() error = %v", err)
 	}
-	if plan.Title != "企业AI落地能力路径" || len(plan.Stages) < 2 || plan.Stages[1].Title != "业务场景拆解" {
+	if plan.Title != "企业AI落地能力路径" || len(plan.Stages) < 2 || plan.Stages[0].Title != "业务场景拆解" {
 		t.Fatalf("plan = %+v", plan)
 	}
 

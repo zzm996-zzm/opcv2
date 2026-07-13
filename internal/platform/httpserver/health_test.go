@@ -697,6 +697,9 @@ func (fakeLearningApp) CreateDiagnosis(context.Context, learning.CreateDiagnosis
 func (fakeLearningApp) LatestDiagnosis(context.Context, int64) (learning.Diagnosis, error) {
 	return learning.Diagnosis{ID: 99, UserID: 42, Status: learning.DiagnosisCompleted}, nil
 }
+func (fakeLearningApp) GetDiagnosis(context.Context, int64, int64) (learning.Diagnosis, error) {
+	return learning.Diagnosis{ID: 99, UserID: 42, Status: learning.DiagnosisCompleted}, nil
+}
 func (fakeLearningApp) LatestGaps(context.Context, int64) (learning.DiagnosisGaps, error) {
 	return learning.DiagnosisGaps{DiagnosisID: 99, Gaps: []learning.GapItem{{Name: "数据分析能力", Gap: 22}}}, nil
 }

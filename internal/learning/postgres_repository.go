@@ -151,17 +151,71 @@ func (r *PostgresRepository) CreateDiagnosis(ctx context.Context, diagnosis Diag
 	if err != nil {
 		return Diagnosis{}, err
 	}
+	answers, err := json.Marshal(diagnosis.Answers)
+	if err != nil {
+		return Diagnosis{}, err
+	}
+	assumptions, err := json.Marshal(diagnosis.Assumptions)
+	if err != nil {
+		return Diagnosis{}, err
+	}
+	evidenceSources, err := json.Marshal(diagnosis.EvidenceSources)
+	if err != nil {
+		return Diagnosis{}, err
+	}
+	gapsSnapshot, err := json.Marshal(diagnosis.GapsSnapshot)
+	if err != nil {
+		return Diagnosis{}, err
+	}
+	recommendationsSnapshot, err := json.Marshal(diagnosis.RecommendationsSnapshot)
+	if err != nil {
+		return Diagnosis{}, err
+	}
+	planSnapshot, err := json.Marshal(diagnosis.PlanSnapshot)
+	if err != nil {
+		return Diagnosis{}, err
+	}
+	reportSnapshot, err := json.Marshal(diagnosis.ReportSnapshot)
+	if err != nil {
+		return Diagnosis{}, err
+	}
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO learning_diagnoses (user_id, goal, project, focus_abilities, weekly_time, bottleneck, status, overall_score, dimensions, recommendations, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
+		INSERT INTO learning_diagnoses (
+			user_id, goal, project, focus_abilities, weekly_time, bottleneck, answers,
+			status, overall_score, dimensions, recommendations, basis, disclaimer,
+			assumptions, evidence_sources, gaps_snapshot, recommendations_snapshot,
+			plan_snapshot, report_snapshot, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $20)
 		RETURNING id, updated_at
-	`, diagnosis.UserID, diagnosis.Goal, diagnosis.Project, focusAbilities, diagnosis.WeeklyTime, diagnosis.Bottleneck, diagnosis.Status, diagnosis.OverallScore, dimensions, recommendations, diagnosis.CreatedAt).Scan(&diagnosis.ID, &diagnosis.UpdatedAt)
+	`, diagnosis.UserID, diagnosis.Goal, diagnosis.Project, focusAbilities, diagnosis.WeeklyTime, diagnosis.Bottleneck, answers,
+		diagnosis.Status, diagnosis.OverallScore, dimensions, recommendations, diagnosis.Basis, diagnosis.Disclaimer,
+		assumptions, evidenceSources, gapsSnapshot, recommendationsSnapshot, planSnapshot, reportSnapshot, diagnosis.CreatedAt,
+	).Scan(&diagnosis.ID, &diagnosis.UpdatedAt)
+	return diagnosis, err
+}
+
+func (r *PostgresRepository) GetDiagnosis(ctx context.Context, userID, id int64) (Diagnosis, error) {
+	diagnosis, err := scanDiagnosis(r.db.QueryRow(ctx, `
+		SELECT id, user_id, goal, project, focus_abilities, weekly_time, bottleneck, answers,
+			status, overall_score, dimensions, recommendations, basis, disclaimer, assumptions,
+			evidence_sources, gaps_snapshot, recommendations_snapshot, plan_snapshot, report_snapshot,
+			created_at, updated_at
+		FROM learning_diagnoses
+		WHERE user_id = $1 AND id = $2
+	`, userID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Diagnosis{}, ErrDiagnosisNotFound
+	}
 	return diagnosis, err
 }
 
 func (r *PostgresRepository) LatestDiagnosis(ctx context.Context, userID int64) (Diagnosis, error) {
 	diagnosis, err := scanDiagnosis(r.db.QueryRow(ctx, `
-		SELECT id, user_id, goal, project, focus_abilities, weekly_time, bottleneck, status, overall_score, dimensions, recommendations, created_at, updated_at
+		SELECT id, user_id, goal, project, focus_abilities, weekly_time, bottleneck, answers,
+			status, overall_score, dimensions, recommendations, basis, disclaimer, assumptions,
+			evidence_sources, gaps_snapshot, recommendations_snapshot, plan_snapshot, report_snapshot,
+			created_at, updated_at
 		FROM learning_diagnoses
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -214,8 +268,15 @@ type diagnosisScanner interface {
 func scanDiagnosis(scanner diagnosisScanner) (Diagnosis, error) {
 	var diagnosis Diagnosis
 	var focusAbilities []byte
+	var answers []byte
 	var dimensions []byte
 	var recommendations []byte
+	var assumptions []byte
+	var evidenceSources []byte
+	var gapsSnapshot []byte
+	var recommendationsSnapshot []byte
+	var planSnapshot []byte
+	var reportSnapshot []byte
 	if err := scanner.Scan(
 		&diagnosis.ID,
 		&diagnosis.UserID,
@@ -224,10 +285,19 @@ func scanDiagnosis(scanner diagnosisScanner) (Diagnosis, error) {
 		&focusAbilities,
 		&diagnosis.WeeklyTime,
 		&diagnosis.Bottleneck,
+		&answers,
 		&diagnosis.Status,
 		&diagnosis.OverallScore,
 		&dimensions,
 		&recommendations,
+		&diagnosis.Basis,
+		&diagnosis.Disclaimer,
+		&assumptions,
+		&evidenceSources,
+		&gapsSnapshot,
+		&recommendationsSnapshot,
+		&planSnapshot,
+		&reportSnapshot,
 		&diagnosis.CreatedAt,
 		&diagnosis.UpdatedAt,
 	); err != nil {
@@ -236,10 +306,31 @@ func scanDiagnosis(scanner diagnosisScanner) (Diagnosis, error) {
 	if err := json.Unmarshal(focusAbilities, &diagnosis.FocusAbilities); err != nil {
 		return Diagnosis{}, err
 	}
+	if err := json.Unmarshal(answers, &diagnosis.Answers); err != nil {
+		return Diagnosis{}, err
+	}
 	if err := json.Unmarshal(dimensions, &diagnosis.Dimensions); err != nil {
 		return Diagnosis{}, err
 	}
 	if err := json.Unmarshal(recommendations, &diagnosis.Recommendations); err != nil {
+		return Diagnosis{}, err
+	}
+	if err := json.Unmarshal(assumptions, &diagnosis.Assumptions); err != nil {
+		return Diagnosis{}, err
+	}
+	if err := json.Unmarshal(evidenceSources, &diagnosis.EvidenceSources); err != nil {
+		return Diagnosis{}, err
+	}
+	if err := json.Unmarshal(gapsSnapshot, &diagnosis.GapsSnapshot); err != nil {
+		return Diagnosis{}, err
+	}
+	if err := json.Unmarshal(recommendationsSnapshot, &diagnosis.RecommendationsSnapshot); err != nil {
+		return Diagnosis{}, err
+	}
+	if err := json.Unmarshal(planSnapshot, &diagnosis.PlanSnapshot); err != nil {
+		return Diagnosis{}, err
+	}
+	if err := json.Unmarshal(reportSnapshot, &diagnosis.ReportSnapshot); err != nil {
 		return Diagnosis{}, err
 	}
 	return diagnosis, nil

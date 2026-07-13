@@ -26,6 +26,7 @@ type fakeApp struct {
 	progressSlug    string
 	progressInput   UpdateProgressInput
 	latestUserID    int64
+	diagnosisID     int64
 	err             error
 }
 
@@ -61,6 +62,11 @@ func (a *fakeApp) CreateDiagnosis(_ context.Context, input CreateDiagnosisInput)
 }
 func (a *fakeApp) LatestDiagnosis(_ context.Context, userID int64) (Diagnosis, error) {
 	a.latestUserID = userID
+	return a.diagnosis, a.err
+}
+func (a *fakeApp) GetDiagnosis(_ context.Context, userID, id int64) (Diagnosis, error) {
+	a.latestUserID = userID
+	a.diagnosisID = id
 	return a.diagnosis, a.err
 }
 func (a *fakeApp) LatestGaps(_ context.Context, userID int64) (DiagnosisGaps, error) {
@@ -143,6 +149,32 @@ func TestHTTPHandlerCreatesDiagnosisForAuthenticatedUser(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"id":99`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestHTTPHandlerSubmitsAndReadsAssessmentForAuthenticatedUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	group := router.Group("/api/v1")
+	group.Use(func(c *gin.Context) {
+		c.Set(auth.UserIDContextKey, int64(42))
+		c.Next()
+	})
+	app := &fakeApp{diagnosis: Diagnosis{ID: 99, UserID: 42, Status: DiagnosisCompleted, Basis: "model_assessment"}}
+	NewHTTPHandler(app).RegisterProtected(group)
+
+	submit := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/learning/assessments", strings.NewReader(`{"goal":"提升AI能力","project":"智能客服","answers":[{"key":"experience","question":"项目经验","answer":"一次试点"}]}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(submit, request)
+	if submit.Code != http.StatusCreated || app.diagnosisInput.UserID != 42 || len(app.diagnosisInput.Answers) != 1 {
+		t.Fatalf("submit status=%d input=%+v body=%s", submit.Code, app.diagnosisInput, submit.Body.String())
+	}
+
+	read := httptest.NewRecorder()
+	router.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/api/v1/learning/assessments/99", nil))
+	if read.Code != http.StatusOK || app.latestUserID != 42 || app.diagnosisID != 99 {
+		t.Fatalf("read status=%d app=%+v body=%s", read.Code, app, read.Body.String())
 	}
 }
 

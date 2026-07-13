@@ -183,7 +183,11 @@ func main() {
 	})
 	homeHTTP := home.NewHTTPHandler(homeService)
 	learningRepository := learning.NewPostgresRepository(db)
-	learningService := learning.NewService(learningRepository)
+	learningService := learning.NewService(
+		learningRepository,
+		learning.WithGenerator(aiService),
+		learning.WithProfileContextProvider(accountService),
+	)
 	learningHTTP := learning.NewHTTPHandler(learningService)
 	copilotRepository := copilot.NewPostgresRepository(db)
 	copilotService := copilot.NewServiceWithModels(
