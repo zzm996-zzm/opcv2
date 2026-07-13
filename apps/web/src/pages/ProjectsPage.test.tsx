@@ -159,20 +159,42 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("button", { name: "服务型" })).toBeInTheDocument();
   });
 
-  it("renders matching results with ranked opportunities", () => {
+  it("renders the latest persisted matching result without a static fallback", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/projects/matches") return Promise.resolve(new Response(JSON.stringify({ matches: [{
+        id: 99, user_id: 7, intent: "线上轻资产项目", status: "completed",
+        result: { session_id: 99, status: "completed", projects: [{ rank: 1, title: "本地AI获客顾问", score: 91, tags: ["B端"], budget: "¥2,000", reasons: ["经验匹配"], risk: "需验证获客" }] },
+        created_at: "2026-06-24T12:00:00Z", updated_at: "2026-06-24T12:00:00Z"
+      }] }), { status: 200 }));
+      if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/matches/99/favorite" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 7, user_id: 7, session_id: 99 }), { status: 200 }));
+      if (url === "/api/v1/projects/matches/99/favorite" && init?.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
     renderProjectRoute("/projects/results");
 
     expect(screen.getByRole("heading", { name: "为你匹配到的项目机会" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "AI短视频脚本工作室" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "本地AI获客顾问" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /加入对比/ }).length).toBeGreaterThan(0);
-    expect(screen.getByRole("heading", { name: "为什么推荐这些项目" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "推荐依据说明" })).toBeInTheDocument();
+    expect(screen.queryByText("AI短视频脚本工作室")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "收藏结果" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/matches/99/favorite", expect.objectContaining({ method: "POST" })));
+    fireEvent.click(screen.getAllByRole("button", { name: "取消收藏" })[0]);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/matches/99/favorite", expect.objectContaining({ method: "DELETE" })));
+  });
+
+  it("renders explicit empty project result state", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ matches: [] }), { status: 200 }));
+    renderProjectRoute("/projects/results");
+    expect(await screen.findByText("暂无已完成的匹配结果，请先提交项目匹配需求。")).toBeInTheDocument();
+    expect(screen.queryByText("AI短视频脚本工作室")).not.toBeInTheDocument();
   });
 
   it("renders history and saved matches", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
-        matches: [
-          {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const session = {
             id: 99,
             user_id: 7,
             intent: "线上轻资产项目",
@@ -184,17 +206,22 @@ describe("ProjectsPage", () => {
             },
             created_at: "2026-06-24T12:00:00Z",
             updated_at: "2026-06-24T12:00:00Z"
-          }
-        ]
-      }), { status: 200 })
-    );
+      };
+      if (String(input) === "/api/v1/projects/matches") return Promise.resolve(new Response(JSON.stringify({ matches: [session] }), { status: 200 }));
+      if (String(input) === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [{ id: 7, user_id: 7, session_id: 99, session }] }), { status: 200 }));
+      if (String(input) === "/api/v1/projects/matches/99/favorite" && init?.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
+      return Promise.reject(new Error(`unexpected ${String(input)}`));
+    });
     renderProjectRoute("/projects/history");
 
     expect(screen.getByRole("heading", { name: "匹配历史与收藏" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "历史匹配" })).toBeInTheDocument();
-    expect(await screen.findByText("本地AI获客顾问")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "查看结果" })).toHaveAttribute("href", "/projects/matches/99");
+    expect((await screen.findAllByText("本地AI获客顾问")).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "查看结果" })[0]).toHaveAttribute("href", "/projects/matches/99");
     expect(screen.getByRole("heading", { name: "收藏项目" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "取消收藏" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/matches/99/favorite", expect.objectContaining({ method: "DELETE" })));
+    expect(await screen.findByText("暂无收藏项目")).toBeInTheDocument();
   });
 
   it("renders match detail from API session", async () => {
@@ -227,9 +254,10 @@ describe("ProjectsPage", () => {
       "/api/v1/projects/matches/99",
       expect.objectContaining({ method: "GET" })
     ));
-    expect(await screen.findByRole("heading", { name: "本地AI获客顾问" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "本地AI获客顾问", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("匹配度 91分")).toBeInTheDocument();
     expect(screen.getByText("预算 ¥2,000 - ¥6,000")).toBeInTheDocument();
+    expect(screen.getByText(/未引用外部证据/)).toBeInTheDocument();
   });
 
   it("renders paid sample overlay state", () => {
@@ -240,18 +268,31 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("button", { name: "立即解锁" })).toBeInTheDocument();
   });
 
-  it("renders project detail tabs and diagnostics", () => {
+  it("renders an explicit empty state for the legacy detail route", () => {
     renderProjectRoute("/projects/detail");
 
-    expect(screen.getByRole("heading", { name: "AI短视频脚本工作室" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "诊断是否能做" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "成功路径" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "当前数据" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "真实案例库" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "优劣势" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "可学经验" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "要避免行为" })).toBeInTheDocument();
-    expect(screen.getByText("综合可做度 81分")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "项目详情" })).toBeInTheDocument();
+    expect(screen.getByText(/当前地址没有关联项目记录/)).toBeInTheDocument();
+    expect(screen.queryByText("AI短视频脚本工作室")).not.toBeInTheDocument();
+  });
+
+  it("renders opportunity sections with traceable case evidence", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/projects/opportunities/ai-sales") return Promise.resolve(new Response(JSON.stringify({
+        id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", industry: "企业服务", tags: ["B端"], budget_band: "1万", difficulty: "中等", resource_requirements: [],
+        sections: [{ title: "验证路径", body: "先验证单一销售环节", items: ["记录人工基线"] }]
+      }), { status: 200 }));
+      if (String(input) === "/api/v1/projects/cases") return Promise.resolve(new Response(JSON.stringify({ cases: [{
+        id: 81, slug: "sales-pilot", title: "销售试点复盘", summary: "公开试点记录", case_type: "success", outcome: "完成验证", key_actions: [], lessons: [], pitfalls: [], source_title: "企业公开复盘", source_url: "https://example.com/case", captured_at: "2026-07-01T08:00:00Z"
+      }] }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${String(input)}`));
+    });
+    renderProjectRoute("/projects/opportunities/ai-sales");
+
+    expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "验证路径" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "来源与证据" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "企业公开复盘" })).toHaveAttribute("href", "https://example.com/case");
   });
 
   it("creates a persisted project comparison", async () => {

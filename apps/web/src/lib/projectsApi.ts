@@ -39,6 +39,7 @@ export type ProjectFavorite = {
   user_id: number;
   session_id: number;
   created_at?: string;
+  session?: ProjectMatchSession;
 };
 
 export type ProjectOpportunity = {
@@ -102,6 +103,18 @@ export const projectsApi = {
   favoriteMatch(id: number) {
     return apiRequest<ProjectFavorite>(`/api/v1/projects/matches/${id}/favorite`, {
       method: "POST"
+    });
+  },
+
+  listFavorites() {
+    return apiRequest<{ favorites: ProjectFavorite[] }>("/api/v1/projects/favorites", {
+      method: "GET"
+    });
+  },
+
+  unfavoriteMatch(id: number) {
+    return apiRequest<void>(`/api/v1/projects/matches/${id}/favorite`, {
+      method: "DELETE"
     });
   }
 };

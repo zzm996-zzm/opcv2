@@ -98,16 +98,21 @@ describe("projectsApi", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/exports", expect.objectContaining({ method:"POST", body:JSON.stringify({ source_type:"match", source_id:99 }) }));
   });
 
-  it("favorites a project match", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ id: 7, user_id: 42, session_id: 99 }), { status: 200 })
-    );
+  it("lists, favorites, and unfavorites project matches", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ favorites: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 7, user_id: 42, session_id: 99 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
+    await projectsApi.listFavorites();
     await projectsApi.favoriteMatch(99);
+    await projectsApi.unfavoriteMatch(99);
 
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/projects/favorites", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2,
       "/api/v1/projects/matches/99/favorite",
       expect.objectContaining({ method: "POST" })
     );
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/projects/matches/99/favorite", expect.objectContaining({ method: "DELETE" }));
   });
 });

@@ -262,6 +262,45 @@ Errors:
 - `400 invalid_match_id`
 - `404 match_not_found`
 
+### List Favorite Project Matches
+
+`GET /api/v1/projects/favorites?limit=20`
+
+Response `200`:
+
+```json
+{
+  "favorites": [
+    {
+      "id": 7,
+      "user_id": 42,
+      "session_id": 99,
+      "created_at": "2026-07-13T08:00:00Z",
+      "session": {
+        "id": 99,
+        "user_id": 42,
+        "intent": "线上轻资产项目",
+        "status": "completed"
+      }
+    }
+  ]
+}
+```
+
+The embedded session is user-scoped and lets the saved-project page render only
+persisted match records.
+
+### Unfavorite Project Match
+
+`DELETE /api/v1/projects/matches/{id}/favorite`
+
+Response `204` with an empty body. Repeating the request is safe.
+
+Errors:
+
+- `400 invalid_match_id`
+- `404 match_not_found`
+
 ## Tasks
 
 All task endpoints are protected.
