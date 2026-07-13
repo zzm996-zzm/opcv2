@@ -16,12 +16,15 @@ import (
 type Repository interface {
 	ListCourses(ctx context.Context, filter CourseFilter) ([]Course, error)
 	GetCourse(ctx context.Context, slug string) (Course, error)
+	ListCourseMaterials(ctx context.Context, courseSlug string) ([]CourseMaterial, error)
 	ListProgress(ctx context.Context, userID int64) ([]Progress, error)
 	GetProgress(ctx context.Context, userID int64, courseSlug string) (Progress, error)
 	UpsertProgress(ctx context.Context, progress Progress) (Progress, error)
 	CreateDiagnosis(ctx context.Context, diagnosis Diagnosis) (Diagnosis, error)
 	GetDiagnosis(ctx context.Context, userID, id int64) (Diagnosis, error)
 	LatestDiagnosis(ctx context.Context, userID int64) (Diagnosis, error)
+	ListPlanItems(ctx context.Context, userID, diagnosisID int64) ([]PlanItem, error)
+	UpsertPlanItem(ctx context.Context, item PlanItem) (PlanItem, error)
 }
 
 type JSONGenerator interface {
@@ -73,6 +76,17 @@ func (s *Service) GetCourse(ctx context.Context, slug string) (Course, error) {
 		return Course{}, ErrServiceNotReady
 	}
 	return s.repository.GetCourse(ctx, strings.TrimSpace(slug))
+}
+
+func (s *Service) ListCourseMaterials(ctx context.Context, slug string) ([]CourseMaterial, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	slug = strings.TrimSpace(slug)
+	if _, err := s.repository.GetCourse(ctx, slug); err != nil {
+		return nil, err
+	}
+	return s.repository.ListCourseMaterials(ctx, slug)
 }
 
 func (s *Service) ListProgress(ctx context.Context, userID int64) ([]Progress, error) {
@@ -392,10 +406,59 @@ func (s *Service) LatestPlan(ctx context.Context, userID int64) (DiagnosisPlan, 
 	if err != nil {
 		return DiagnosisPlan{}, err
 	}
-	if len(diagnosis.PlanSnapshot.Stages) > 0 {
-		return diagnosis.PlanSnapshot, nil
+	return s.planForDiagnosis(ctx, diagnosis)
+}
+
+func (s *Service) GetPlan(ctx context.Context, userID, diagnosisID int64) (DiagnosisPlan, error) {
+	diagnosis, err := s.GetDiagnosis(ctx, userID, diagnosisID)
+	if err != nil {
+		return DiagnosisPlan{}, err
 	}
-	return derivePlan(diagnosis), nil
+	return s.planForDiagnosis(ctx, diagnosis)
+}
+
+func (s *Service) planForDiagnosis(ctx context.Context, diagnosis Diagnosis) (DiagnosisPlan, error) {
+	plan := diagnosis.PlanSnapshot
+	if len(plan.Stages) == 0 {
+		plan = derivePlan(diagnosis)
+	}
+	items, err := s.repository.ListPlanItems(ctx, diagnosis.UserID, diagnosis.ID)
+	if err != nil {
+		return DiagnosisPlan{}, err
+	}
+	return mergePlanItems(plan, diagnosis, items), nil
+}
+
+func (s *Service) UpdatePlanItem(ctx context.Context, input UpdatePlanItemInput) (PlanItem, error) {
+	if s.repository == nil || input.UserID <= 0 || input.DiagnosisID <= 0 || input.StageNumber <= 0 {
+		return PlanItem{}, ErrInvalidPlanItem
+	}
+	diagnosis, err := s.GetDiagnosis(ctx, input.UserID, input.DiagnosisID)
+	if err != nil {
+		return PlanItem{}, err
+	}
+	if len(diagnosis.PlanSnapshot.Stages) == 0 {
+		diagnosis.PlanSnapshot = derivePlan(diagnosis)
+	}
+	var stage *PlanStage
+	for index := range diagnosis.PlanSnapshot.Stages {
+		if diagnosis.PlanSnapshot.Stages[index].Number == input.StageNumber {
+			stage = &diagnosis.PlanSnapshot.Stages[index]
+			break
+		}
+	}
+	if stage == nil {
+		return PlanItem{}, ErrInvalidPlanItem
+	}
+	item := PlanItem{
+		UserID: input.UserID, DiagnosisID: input.DiagnosisID, StageNumber: input.StageNumber,
+		Title: stage.Title, Completed: input.Completed, UpdatedAt: s.now(),
+	}
+	if input.Completed {
+		completedAt := item.UpdatedAt
+		item.CompletedAt = &completedAt
+	}
+	return s.repository.UpsertPlanItem(ctx, item)
 }
 
 func (s *Service) LatestReport(ctx context.Context, userID int64) (DiagnosisReport, error) {
@@ -459,6 +522,29 @@ func derivePlan(diagnosis Diagnosis) DiagnosisPlan {
 		Basis: diagnosis.Basis, Disclaimer: diagnosis.Disclaimer, Assumptions: diagnosis.Assumptions,
 		EvidenceSources: diagnosis.EvidenceSources, GeneratedAt: diagnosis.UpdatedAt,
 	}
+}
+
+func mergePlanItems(plan DiagnosisPlan, diagnosis Diagnosis, persisted []PlanItem) DiagnosisPlan {
+	byStage := make(map[int]PlanItem, len(persisted))
+	for _, item := range persisted {
+		byStage[item.StageNumber] = item
+	}
+	plan.DiagnosisID = diagnosis.ID
+	plan.Items = make([]PlanItem, 0, len(plan.Stages))
+	for index := range plan.Stages {
+		stage := &plan.Stages[index]
+		item, exists := byStage[stage.Number]
+		if !exists {
+			item = PlanItem{UserID: diagnosis.UserID, DiagnosisID: diagnosis.ID, StageNumber: stage.Number, Title: stage.Title}
+		}
+		if item.Completed {
+			stage.Status = "completed"
+		} else {
+			stage.Status = "not_started"
+		}
+		plan.Items = append(plan.Items, item)
+	}
+	return plan
 }
 
 func deriveReport(diagnosis Diagnosis) DiagnosisReport {

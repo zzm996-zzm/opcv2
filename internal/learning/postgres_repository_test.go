@@ -225,3 +225,72 @@ func TestPostgresRepositoryCreatesDiagnosisWithIntake(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryListsCourseMaterials(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, course_slug, title, material_type, content_url, position, downloadable, created_at, updated_at
+		FROM learning_course_materials
+		WHERE course_slug = $1
+		ORDER BY position ASC, id ASC
+	`)).WithArgs("ai-basics").WillReturnRows(pgxmock.NewRows([]string{
+		"id", "course_slug", "title", "material_type", "content_url", "position", "downloadable", "created_at", "updated_at",
+	}).AddRow(int64(9), "ai-basics", "第一章讲义", "article", "/content/lesson-1", 1, false, now, now))
+
+	materials, err := NewPostgresRepository(db).ListCourseMaterials(context.Background(), "ai-basics")
+	if err != nil || len(materials) != 1 || materials[0].Title != "第一章讲义" {
+		t.Fatalf("materials=%+v err=%v", materials, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryListsAndUpsertsPlanItems(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, diagnosis_id, stage_number, title, completed, completed_at, updated_at
+		FROM learning_plan_items
+		WHERE user_id = $1 AND diagnosis_id = $2
+		ORDER BY stage_number ASC
+	`)).WithArgs(int64(42), int64(99)).WillReturnRows(pgxmock.NewRows([]string{
+		"id", "user_id", "diagnosis_id", "stage_number", "title", "completed", "completed_at", "updated_at",
+	}).AddRow(int64(77), int64(42), int64(99), 1, "数据洞察能力", true, now, now))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO learning_plan_items (user_id, diagnosis_id, stage_number, title, completed, completed_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+		ON CONFLICT (user_id, diagnosis_id, stage_number) DO UPDATE SET
+			title = EXCLUDED.title,
+			completed = EXCLUDED.completed,
+			completed_at = EXCLUDED.completed_at,
+			updated_at = EXCLUDED.updated_at
+		RETURNING id, user_id, diagnosis_id, stage_number, title, completed, completed_at, updated_at
+	`)).WithArgs(int64(42), int64(99), 1, "数据洞察能力", true, &now, now).WillReturnRows(pgxmock.NewRows([]string{
+		"id", "user_id", "diagnosis_id", "stage_number", "title", "completed", "completed_at", "updated_at",
+	}).AddRow(int64(77), int64(42), int64(99), 1, "数据洞察能力", true, now, now))
+
+	repository := NewPostgresRepository(db)
+	items, err := repository.ListPlanItems(context.Background(), 42, 99)
+	if err != nil || len(items) != 1 || !items[0].Completed {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+	updated, err := repository.UpsertPlanItem(context.Background(), PlanItem{
+		UserID: 42, DiagnosisID: 99, StageNumber: 1, Title: "数据洞察能力", Completed: true, CompletedAt: &now, UpdatedAt: now,
+	})
+	if err != nil || updated.ID != 77 || !updated.Completed {
+		t.Fatalf("updated=%+v err=%v", updated, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

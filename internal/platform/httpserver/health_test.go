@@ -682,6 +682,9 @@ func (fakeLearningApp) ListCourses(context.Context, learning.CourseFilter) ([]le
 func (fakeLearningApp) GetCourse(context.Context, string) (learning.Course, error) {
 	return learning.Course{Slug: "ai-basics", Title: "AI基础入门"}, nil
 }
+func (fakeLearningApp) ListCourseMaterials(context.Context, string) ([]learning.CourseMaterial, error) {
+	return []learning.CourseMaterial{}, nil
+}
 func (fakeLearningApp) ListProgress(context.Context, int64) ([]learning.Progress, error) {
 	return []learning.Progress{{CourseSlug: "ai-basics", CourseTitle: "AI基础入门", Percent: 42}}, nil
 }
@@ -708,6 +711,12 @@ func (fakeLearningApp) LatestRecommendations(context.Context, int64) (learning.D
 }
 func (fakeLearningApp) LatestPlan(context.Context, int64) (learning.DiagnosisPlan, error) {
 	return learning.DiagnosisPlan{DiagnosisID: 99, Title: "AI能力路径"}, nil
+}
+func (fakeLearningApp) GetPlan(context.Context, int64, int64) (learning.DiagnosisPlan, error) {
+	return learning.DiagnosisPlan{DiagnosisID: 99, Title: "AI能力路径"}, nil
+}
+func (fakeLearningApp) UpdatePlanItem(context.Context, learning.UpdatePlanItemInput) (learning.PlanItem, error) {
+	return learning.PlanItem{ID: 77, DiagnosisID: 99, StageNumber: 1, Completed: true}, nil
 }
 func (fakeLearningApp) LatestReport(context.Context, int64) (learning.DiagnosisReport, error) {
 	return learning.DiagnosisReport{DiagnosisID: 99, OverallScore: 82}, nil

@@ -13,8 +13,10 @@ import (
 
 type fakeRepository struct {
 	courses    []Course
+	materials  []CourseMaterial
 	progress   []Progress
 	diagnosis  Diagnosis
+	planItems  []PlanItem
 	created    Diagnosis
 	repository error
 }
@@ -72,6 +74,16 @@ func (r *fakeRepository) GetCourse(_ context.Context, slug string) (Course, erro
 	return Course{}, ErrCourseNotFound
 }
 
+func (r *fakeRepository) ListCourseMaterials(_ context.Context, courseSlug string) ([]CourseMaterial, error) {
+	rows := make([]CourseMaterial, 0, len(r.materials))
+	for _, material := range r.materials {
+		if material.CourseSlug == courseSlug {
+			rows = append(rows, material)
+		}
+	}
+	return rows, r.repository
+}
+
 func (r *fakeRepository) ListProgress(_ context.Context, userID int64) ([]Progress, error) {
 	if r.repository != nil {
 		return nil, r.repository
@@ -114,6 +126,31 @@ func (r *fakeRepository) GetDiagnosis(_ context.Context, userID, id int64) (Diag
 		return Diagnosis{}, ErrDiagnosisNotFound
 	}
 	return r.diagnosis, nil
+}
+
+func (r *fakeRepository) ListPlanItems(_ context.Context, userID, diagnosisID int64) ([]PlanItem, error) {
+	rows := make([]PlanItem, 0, len(r.planItems))
+	for _, item := range r.planItems {
+		if item.UserID == userID && item.DiagnosisID == diagnosisID {
+			rows = append(rows, item)
+		}
+	}
+	return rows, r.repository
+}
+
+func (r *fakeRepository) UpsertPlanItem(_ context.Context, item PlanItem) (PlanItem, error) {
+	if r.repository != nil {
+		return PlanItem{}, r.repository
+	}
+	item.ID = 77
+	for index, current := range r.planItems {
+		if current.UserID == item.UserID && current.DiagnosisID == item.DiagnosisID && current.StageNumber == item.StageNumber {
+			r.planItems[index] = item
+			return item, nil
+		}
+	}
+	r.planItems = append(r.planItems, item)
+	return item, nil
 }
 
 type fakeGenerator struct {
@@ -163,6 +200,20 @@ func TestServiceListsCoursesByCategory(t *testing.T) {
 	}
 	if len(courses) != 1 || courses[0].Slug != "prompt-engineering" {
 		t.Fatalf("courses = %+v", courses)
+	}
+}
+
+func TestServiceListsPersistedCourseMaterials(t *testing.T) {
+	repository := &fakeRepository{
+		courses:   []Course{{Slug: "ai-basics", Title: "AI基础入门"}},
+		materials: []CourseMaterial{{ID: 9, CourseSlug: "ai-basics", Title: "第一章讲义", MaterialType: "article"}},
+	}
+	service := NewService(repository)
+
+	materials, err := service.ListCourseMaterials(context.Background(), " ai-basics ")
+
+	if err != nil || len(materials) != 1 || materials[0].Title != "第一章讲义" {
+		t.Fatalf("materials = %+v err=%v", materials, err)
 	}
 }
 
@@ -326,5 +377,35 @@ func TestServiceDerivesLearningViewsFromLatestDiagnosis(t *testing.T) {
 	}
 	if report.OverallScore != 82 || report.PriorityGaps[0].Name != "业务场景拆解" || len(report.Evidence) == 0 {
 		t.Fatalf("report = %+v", report)
+	}
+}
+
+func TestServicePersistsAndMergesPlanItemCompletion(t *testing.T) {
+	now := time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC)
+	repository := &fakeRepository{diagnosis: Diagnosis{
+		ID: 99, UserID: 42, Goal: "提升数据能力", Project: "智能客服", UpdatedAt: now,
+		PlanSnapshot: DiagnosisPlan{DiagnosisID: 99, Stages: []PlanStage{{Number: 1, Title: "数据洞察能力", Status: "not_started"}}},
+	}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	item, err := service.UpdatePlanItem(context.Background(), UpdatePlanItemInput{UserID: 42, DiagnosisID: 99, StageNumber: 1, Completed: true})
+	if err != nil || !item.Completed || item.CompletedAt == nil || item.Title != "数据洞察能力" {
+		t.Fatalf("item = %+v err=%v", item, err)
+	}
+	plan, err := service.GetPlan(context.Background(), 42, 99)
+	if err != nil || len(plan.Items) != 1 || !plan.Items[0].Completed || plan.Stages[0].Status != "completed" {
+		t.Fatalf("plan = %+v err=%v", plan, err)
+	}
+}
+
+func TestServiceRejectsUnknownPlanStage(t *testing.T) {
+	repository := &fakeRepository{diagnosis: Diagnosis{ID: 99, UserID: 42, PlanSnapshot: DiagnosisPlan{Stages: []PlanStage{{Number: 1, Title: "数据洞察能力"}}}}}
+	service := NewService(repository)
+
+	_, err := service.UpdatePlanItem(context.Background(), UpdatePlanItemInput{UserID: 42, DiagnosisID: 99, StageNumber: 2, Completed: true})
+
+	if !errors.Is(err, ErrInvalidPlanItem) {
+		t.Fatalf("err = %v, want ErrInvalidPlanItem", err)
 	}
 }

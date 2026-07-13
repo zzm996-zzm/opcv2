@@ -14,6 +14,7 @@ import (
 type fakeApp struct {
 	course          Course
 	courses         []Course
+	materials       []CourseMaterial
 	courseFilter    CourseFilter
 	progress        []Progress
 	diagnosis       Diagnosis
@@ -25,6 +26,7 @@ type fakeApp struct {
 	progressUserID  int64
 	progressSlug    string
 	progressInput   UpdateProgressInput
+	planItemInput   UpdatePlanItemInput
 	latestUserID    int64
 	diagnosisID     int64
 	err             error
@@ -36,6 +38,9 @@ func (a *fakeApp) ListCourses(_ context.Context, filter CourseFilter) ([]Course,
 }
 func (a *fakeApp) GetCourse(context.Context, string) (Course, error) {
 	return a.course, a.err
+}
+func (a *fakeApp) ListCourseMaterials(context.Context, string) ([]CourseMaterial, error) {
+	return a.materials, a.err
 }
 func (a *fakeApp) ListProgress(_ context.Context, userID int64) ([]Progress, error) {
 	a.progressUserID = userID
@@ -81,6 +86,15 @@ func (a *fakeApp) LatestPlan(_ context.Context, userID int64) (DiagnosisPlan, er
 	a.latestUserID = userID
 	return a.plan, a.err
 }
+func (a *fakeApp) GetPlan(_ context.Context, userID, diagnosisID int64) (DiagnosisPlan, error) {
+	a.latestUserID = userID
+	a.diagnosisID = diagnosisID
+	return a.plan, a.err
+}
+func (a *fakeApp) UpdatePlanItem(_ context.Context, input UpdatePlanItemInput) (PlanItem, error) {
+	a.planItemInput = input
+	return PlanItem{ID: 77, UserID: input.UserID, DiagnosisID: input.DiagnosisID, StageNumber: input.StageNumber, Completed: input.Completed}, a.err
+}
 func (a *fakeApp) LatestReport(_ context.Context, userID int64) (DiagnosisReport, error) {
 	a.latestUserID = userID
 	return a.report, a.err
@@ -119,6 +133,20 @@ func TestHTTPHandlerListsCoursesWithEmptyArrayAndCappedLimit(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"courses":[]`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestHTTPHandlerListsCourseMaterials(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	app := &fakeApp{materials: []CourseMaterial{{ID: 9, CourseSlug: "ai-basics", Title: "第一章讲义"}}}
+	NewHTTPHandler(app).RegisterPublic(router.Group("/api/v1"))
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/learning/courses/ai-basics/materials", nil))
+
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"materials"`) || !strings.Contains(recorder.Body.String(), "第一章讲义") {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 
@@ -175,6 +203,32 @@ func TestHTTPHandlerSubmitsAndReadsAssessmentForAuthenticatedUser(t *testing.T) 
 	router.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/api/v1/learning/assessments/99", nil))
 	if read.Code != http.StatusOK || app.latestUserID != 42 || app.diagnosisID != 99 {
 		t.Fatalf("read status=%d app=%+v body=%s", read.Code, app, read.Body.String())
+	}
+}
+
+func TestHTTPHandlerReadsPlanAndUpdatesStageCompletion(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	group := router.Group("/api/v1")
+	group.Use(func(c *gin.Context) {
+		c.Set(auth.UserIDContextKey, int64(42))
+		c.Next()
+	})
+	app := &fakeApp{plan: DiagnosisPlan{DiagnosisID: 99, Stages: []PlanStage{{Number: 1, Title: "数据洞察能力"}}}}
+	NewHTTPHandler(app).RegisterProtected(group)
+
+	read := httptest.NewRecorder()
+	router.ServeHTTP(read, httptest.NewRequest(http.MethodGet, "/api/v1/learning/diagnoses/99/plan", nil))
+	if read.Code != http.StatusOK || app.latestUserID != 42 || app.diagnosisID != 99 {
+		t.Fatalf("read status=%d app=%+v body=%s", read.Code, app, read.Body.String())
+	}
+
+	update := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/learning/diagnoses/99/plan/items/1", strings.NewReader(`{"completed":true}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(update, request)
+	if update.Code != http.StatusOK || app.planItemInput.UserID != 42 || app.planItemInput.DiagnosisID != 99 || app.planItemInput.StageNumber != 1 || !app.planItemInput.Completed {
+		t.Fatalf("update status=%d input=%+v body=%s", update.Code, app.planItemInput, update.Body.String())
 	}
 }
 

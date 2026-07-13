@@ -13,6 +13,7 @@ var (
 	ErrInvalidDiagnosis  = errors.New("invalid learning diagnosis")
 	ErrInvalidAIResult   = errors.New("invalid learning ai result")
 	ErrDiagnosisNotFound = errors.New("learning diagnosis not found")
+	ErrInvalidPlanItem   = errors.New("invalid learning plan item")
 )
 
 const DiagnosisCompleted = "completed"
@@ -36,6 +37,18 @@ type Course struct {
 	Outline     []string  `json:"outline"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type CourseMaterial struct {
+	ID           int64     `json:"id"`
+	CourseSlug   string    `json:"course_slug"`
+	Title        string    `json:"title"`
+	MaterialType string    `json:"material_type"`
+	ContentURL   string    `json:"content_url"`
+	Position     int       `json:"position"`
+	Downloadable bool      `json:"downloadable"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type Progress struct {
@@ -172,12 +185,31 @@ type PlanStage struct {
 	Milestone string   `json:"milestone"`
 }
 
+type PlanItem struct {
+	ID          int64      `json:"id"`
+	UserID      int64      `json:"user_id"`
+	DiagnosisID int64      `json:"diagnosis_id"`
+	StageNumber int        `json:"stage_number"`
+	Title       string     `json:"title"`
+	Completed   bool       `json:"completed"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type UpdatePlanItemInput struct {
+	UserID      int64 `json:"-"`
+	DiagnosisID int64 `json:"-"`
+	StageNumber int   `json:"-"`
+	Completed   bool  `json:"completed"`
+}
+
 type DiagnosisPlan struct {
 	DiagnosisID      int64                     `json:"diagnosis_id"`
 	Title            string                    `json:"title"`
 	Description      string                    `json:"description"`
 	Recommendations  []string                  `json:"recommendations"`
 	Stages           []PlanStage               `json:"stages"`
+	Items            []PlanItem                `json:"items"`
 	EstimatedHours   int                       `json:"estimated_hours"`
 	WeeklySuggestion string                    `json:"weekly_suggestion"`
 	Basis            string                    `json:"basis"`

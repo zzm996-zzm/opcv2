@@ -2,6 +2,7 @@ package learning
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 
@@ -59,6 +60,31 @@ func (r *PostgresRepository) GetCourse(ctx context.Context, slug string) (Course
 		return Course{}, ErrCourseNotFound
 	}
 	return course, err
+}
+
+func (r *PostgresRepository) ListCourseMaterials(ctx context.Context, courseSlug string) ([]CourseMaterial, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, course_slug, title, material_type, content_url, position, downloadable, created_at, updated_at
+		FROM learning_course_materials
+		WHERE course_slug = $1
+		ORDER BY position ASC, id ASC
+	`, courseSlug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var materials []CourseMaterial
+	for rows.Next() {
+		var material CourseMaterial
+		if err := rows.Scan(&material.ID, &material.CourseSlug, &material.Title, &material.MaterialType, &material.ContentURL, &material.Position, &material.Downloadable, &material.CreatedAt, &material.UpdatedAt); err != nil {
+			return nil, err
+		}
+		materials = append(materials, material)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return materials, nil
 }
 
 func (r *PostgresRepository) ListProgress(ctx context.Context, userID int64) ([]Progress, error) {
@@ -225,6 +251,58 @@ func (r *PostgresRepository) LatestDiagnosis(ctx context.Context, userID int64) 
 		return Diagnosis{}, ErrDiagnosisNotFound
 	}
 	return diagnosis, err
+}
+
+func (r *PostgresRepository) ListPlanItems(ctx context.Context, userID, diagnosisID int64) ([]PlanItem, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, diagnosis_id, stage_number, title, completed, completed_at, updated_at
+		FROM learning_plan_items
+		WHERE user_id = $1 AND diagnosis_id = $2
+		ORDER BY stage_number ASC
+	`, userID, diagnosisID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PlanItem
+	for rows.Next() {
+		item, err := scanPlanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *PostgresRepository) UpsertPlanItem(ctx context.Context, item PlanItem) (PlanItem, error) {
+	updated, err := scanPlanItem(r.db.QueryRow(ctx, `
+		INSERT INTO learning_plan_items (user_id, diagnosis_id, stage_number, title, completed, completed_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+		ON CONFLICT (user_id, diagnosis_id, stage_number) DO UPDATE SET
+			title = EXCLUDED.title,
+			completed = EXCLUDED.completed,
+			completed_at = EXCLUDED.completed_at,
+			updated_at = EXCLUDED.updated_at
+		RETURNING id, user_id, diagnosis_id, stage_number, title, completed, completed_at, updated_at
+	`, item.UserID, item.DiagnosisID, item.StageNumber, item.Title, item.Completed, item.CompletedAt, item.UpdatedAt))
+	return updated, err
+}
+
+func scanPlanItem(scanner courseScanner) (PlanItem, error) {
+	var item PlanItem
+	var completedAt sql.NullTime
+	err := scanner.Scan(&item.ID, &item.UserID, &item.DiagnosisID, &item.StageNumber, &item.Title, &item.Completed, &completedAt, &item.UpdatedAt)
+	if err != nil {
+		return PlanItem{}, err
+	}
+	if completedAt.Valid {
+		item.CompletedAt = &completedAt.Time
+	}
+	return item, nil
 }
 
 type courseScanner interface {
