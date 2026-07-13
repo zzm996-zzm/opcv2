@@ -15,13 +15,6 @@ const emptyDataStats = [
   ["AI结论", "0"]
 ] as const;
 
-const dataSources = [
-  ["官网页面", "产品、价格、案例、更新日志", "已采集"],
-  ["招聘动态", "岗位、团队扩张、重点能力", "采集中"],
-  ["内容矩阵", "公众号、视频号、SEO 页面", "已采集"],
-  ["投放素材", "关键词、落地页、转化钩子", "排队中"]
-] as const;
-
 const taskFlow = [
   ["1", "输入竞品", "域名、品牌名、关键词或截图"],
   ["2", "脚本采集", "官网、招聘、内容、投放与价格页"],
@@ -81,6 +74,7 @@ function CompetitorDataPage() {
   const [scanPlanError, setScanPlanError] = useState("");
   const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
   const scanQuota = quotaSummary(usage, quotaKeys.competitorScans, "竞品全盘数据破解");
+  const pollingScanId = latestScan && shouldPollScan(latestScan) ? latestScan.id : null;
 
   useEffect(() => {
     let active = true;
@@ -108,12 +102,11 @@ function CompetitorDataPage() {
   }, []);
 
   useEffect(() => {
-    if (!latestScan || !shouldPollScan(latestScan)) return;
-    const scanToPoll = latestScan;
+    if (!pollingScanId) return;
     let active = true;
     const timer = window.setInterval(() => {
       void competitorApi
-        .getScan(scanToPoll.id)
+        .getScan(pollingScanId)
         .then((scan) => {
           if (active) {
             setLatestScan(scan);
@@ -127,7 +120,7 @@ function CompetitorDataPage() {
       active = false;
       window.clearInterval(timer);
     };
-  }, [latestScan?.id, latestScan?.status]);
+  }, [pollingScanId]);
 
   const statusCopy = scanStatusCopy(latestScan);
   const visibleStats = latestScan ? [
@@ -139,6 +132,11 @@ function CompetitorDataPage() {
   const visibleCompetitors = latestScan?.competitors ?? [];
   const visibleConclusions = latestScan?.conclusions.map((item) => [item.title, item.detail] as const) ?? [];
   const visibleEvidenceSources = latestScan?.evidence_sources ?? [];
+  const visibleDataSources = visibleEvidenceSources.map((source) => [
+    source.platform || source.source_type,
+    source.summary || source.title,
+    "已留存证据"
+  ] as const);
   const primaryConclusion = latestScan?.conclusions[0];
 
   async function startScan() {
@@ -324,8 +322,9 @@ function CompetitorDataPage() {
 
           <aside className="competitor-data-side" aria-label="数据源状态">
             <h2>数据源状态</h2>
-            {dataSources.map(([source, detail, status]) => (
-              <article key={source}>
+            {visibleDataSources.length === 0 ? <div className="module-empty-state" role="status">暂无已留存数据源</div> : null}
+            {visibleDataSources.map(([source, detail, status], index) => (
+              <article key={`${source}-${index}`}>
                 <span>
                   <strong>{source}</strong>
                   <small>{detail}</small>

@@ -430,6 +430,9 @@ func (s *Service) ProcessScan(ctx context.Context, id int64) error {
 		result.RawSnapshots = []RawSnapshot{}
 	}
 	if err := s.repository.StoreScanResults(ctx, id, result); err != nil {
+		if _, updateErr := s.repository.UpdateScanStatus(ctx, id, StatusFailed, 100, "failed", "artifact_store_failed"); updateErr != nil {
+			return updateErr
+		}
 		return err
 	}
 	_, err = s.repository.UpdateScanStatus(ctx, id, StatusSucceeded, 100, StatusSucceeded, "")

@@ -1300,14 +1300,66 @@ Notes:
 
 - Creating a scan creates a queued script task and enqueues a `competitor.scan` background job. It must not fabricate competitor cards or AI conclusions.
 - The worker marks scans `running` while processing, then writes scanner results and marks `succeeded`, or marks `failed` with `error_message`.
-- Successful scanner results can include `evidence_sources` with `source_type`, `title`, `url`, `summary`, and `captured_at`.
+- Successful scanner results can include `evidence_sources` with `source_type`, `platform`, `title`, `url`, `summary`, and `captured_at`.
+- The worker mirrors safe evidence summaries into the scan response and transactionally stores normalized evidence plus internal raw snapshots. Raw snapshot payloads are never returned by user APIs.
 - `OPCV2_COMPETITOR_SCANNER_PROVIDER=development` enables the development scanner for local/demo use. The default is empty, and production rejects the development scanner.
-- Real script account execution remains a separate provider implementation step.
+- Platform scanners can request an account from the script-account pool. The worker atomically leases an available account, enforces its hourly run limit, records the run, applies failure cooldown, disables repeatedly failing accounts, and reclaims stale leases after 15 minutes.
+- Real platform scripts remain separate provider implementations; no unofficial platform script is enabled by this account-pool foundation.
 
 Errors:
 
 - `402 quota_exceeded`
 - `500 quota_not_configured`
+
+### Admin Script Account Pool
+
+All endpoints below require an authenticated active user with the `admin` role.
+They manage secret references only. Raw passwords, cookies, or tokens must never
+be submitted; accepted references start with `op://`, `vault://`, or
+`secret://`, and references are never returned in responses.
+
+`GET /api/v1/admin/competitor/script-accounts?platform=xiaohongshu&limit=20`
+
+Response `200`:
+
+```json
+{
+  "script_accounts": [
+    {
+      "id": 88,
+      "platform": "xiaohongshu",
+      "account_label": "运营账号A",
+      "has_credential": true,
+      "status": "available",
+      "failure_count": 0,
+      "max_runs_per_hour": 6
+    }
+  ]
+}
+```
+
+`POST /api/v1/admin/competitor/script-accounts`
+
+```json
+{
+  "platform": "xiaohongshu",
+  "account_label": "运营账号A",
+  "credential_ref": "op://Production/XHS-A/session",
+  "status": "available",
+  "max_runs_per_hour": 6
+}
+```
+
+`PUT /api/v1/admin/competitor/script-accounts/{id}` uses the same body. An
+empty `credential_ref` on update preserves the existing reference. Allowed
+operator-set statuses are `available`, `cooldown`, and `disabled`; `in_use` is
+worker-owned.
+
+Errors:
+
+- `400 invalid_script_account`
+- `403 admin_required`
+- `404 script_account_not_found`
 
 ### List Scans
 

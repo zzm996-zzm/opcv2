@@ -93,7 +93,7 @@ describe("CompetitorDataPage", () => {
     renderCompetitorDataPage();
 
     expect(await screen.findByRole("heading", { name: "增长雷达" })).toBeInTheDocument();
-    expect(screen.getAllByText("新增自动化竞品预警和任务派发能力")).toHaveLength(2);
+    expect(screen.getAllByText("新增自动化竞品预警和任务派发能力")).toHaveLength(3);
     expect(screen.getByText("自动化增强")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "证据来源" })).toBeInTheDocument();
     expect(screen.getByText("增长雷达产品更新页")).toBeInTheDocument();

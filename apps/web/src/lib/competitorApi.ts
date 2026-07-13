@@ -16,6 +16,7 @@ export type CompetitorConclusion = {
 
 export type CompetitorEvidenceSource = {
   source_type: string;
+  platform?: string;
   title: string;
   url: string;
   summary: string;
