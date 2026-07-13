@@ -6,74 +6,22 @@ import { authSession } from "../lib/authSession";
 import LearningReportPage from "./LearningReportPage";
 
 describe("LearningReportPage", () => {
-  afterEach(() => {
-    authSession.clear();
-    vi.restoreAllMocks();
-  });
+  afterEach(() => { authSession.clear(); vi.restoreAllMocks(); });
 
-  function signIn() {
-    authSession.set({
-      access_token: "access-token",
-      access_token_expires_at: "2026-06-16T12:00:00Z",
-      is_new_user: false,
-      user: { id: 7, nickname: "张婧", phone: "13800138000", status: "active" }
-    });
-  }
-
-  function renderReportPage() {
-    signIn();
-    render(
-      <MemoryRouter>
-        <LearningReportPage />
-      </MemoryRouter>
-    );
-  }
-
-  it("renders the diagnosis report overview, prioritized gaps and evidence", () => {
-    renderReportPage();
-
-    expect(screen.getByRole("heading", { name: "能力诊断" })).toBeInTheDocument();
-    expect(screen.getByText("诊断概览")).toBeInTheDocument();
-    expect(screen.getByText("智能客服与市场分析能力提升")).toBeInTheDocument();
-    expect(screen.getByText("能力差距分布")).toBeInTheDocument();
-    expect(screen.getByText("优先补齐能力")).toBeInTheDocument();
-    expect(screen.getByText("诊断依据")).toBeInTheDocument();
-    expect(screen.getByText("能力诊断报告.pdf")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /去补这些课程/ })).toHaveAttribute("href", "/learning/recommendation");
-  });
-
-  it("loads diagnosis dimensions into the report", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
-        diagnosis_id: 99,
-        goal: "提升企业AI落地能力",
-        project: "企业AI运营项目",
-        overall_score: 82,
-        dimensions: [
-          { name: "自动化运营能力", score: 88, gap: 6, summary: "自动化运营能力表现较好" },
-          { name: "业务场景拆解", score: 58, gap: 24, summary: "需要补齐场景拆解方法" }
-        ],
-        priority_gaps: [{
-          name: "业务场景拆解",
-          current: 58,
-          target: 82,
-          gap: 24,
-          priority: "high",
-          summary: "需要补齐场景拆解方法",
-          evidence: "诊断显示业务场景拆解差距最大",
-          recommended: "完成一次项目拆解练习"
-        }],
-        recommendations: ["优先补齐业务场景拆解"],
-        evidence: ["项目方向：企业AI运营项目"],
-        generated_at: "2026-06-30T08:00:00Z"
-      }), { status: 200 })
-    );
-
-    renderReportPage();
-
-    expect(await screen.findByText("82分")).toBeInTheDocument();
+  it("renders the persisted report and removes fake PDF export", async () => {
+    authSession.set({ access_token: "token", access_token_expires_at: "2026-07-14T00:00:00Z", is_new_user: false, user: { id: 7, nickname: "张婧", phone: "", status: "active" } });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      diagnosis_id: 99, goal: "提升AI能力", project: "企业AI运营项目", overall_score: 82,
+      dimensions: [{ name: "自动化运营能力", score: 88, gap: 6, summary: "表现较好" }],
+      priority_gaps: [{ name: "业务场景拆解", current: 58, target: 82, gap: 24, priority: "high", summary: "需补齐", evidence: "用户输入", recommended: "完成一次项目拆解" }],
+      recommendations: ["优先完成项目拆解"], evidence: [], basis: "model_assessment", disclaimer: "模型评估说明",
+      assumptions: ["基于用户自述"], evidence_sources: [{ type: "assessment_input", label: "用户本次提交", captured_at: "2026-07-13T08:00:00Z" }], generated_at: "2026-07-13T08:00:00Z"
+    }), { status: 200 }));
+    render(<MemoryRouter><LearningReportPage /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "能力诊断报告" })).toBeInTheDocument();
+    expect(screen.getByText("82/100")).toBeInTheDocument();
     expect(screen.getByText("自动化运营能力")).toBeInTheDocument();
-    expect(screen.getByText("业务场景拆解")).toBeInTheDocument();
-    expect(screen.getByText("需要补齐场景拆解方法")).toBeInTheDocument();
+    expect(screen.getByText("用户本次提交")).toBeInTheDocument();
+    expect(screen.queryByText("能力诊断报告.pdf")).not.toBeInTheDocument();
   });
 });

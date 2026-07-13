@@ -3,173 +3,43 @@ import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
-import { learningApi, type LearningDimension, type LearningReport } from "../lib/learningApi";
-
-const reportSteps = [
-  ["1", "收集信息", "获取项目与数据", "complete"],
-  ["2", "能力评估", "多维度能力测评", "complete"],
-  ["3", "差距分析", "定位关键弱项", "complete"],
-  ["4", "生成报告", "输出诊断结果", "active"],
-  ["5", "推荐方案", "推荐学习路径与课程", ""]
-] as const;
-
-const abilityScores = [
-  ["AI基础理解", "70分", "中等", "掌握度 70%", "cube", "medium"],
-  ["提示词工程实战", "55分", "较弱", "掌握度 55%", "chat", "weak"],
-  ["行业分析方法", "60分", "中等", "掌握度 60%", "bars", "medium"],
-  ["智能客服案例拆解", "45分", "较弱", "掌握度 45%", "headset", "weak"],
-  ["数据洞察能力", "58分", "中等", "掌握度 58%", "target", "medium"]
-] as const;
-
-const priorityGaps = [
-  ["智能客服案例拆解", "差距最大", "提升服务场景理解与方案拆解能力", "45分"],
-  ["提示词工程实战", "重点提升", "掌握高质量提示词设计与优化技巧", "55分"],
-  ["数据洞察能力", "持续补强", "提升数据解读与洞察发现能力", "58分"]
-] as const;
-
-const evidenceItems = [
-  ["项目超市", "分析了 2 个相关项目", "grid"],
-  ["任务中心", "分析了 5 个已完成任务", "check"],
-  ["工具箱", "分析了 8 个常用工具", "case"]
-] as const;
-
-function formatGoal(goal: string) {
-  return `${goal.replace(/^提升/, "")}提升`;
-}
-
-function scoreLevel(score: number) {
-  if (score >= 80) return "优势";
-  if (score >= 60) return "中等";
-  return "较弱";
-}
-
-function scoreState(score: number) {
-  if (score >= 80) return "good";
-  if (score >= 60) return "medium";
-  return "weak";
-}
-
-function toAbilityScore(dimension: LearningDimension, index: number) {
-  const icons = ["cube", "chat", "bars", "headset", "target"] as const;
-  return [
-    dimension.name,
-    `${dimension.score}分`,
-    scoreLevel(dimension.score),
-    `掌握度 ${dimension.score}%`,
-    icons[index % icons.length],
-    scoreState(dimension.score)
-  ] as const;
-}
-
-function toPriorityGap(dimension: LearningDimension, index: number) {
-  const badges = ["差距最大", "重点提升", "持续补强"] as const;
-  return [
-    `优先补齐：${dimension.name}`,
-    badges[index] ?? "持续补强",
-    dimension.summary || `当前差距 ${dimension.gap} 分，建议优先补齐。`,
-    `${dimension.score}分`
-  ] as const;
-}
+import { learningApi, type LearningReport } from "../lib/learningApi";
 
 function LearningReportPage() {
   const [report, setReport] = useState<LearningReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
-    learningApi
-      .getLatestReport()
-      .then((payload) => {
-        if (active) setReport(payload);
-      })
-      .catch(() => {
-        if (active) setReport(null);
-      });
-    return () => {
-      active = false;
-    };
+    learningApi.getLatestReport()
+      .then((payload) => { if (active) setReport(payload); })
+      .catch(() => { if (active) setLoadError("暂无诊断报告，请先完成能力诊断。"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
-  const visibleGoal = report ? formatGoal(report.goal) : "智能客服与市场分析能力提升";
-  const visibleScore = report?.overall_score ?? 62;
-  const visibleAbilityScores = report?.dimensions.length ? report.dimensions.map(toAbilityScore) : abilityScores;
-  const visiblePriorityGaps = report?.priority_gaps.length
-    ? report.priority_gaps.map((gap, index) => {
-      const badges = ["差距最大", "重点提升", "持续补强"] as const;
-      return [
-        `优先补齐：${gap.name}`,
-        badges[index] ?? "持续补强",
-        gap.summary || gap.recommended,
-        `${gap.current}分`
-      ] as const;
-    })
-    : report?.dimensions.length
-      ? [...report.dimensions].sort((a, b) => b.gap - a.gap).slice(0, 3).map(toPriorityGap)
-    : priorityGaps;
-  const topGap = (visiblePriorityGaps[0]?.[0] ?? "智能客服案例拆解").replace(/^优先补齐：/, "");
+  if (loading) return <ReportState title="正在加载诊断报告..." />;
+  if (!report) return <ReportState title={loadError || "暂无诊断报告"} />;
 
   return (
     <V4PageShell>
       <section className="learning-page diagnosis-page learning-report-page" aria-label="能力诊断报告">
         <div className="diagnosis-main learning-report-main">
           <section className="diagnosis-hero learning-report-hero">
-            <div className="diagnosis-breadcrumb">
-              <Link to="/learning">AI教学</Link>
-              <span>/</span>
-              <strong>能力诊断</strong>
-            </div>
-            <div className="diagnosis-hero-copy">
-              <h1>能力诊断</h1>
-              <p>基于你的项目、任务与工具使用情况，精准发现能力差距</p>
-            </div>
-            <div className="learning-report-hero-art" aria-hidden="true" />
-          </section>
-
-          <section className="diagnosis-card diagnosis-steps learning-report-steps" aria-label="诊断流程">
-            {reportSteps.map(([number, title, desc, state]) => (
-              <article className={state} key={title}>
-                <span>{number}</span>
-                <div>
-                  <strong>{title}</strong>
-                  <small>{desc}</small>
-                </div>
-              </article>
-            ))}
+            <div className="diagnosis-breadcrumb"><Link to="/learning">AI教学</Link><span>/</span><strong>能力诊断报告</strong></div>
+            <div className="diagnosis-hero-copy"><h1>能力诊断报告</h1><p>{report.disclaimer || "该历史报告未记录免责声明，请重新诊断后使用。"}</p></div>
           </section>
 
           <section className="diagnosis-card report-overview-card" aria-label="诊断概览">
-            <header>
-              <h2>诊断概览</h2>
-              <p>整体能力水平与目标方向对比</p>
-              <div className="report-legend" aria-hidden="true">
-                <span className="good">优势</span>
-                <span className="mid">中等</span>
-                <span className="weak">较弱</span>
-              </div>
-            </header>
+            <header><h2>诊断概览</h2><p>{report.project} · {report.goal}</p></header>
             <div className="report-overview-body">
-              <article className="report-target-card">
-                <h3>你的目标方向</h3>
-                <strong>{visibleGoal}</strong>
-                <button type="button">修改目标</button>
-                <div>
-                  <span>整体匹配度</span>
-                  <b>{visibleScore}分 <small>/ 100</small></b>
-                  <i aria-hidden="true" />
-                  <p>当前能力较目标方向仍有提升空间</p>
-                </div>
-              </article>
+              <article className="report-target-card"><h3>综合模型评估</h3><strong>{report.overall_score}/100</strong><p>该分数不是标准化考试成绩。</p></article>
               <section className="report-score-panel" aria-label="能力差距分布">
                 <h3>能力差距分布</h3>
                 <div className="report-score-grid">
-                  {visibleAbilityScores.map(([title, score, level, mastery, icon, state]) => (
-                    <article className={state} key={title}>
-                      <i className={`report-score-icon ${icon}`} aria-hidden="true" />
-                      <h4>{title}</h4>
-                      <strong>{score}</strong>
-                      <span>{level}</span>
-                      <small>{mastery}</small>
-                      <em aria-hidden="true" />
-                    </article>
+                  {report.dimensions.map((dimension) => (
+                    <article key={dimension.name}><h4>{dimension.name}</h4><strong>{dimension.score}</strong><span>差距 {dimension.gap}</span><small>{dimension.summary}</small></article>
                   ))}
                 </div>
               </section>
@@ -178,105 +48,38 @@ function LearningReportPage() {
 
           <div className="report-lower-grid">
             <section className="diagnosis-card report-priority-card" aria-label="优先补齐能力">
-              <h2>优先补齐能力 <span>推荐学习顺序</span></h2>
-              <div className="report-priority-body">
-                <div className="report-priority-list">
-                  {visiblePriorityGaps.map(([title, badge, desc, score], index) => (
-                    <article key={title}>
-                      <b>{index + 1}</b>
-                      <div>
-                        <h3>{title}<span>{badge}</span></h3>
-                        <p>{desc}</p>
-                      </div>
-                      <strong>{score}<small>掌握度</small></strong>
-                    </article>
-                  ))}
-                </div>
-                <div className="report-growth-card">
-                  <div className="report-stairs" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                  <p>建议先从差距最大的能力开始补齐，循序渐进提升整体能力水平。</p>
-                  <Link to="/learning/recommendation">去补这些课程 <span aria-hidden="true">→</span></Link>
-                  <small>预计投入 10-16 小时，可提升整体匹配度至 85分+</small>
-                </div>
+              <h2>优先补齐能力</h2>
+              <div className="report-priority-list">
+                {report.priority_gaps.map((gap, index) => (
+                  <article key={gap.name}><b>{index + 1}</b><div><h3>{gap.name}</h3><p>{gap.recommended}</p></div><strong>{gap.current}<small>模型分</small></strong></article>
+                ))}
               </div>
+              <Link to="/learning/recommendation">查看学习建议 <span aria-hidden="true">→</span></Link>
             </section>
 
             <section className="diagnosis-card report-evidence-card" aria-label="诊断依据">
-              <h2>诊断依据 <span>已分析</span></h2>
-              <div>
-                {(report?.evidence.length
-                  ? report.evidence.map((item, index) => [`诊断依据 ${index + 1}`, item, index === 0 ? "grid" : index === 1 ? "check" : "case"] as const)
-                  : evidenceItems
-                ).map(([title, desc, icon]) => (
-                  <article key={title}>
-                    <i className={`report-evidence-icon ${icon}`} aria-hidden="true" />
-                    <div>
-                      <h3>{title}</h3>
-                      <p>{desc}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-              <Link to="/learning/diagnosis">重新诊断</Link>
+              <h2>诊断依据</h2>
+              {(report.evidence_sources ?? []).length === 0 ? <p>该历史报告未记录结构化输入依据。</p> : <ul>{(report.evidence_sources ?? []).map((source) => <li key={`${source.type}-${source.label}`}>{source.label}</li>)}</ul>}
+              <h3>关键假设</h3><ul>{(report.assumptions ?? []).map((item) => <li key={item}>{item}</li>)}</ul>
             </section>
           </div>
 
-          <p className="report-footnote">
-            <span aria-hidden="true">i</span> 诊断结果基于历史数据，持续学习将动态优化评估结果。
-          </p>
+          <section className="diagnosis-card"><h2>模型建议</h2><ul>{report.recommendations.map((item) => <li key={item}>{item}</li>)}</ul></section>
         </div>
 
         <aside className="learning-copilot diagnosis-copilot learning-report-copilot" aria-label="智活 Copilot 诊断报告助手">
-          <header>
-            <div>
-              <strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong>
-              <p>你的全球 AI 助手，随时为你提供帮助</p>
-            </div>
-            <div className="learning-copilot-tools" aria-hidden="true">
-              <span>⚙</span>
-              <span>⌃</span>
-            </div>
-          </header>
-
-          <div className="learning-chat learning-report-chat">
-            <article>
-              <span className="ai-avatar">A</span>
-              <p>张婧，我已基于你的项目、任务与工具使用情况，完成了能力诊断。</p>
-            </article>
-            <article>
-              <span className="ai-avatar">A</span>
-              <p><b>整体诊断结果：</b><br />整体匹配度 {visibleScore} 分，主要差距集中在“{topGap}”等方面。</p>
-            </article>
-            <article>
-              <span className="ai-avatar">A</span>
-              <p>建议你优先从“{topGap}”开始补齐，掌握不同场景下的服务方案拆解方法，快速提升业务落地能力。</p>
-            </article>
-            <article className="report-pdf-card">
-              <span className="ai-avatar">A</span>
-              <div>
-                <p><b>下一步建议：</b><br />✓ 优先学习推荐的 3 门课程<br />✓ 结合任务中心实践巩固<br />✓ 完成后再次诊断，持续提升</p>
-                <a href="/learning/report" aria-label="能力诊断报告.pdf">
-                  <i aria-hidden="true">PDF</i>
-                  <span><b>能力诊断报告.pdf</b><small>PDF · 1.2 MB</small></span>
-                </a>
-              </div>
-            </article>
-          </div>
-
-          <nav className="learning-copilot-actions" aria-label="诊断报告助手快捷入口">
-            <Link to="/learning/recommendation">推荐适合我的课程 <span aria-hidden="true">›</span></Link>
-            <Link to="/learning/plan">为我制定学习计划 <span aria-hidden="true">›</span></Link>
-            <Link to="/learning/history">查看学习进度 <span aria-hidden="true">›</span></Link>
-          </nav>
+          <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>报告边界说明</p></div></header>
+          <div className="learning-chat"><article><span className="ai-avatar">A</span><p>当前没有实现 PDF 导出，因此这里只提供持久化网页报告。</p></article></div>
+          <nav className="learning-copilot-actions" aria-label="诊断报告助手快捷入口"><Link to="/learning/plan">查看学习计划 <span aria-hidden="true">›</span></Link><Link to="/learning/diagnosis">重新诊断 <span aria-hidden="true">›</span></Link></nav>
           <MiniCopilotForm className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>
   );
+}
+
+function ReportState({ title }: { title: string }) {
+  return <V4PageShell><section className="learning-page diagnosis-card" role="status"><h1>{title}</h1><Link to="/learning/diagnosis">发起能力诊断</Link></section></V4PageShell>;
 }
 
 export default LearningReportPage;

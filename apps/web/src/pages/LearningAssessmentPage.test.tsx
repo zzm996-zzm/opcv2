@@ -5,65 +5,34 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { authSession } from "../lib/authSession";
 import LearningAssessmentPage from "./LearningAssessmentPage";
 
+function signIn() {
+  authSession.set({ access_token: "token", access_token_expires_at: "2026-07-14T00:00:00Z", is_new_user: false, user: { id: 7, nickname: "张婧", phone: "", status: "active" } });
+}
+
 describe("LearningAssessmentPage", () => {
-  afterEach(() => {
-    authSession.clear();
-    vi.restoreAllMocks();
-  });
+  afterEach(() => { authSession.clear(); vi.restoreAllMocks(); });
 
-  function signIn() {
-    authSession.set({
-      access_token: "access-token",
-      access_token_expires_at: "2026-06-16T12:00:00Z",
-      is_new_user: false,
-      user: { id: 7, nickname: "张婧", phone: "13800138000", status: "active" }
-    });
-  }
-
-  function renderAssessmentPage() {
+  it("shows an explicit empty state without an assessment", async () => {
     signIn();
-    render(
-      <MemoryRouter>
-        <LearningAssessmentPage />
-      </MemoryRouter>
-    );
-  }
-
-  it("renders the active assessment progress, metrics and assistant actions", () => {
-    renderAssessmentPage();
-
-    expect(screen.getByRole("heading", { name: "能力诊断" })).toBeInTheDocument();
-    expect(screen.getByText("当前分析阶段：能力评估")).toBeInTheDocument();
-    expect(screen.getByText("市场分析能力")).toBeInTheDocument();
-    expect(screen.getByText("能力评估模型")).toBeInTheDocument();
-    expect(screen.getByLabelText("能力评估雷达图")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /完善资料/ })).toHaveAttribute("href", "/learning/diagnosis");
-    expect(screen.getByRole("link", { name: /咨询AI助手/ })).toHaveAttribute("href", "/copilot");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ error: "diagnosis_not_found" }), { status: 404 }));
+    render(<MemoryRouter><LearningAssessmentPage /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "暂无可查看的能力评估，请先提交诊断信息。" })).toBeInTheDocument();
   });
 
-  it("loads latest diagnosis from API", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({
-        id: 99,
-        user_id: 7,
-        goal: "提升智能客服和市场分析能力",
-        project: "智能客服系统",
-        status: "completed",
-        overall_score: 82,
-        dimensions: [
-          { name: "市场分析能力", score: 88, gap: 8, summary: "市场判断较强" },
-          { name: "数据分析能力", score: 76, gap: 16, summary: "需要加强漏斗分析" }
-        ],
-        recommendations: ["优先学习 AI行业分析方法"],
-        created_at: "2026-06-30T08:00:00Z",
-        updated_at: "2026-06-30T08:00:00Z"
-      }), { status: 200 })
-    );
-
-    renderAssessmentPage();
-
-    expect(await screen.findByText("82%")).toBeInTheDocument();
+  it("renders persisted model provenance and dimensions", async () => {
+    signIn();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      id: 99, user_id: 7, goal: "提升AI能力", project: "智能客服", status: "completed", overall_score: 82,
+      dimensions: [{ name: "市场分析能力", score: 88, gap: 8, summary: "市场判断较强" }], recommendations: [],
+      basis: "model_assessment", disclaimer: "模型评估，不是能力认证。", assumptions: ["基于用户自述"],
+      evidence_sources: [{ type: "assessment_input", label: "用户本次提交", captured_at: "2026-07-13T08:00:00Z" }],
+      answers: [], focus_abilities: [], weekly_time: "", bottleneck: "", created_at: "2026-07-13T08:00:00Z", updated_at: "2026-07-13T08:00:00Z"
+    }), { status: 200 }));
+    render(<MemoryRouter><LearningAssessmentPage /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "能力模型评估已生成" })).toBeInTheDocument();
+    expect(screen.getByText("82/100")).toBeInTheDocument();
     expect(screen.getByText("市场判断较强")).toBeInTheDocument();
-    expect(screen.getByText("需要加强漏斗分析")).toBeInTheDocument();
+    expect(screen.getByText("用户本次提交")).toBeInTheDocument();
+    expect(screen.getByText("基于用户自述")).toBeInTheDocument();
   });
 });

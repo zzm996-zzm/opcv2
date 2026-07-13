@@ -16,6 +16,18 @@ export type LearningCourse = {
   updated_at: string;
 };
 
+export type LearningCourseMaterial = {
+  id: number;
+  course_slug: string;
+  title: string;
+  material_type: string;
+  content_url: string;
+  position: number;
+  downloadable: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type LearningProgress = {
   id: number;
   user_id: number;
@@ -40,7 +52,26 @@ export type LearningDimension = {
   summary: string;
 };
 
-export type LearningDiagnosis = {
+export type LearningAssessmentAnswer = {
+  key: string;
+  question: string;
+  answer: string;
+};
+
+export type LearningEvidenceSource = {
+  type: string;
+  label: string;
+  captured_at: string;
+};
+
+type LearningProvenance = {
+  basis: "model_assessment" | "legacy_estimate" | string;
+  disclaimer: string;
+  assumptions: string[];
+  evidence_sources: LearningEvidenceSource[];
+};
+
+export type LearningDiagnosis = LearningProvenance & {
   id: number;
   user_id: number;
   goal: string;
@@ -48,6 +79,7 @@ export type LearningDiagnosis = {
   focus_abilities: string[];
   weekly_time: string;
   bottleneck: string;
+  answers: LearningAssessmentAnswer[];
   status: string;
   overall_score: number;
   dimensions: LearningDimension[];
@@ -62,6 +94,7 @@ export type CreateLearningDiagnosisInput = {
   focus_abilities: string[];
   weekly_time: string;
   bottleneck: string;
+  answers?: LearningAssessmentAnswer[];
 };
 
 export type LearningGapItem = {
@@ -75,7 +108,7 @@ export type LearningGapItem = {
   recommended: string;
 };
 
-export type LearningGaps = {
+export type LearningGaps = LearningProvenance & {
   diagnosis_id: number;
   goal: string;
   project: string;
@@ -97,7 +130,7 @@ export type LearningMethod = {
   detail: string;
 };
 
-export type LearningRecommendations = {
+export type LearningRecommendations = LearningProvenance & {
   diagnosis_id: number;
   goal: string;
   project: string;
@@ -117,18 +150,30 @@ export type LearningPlanStage = {
   milestone: string;
 };
 
-export type LearningPlan = {
+export type LearningPlanItem = {
+  id: number;
+  user_id: number;
+  diagnosis_id: number;
+  stage_number: number;
+  title: string;
+  completed: boolean;
+  completed_at?: string;
+  updated_at: string;
+};
+
+export type LearningPlan = LearningProvenance & {
   diagnosis_id: number;
   title: string;
   description: string;
   recommendations: string[];
   stages: LearningPlanStage[];
+  items: LearningPlanItem[];
   estimated_hours: number;
   weekly_suggestion: string;
   generated_at: string;
 };
 
-export type LearningReport = {
+export type LearningReport = LearningProvenance & {
   diagnosis_id: number;
   goal: string;
   project: string;
@@ -166,6 +211,12 @@ export const learningApi = {
     });
   },
 
+  listCourseMaterials(slug: string) {
+    return apiRequest<{ materials: LearningCourseMaterial[] }>(`/api/v1/learning/courses/${encodeURIComponent(slug)}/materials`, {
+      method: "GET"
+    });
+  },
+
   listProgress() {
     return apiRequest<{ progress: LearningProgress[] }>("/api/v1/learning/progress", {
       method: "GET"
@@ -192,6 +243,21 @@ export const learningApi = {
     });
   },
 
+  submitAssessment(input: CreateLearningDiagnosisInput) {
+    return apiRequest<LearningDiagnosis>("/api/v1/learning/assessments", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+
+  getAssessment(id: number) {
+    return apiRequest<LearningDiagnosis>(`/api/v1/learning/assessments/${id}`, { method: "GET" });
+  },
+
+  getLatestAssessment() {
+    return apiRequest<LearningDiagnosis>("/api/v1/learning/assessments/latest", { method: "GET" });
+  },
+
   getLatestDiagnosis() {
     return apiRequest<LearningDiagnosis>("/api/v1/learning/diagnoses/latest", {
       method: "GET"
@@ -213,6 +279,17 @@ export const learningApi = {
   getLatestPlan() {
     return apiRequest<LearningPlan>("/api/v1/learning/diagnoses/latest/plan", {
       method: "GET"
+    });
+  },
+
+  getPlan(diagnosisId: number) {
+    return apiRequest<LearningPlan>(`/api/v1/learning/diagnoses/${diagnosisId}/plan`, { method: "GET" });
+  },
+
+  updatePlanItem(diagnosisId: number, stageNumber: number, completed: boolean) {
+    return apiRequest<LearningPlanItem>(`/api/v1/learning/diagnoses/${diagnosisId}/plan/items/${stageNumber}`, {
+      method: "PUT",
+      body: JSON.stringify({ completed })
     });
   },
 

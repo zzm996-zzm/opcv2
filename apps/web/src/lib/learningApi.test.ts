@@ -69,4 +69,32 @@ describe("learningApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(10, "/api/v1/learning/diagnoses/latest/plan", expect.objectContaining({ method: "GET" }));
     expect(fetchMock).toHaveBeenNthCalledWith(11, "/api/v1/learning/diagnoses/latest/report", expect.objectContaining({ method: "GET" }));
   });
+
+  it("submits assessments, reads snapshots, materials, and plan item state", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ id: 99, materials: [], completed: true }), { status: 200 })
+    ));
+    const input = {
+      goal: "提升AI能力",
+      project: "智能客服",
+      focus_abilities: ["数据洞察能力"],
+      weekly_time: "5-8 小时",
+      bottleneck: "缺少案例",
+      answers: [{ key: "experience", question: "项目经验", answer: "一次试点" }]
+    };
+
+    await learningApi.submitAssessment(input);
+    await learningApi.getAssessment(99);
+    await learningApi.getLatestAssessment();
+    await learningApi.listCourseMaterials("ai-market-analysis");
+    await learningApi.getPlan(99);
+    await learningApi.updatePlanItem(99, 1, true);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/learning/assessments", expect.objectContaining({ method: "POST", body: JSON.stringify(input) }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/learning/assessments/99", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/learning/assessments/latest", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/learning/courses/ai-market-analysis/materials", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(5, "/api/v1/learning/diagnoses/99/plan", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(6, "/api/v1/learning/diagnoses/99/plan/items/1", expect.objectContaining({ method: "PUT", body: JSON.stringify({ completed: true }) }));
+  });
 });

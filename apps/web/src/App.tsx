@@ -374,6 +374,22 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <LearningCourseDetailPage />
+          </RequireAuth>
+        }
+        path="/learning/courses/:courseSlug/study"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <LearningCourseIntroPage />
+          </RequireAuth>
+        }
+        path="/learning/courses/:courseSlug"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <LearningRecommendedCoursesPage />
           </RequireAuth>
         }

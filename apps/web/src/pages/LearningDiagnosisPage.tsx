@@ -13,13 +13,6 @@ const diagnosisSteps = [
   ["5", "推荐方案", "推荐学习路径与课程"]
 ] as const;
 
-const dataSources = [
-  ["项目超市", "已识别当前项目", "智能客服与市场分析", "cube"],
-  ["任务中心", "已读取最近任务", "5 条", "check"],
-  ["工具箱", "已分析常用工具", "8 个", "case"],
-  ["用户画像", "已同步目标与", "时间投入偏好", "profile"]
-] as const;
-
 const focusTags = ["提升专业能力", "优化工作效率", "拓展业务视野", "职业发展提升"];
 const timeTags = ["1-2 小时", "3-5 小时", "5-8 小时", "8 小时以上"];
 
@@ -35,6 +28,7 @@ const analysisItems = [
 function LearningDiagnosisPage() {
   const navigate = useNavigate();
   const [goal, setGoal] = useState(focusTags[0]);
+  const [project, setProject] = useState("");
   const [focusAbility, setFocusAbility] = useState("");
   const [weeklyTime, setWeeklyTime] = useState(timeTags[1]);
   const [bottleneck, setBottleneck] = useState("");
@@ -43,16 +37,21 @@ function LearningDiagnosisPage() {
 
   async function startDiagnosis(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
-    if (isStarting) return;
+    if (isStarting || !goal.trim() || !project.trim()) return;
     setIsStarting(true);
     setStartError("");
     try {
-      const diagnosis = await learningApi.createDiagnosis({
+      const diagnosis = await learningApi.submitAssessment({
         goal,
-        project: "智能客服与市场分析",
+        project,
         focus_abilities: focusAbility ? [focusAbility] : [],
         weekly_time: weeklyTime,
-        bottleneck
+        bottleneck,
+        answers: [
+          { key: "focus_ability", question: "希望提升的能力", answer: focusAbility || "未指定" },
+          { key: "weekly_time", question: "每周可投入时间", answer: weeklyTime },
+          ...(bottleneck.trim() ? [{ key: "bottleneck", question: "当前最大卡点", answer: bottleneck.trim() }] : [])
+        ]
       });
       navigate("/learning/assessment", { state: { diagnosis } });
     } catch {
@@ -74,7 +73,7 @@ function LearningDiagnosisPage() {
             </div>
             <div className="diagnosis-hero-copy">
               <h1>能力诊断</h1>
-              <p>基于你的项目、任务与工具使用情况，精准发现能力差距</p>
+              <p>基于你提交的信息与可用用户画像生成模型评估</p>
             </div>
             <div className="diagnosis-target-art" aria-hidden="true">
               <span />
@@ -95,30 +94,37 @@ function LearningDiagnosisPage() {
             ))}
           </section>
 
-          <section className="diagnosis-card data-source-card" aria-label="已接入分析的数据源">
+          <section className="diagnosis-card data-source-card" aria-label="诊断依据说明">
             <div className="diagnosis-section-head">
-              <h2>已接入分析的数据源</h2>
-              <button type="button">↻ 更新数据源</button>
+              <h2>诊断依据说明</h2>
             </div>
             <div className="data-source-grid">
-              {dataSources.map(([title, desc, value, icon]) => (
-                <article key={title}>
-                  <i className={`source-icon ${icon}`} aria-hidden="true" />
-                  <div>
-                    <h3>{title}</h3>
-                    <p>{desc}</p>
-                    <strong>{value}</strong>
-                  </div>
-                  <span aria-label={`${title} 已接入`}>✓</span>
-                  <time>更新时间：2024-05-20 10:30</time>
-                </article>
-              ))}
+              <article>
+                <i className="source-icon profile" aria-hidden="true" />
+                <div>
+                  <h3>本次评估提交</h3>
+                  <p>目标、项目、重点能力、投入时间与当前卡点</p>
+                  <strong>由你确认后提交</strong>
+                </div>
+              </article>
+              <article>
+                <i className="source-icon cube" aria-hidden="true" />
+                <div>
+                  <h3>已保存用户画像</h3>
+                  <p>仅在账户已有可用画像时作为辅助上下文</p>
+                  <strong>实际使用来源会写入诊断结果</strong>
+                </div>
+              </article>
             </div>
           </section>
 
           <div className="diagnosis-workbench">
             <section className="diagnosis-card diagnosis-goals" aria-label="补充你的诊断目标">
               <h2>补充你的诊断目标</h2>
+              <label className="diagnosis-field">
+                <span>目标项目或应用场景</span>
+                <input aria-label="目标项目或应用场景" onChange={(event) => setProject(event.target.value)} placeholder="例如：智能客服系统试点" value={project} />
+              </label>
               <div className="goal-row">
                 <span>目标方向</span>
                 <div className="goal-chips">
@@ -172,7 +178,7 @@ function LearningDiagnosisPage() {
             <section className="diagnosis-card analysis-scope" aria-label="本次诊断将分析什么">
               <div>
                 <h2>本次诊断将分析什么</h2>
-                <p>基于 6 大核心维度全面评估你的能力水平</p>
+                <p>模型会参考以下候选能力，并根据实际输入生成评估维度</p>
               </div>
               <div className="analysis-grid">
                 {analysisItems.map(([title, desc, icon]) => (
@@ -190,16 +196,16 @@ function LearningDiagnosisPage() {
 
           <div className="diagnosis-footer-actions">
             <Link
-              aria-disabled={isStarting}
+              aria-disabled={isStarting || !project.trim()}
               className="diagnosis-primary"
               onClick={startDiagnosis}
               to="/learning/assessment"
             >
-              {isStarting ? "诊断启动中..." : "开始能力诊断"} <span aria-hidden="true">→</span>
+              {isStarting ? "诊断生成中..." : "提交并生成模型评估"} <span aria-hidden="true">→</span>
             </Link>
             <Link className="diagnosis-secondary" to="/learning">稍后继续补充</Link>
             {startError ? <p role="alert">{startError}</p> : null}
-            <p><span aria-hidden="true">♢</span> 诊断过程约需 8-12 分钟<br />我们会严格保护你的数据安全</p>
+            <p><span aria-hidden="true">♢</span> 结果为模型评估，不代表标准化考试成绩或能力认证。</p>
           </div>
         </div>
 
@@ -218,15 +224,15 @@ function LearningDiagnosisPage() {
           <div className="learning-chat">
             <article>
               <span className="ai-avatar">A</span>
-              <p>嗨，张婧！<br />我会结合你的项目、任务、工具使用情况完成本次能力诊断，帮你发现提升空间。</p>
+              <p>填写真实目标与项目场景后，系统会生成一次可追溯的模型评估快照。</p>
             </article>
             <article>
               <span className="ai-avatar">A</span>
-              <p>我已经为你接入了以下数据：<br />✓ 项目超市：智能客服与市场分析<br />✓ 任务中心：最近任务 5 条<br />✓ 工具箱：常用工具 8 个<br />✓ 用户画像：目标与投入偏好</p>
+              <p>系统不会声称读取未接入的数据。结果页会列出本次实际使用的输入依据、关键假设和免责声明。</p>
             </article>
             <article>
               <span className="ai-avatar">A</span>
-              <p>还需要你补充 2-3 个关键信息，以便更精准评估你的能力水平。建议先完善下方表单，再开始诊断。</p>
+              <p>如果缺少标准化测验或作品证据，分数只能用于安排学习优先级，不能视为客观能力证明。</p>
             </article>
           </div>
 
