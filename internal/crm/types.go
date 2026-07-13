@@ -47,6 +47,16 @@ type ImportEnterpriseInput struct {
 	Need               string `json:"need"`
 }
 
+type ImportEnterpriseInquiryInput struct {
+	UserID    int64  `json:"-"`
+	InquiryID int64  `json:"inquiry_id"`
+	Company   string `json:"company,omitempty"`
+	Name      string `json:"name"`
+	Phone     string `json:"phone,omitempty"`
+	Email     string `json:"email,omitempty"`
+	Need      string `json:"need"`
+}
+
 type CreateCustomerInput struct {
 	UserID  int64  `json:"-"`
 	Name    string `json:"name"`

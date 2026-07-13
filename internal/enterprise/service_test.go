@@ -10,12 +10,21 @@ import (
 
 type fakeRepository struct {
 	overview       Overview
+	publicOverview PublicOverview
+	publicCases    []PublicCase
+	publicCase     PublicCase
+	contactConfig  ContactConfig
 	diagnosisInput DiagnosisRequestInput
+	inquiryInput   InquiryInput
 	updateInput    DiagnosisRequestUpdateInput
 	diagnosis      DiagnosisRequest
 	diagnoses      []DiagnosisRequest
+	inquiry        Inquiry
 	userID         int64
 	requestID      int64
+	slug           string
+	ownerUserID    int64
+	customerID     int64
 	limit          int
 	err            error
 }
@@ -23,6 +32,37 @@ type fakeRepository struct {
 func (r *fakeRepository) Overview(_ context.Context, userID int64) (Overview, error) {
 	r.userID = userID
 	return r.overview, r.err
+}
+
+func (r *fakeRepository) PublicOverview(_ context.Context) (PublicOverview, error) {
+	return r.publicOverview, r.err
+}
+
+func (r *fakeRepository) ListPublicCases(_ context.Context, limit int) ([]PublicCase, error) {
+	r.limit = limit
+	return r.publicCases, r.err
+}
+
+func (r *fakeRepository) GetPublicCase(_ context.Context, slug string) (PublicCase, error) {
+	r.slug = slug
+	return r.publicCase, r.err
+}
+
+func (r *fakeRepository) ContactConfig(_ context.Context) (ContactConfig, int64, error) {
+	return r.contactConfig, r.ownerUserID, r.err
+}
+
+func (r *fakeRepository) CreateInquiry(_ context.Context, input InquiryInput) (Inquiry, error) {
+	r.inquiryInput = input
+	return r.inquiry, r.err
+}
+
+func (r *fakeRepository) UpdateInquiryCRMCustomer(_ context.Context, inquiryID int64, customerID int64) (Inquiry, error) {
+	r.requestID = inquiryID
+	r.customerID = customerID
+	r.inquiry.CRMCustomerID = customerID
+	r.inquiry.Status = "crm_synced"
+	return r.inquiry, r.err
 }
 
 func (r *fakeRepository) CreateDiagnosisRequest(_ context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error) {
@@ -51,13 +91,19 @@ func (r *fakeRepository) UpdateDiagnosisRequest(_ context.Context, userID int64,
 }
 
 type fakeCRMImporter struct {
-	input    crm.ImportEnterpriseInput
-	customer crm.Customer
-	err      error
+	input        crm.ImportEnterpriseInput
+	inquiryInput crm.ImportEnterpriseInquiryInput
+	customer     crm.Customer
+	err          error
 }
 
 func (i *fakeCRMImporter) ImportEnterpriseDelivery(_ context.Context, input crm.ImportEnterpriseInput) (crm.Customer, error) {
 	i.input = input
+	return i.customer, i.err
+}
+
+func (i *fakeCRMImporter) ImportEnterpriseInquiry(_ context.Context, input crm.ImportEnterpriseInquiryInput) (crm.Customer, error) {
+	i.inquiryInput = input
 	return i.customer, i.err
 }
 
@@ -95,6 +141,102 @@ func TestServiceRejectsMissingUserID(t *testing.T) {
 
 	if !errors.Is(err, ErrUserIDRequired) {
 		t.Fatalf("err = %v, want ErrUserIDRequired", err)
+	}
+}
+
+func TestServiceReturnsPublishedPublicOverview(t *testing.T) {
+	repository := &fakeRepository{publicOverview: PublicOverview{Headline: "企业AI落地陪跑"}}
+	service := NewService(repository)
+
+	overview, err := service.PublicOverview(context.Background())
+
+	if err != nil {
+		t.Fatalf("PublicOverview() error = %v", err)
+	}
+	if overview.Headline != "企业AI落地陪跑" || overview.ProofPoints == nil || overview.Stats == nil || overview.ServiceSteps == nil {
+		t.Fatalf("overview = %+v", overview)
+	}
+}
+
+func TestServiceListsPublicCases(t *testing.T) {
+	repository := &fakeRepository{publicCases: []PublicCase{{Slug: "ai-sales", Title: "AI销售流程搭建"}}}
+	service := NewService(repository)
+
+	response, err := service.ListPublicCases(context.Background(), 500)
+
+	if err != nil {
+		t.Fatalf("ListPublicCases() error = %v", err)
+	}
+	if repository.limit != 20 || len(response.Cases) != 1 || response.Cases[0].Services == nil || response.Cases[0].Metrics == nil {
+		t.Fatalf("repository/response = %+v/%+v", repository, response)
+	}
+}
+
+func TestServiceGetsPublicCaseBySlug(t *testing.T) {
+	repository := &fakeRepository{publicCase: PublicCase{Slug: "ai-sales", Title: "AI销售流程搭建"}}
+	service := NewService(repository)
+
+	item, err := service.GetPublicCase(context.Background(), " ai-sales ")
+
+	if err != nil {
+		t.Fatalf("GetPublicCase() error = %v", err)
+	}
+	if repository.slug != "ai-sales" || item.Slug != "ai-sales" {
+		t.Fatalf("repository/item = %+v/%+v", repository, item)
+	}
+}
+
+func TestServiceCreatesInquiryAndHandsOffToCRM(t *testing.T) {
+	repository := &fakeRepository{
+		ownerUserID: 99,
+		inquiry:     Inquiry{ID: 10, Company: "启明星教育", Name: "张总", Phone: "13800138000", Need: "AI销售陪跑", Status: "submitted"},
+	}
+	importer := &fakeCRMImporter{customer: crm.Customer{ID: 300, Source: crm.SourceEnterprise, Stage: crm.StageNew}}
+	service := NewService(repository, importer)
+
+	inquiry, err := service.CreateInquiry(context.Background(), InquiryInput{
+		Company: " 启明星教育 ",
+		Name:    " 张总 ",
+		Phone:   " 13800138000 ",
+		Need:    " AI销售陪跑 ",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateInquiry() error = %v", err)
+	}
+	if repository.inquiryInput.Company != "启明星教育" || repository.inquiryInput.SourcePage != "/enterprise" {
+		t.Fatalf("input = %+v", repository.inquiryInput)
+	}
+	if importer.inquiryInput.UserID != 99 || importer.inquiryInput.InquiryID != 10 || importer.inquiryInput.Company != "启明星教育" {
+		t.Fatalf("crm input = %+v", importer.inquiryInput)
+	}
+	if inquiry.CRMCustomerID != 300 || inquiry.Status != "crm_synced" || repository.requestID != 10 || repository.customerID != 300 {
+		t.Fatalf("inquiry/repository = %+v/%+v", inquiry, repository)
+	}
+}
+
+func TestServiceCreatesInquiryWithoutCRMWhenOwnerMissing(t *testing.T) {
+	repository := &fakeRepository{inquiry: Inquiry{ID: 10, Name: "张总", Wechat: "wx", Need: "AI销售陪跑", Status: "submitted"}}
+	importer := &fakeCRMImporter{}
+	service := NewService(repository, importer)
+
+	inquiry, err := service.CreateInquiry(context.Background(), InquiryInput{Name: "张总", Wechat: "wx", Need: "AI销售陪跑"})
+
+	if err != nil {
+		t.Fatalf("CreateInquiry() error = %v", err)
+	}
+	if inquiry.Status != "submitted" || importer.inquiryInput.InquiryID != 0 {
+		t.Fatalf("inquiry/importer = %+v/%+v", inquiry, importer.inquiryInput)
+	}
+}
+
+func TestServiceRejectsInvalidInquiry(t *testing.T) {
+	service := NewService(&fakeRepository{})
+
+	_, err := service.CreateInquiry(context.Background(), InquiryInput{Name: "张总", Need: "AI销售陪跑", SourcePage: "//evil.example"})
+
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("err = %v, want ErrInvalidInput", err)
 	}
 }
 

@@ -107,6 +107,31 @@ func (s *Service) ImportEnterpriseDelivery(ctx context.Context, input ImportEnte
 	return customer, err
 }
 
+func (s *Service) ImportEnterpriseInquiry(ctx context.Context, input ImportEnterpriseInquiryInput) (Customer, error) {
+	if s.repository == nil {
+		return Customer{}, ErrServiceNotReady
+	}
+	input.Company = strings.TrimSpace(input.Company)
+	input.Name = strings.TrimSpace(input.Name)
+	input.Phone = strings.TrimSpace(input.Phone)
+	input.Email = strings.TrimSpace(input.Email)
+	input.Need = strings.TrimSpace(input.Need)
+	if input.UserID <= 0 || input.InquiryID <= 0 || input.Name == "" || input.Need == "" {
+		return Customer{}, ErrInvalidInput
+	}
+	customer, _, err := s.repository.ImportCustomer(ctx, Customer{
+		UserID:    input.UserID,
+		ImportKey: fmt.Sprintf("enterprise_inquiry:%d", input.InquiryID),
+		Name:      enterpriseInquiryCustomerName(input.Company, input.Name, input.Need),
+		Phone:     input.Phone,
+		Email:     input.Email,
+		Stage:     StageNew,
+		Source:    SourceEnterprise,
+		CreatedAt: s.now(),
+	})
+	return customer, err
+}
+
 func (s *Service) UpdateStage(ctx context.Context, input UpdateStageInput) (Customer, error) {
 	if s.repository == nil {
 		return Customer{}, ErrServiceNotReady
@@ -384,6 +409,16 @@ func enterpriseCustomerName(need string) string {
 		return need
 	}
 	return string(runes[:32])
+}
+
+func enterpriseInquiryCustomerName(company, name, need string) string {
+	if company != "" {
+		return company + " · " + name
+	}
+	if name != "" {
+		return name
+	}
+	return enterpriseCustomerName(need)
 }
 
 func validateFollowUpCopyJSON(data []byte) error {

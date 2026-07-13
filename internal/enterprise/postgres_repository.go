@@ -2,10 +2,12 @@ package enterprise
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type postgresDB interface {
@@ -49,6 +51,205 @@ func (r *PostgresRepository) Overview(ctx context.Context, userID int64) (Overvi
 		Milestones:    milestones,
 		Cases:         cases,
 	}), nil
+}
+
+func (r *PostgresRepository) PublicOverview(ctx context.Context) (PublicOverview, error) {
+	var overview PublicOverview
+	var proofPoints []byte
+	var stats []byte
+	var serviceSteps []byte
+	var sourceUpdatedAt pgtype.Timestamptz
+	var updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT headline, subheadline, description, proof_points, stats, service_steps, source_name, source_url, source_updated_at, updated_at
+		FROM enterprise_public_overview
+		WHERE status = 'published'
+		ORDER BY updated_at DESC, id DESC
+		LIMIT 1
+	`).Scan(
+		&overview.Headline,
+		&overview.Subheadline,
+		&overview.Description,
+		&proofPoints,
+		&stats,
+		&serviceSteps,
+		&overview.SourceName,
+		&overview.SourceURL,
+		&sourceUpdatedAt,
+		&updatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return emptyPublicOverview(), nil
+	}
+	if err != nil {
+		return PublicOverview{}, err
+	}
+	if err := decodeJSON(proofPoints, &overview.ProofPoints); err != nil {
+		return PublicOverview{}, err
+	}
+	if err := decodeJSON(stats, &overview.Stats); err != nil {
+		return PublicOverview{}, err
+	}
+	if err := decodeJSON(serviceSteps, &overview.ServiceSteps); err != nil {
+		return PublicOverview{}, err
+	}
+	if sourceUpdatedAt.Valid {
+		overview.SourceUpdatedAt = sourceUpdatedAt.Time.Format(time.RFC3339)
+	}
+	overview.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return ensurePublicOverviewSlices(overview), nil
+}
+
+func (r *PostgresRepository) ListPublicCases(ctx context.Context, limit int) ([]PublicCase, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, slug, company, title, summary, result, industry, services, metrics, body, source_name, source_url, source_updated_at, updated_at
+		FROM enterprise_public_cases
+		WHERE status = 'published'
+		ORDER BY sort_order ASC, published_at DESC, id DESC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cases := []PublicCase{}
+	for rows.Next() {
+		item, err := scanPublicCase(rows)
+		if err != nil {
+			return nil, err
+		}
+		cases = append(cases, item)
+	}
+	return cases, rows.Err()
+}
+
+func (r *PostgresRepository) GetPublicCase(ctx context.Context, slug string) (PublicCase, error) {
+	item, err := scanPublicCase(r.db.QueryRow(ctx, `
+		SELECT id, slug, company, title, summary, result, industry, services, metrics, body, source_name, source_url, source_updated_at, updated_at
+		FROM enterprise_public_cases
+		WHERE slug = $1 AND status = 'published'
+	`, slug))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PublicCase{}, ErrPublicCaseNotFound
+	}
+	return item, err
+}
+
+func (r *PostgresRepository) ContactConfig(ctx context.Context) (ContactConfig, int64, error) {
+	var config ContactConfig
+	var ownerUserID pgtype.Int8
+	var updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		SELECT consultant_name, title, description, phone, email, wechat, qr_image_url, contact_url, source_name, crm_owner_user_id, updated_at
+		FROM enterprise_contact_config
+		WHERE status = 'published'
+		ORDER BY updated_at DESC, id DESC
+		LIMIT 1
+	`).Scan(
+		&config.ConsultantName,
+		&config.Title,
+		&config.Description,
+		&config.Phone,
+		&config.Email,
+		&config.Wechat,
+		&config.QRImageURL,
+		&config.ContactURL,
+		&config.SourceName,
+		&ownerUserID,
+		&updatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ContactConfig{}, 0, nil
+	}
+	if err != nil {
+		return ContactConfig{}, 0, err
+	}
+	config.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return config, ownerUserID.Int64, nil
+}
+
+func (r *PostgresRepository) CreateInquiry(ctx context.Context, input InquiryInput) (Inquiry, error) {
+	var inquiry Inquiry
+	var crmCustomerID pgtype.Int8
+	var createdAt time.Time
+	var updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO enterprise_inquiries (company, name, phone, email, wechat, need, budget, timeline, source_page)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, company, name, phone, email, wechat, need, budget, timeline, source_page, status, crm_customer_id, created_at, updated_at
+	`,
+		input.Company,
+		input.Name,
+		input.Phone,
+		input.Email,
+		input.Wechat,
+		input.Need,
+		input.Budget,
+		input.Timeline,
+		input.SourcePage,
+	).Scan(
+		&inquiry.ID,
+		&inquiry.Company,
+		&inquiry.Name,
+		&inquiry.Phone,
+		&inquiry.Email,
+		&inquiry.Wechat,
+		&inquiry.Need,
+		&inquiry.Budget,
+		&inquiry.Timeline,
+		&inquiry.SourcePage,
+		&inquiry.Status,
+		&crmCustomerID,
+		&createdAt,
+		&updatedAt,
+	)
+	if err != nil {
+		return Inquiry{}, err
+	}
+	if crmCustomerID.Valid {
+		inquiry.CRMCustomerID = crmCustomerID.Int64
+	}
+	inquiry.CreatedAt = createdAt.Format(time.RFC3339)
+	inquiry.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return inquiry, nil
+}
+
+func (r *PostgresRepository) UpdateInquiryCRMCustomer(ctx context.Context, inquiryID int64, customerID int64) (Inquiry, error) {
+	var inquiry Inquiry
+	var crmCustomerID pgtype.Int8
+	var createdAt time.Time
+	var updatedAt time.Time
+	err := r.db.QueryRow(ctx, `
+		UPDATE enterprise_inquiries
+		SET crm_customer_id = $2, status = 'crm_synced', updated_at = now()
+		WHERE id = $1
+		RETURNING id, company, name, phone, email, wechat, need, budget, timeline, source_page, status, crm_customer_id, created_at, updated_at
+	`, inquiryID, customerID).Scan(
+		&inquiry.ID,
+		&inquiry.Company,
+		&inquiry.Name,
+		&inquiry.Phone,
+		&inquiry.Email,
+		&inquiry.Wechat,
+		&inquiry.Need,
+		&inquiry.Budget,
+		&inquiry.Timeline,
+		&inquiry.SourcePage,
+		&inquiry.Status,
+		&crmCustomerID,
+		&createdAt,
+		&updatedAt,
+	)
+	if err != nil {
+		return Inquiry{}, err
+	}
+	if crmCustomerID.Valid {
+		inquiry.CRMCustomerID = crmCustomerID.Int64
+	}
+	inquiry.CreatedAt = createdAt.Format(time.RFC3339)
+	inquiry.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return inquiry, nil
 }
 
 func (r *PostgresRepository) CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error) {
@@ -328,4 +529,53 @@ func (r *PostgresRepository) cases(ctx context.Context, userID int64) ([]Case, e
 		cases = append(cases, item)
 	}
 	return cases, rows.Err()
+}
+
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scanPublicCase(row scanner) (PublicCase, error) {
+	var item PublicCase
+	var services []byte
+	var metrics []byte
+	var sourceUpdatedAt pgtype.Timestamptz
+	var updatedAt time.Time
+	err := row.Scan(
+		&item.ID,
+		&item.Slug,
+		&item.Company,
+		&item.Title,
+		&item.Summary,
+		&item.Result,
+		&item.Industry,
+		&services,
+		&metrics,
+		&item.Body,
+		&item.SourceName,
+		&item.SourceURL,
+		&sourceUpdatedAt,
+		&updatedAt,
+	)
+	if err != nil {
+		return PublicCase{}, err
+	}
+	if err := decodeJSON(services, &item.Services); err != nil {
+		return PublicCase{}, err
+	}
+	if err := decodeJSON(metrics, &item.Metrics); err != nil {
+		return PublicCase{}, err
+	}
+	if sourceUpdatedAt.Valid {
+		item.SourceUpdatedAt = sourceUpdatedAt.Time.Format(time.RFC3339)
+	}
+	item.UpdatedAt = updatedAt.Format(time.RFC3339)
+	return ensurePublicCaseSlices(item), nil
+}
+
+func decodeJSON(data []byte, target any) error {
+	if len(data) == 0 {
+		data = []byte("[]")
+	}
+	return json.Unmarshal(data, target)
 }

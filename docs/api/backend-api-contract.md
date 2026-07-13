@@ -3443,13 +3443,136 @@ Errors:
 
 ## Enterprise Companion
 
-Status: Implemented as a Postgres-backed overview plus diagnosis request
-workflow. It supports user-scoped metrics, plans, delivery board items,
+Status: Implemented as public conversion content plus a protected
+Postgres-backed delivery workflow. Public endpoints expose only published
+overview/cases/contact configuration and accept enterprise inquiries. Protected
+endpoints still support user-scoped metrics, plans, delivery board items,
 milestones, cases, diagnosis request creation/listing/status updates, and CRM
-handoff for completed delivery. Milestone write/admin APIs and payment handoff
-are still missing.
+handoff for completed delivery. Admin authoring APIs, milestone write APIs, and
+payment handoff are still missing.
 
-All enterprise endpoints are protected.
+### Public Enterprise Overview
+
+`GET /api/v1/enterprise/public-overview`
+
+Public. Returns the newest published overview from `enterprise_public_overview`.
+No sample metrics or cases are generated when nothing is published.
+
+Response `200`:
+
+```json
+{
+  "headline": "企业AI落地陪跑",
+  "subheadline": "围绕获客、销售和运营搭建AI流程",
+  "description": "公开发布的企业服务说明",
+  "proof_points": [{ "title": "来源可追溯", "detail": "来自后台发布内容" }],
+  "stats": [{ "key": "projects", "label": "公开项目", "value": "3", "note": "后台统计" }],
+  "service_steps": [{ "title": "业务诊断", "detail": "拆解团队流程和目标" }],
+  "source_name": "企业服务后台",
+  "source_url": "",
+  "source_updated_at": "2026-07-13T08:00:00Z",
+  "updated_at": "2026-07-13T08:10:00Z"
+}
+```
+
+### Public Enterprise Cases
+
+`GET /api/v1/enterprise/cases?limit=20`
+
+Public. Returns only `status = published` rows from `enterprise_public_cases`.
+
+Response `200`:
+
+```json
+{
+  "cases": [{
+    "id": 7,
+    "slug": "ai-sales",
+    "company": "启明星教育",
+    "title": "AI销售流程搭建",
+    "summary": "从线索收集到跟进复盘",
+    "result": "沉淀销售SOP",
+    "industry": "教育",
+    "services": ["CRM", "AI线索"],
+    "metrics": [{ "label": "交付周期", "value": "6周" }],
+    "source_name": "案例后台"
+  }]
+}
+```
+
+`GET /api/v1/enterprise/cases/{slug}`
+
+Public. Returns one published case or `404 enterprise_case_not_found`.
+
+### Enterprise Inquiry
+
+`POST /api/v1/enterprise/inquiries`
+
+Public. Stores a conversion inquiry in `enterprise_inquiries`. `name`, `need`,
+and at least one of `phone`, `email`, or `wechat` are required. If the published
+contact configuration includes `crm_owner_user_id`, the inquiry is handed off to
+CRM idempotently with import key `enterprise_inquiry:{id}`, `source =
+enterprise`, and `stage = new`; otherwise it remains stored as `submitted`.
+
+Request:
+
+```json
+{
+  "company": "启明星教育",
+  "name": "张总",
+  "phone": "13800138000",
+  "need": "30人销售团队需要AI获客陪跑",
+  "budget": "5-10万",
+  "timeline": "本月",
+  "source_page": "/enterprise"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "id": 11,
+  "company": "启明星教育",
+  "name": "张总",
+  "phone": "13800138000",
+  "need": "30人销售团队需要AI获客陪跑",
+  "budget": "5-10万",
+  "timeline": "本月",
+  "source_page": "/enterprise",
+  "status": "crm_synced",
+  "crm_customer_id": 300,
+  "created_at": "2026-07-13T08:30:00Z",
+  "updated_at": "2026-07-13T08:30:05Z"
+}
+```
+
+### Enterprise Contact Config
+
+`GET /api/v1/enterprise/contact-config`
+
+Public. Returns the newest published consultant/contact configuration.
+
+Response `200`:
+
+```json
+{
+  "consultant_name": "企业顾问",
+  "title": "AI增长顾问",
+  "description": "工作日联系",
+  "phone": "13800138000",
+  "email": "advisor@example.com",
+  "wechat": "ai-advisor",
+  "qr_image_url": "/uploads/enterprise-advisor.png",
+  "contact_url": "https://example.com/contact",
+  "source_name": "企业服务后台",
+  "updated_at": "2026-07-13T08:10:00Z"
+}
+```
+
+### Protected Enterprise Delivery
+
+The following enterprise endpoints are protected.
 
 ### Enterprise Overview
 

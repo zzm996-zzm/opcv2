@@ -14,13 +14,20 @@ import (
 
 type fakeApplication struct {
 	overview       Overview
+	publicOverview PublicOverview
+	publicCases    []PublicCase
+	publicCase     PublicCase
+	contactConfig  ContactConfig
 	diagnosisInput DiagnosisRequestInput
+	inquiryInput   InquiryInput
 	updateInput    DiagnosisRequestUpdateInput
 	diagnosis      DiagnosisRequest
 	diagnoses      []DiagnosisRequest
+	inquiry        Inquiry
 	customer       crm.Customer
 	userID         int64
 	requestID      int64
+	slug           string
 	limit          int
 	err            error
 }
@@ -28,6 +35,29 @@ type fakeApplication struct {
 func (a *fakeApplication) Overview(_ context.Context, userID int64) (Overview, error) {
 	a.userID = userID
 	return a.overview, a.err
+}
+
+func (a *fakeApplication) PublicOverview(_ context.Context) (PublicOverview, error) {
+	return a.publicOverview, a.err
+}
+
+func (a *fakeApplication) ListPublicCases(_ context.Context, limit int) (PublicCasesResponse, error) {
+	a.limit = limit
+	return PublicCasesResponse{Cases: a.publicCases}, a.err
+}
+
+func (a *fakeApplication) GetPublicCase(_ context.Context, slug string) (PublicCase, error) {
+	a.slug = slug
+	return a.publicCase, a.err
+}
+
+func (a *fakeApplication) CreateInquiry(_ context.Context, input InquiryInput) (Inquiry, error) {
+	a.inquiryInput = input
+	return a.inquiry, a.err
+}
+
+func (a *fakeApplication) ContactConfig(_ context.Context) (ContactConfig, error) {
+	return a.contactConfig, a.err
 }
 
 func (a *fakeApplication) CreateDiagnosisRequest(_ context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error) {
@@ -65,6 +95,91 @@ func enterpriseTestRouter(app Application) *gin.Engine {
 	})
 	NewHTTPHandler(app).Register(group)
 	return router
+}
+
+func enterprisePublicTestRouter(app Application) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	group := router.Group("/api/v1")
+	NewHTTPHandler(app).RegisterPublic(group)
+	return router
+}
+
+func TestPublicOverviewEndpointDoesNotRequireAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{publicOverview: PublicOverview{Headline: "企业AI落地陪跑"}}
+	router := enterprisePublicTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/enterprise/public-overview", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"headline":"企业AI落地陪跑"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestPublicCasesEndpointUsesLimit(t *testing.T) {
+	app := &fakeApplication{publicCases: []PublicCase{{Slug: "ai-sales", Title: "AI销售流程搭建"}}}
+	router := enterprisePublicTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/enterprise/cases?limit=6", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.limit != 6 || !strings.Contains(recorder.Body.String(), `"cases":[`) {
+		t.Fatalf("limit/body = %d/%s", app.limit, recorder.Body.String())
+	}
+}
+
+func TestPublicCaseDetailEndpointUsesSlug(t *testing.T) {
+	app := &fakeApplication{publicCase: PublicCase{Slug: "ai-sales", Title: "AI销售流程搭建"}}
+	router := enterprisePublicTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/enterprise/cases/ai-sales", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.slug != "ai-sales" || !strings.Contains(recorder.Body.String(), `"slug":"ai-sales"`) {
+		t.Fatalf("slug/body = %s/%s", app.slug, recorder.Body.String())
+	}
+}
+
+func TestCreateInquiryEndpoint(t *testing.T) {
+	app := &fakeApplication{inquiry: Inquiry{ID: 10, Company: "启明星教育", Name: "张总", Need: "AI销售陪跑", Status: "crm_synced", CRMCustomerID: 300}}
+	router := enterprisePublicTestRouter(app)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/enterprise/inquiries", strings.NewReader(`{"company":"启明星教育","name":"张总","phone":"13800138000","need":"AI销售陪跑"}`))
+	request.Header.Set("Content-Type", "application/json")
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.inquiryInput.Company != "启明星教育" || !strings.Contains(recorder.Body.String(), `"crm_customer_id":300`) {
+		t.Fatalf("input/body = %+v/%s", app.inquiryInput, recorder.Body.String())
+	}
+}
+
+func TestContactConfigEndpoint(t *testing.T) {
+	app := &fakeApplication{contactConfig: ContactConfig{ConsultantName: "企业顾问", Wechat: "ai-consultant"}}
+	router := enterprisePublicTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/enterprise/contact-config", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"wechat":"ai-consultant"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
 }
 
 func TestOverviewEndpointUsesAuthenticatedUser(t *testing.T) {

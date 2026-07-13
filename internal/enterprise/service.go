@@ -11,9 +11,16 @@ import (
 var ErrUserIDRequired = errors.New("user id required")
 var ErrInvalidInput = errors.New("invalid input")
 var ErrDiagnosisRequestNotFound = errors.New("enterprise diagnosis request not found")
+var ErrPublicCaseNotFound = errors.New("enterprise public case not found")
 
 type Repository interface {
 	Overview(ctx context.Context, userID int64) (Overview, error)
+	PublicOverview(ctx context.Context) (PublicOverview, error)
+	ListPublicCases(ctx context.Context, limit int) ([]PublicCase, error)
+	GetPublicCase(ctx context.Context, slug string) (PublicCase, error)
+	ContactConfig(ctx context.Context) (ContactConfig, int64, error)
+	CreateInquiry(ctx context.Context, input InquiryInput) (Inquiry, error)
+	UpdateInquiryCRMCustomer(ctx context.Context, inquiryID int64, customerID int64) (Inquiry, error)
 	CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error)
 	ListDiagnosisRequests(ctx context.Context, userID int64, limit int) ([]DiagnosisRequest, error)
 	GetDiagnosisRequest(ctx context.Context, userID int64, requestID int64) (DiagnosisRequest, error)
@@ -22,6 +29,7 @@ type Repository interface {
 
 type CRMImporter interface {
 	ImportEnterpriseDelivery(ctx context.Context, input crm.ImportEnterpriseInput) (crm.Customer, error)
+	ImportEnterpriseInquiry(ctx context.Context, input crm.ImportEnterpriseInquiryInput) (crm.Customer, error)
 }
 
 type Service struct {
@@ -49,6 +57,111 @@ func (s *Service) Overview(ctx context.Context, userID int64) (Overview, error) 
 		return Overview{}, err
 	}
 	return ensureOverviewSlices(overview), nil
+}
+
+func (s *Service) PublicOverview(ctx context.Context) (PublicOverview, error) {
+	if s.repository == nil {
+		return emptyPublicOverview(), nil
+	}
+	overview, err := s.repository.PublicOverview(ctx)
+	if err != nil {
+		return PublicOverview{}, err
+	}
+	return ensurePublicOverviewSlices(overview), nil
+}
+
+func (s *Service) ListPublicCases(ctx context.Context, limit int) (PublicCasesResponse, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	if s.repository == nil {
+		return PublicCasesResponse{Cases: []PublicCase{}}, nil
+	}
+	cases, err := s.repository.ListPublicCases(ctx, limit)
+	if err != nil {
+		return PublicCasesResponse{}, err
+	}
+	if cases == nil {
+		cases = []PublicCase{}
+	}
+	for index := range cases {
+		cases[index] = ensurePublicCaseSlices(cases[index])
+	}
+	return PublicCasesResponse{Cases: cases}, nil
+}
+
+func (s *Service) GetPublicCase(ctx context.Context, slug string) (PublicCase, error) {
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return PublicCase{}, ErrInvalidInput
+	}
+	if s.repository == nil {
+		return PublicCase{}, ErrPublicCaseNotFound
+	}
+	item, err := s.repository.GetPublicCase(ctx, slug)
+	if err != nil {
+		return PublicCase{}, err
+	}
+	return ensurePublicCaseSlices(item), nil
+}
+
+func (s *Service) ContactConfig(ctx context.Context) (ContactConfig, error) {
+	if s.repository == nil {
+		return ContactConfig{}, nil
+	}
+	config, _, err := s.repository.ContactConfig(ctx)
+	return config, err
+}
+
+func (s *Service) CreateInquiry(ctx context.Context, input InquiryInput) (Inquiry, error) {
+	if s.repository == nil {
+		return Inquiry{}, ErrInvalidInput
+	}
+	input.Company = strings.TrimSpace(input.Company)
+	input.Name = strings.TrimSpace(input.Name)
+	input.Phone = strings.TrimSpace(input.Phone)
+	input.Email = strings.TrimSpace(input.Email)
+	input.Wechat = strings.TrimSpace(input.Wechat)
+	input.Need = strings.TrimSpace(input.Need)
+	input.Budget = strings.TrimSpace(input.Budget)
+	input.Timeline = strings.TrimSpace(input.Timeline)
+	input.SourcePage = strings.TrimSpace(input.SourcePage)
+	if input.Name == "" || input.Need == "" || (input.Phone == "" && input.Email == "" && input.Wechat == "") {
+		return Inquiry{}, ErrInvalidInput
+	}
+	if input.SourcePage == "" {
+		input.SourcePage = "/enterprise"
+	}
+	if !strings.HasPrefix(input.SourcePage, "/") || strings.HasPrefix(input.SourcePage, "//") {
+		return Inquiry{}, ErrInvalidInput
+	}
+	inquiry, err := s.repository.CreateInquiry(ctx, input)
+	if err != nil {
+		return Inquiry{}, err
+	}
+	if s.crm == nil {
+		return inquiry, nil
+	}
+	_, ownerUserID, err := s.repository.ContactConfig(ctx)
+	if err != nil {
+		return Inquiry{}, err
+	}
+	if ownerUserID <= 0 {
+		return inquiry, nil
+	}
+	customer, err := s.crm.ImportEnterpriseInquiry(ctx, crm.ImportEnterpriseInquiryInput{
+		UserID:    ownerUserID,
+		InquiryID: inquiry.ID,
+		Company:   inquiry.Company,
+		Name:      inquiry.Name,
+		Phone:     inquiry.Phone,
+		Email:     inquiry.Email,
+		Need:      inquiry.Need,
+	})
+	if err != nil {
+		return Inquiry{}, err
+	}
+	return s.repository.UpdateInquiryCRMCustomer(ctx, inquiry.ID, customer.ID)
 }
 
 func (s *Service) CreateDiagnosisRequest(ctx context.Context, userID int64, input DiagnosisRequestInput) (DiagnosisRequest, error) {
@@ -130,6 +243,14 @@ func emptyOverview() Overview {
 	}
 }
 
+func emptyPublicOverview() PublicOverview {
+	return PublicOverview{
+		ProofPoints:  []PublicProofPoint{},
+		Stats:        []PublicStat{},
+		ServiceSteps: []PublicServiceStep{},
+	}
+}
+
 func ensureOverviewSlices(overview Overview) Overview {
 	if overview.Stats == nil {
 		overview.Stats = []Metric{}
@@ -152,4 +273,27 @@ func ensureOverviewSlices(overview Overview) Overview {
 		overview.Cases = []Case{}
 	}
 	return overview
+}
+
+func ensurePublicOverviewSlices(overview PublicOverview) PublicOverview {
+	if overview.ProofPoints == nil {
+		overview.ProofPoints = []PublicProofPoint{}
+	}
+	if overview.Stats == nil {
+		overview.Stats = []PublicStat{}
+	}
+	if overview.ServiceSteps == nil {
+		overview.ServiceSteps = []PublicServiceStep{}
+	}
+	return overview
+}
+
+func ensurePublicCaseSlices(item PublicCase) PublicCase {
+	if item.Services == nil {
+		item.Services = []string{}
+	}
+	if item.Metrics == nil {
+		item.Metrics = []PublicCaseMetric{}
+	}
+	return item
 }

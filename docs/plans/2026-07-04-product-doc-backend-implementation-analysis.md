@@ -553,10 +553,10 @@ This slice is the highest leverage because many pages depend on honest paid/free
 4. Community QR config variants.
 5. Enterprise public cases and inquiry form.
 
-Items 1 through 4 are complete: project opportunities were delivered in the
+Items 1 through 5 are complete: project opportunities were delivered in the
 Project Market slice, and tools, insights, and community QR variants were
-completed in migration `000055`. Item 5 is intentionally the next standalone
-module because it includes public conversion writes and CRM handoff semantics.
+completed in migration `000055`; enterprise public conversion content,
+inquiries, contact config, and CRM handoff were completed in migration `000056`.
 
 ### Slice E: AI workflow depth
 
@@ -594,5 +594,28 @@ scope was delivered as five backend/frontend-verified parts:
 **Completed on 2026-07-13:** content/admin catalog depth for tools, insights,
 and community QR variants.
 
-The next large module is now **enterprise public conversion flows**: public
-overview/cases, inquiry submission, consultant contact config, and CRM handoff.
+**Completed on 2026-07-13:** enterprise public conversion flows.
+
+Delivered scope:
+
+1. Added published-only public enterprise overview, cases, case detail, and
+   contact config APIs.
+2. Added public enterprise inquiry persistence with required contact validation
+   and safe `source_page` handling.
+3. Connected inquiry CRM handoff through `enterprise_inquiry:{id}` import keys,
+   `source = enterprise`, and `stage = new` when a published contact config has
+   a CRM owner user.
+4. Switched the enterprise frontend page from protected dashboard/diagnosis data
+   to public overview/cases/contact/inquiry APIs, with empty states instead of
+   static cases, metrics, consultant data, or fake success claims.
+5. Kept the existing protected enterprise delivery workflow for authenticated
+   diagnosis requests and completed-delivery CRM handoff.
+
+Known boundary: the backend endpoints are public, but the current frontend
+`/enterprise` route is still wrapped by the app-level login guard. If the
+product wants a fully anonymous enterprise landing page, move this route out of
+`RequireAuth` in a separate frontend routing pass.
+
+The next large module should be **board-three locked page/paywall cleanup**:
+decide whether GEO, AI leads, dashboard, and CRM remain real logged-in workflows
+or become product-doc-aligned locked pages with upgrade/paywall configuration.

@@ -2,42 +2,35 @@ import { useEffect, useRef, useState } from "react";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { enterpriseApi, type EnterpriseDiagnosisRequest, type EnterpriseOverview } from "../lib/enterpriseApi";
-import { tasksApi } from "../lib/tasksApi";
+import {
+  enterpriseApi,
+  type EnterpriseContactConfig,
+  type EnterprisePublicCase,
+  type EnterprisePublicOverview
+} from "../lib/enterpriseApi";
 
 function EnterprisePage() {
   const enterpriseNeedRef = useRef<HTMLTextAreaElement | null>(null);
-  const [overview, setOverview] = useState<EnterpriseOverview | null>(null);
-  const [diagnosisRequests, setDiagnosisRequests] = useState<EnterpriseDiagnosisRequest[]>([]);
+  const [overview, setOverview] = useState<EnterprisePublicOverview | null>(null);
+  const [cases, setCases] = useState<EnterprisePublicCase[]>([]);
+  const [contactConfig, setContactConfig] = useState<EnterpriseContactConfig | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [requestLoadError, setRequestLoadError] = useState("");
+  const [caseLoadError, setCaseLoadError] = useState("");
+  const [contactLoadError, setContactLoadError] = useState("");
+  const [company, setCompany] = useState("");
+  const [name, setName] = useState("");
+  const [contact, setContact] = useState("");
   const [need, setNeed] = useState("");
+  const [budget, setBudget] = useState("");
+  const [timeline, setTimeline] = useState("");
   const [submitStatus, setSubmitStatus] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [taskStatusByRequestId, setTaskStatusByRequestId] = useState<Record<number, string>>({});
-  const [taskErrorByRequestId, setTaskErrorByRequestId] = useState<Record<number, string>>({});
-  const [taskPendingRequestId, setTaskPendingRequestId] = useState<number | null>(null);
-  const [deliveryStatusByRequestId, setDeliveryStatusByRequestId] = useState<Record<number, string>>({});
-  const [deliveryErrorByRequestId, setDeliveryErrorByRequestId] = useState<Record<number, string>>({});
-  const [deliveryPendingRequestId, setDeliveryPendingRequestId] = useState<number | null>(null);
-  const [completionStatusByRequestId, setCompletionStatusByRequestId] = useState<Record<number, string>>({});
-  const [completionErrorByRequestId, setCompletionErrorByRequestId] = useState<Record<number, string>>({});
-  const [completionPendingRequestId, setCompletionPendingRequestId] = useState<number | null>(null);
-  const [crmStatusByRequestId, setCrmStatusByRequestId] = useState<Record<number, string>>({});
-  const [crmErrorByRequestId, setCrmErrorByRequestId] = useState<Record<number, string>>({});
-  const [crmPendingRequestId, setCrmPendingRequestId] = useState<number | null>(null);
-
-  const refreshOverview = async () => {
-    const payload = await enterpriseApi.overview();
-    setOverview(payload);
-    setLoadError("");
-  };
 
   useEffect(() => {
     let active = true;
     enterpriseApi
-      .overview()
+      .publicOverview()
       .then((payload) => {
         if (!active) return;
         setOverview(payload);
@@ -46,31 +39,41 @@ function EnterprisePage() {
       .catch((error) => {
         if (!active) return;
         setOverview(null);
-        setLoadError(apiErrorMessage(error, "暂时无法读取企业陪跑数据"));
+        setLoadError(apiErrorMessage(error, "暂时无法读取企业服务介绍"));
       });
     enterpriseApi
-      .listDiagnosisRequests(5)
+      .publicCases(6)
       .then((payload) => {
         if (!active) return;
-        setDiagnosisRequests(payload.requests ?? []);
-        setRequestLoadError("");
+        setCases(payload.cases ?? []);
+        setCaseLoadError("");
       })
       .catch((error) => {
         if (!active) return;
-        setDiagnosisRequests([]);
-        setRequestLoadError(apiErrorMessage(error, "暂时无法读取企业诊断预约"));
+        setCases([]);
+        setCaseLoadError(apiErrorMessage(error, "暂时无法读取企业案例"));
+      });
+    enterpriseApi
+      .contactConfig()
+      .then((payload) => {
+        if (!active) return;
+        setContactConfig(payload);
+        setContactLoadError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setContactConfig(null);
+        setContactLoadError(apiErrorMessage(error, "暂时无法读取顾问联系方式"));
       });
     return () => {
       active = false;
     };
   }, []);
 
+  const proofPoints = overview?.proof_points ?? [];
   const stats = overview?.stats ?? [];
-  const plans = overview?.plans ?? [];
-  const deliveryBoard = overview?.delivery_board ?? [];
-  const milestones = overview?.milestones ?? [];
-  const cases = overview?.cases ?? [];
-  const hasOverviewData = stats.length > 0 || plans.length > 0 || deliveryBoard.length > 0 || milestones.length > 0 || cases.length > 0;
+  const serviceSteps = overview?.service_steps ?? [];
+  const hasOverviewData = Boolean(overview?.headline || overview?.description || proofPoints.length || stats.length || serviceSteps.length);
 
   const focusEnterpriseNeed = () => {
     if (typeof enterpriseNeedRef.current?.scrollIntoView === "function") {
@@ -79,110 +82,41 @@ function EnterprisePage() {
     enterpriseNeedRef.current?.focus();
   };
 
-  const submitDiagnosisRequest = async () => {
+  const submitInquiry = async () => {
+    const normalizedName = name.trim();
+    const normalizedContact = contact.trim();
     const normalizedNeed = need.trim();
-    if (!normalizedNeed) {
+    if (!normalizedName || !normalizedContact || !normalizedNeed) {
       setSubmitStatus("");
-      setSubmitError("请输入企业诊断需求");
+      setSubmitError("请填写联系人、联系方式和企业需求");
       return;
     }
     setSubmitting(true);
     setSubmitStatus("");
     setSubmitError("");
     try {
-      const request = await enterpriseApi.createDiagnosisRequest({ need: normalizedNeed });
-      setDiagnosisRequests((current) => [request, ...current.filter((item) => item.id !== request.id)].slice(0, 5));
-      setSubmitStatus("企业诊断预约已提交");
+      const inquiry = await enterpriseApi.createInquiry({
+        company: company.trim(),
+        name: normalizedName,
+        phone: looksLikePhone(normalizedContact) ? normalizedContact : undefined,
+        email: looksLikeEmail(normalizedContact) ? normalizedContact : undefined,
+        wechat: !looksLikePhone(normalizedContact) && !looksLikeEmail(normalizedContact) ? normalizedContact : undefined,
+        need: normalizedNeed,
+        budget: budget.trim(),
+        timeline: timeline.trim(),
+        source_page: "/enterprise"
+      });
+      setSubmitStatus(inquiry.crm_customer_id ? "咨询已提交，顾问将跟进联系" : "咨询已提交，等待顾问配置后跟进");
+      setCompany("");
+      setName("");
+      setContact("");
       setNeed("");
+      setBudget("");
+      setTimeline("");
     } catch (error) {
-      setSubmitError(apiErrorMessage(error, "暂时无法提交企业诊断预约"));
+      setSubmitError(apiErrorMessage(error, "暂时无法提交企业咨询"));
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const createFollowUpTask = async (request: EnterpriseDiagnosisRequest) => {
-    setTaskPendingRequestId(request.id);
-    setTaskStatusByRequestId((current) => ({ ...current, [request.id]: "" }));
-    setTaskErrorByRequestId((current) => ({ ...current, [request.id]: "" }));
-    try {
-      await tasksApi.createTask({
-        title: `跟进企业诊断：${request.need.slice(0, 24)}`,
-        project: "企业定制化陪跑",
-        priority: "high",
-        tools: ["企业诊断", "CRM"],
-        learning: `围绕企业需求制定陪跑方案：${request.need}`,
-        sourceType: "enterprise_diagnosis",
-        sourceId: request.id,
-        sourceTitle: `企业诊断：${request.need}`,
-        sourceUrl: "/enterprise"
-      });
-      const updatedRequest = await enterpriseApi.updateDiagnosisRequest(request.id, { status: "follow_up_created" });
-      setDiagnosisRequests((current) => current.map((item) => (item.id === updatedRequest.id ? updatedRequest : item)));
-      await refreshOverview();
-      setTaskStatusByRequestId((current) => ({ ...current, [request.id]: "跟进任务已生成" }));
-    } catch (error) {
-      setTaskErrorByRequestId((current) => ({
-        ...current,
-        [request.id]: apiErrorMessage(error, "暂时无法生成跟进任务")
-      }));
-    } finally {
-      setTaskPendingRequestId(null);
-    }
-  };
-
-  const startDelivery = async (request: EnterpriseDiagnosisRequest) => {
-    setDeliveryPendingRequestId(request.id);
-    setDeliveryStatusByRequestId((current) => ({ ...current, [request.id]: "" }));
-    setDeliveryErrorByRequestId((current) => ({ ...current, [request.id]: "" }));
-    try {
-      const updatedRequest = await enterpriseApi.updateDiagnosisRequest(request.id, { status: "in_delivery" });
-      setDiagnosisRequests((current) => current.map((item) => (item.id === updatedRequest.id ? updatedRequest : item)));
-      await refreshOverview();
-      setDeliveryStatusByRequestId((current) => ({ ...current, [request.id]: "已进入交付" }));
-    } catch (error) {
-      setDeliveryErrorByRequestId((current) => ({
-        ...current,
-        [request.id]: apiErrorMessage(error, "暂时无法进入交付")
-      }));
-    } finally {
-      setDeliveryPendingRequestId(null);
-    }
-  };
-
-  const completeDelivery = async (request: EnterpriseDiagnosisRequest) => {
-    setCompletionPendingRequestId(request.id);
-    setCompletionStatusByRequestId((current) => ({ ...current, [request.id]: "" }));
-    setCompletionErrorByRequestId((current) => ({ ...current, [request.id]: "" }));
-    try {
-      const updatedRequest = await enterpriseApi.updateDiagnosisRequest(request.id, { status: "completed" });
-      setDiagnosisRequests((current) => current.map((item) => (item.id === updatedRequest.id ? updatedRequest : item)));
-      await refreshOverview();
-      setCompletionStatusByRequestId((current) => ({ ...current, [request.id]: "已完成交付" }));
-    } catch (error) {
-      setCompletionErrorByRequestId((current) => ({
-        ...current,
-        [request.id]: apiErrorMessage(error, "暂时无法完成交付")
-      }));
-    } finally {
-      setCompletionPendingRequestId(null);
-    }
-  };
-
-  const importToCRM = async (request: EnterpriseDiagnosisRequest) => {
-    setCrmPendingRequestId(request.id);
-    setCrmStatusByRequestId((current) => ({ ...current, [request.id]: "" }));
-    setCrmErrorByRequestId((current) => ({ ...current, [request.id]: "" }));
-    try {
-      const customer = await enterpriseApi.importDiagnosisRequestCustomer(request.id);
-      setCrmStatusByRequestId((current) => ({ ...current, [request.id]: `已同步CRM客户：${customer.name}` }));
-    } catch (error) {
-      setCrmErrorByRequestId((current) => ({
-        ...current,
-        [request.id]: apiErrorMessage(error, "暂时无法同步CRM客户")
-      }));
-    } finally {
-      setCrmPendingRequestId(null);
     }
   };
 
@@ -192,50 +126,60 @@ function EnterprisePage() {
         <div className="page-title-row">
           <div>
             <h1>企业定制化陪跑</h1>
-            <p>面向企业团队提供诊断、方案、系统搭建、训练和复盘的一体化增长陪跑</p>
+            <p>{overview?.subheadline || "面向企业团队提供诊断、方案、系统搭建、训练和复盘的一体化增长陪跑"}</p>
           </div>
-          <button className="module-primary-action" onClick={focusEnterpriseNeed} type="button">预约企业诊断</button>
+          <button className="module-primary-action" onClick={focusEnterpriseNeed} type="button">预约企业咨询</button>
         </div>
 
         <section className="module-overview-card enterprise-hero">
           <div className="module-overview-copy">
-            <span className="module-kicker">企业服务 · 定制交付</span>
-            <h2>从业务问题到团队上线，陪企业把 AI 增长流程真正跑起来</h2>
-            <p>通过企业诊断、工具配置、实战陪跑和交付验收，把项目超市、GEO 获客、AI 线索开发和 CRM 组合成企业自己的增长系统。</p>
+            <span className="module-kicker">企业服务 · 公开介绍</span>
+            <h2>{overview?.headline || "企业服务内容待发布"}</h2>
+            <p>{overview?.description || "后台发布企业服务介绍后，这里会展示真实的服务范围、交付方式和来源说明。"}</p>
+            {overview?.source_name && <p className="form-success" role="note">来源：{overview.source_name}{overview.source_updated_at ? ` · ${formatDate(overview.source_updated_at)}` : ""}</p>}
             {loadError && <p className="form-error" role="alert">{loadError}</p>}
-            {!loadError && !hasOverviewData && (
-              <p className="form-success" role="status">暂无企业陪跑概览数据，提交一次诊断需求后将逐步沉淀方案、交付和案例数据。</p>
-            )}
+            {!loadError && !hasOverviewData && <p className="form-success" role="status">暂无已发布企业服务介绍。</p>}
             <div className="module-stat-strip">
               {stats.length === 0 ? (
-                <>
-                  <article>
-                    <small>服务企业数</small>
-                    <strong>0</strong>
-                  </article>
-                  <article>
-                    <small>平均周期</small>
-                    <strong>未接入</strong>
-                  </article>
-                  <article>
-                    <small>交付任务数</small>
-                    <strong>0</strong>
-                  </article>
-                  <article>
-                    <small>续约率数据</small>
-                    <strong>未接入</strong>
-                  </article>
-                </>
+                <article>
+                  <small>公开指标</small>
+                  <strong>待发布</strong>
+                </article>
               ) : stats.map((item) => (
                 <article key={item.key}>
                   <small>{item.label}</small>
                   <strong>{item.value}</strong>
+                  {item.note && <small>{item.note}</small>}
                 </article>
               ))}
             </div>
           </div>
 
           <form className="module-ai-box compact enterprise-diagnosis-card">
+            <label htmlFor="enterprise-company">企业名称</label>
+            <input
+              id="enterprise-company"
+              aria-label="企业名称"
+              placeholder="例如：启明星教育"
+              value={company}
+              onChange={(event) => setCompany(event.target.value)}
+            />
+            <label htmlFor="enterprise-contact-name">联系人</label>
+            <input
+              id="enterprise-contact-name"
+              aria-label="联系人"
+              placeholder="你的姓名"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <label htmlFor="enterprise-contact">联系方式</label>
+            <input
+              id="enterprise-contact"
+              aria-label="联系方式"
+              placeholder="手机号、邮箱或微信"
+              value={contact}
+              onChange={(event) => setContact(event.target.value)}
+            />
             <label htmlFor="enterprise-need">描述企业需求</label>
             <textarea
               id="enterprise-need"
@@ -245,10 +189,26 @@ function EnterprisePage() {
               value={need}
               onChange={(event) => setNeed(event.target.value)}
             />
+            <label htmlFor="enterprise-budget">预算范围</label>
+            <input
+              id="enterprise-budget"
+              aria-label="预算范围"
+              placeholder="可选"
+              value={budget}
+              onChange={(event) => setBudget(event.target.value)}
+            />
+            <label htmlFor="enterprise-timeline">启动时间</label>
+            <input
+              id="enterprise-timeline"
+              aria-label="启动时间"
+              placeholder="可选"
+              value={timeline}
+              onChange={(event) => setTimeline(event.target.value)}
+            />
             {submitStatus && <p className="form-success" role="status">{submitStatus}</p>}
             {submitError && <p className="form-error" role="alert">{submitError}</p>}
-            <button type="button" onClick={submitDiagnosisRequest} disabled={submitting}>
-              {submitting ? "提交中..." : "提交诊断预约"}
+            <button type="button" onClick={submitInquiry} disabled={submitting}>
+              {submitting ? "提交中..." : "提交企业咨询"}
             </button>
           </form>
         </section>
@@ -257,48 +217,37 @@ function EnterprisePage() {
           <div className="enterprise-plan-card">
             <div className="module-section-head">
               <div>
-                <h2>陪跑方案</h2>
-                <p>按企业团队规模、增长目标和系统复杂度选择交付模式</p>
-              </div>
-              <div className="module-chip-row compact">
-                {["标准", "获客", "系统", "定制"].map((view, index) => (
-                  <button className={index === 0 ? "active" : ""} key={view} type="button">{view}</button>
-                ))}
+                <h2>服务路径</h2>
+                <p>后台发布后展示真实交付步骤；未发布时保持空态。</p>
               </div>
             </div>
 
             <div className="enterprise-plan-grid">
-              {plans.length === 0 && <p>暂无陪跑方案</p>}
-              {plans.map((plan) => (
-                <article key={plan.id}>
+              {serviceSteps.length === 0 && <p>暂无已发布服务路径</p>}
+              {serviceSteps.map((step) => (
+                <article key={step.title}>
                   <header>
                     <div>
-                      <h3>{plan.title}</h3>
-                      <small>{plan.audience || "未标注适用对象"}</small>
+                      <h3>{step.title}</h3>
                     </div>
-                    <strong>{plan.price_label || "未报价"}</strong>
                   </header>
-                  <p>{plan.result || "暂无交付结果"}</p>
-                  <div className="tool-tags">
-                    {plan.focus.map((item) => <span key={item}>{item}</span>)}
-                  </div>
+                  <p>{step.detail || "暂无说明"}</p>
                 </article>
               ))}
             </div>
           </div>
 
-          <aside className="enterprise-delivery-card" aria-label="交付看板">
-            <h2>交付看板</h2>
-            {deliveryBoard.length === 0 && <p>暂无交付看板数据</p>}
-            {deliveryBoard.map((item) => (
-              <article key={item.stage}>
-                <span>
-                  <strong>{item.stage}</strong>
-                  <small>{item.detail || "暂无说明"}</small>
-                </span>
-                <em>{item.count}</em>
-              </article>
-            ))}
+          <aside className="enterprise-delivery-card" aria-label="顾问联系方式">
+            <h2>顾问联系方式</h2>
+            {contactLoadError && <p className="form-error" role="alert">{contactLoadError}</p>}
+            {!contactLoadError && !hasContactConfig(contactConfig) && <p>暂无已发布顾问联系方式</p>}
+            {contactConfig?.qr_image_url && <img alt={contactConfig.consultant_name || "企业顾问二维码"} src={contactConfig.qr_image_url} />}
+            {contactConfig?.consultant_name && <article><span><strong>{contactConfig.consultant_name}</strong><small>{contactConfig.title || "企业服务顾问"}</small></span></article>}
+            {contactConfig?.description && <article><span><strong>说明</strong><small>{contactConfig.description}</small></span></article>}
+            {contactConfig?.phone && <article><span><strong>电话</strong><small>{contactConfig.phone}</small></span></article>}
+            {contactConfig?.email && <article><span><strong>邮箱</strong><small>{contactConfig.email}</small></span></article>}
+            {contactConfig?.wechat && <article><span><strong>微信</strong><small>{contactConfig.wechat}</small></span></article>}
+            {contactConfig?.contact_url && <a href={contactConfig.contact_url}>打开预约链接</a>}
           </aside>
         </section>
 
@@ -306,15 +255,15 @@ function EnterprisePage() {
           <div className="enterprise-milestone-card">
             <div className="module-section-head">
               <div>
-                <h2>陪跑里程碑</h2>
-                <p>把企业服务拆成可验收、可复盘、可续约的交付节奏</p>
+                <h2>服务依据</h2>
+                <p>只展示后台发布的公开说明，不使用静态营销结论。</p>
               </div>
             </div>
             <div className="enterprise-milestones">
-              {milestones.length === 0 && <p>暂无陪跑里程碑</p>}
-              {milestones.map((item) => (
-                <article key={`${item.time_label}-${item.title}`}>
-                  <b>{item.time_label}</b>
+              {proofPoints.length === 0 && <p>暂无已发布服务依据</p>}
+              {proofPoints.map((item) => (
+                <article key={item.title}>
+                  <b>依据</b>
                   <strong>{item.title}</strong>
                   <small>{item.detail || "暂无说明"}</small>
                 </article>
@@ -324,48 +273,20 @@ function EnterprisePage() {
 
           <aside className="enterprise-case-card" aria-label="企业案例">
             <h2>企业案例</h2>
-            {cases.length === 0 && <p>暂无企业案例</p>}
+            {caseLoadError && <p className="form-error" role="alert">{caseLoadError}</p>}
+            {!caseLoadError && cases.length === 0 && <p>暂无已发布企业案例</p>}
             {cases.map((item) => (
               <article key={item.id}>
-                <strong>{item.company}</strong>
-                <small>{item.result || "暂无案例结果"}</small>
-              </article>
-            ))}
-          </aside>
-
-          <aside className="enterprise-case-card" aria-label="企业诊断预约">
-            <h2>最近诊断预约</h2>
-            {requestLoadError && <p className="form-error" role="alert">{requestLoadError}</p>}
-            {!requestLoadError && diagnosisRequests.length === 0 && <p>暂无企业诊断预约</p>}
-            {diagnosisRequests.map((request) => (
-              <article key={request.id}>
-                <strong>{request.need}</strong>
-                <small>{request.status} · {request.created_at ? new Date(request.created_at).toLocaleString("zh-CN") : "暂无提交时间"}</small>
-                {taskStatusByRequestId[request.id] && <small className="form-success">{taskStatusByRequestId[request.id]}</small>}
-                {taskErrorByRequestId[request.id] && <small className="form-error">{taskErrorByRequestId[request.id]}</small>}
-                {deliveryStatusByRequestId[request.id] && <small className="form-success">{deliveryStatusByRequestId[request.id]}</small>}
-                {deliveryErrorByRequestId[request.id] && <small className="form-error">{deliveryErrorByRequestId[request.id]}</small>}
-                {completionStatusByRequestId[request.id] && <small className="form-success">{completionStatusByRequestId[request.id]}</small>}
-                {completionErrorByRequestId[request.id] && <small className="form-error">{completionErrorByRequestId[request.id]}</small>}
-                {crmStatusByRequestId[request.id] && <small className="form-success">{crmStatusByRequestId[request.id]}</small>}
-                {crmErrorByRequestId[request.id] && <small className="form-error">{crmErrorByRequestId[request.id]}</small>}
-                {request.status === "follow_up_created" ? (
-                  <button type="button" onClick={() => startDelivery(request)} disabled={deliveryPendingRequestId === request.id}>
-                    {deliveryPendingRequestId === request.id ? "进入中..." : "进入交付"}
-                  </button>
-                ) : request.status === "in_delivery" ? (
-                  <button type="button" onClick={() => completeDelivery(request)} disabled={completionPendingRequestId === request.id}>
-                    {completionPendingRequestId === request.id ? "完成中..." : "完成交付"}
-                  </button>
-                ) : request.status === "completed" ? (
-                  <button type="button" onClick={() => importToCRM(request)} disabled={crmPendingRequestId === request.id}>
-                    {crmPendingRequestId === request.id ? "同步中..." : "同步CRM"}
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => createFollowUpTask(request)} disabled={taskPendingRequestId === request.id}>
-                    {taskPendingRequestId === request.id ? "生成中..." : "生成跟进任务"}
-                  </button>
+                <strong>{item.title || item.company}</strong>
+                <small>{item.company}{item.industry ? ` · ${item.industry}` : ""}</small>
+                {item.summary && <small>{item.summary}</small>}
+                {item.result && <small>{item.result}</small>}
+                {item.services.length > 0 && (
+                  <div className="tool-tags">
+                    {item.services.map((service) => <span key={service}>{service}</span>)}
+                  </div>
                 )}
+                {item.source_name && <small>来源：{item.source_name}</small>}
               </article>
             ))}
           </aside>
@@ -373,6 +294,22 @@ function EnterprisePage() {
       </section>
     </V4PageShell>
   );
+}
+
+function looksLikePhone(value: string) {
+  return /^[+\d][\d\s-]{5,}$/.test(value);
+}
+
+function looksLikeEmail(value: string) {
+  return value.includes("@");
+}
+
+function hasContactConfig(config: EnterpriseContactConfig | null) {
+  return Boolean(config?.consultant_name || config?.phone || config?.email || config?.wechat || config?.qr_image_url || config?.contact_url);
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("zh-CN");
 }
 
 export default EnterprisePage;

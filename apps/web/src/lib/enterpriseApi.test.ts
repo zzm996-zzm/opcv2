@@ -24,6 +24,69 @@ describe("enterpriseApi", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/overview", expect.any(Object));
   });
 
+  it("loads public enterprise overview", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        headline: "企业AI落地陪跑",
+        proof_points: [],
+        stats: [],
+        service_steps: []
+      }), { status: 200 })
+    );
+
+    const overview = await enterpriseApi.publicOverview();
+
+    expect(overview.headline).toBe("企业AI落地陪跑");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/public-overview", expect.any(Object));
+  });
+
+  it("loads public enterprise cases", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ cases: [{ id: 7, slug: "ai-sales", company: "启明星教育", title: "AI销售流程搭建", services: [], metrics: [] }] }), { status: 200 })
+    );
+
+    const response = await enterpriseApi.publicCases(6);
+
+    expect(response.cases[0].slug).toBe("ai-sales");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/cases?limit=6", expect.any(Object));
+  });
+
+  it("loads a public enterprise case detail", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 7, slug: "ai-sales", company: "启明星教育", title: "AI销售流程搭建", services: [], metrics: [] }), { status: 200 })
+    );
+
+    const item = await enterpriseApi.publicCase("ai sales");
+
+    expect(item.slug).toBe("ai-sales");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/cases/ai%20sales", expect.any(Object));
+  });
+
+  it("loads enterprise contact config", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ consultant_name: "企业顾问", wechat: "ai-advisor" }), { status: 200 })
+    );
+
+    const config = await enterpriseApi.contactConfig();
+
+    expect(config.wechat).toBe("ai-advisor");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/contact-config", expect.any(Object));
+  });
+
+  it("creates an enterprise public inquiry", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 11, name: "张总", need: "AI销售陪跑", status: "crm_synced", crm_customer_id: 300 }), { status: 200 })
+    );
+
+    const inquiry = await enterpriseApi.createInquiry({ name: "张总", phone: "13800138000", need: "AI销售陪跑" });
+
+    expect(inquiry.crm_customer_id).toBe(300);
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/enterprise/inquiries", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ name: "张总", phone: "13800138000", need: "AI销售陪跑" })
+    }));
+  });
+
   it("creates an enterprise diagnosis request", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: 7, user_id: 42, need: "30人销售团队需要AI获客陪跑", status: "submitted" }), { status: 200 })

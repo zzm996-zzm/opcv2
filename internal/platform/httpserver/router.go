@@ -92,6 +92,9 @@ func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
 	if handlers.Learning != nil {
 		handlers.Learning.RegisterPublic(api)
 	}
+	if handlers.Enterprise != nil {
+		handlers.Enterprise.RegisterPublic(api)
+	}
 	if handlers.Auth != nil && handlers.Account != nil {
 		protected := api.Group("")
 		protected.Use(handlers.Auth.RequireAccessToken())
