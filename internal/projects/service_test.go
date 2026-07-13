@@ -146,6 +146,26 @@ func (r *memoryRepository) SaveFavorite(_ context.Context, favorite Favorite) (F
 	return favorite, nil
 }
 
+func (r *memoryRepository) ListFavorites(_ context.Context, userID int64, limit int) ([]Favorite, error) {
+	items := make([]Favorite, 0)
+	for _, favorite := range r.favorites[userID] {
+		item := favorite
+		if session, err := r.GetSession(context.Background(), userID, favorite.SessionID); err == nil {
+			item.Session = &session
+		}
+		items = append(items, item)
+	}
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return items, nil
+}
+
+func (r *memoryRepository) DeleteFavorite(_ context.Context, userID, sessionID int64) error {
+	delete(r.favorites[userID], sessionID)
+	return nil
+}
+
 type fakeJSONGenerator struct {
 	request ai.GenerateJSONRequest
 	result  ai.GenerateJSONResult
@@ -329,5 +349,24 @@ func TestServiceFavoritesAreIdempotent(t *testing.T) {
 	}
 	if first.ID != second.ID || len(repository.favorites[42]) != 1 {
 		t.Fatalf("favorites first=%+v second=%+v repo=%+v", first, second, repository.favorites)
+	}
+}
+
+func TestServiceListsAndDeletesFavoriteMatches(t *testing.T) {
+	repository := &memoryRepository{
+		sessions:  []MatchSession{{ID: 99, UserID: 42, Intent: "线上轻资产", Status: StatusCompleted}},
+		favorites: map[int64]map[int64]Favorite{42: {99: {ID: 7, UserID: 42, SessionID: 99}}},
+	}
+	service := NewService(repository, &fakeJSONGenerator{})
+
+	items, err := service.ListFavoriteMatches(context.Background(), 42, 20)
+	if err != nil || len(items) != 1 || items[0].Session == nil || items[0].Session.Intent != "线上轻资产" {
+		t.Fatalf("favorites = %+v err=%v", items, err)
+	}
+	if err := service.UnfavoriteMatch(context.Background(), 42, 99); err != nil {
+		t.Fatalf("UnfavoriteMatch() error = %v", err)
+	}
+	if len(repository.favorites[42]) != 0 {
+		t.Fatalf("favorites after delete = %+v", repository.favorites[42])
 	}
 }

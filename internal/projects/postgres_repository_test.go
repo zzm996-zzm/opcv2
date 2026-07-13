@@ -167,3 +167,36 @@ func TestPostgresRepositorySavesFavoriteIdempotently(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryListsAndDeletesFavorites(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 24, 9, 0, 0, 0, time.UTC)
+	db.ExpectQuery("SELECT f\\.id, f\\.user_id, f\\.session_id, f\\.created_at,").
+		WithArgs(int64(42), 20).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"favorite_id", "favorite_user_id", "session_id", "favorite_created_at",
+			"id", "user_id", "intent", "status", "questions", "result", "created_at", "updated_at",
+		}).AddRow(
+			int64(7), int64(42), int64(99), now,
+			int64(99), int64(42), "线上轻资产", StatusCompleted, []byte(`[]`), []byte(`{"status":"completed","projects":[]}`), now, now,
+		))
+	db.ExpectExec(regexp.QuoteMeta(`DELETE FROM project_match_favorites WHERE user_id = $1 AND session_id = $2`)).
+		WithArgs(int64(42), int64(99)).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+
+	repository := NewPostgresRepository(db)
+	items, err := repository.ListFavorites(context.Background(), 42, 20)
+	if err != nil || len(items) != 1 || items[0].Session == nil || items[0].Session.Intent != "线上轻资产" {
+		t.Fatalf("favorites = %+v err=%v", items, err)
+	}
+	if err := repository.DeleteFavorite(context.Background(), 42, 99); err != nil {
+		t.Fatalf("DeleteFavorite() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

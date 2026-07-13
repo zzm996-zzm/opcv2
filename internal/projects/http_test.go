@@ -19,6 +19,7 @@ type fakeApplication struct {
 	sessions      []MatchSession
 	session       MatchSession
 	favorite      Favorite
+	favorites     []Favorite
 	err           error
 	opportunities []Opportunity
 	opportunity   Opportunity
@@ -79,6 +80,17 @@ func (a *fakeApplication) FavoriteMatch(_ context.Context, userID, id int64) (Fa
 	a.userID = userID
 	a.matchID = id
 	return a.favorite, a.err
+}
+
+func (a *fakeApplication) ListFavoriteMatches(_ context.Context, userID int64, _ int) ([]Favorite, error) {
+	a.userID = userID
+	return a.favorites, a.err
+}
+
+func (a *fakeApplication) UnfavoriteMatch(_ context.Context, userID, id int64) error {
+	a.userID = userID
+	a.matchID = id
+	return a.err
 }
 
 func projectTestRouter(app Application) *gin.Engine {
@@ -191,5 +203,22 @@ func TestFavoriteMatchEndpointIsUserScoped(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"session_id":99`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestListAndDeleteFavoriteMatchEndpoints(t *testing.T) {
+	app := &fakeApplication{favorites: []Favorite{{ID: 7, UserID: 42, SessionID: 99, Session: &MatchSession{ID: 99, Intent: "线上轻资产"}}}}
+	router := projectTestRouter(app)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/projects/favorites", nil))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"intent":"线上轻资产"`) {
+		t.Fatalf("list status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodDelete, "/api/v1/projects/matches/99/favorite", nil))
+	if recorder.Code != http.StatusNoContent || app.userID != 42 || app.matchID != 99 {
+		t.Fatalf("delete status/user/match = %d/%d/%d", recorder.Code, app.userID, app.matchID)
 	}
 }

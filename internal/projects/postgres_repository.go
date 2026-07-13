@@ -6,11 +6,13 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type postgresDB interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
 type PostgresRepository struct {
@@ -217,6 +219,50 @@ func (r *PostgresRepository) SaveFavorite(ctx context.Context, favorite Favorite
 		favorite.CreatedAt,
 	).Scan(&favorite.ID, &favorite.CreatedAt)
 	return favorite, err
+}
+
+func (r *PostgresRepository) ListFavorites(ctx context.Context, userID int64, limit int) ([]Favorite, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT f.id, f.user_id, f.session_id, f.created_at,
+		       s.id, s.user_id, s.intent, s.status, s.questions, s.result, s.created_at, s.updated_at
+		FROM project_match_favorites f
+		JOIN project_match_sessions s ON s.id = f.session_id AND s.user_id = f.user_id
+		WHERE f.user_id = $1
+		ORDER BY f.created_at DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]Favorite, 0)
+	for rows.Next() {
+		var item Favorite
+		var session MatchSession
+		var questions, result []byte
+		if err := rows.Scan(
+			&item.ID, &item.UserID, &item.SessionID, &item.CreatedAt,
+			&session.ID, &session.UserID, &session.Intent, &session.Status,
+			&questions, &result, &session.CreatedAt, &session.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(questions, &session.Questions); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(result, &session.Result); err != nil {
+			return nil, err
+		}
+		item.Session = &session
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *PostgresRepository) DeleteFavorite(ctx context.Context, userID, sessionID int64) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM project_match_favorites WHERE user_id = $1 AND session_id = $2`, userID, sessionID)
+	return err
 }
 
 type sessionScanner interface {

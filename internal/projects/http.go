@@ -25,6 +25,8 @@ type Application interface {
 	CreateExport(ctx context.Context, input CreateExportInput) (Export, error)
 	GetExport(ctx context.Context, userID, id int64) (Export, error)
 	FavoriteMatch(ctx context.Context, userID, id int64) (Favorite, error)
+	ListFavoriteMatches(ctx context.Context, userID int64, limit int) ([]Favorite, error)
+	UnfavoriteMatch(ctx context.Context, userID, id int64) error
 }
 
 type HTTPHandler struct {
@@ -45,6 +47,8 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/projects/matches/:id", h.getMatch)
 	router.POST("/projects/matches/:id/answers", h.answerMatch)
 	router.POST("/projects/matches/:id/favorite", h.favoriteMatch)
+	router.DELETE("/projects/matches/:id/favorite", h.unfavoriteMatch)
+	router.GET("/projects/favorites", h.listFavoriteMatches)
 	router.POST("/projects/comparisons", h.createComparison)
 	router.GET("/projects/comparisons/:id", h.getComparison)
 	router.POST("/projects/exports", h.createExport)
@@ -233,6 +237,39 @@ func (h *HTTPHandler) favoriteMatch(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, favorite)
+}
+
+func (h *HTTPHandler) listFavoriteMatches(c *gin.Context) {
+	limit := 20
+	if value := c.Query("limit"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_limit"})
+			return
+		}
+		limit = parsed
+	}
+	items, err := h.app.ListFavoriteMatches(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	if items == nil {
+		items = []Favorite{}
+	}
+	c.JSON(http.StatusOK, gin.H{"favorites": items})
+}
+
+func (h *HTTPHandler) unfavoriteMatch(c *gin.Context) {
+	id, ok := matchID(c)
+	if !ok {
+		return
+	}
+	if err := h.app.UnfavoriteMatch(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func matchID(c *gin.Context) (int64, bool) {

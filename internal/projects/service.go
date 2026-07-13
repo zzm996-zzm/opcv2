@@ -27,6 +27,8 @@ type Repository interface {
 	GetSession(ctx context.Context, userID, id int64) (MatchSession, error)
 	UpdateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	SaveFavorite(ctx context.Context, favorite Favorite) (Favorite, error)
+	ListFavorites(ctx context.Context, userID int64, limit int) ([]Favorite, error)
+	DeleteFavorite(ctx context.Context, userID, sessionID int64) error
 }
 
 func (s *Service) CreateExport(ctx context.Context, input CreateExportInput) (Export, error) {
@@ -282,6 +284,26 @@ func (s *Service) FavoriteMatch(ctx context.Context, userID, id int64) (Favorite
 		return Favorite{}, err
 	}
 	return s.repository.SaveFavorite(ctx, Favorite{UserID: userID, SessionID: id, CreatedAt: s.now()})
+}
+
+func (s *Service) ListFavoriteMatches(ctx context.Context, userID int64, limit int) ([]Favorite, error) {
+	if s.repository == nil {
+		return nil, ErrServiceNotReady
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	return s.repository.ListFavorites(ctx, userID, limit)
+}
+
+func (s *Service) UnfavoriteMatch(ctx context.Context, userID, id int64) error {
+	if s.repository == nil {
+		return ErrServiceNotReady
+	}
+	if _, err := s.repository.GetSession(ctx, userID, id); err != nil {
+		return err
+	}
+	return s.repository.DeleteFavorite(ctx, userID, id)
 }
 
 func (s *Service) generateMatch(ctx context.Context, input MatchInput) (MatchResult, error) {

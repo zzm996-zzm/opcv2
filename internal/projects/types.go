@@ -160,8 +160,9 @@ type MatchSession struct {
 }
 
 type Favorite struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"user_id"`
-	SessionID int64     `json:"session_id"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int64         `json:"id"`
+	UserID    int64         `json:"user_id"`
+	SessionID int64         `json:"session_id"`
+	CreatedAt time.Time     `json:"created_at"`
+	Session   *MatchSession `json:"session,omitempty"`
 }
