@@ -152,7 +152,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("当前分析阶段：能力评估")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "正在加载能力评估..." })).toBeInTheDocument();
   });
 
   it("renders the insights route for a signed-in user", () => {
@@ -296,7 +296,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("目标要求 vs 当前水平")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "正在加载差距分析..." })).toBeInTheDocument();
   });
 
   it("renders the learning recommendation route for a signed-in user", () => {
@@ -318,7 +318,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("优先补强方向")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "正在加载学习建议..." })).toBeInTheDocument();
   });
 
   it("renders the learning plan route for a signed-in user", () => {
@@ -340,7 +340,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("预计总学习时长")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "正在加载学习计划..." })).toBeInTheDocument();
   });
 
   it("renders the learning report route for a signed-in user", () => {
@@ -362,7 +362,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("诊断概览")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "正在加载诊断报告..." })).toBeInTheDocument();
   });
 
   it("renders the learning courses route for a signed-in user", () => {
@@ -384,7 +384,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("本周热门课程")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "全部课程" })).toBeInTheDocument();
   });
 
   it("renders the learning recommended courses route for a signed-in user", () => {
@@ -406,7 +406,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("推荐逻辑说明")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "课程选择" })).toBeInTheDocument();
   });
 
   it("renders the learning course intro route for a signed-in user", () => {
@@ -428,7 +428,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("章节目录")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "正在加载课程..." })).toBeInTheDocument();
   });
 
   it("renders the learning course detail route for a signed-in user", () => {
@@ -450,7 +450,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText("课程大纲")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "正在加载课程学习页..." })).toBeInTheDocument();
   });
 
   it("renders the learning history route for a signed-in user", () => {
