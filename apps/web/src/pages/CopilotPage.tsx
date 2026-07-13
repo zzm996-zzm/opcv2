@@ -772,6 +772,7 @@ function ChatThread({
             ) : (
               <div className={"copilot-bubble compact " + (typewriterContent && message.id in typewriterContent ? "typing" : "")}>
                 <p>{typewriterContent?.[message.id] ?? message.content}</p>
+                {message.metadata?.tool_result && <ToolResultCard result={message.metadata.tool_result} />}
                 <time>{formatTime(message.created_at)}</time>
               </div>
             )}
@@ -788,6 +789,20 @@ function ChatThread({
       {streamingContent ? <StreamingMessage content={streamingContent} /> : <ThinkingMessage />}
     </div>
   ) : <EmptyConversation onPrompt={onPrompt} />;
+}
+
+function ToolResultCard({ result }: { result: NonNullable<NonNullable<CopilotMessage["metadata"]>["tool_result"]> }) {
+  const action = result.tool === "create_task" ? "查看任务" : "查看匹配";
+  return (
+    <div className="copilot-tool-result">
+      <span className="copilot-ui-icon check" aria-hidden="true" />
+      <div>
+        <strong>{result.title || result.message}</strong>
+        <small>{result.status === "completed" ? "执行完成" : "等待补充信息"}</small>
+      </div>
+      <Link to={result.url}>{action}</Link>
+    </div>
+  );
 }
 
 function StreamingMessage({ content }: { content: string }) {

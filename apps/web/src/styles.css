@@ -26834,6 +26834,48 @@ a {
   animation: copilot-cursor-blink 900ms steps(2, jump-none) infinite;
 }
 
+.copilot-tool-result {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px;
+  background: #f3f7ff;
+  border: 1px solid rgba(36, 93, 255, 0.16);
+  border-radius: 7px;
+}
+
+.copilot-tool-result > span {
+  width: 28px;
+  height: 28px;
+  color: #167451;
+  background: #e8f8f1;
+  border-radius: 50%;
+}
+
+.copilot-tool-result strong,
+.copilot-tool-result small {
+  display: block;
+}
+
+.copilot-tool-result strong {
+  color: #153675;
+  font-size: 12px;
+}
+
+.copilot-tool-result small {
+  margin-top: 2px;
+  color: #667ba9;
+  font-size: 10px;
+}
+
+.copilot-tool-result a {
+  color: #245dff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 @keyframes copilot-cursor-blink {
   50% { opacity: 0; }
 }

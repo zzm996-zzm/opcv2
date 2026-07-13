@@ -46,6 +46,10 @@ type TextStreamer interface {
 	GenerateTextStream(ctx context.Context, request ai.GenerateTextRequest, onDelta func([]byte) error) (ai.GenerateTextResult, error)
 }
 
+type ToolExecutor interface {
+	Execute(ctx context.Context, userID, sourceMessageID int64, call ToolCall) (ToolExecutionResult, error)
+}
+
 type QuotaConsumer interface {
 	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
 	RefundUsage(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
@@ -57,6 +61,7 @@ type Service struct {
 	repository Repository
 	generator  JSONGenerator
 	streamer   TextStreamer
+	tools      ToolExecutor
 	models     []ModelOption
 	quota      QuotaConsumer
 	now        func() time.Time
@@ -72,8 +77,9 @@ type modelSmokeAIResult struct {
 }
 
 type messageMetadata struct {
-	Kind         string  `json:"kind,omitempty"`
-	ReferenceIDs []int64 `json:"reference_ids,omitempty"`
+	Kind         string               `json:"kind,omitempty"`
+	ReferenceIDs []int64              `json:"reference_ids,omitempty"`
+	ToolResult   *ToolExecutionResult `json:"tool_result,omitempty"`
 }
 
 const (
@@ -140,6 +146,27 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "client")
 		return SendMessageResult{}, err
 	}
+	if toolCall := s.detectToolCall(ctx, input.UserID, content, model); toolCall != nil && s.tools != nil {
+		toolResult, err := s.tools.Execute(ctx, input.UserID, userMessage.ID, *toolCall)
+		if err != nil {
+			s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "tool-execution")
+			return SendMessageResult{}, err
+		}
+		if err := onEvent(StreamEvent{Type: StreamEventDelta, Delta: toolResult.Message}); err != nil {
+			return SendMessageResult{}, err
+		}
+		assistantMessage, err := s.repository.CreateMessage(ctx, Message{
+			UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleAssistant, Content: toolResult.Message,
+			Status: MessageStatusCompleted, Model: model, Metadata: toolResultMetadata(toolResult), CreatedAt: s.now(),
+		})
+		if err != nil {
+			return SendMessageResult{}, err
+		}
+		if err := onEvent(StreamEvent{Type: StreamEventAssistantMessage, AssistantMessage: &assistantMessage}); err != nil {
+			return SendMessageResult{}, err
+		}
+		return SendMessageResult{UserMessage: userMessage, AssistantMessage: assistantMessage}, nil
+	}
 	streamResult, err := s.streamer.GenerateTextStream(ctx, ai.GenerateTextRequest{
 		UserID: input.UserID, Feature: "copilot.chat_stream", PromptVersion: "copilot_chat_stream_v1", Model: model,
 		SystemPrompt: "你是智活 Copilot，回答要直接、可执行。请使用清晰的 Markdown，不要返回 JSON。",
@@ -171,6 +198,78 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 	return SendMessageResult{UserMessage: userMessage, AssistantMessage: assistantMessage}, nil
 }
 
+func (s *Service) detectToolCall(ctx context.Context, userID int64, content, model string) *ToolCall {
+	if s.generator == nil || !likelyToolRequest(content) {
+		return nil
+	}
+	result, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
+		UserID: userID, Feature: "copilot.tool_intent", PromptVersion: "copilot_tool_intent_v1", Model: model,
+		SystemPrompt: "识别用户是否明确要求代执行。只允许 create_task、project_match、none。不得从普通咨询推断执行意图。必须返回 JSON。",
+		UserPrompt:   fmt.Sprintf("用户请求：%s\n返回 {\"tool\":\"create_task|project_match|none\",\"arguments\":{\"title\":\"\",\"description\":\"\",\"priority\":\"low|medium|high\",\"tags\":[],\"intent\":\"\"}}", content),
+		SchemaName:   "copilot_tool_intent", Validate: validateToolCallJSON, RepairAttempts: 1,
+	})
+	if err != nil {
+		return nil
+	}
+	var call ToolCall
+	if json.Unmarshal(result.Content, &call) != nil {
+		return nil
+	}
+	call = normalizeToolCall(call)
+	if call.Tool == ToolNone {
+		return nil
+	}
+	return &call
+}
+
+func likelyToolRequest(content string) bool {
+	content = strings.ToLower(strings.TrimSpace(content))
+	keywords := []string{"创建任务", "新建任务", "添加任务", "建个任务", "项目匹配", "匹配项目", "帮我匹配", "create task", "match project"}
+	for _, keyword := range keywords {
+		if strings.Contains(content, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateToolCallJSON(data []byte) error {
+	var call ToolCall
+	if err := json.Unmarshal(data, &call); err != nil {
+		return err
+	}
+	call = normalizeToolCall(call)
+	switch call.Tool {
+	case ToolNone:
+		return nil
+	case ToolCreateTask:
+		if call.Arguments.Title == "" {
+			return errors.New("task title is required")
+		}
+	case ToolProjectMatch:
+		if call.Arguments.Intent == "" {
+			return errors.New("project match intent is required")
+		}
+	default:
+		return errors.New("tool is not allowed")
+	}
+	return nil
+}
+
+func normalizeToolCall(call ToolCall) ToolCall {
+	call.Tool = strings.ToLower(strings.TrimSpace(call.Tool))
+	call.Arguments.Title = strings.TrimSpace(call.Arguments.Title)
+	call.Arguments.Description = strings.TrimSpace(call.Arguments.Description)
+	call.Arguments.Priority = strings.ToLower(strings.TrimSpace(call.Arguments.Priority))
+	call.Arguments.Intent = strings.TrimSpace(call.Arguments.Intent)
+	return call
+}
+
+func toolResultMetadata(result ToolExecutionResult) []byte {
+	data, _ := json.Marshal(messageMetadata{ToolResult: &result})
+	return data
+}
+
 func NewServiceWithModels(repository Repository, generator JSONGenerator, models []ModelOption, options ...Option) *Service {
 	service := NewService(repository, generator, options...)
 	service.models = normalizeModelOptions(models)
@@ -180,6 +279,12 @@ func NewServiceWithModels(repository Repository, generator JSONGenerator, models
 func WithQuotaConsumer(quota QuotaConsumer) Option {
 	return func(service *Service) {
 		service.quota = quota
+	}
+}
+
+func WithToolExecutor(executor ToolExecutor) Option {
+	return func(service *Service) {
+		service.tools = executor
 	}
 }
 

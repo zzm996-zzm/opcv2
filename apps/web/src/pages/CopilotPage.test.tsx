@@ -381,6 +381,14 @@ describe("CopilotPage", () => {
     expect(screen.getByText("后端返回的聊天回复。")).toBeInTheDocument();
   });
 
+  it("renders persisted Copilot tool execution results", async () => {
+    mockCopilotBackend({ toolMessage: true });
+    renderPage();
+
+    expect(await screen.findByText("已创建任务：访谈10位客户")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看任务" })).toHaveAttribute("href", "/tasks");
+  });
+
   it("uses selected compare models when submitting comparison", async () => {
     const fetchMock = mockCopilotBackend();
     renderPage("compare");
@@ -508,7 +516,7 @@ describe("CopilotPage", () => {
   });
 });
 
-function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean } = {}) {
+function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean; toolMessage?: boolean } = {}) {
   return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = String(input);
     if (url === "/api/v1/copilot/threads?limit=20") {
@@ -616,6 +624,19 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
       }), { status: 200 }));
     }
     if (url === "/api/v1/copilot/threads/99/messages?limit=50") {
+	  if (options.toolMessage) {
+		return Promise.resolve(new Response(JSON.stringify({ messages: [{
+		  id: 41,
+		  user_id: 7,
+		  thread_id: 99,
+		  role: "assistant",
+		  content: "已创建任务：访谈10位客户",
+		  status: "completed",
+		  model: "deepseek",
+		  metadata: { tool_result: { tool: "create_task", status: "completed", entity_id: 81, title: "访谈10位客户", url: "/tasks", message: "已创建任务：访谈10位客户" } },
+		  created_at: "2026-07-01T09:57:00Z"
+		}] }), { status: 200 }));
+	  }
       if (options.historicalCompare) {
         return Promise.resolve(new Response(JSON.stringify({ messages: [
           {

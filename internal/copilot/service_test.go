@@ -215,13 +215,37 @@ type fakeGenerator struct {
 }
 
 type fakeTextStreamer struct {
-	deltas  []string
-	request ai.GenerateTextRequest
-	err     error
+	deltas      []string
+	request     ai.GenerateTextRequest
+	jsonRequest ai.GenerateJSONRequest
+	jsonContent []byte
+	err         error
 }
 
-func (g *fakeTextStreamer) GenerateJSON(_ context.Context, _ ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
-	return ai.GenerateJSONResult{}, errors.New("unexpected GenerateJSON call")
+func (g *fakeTextStreamer) GenerateJSON(_ context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
+	g.jsonRequest = request
+	if g.err != nil {
+		return ai.GenerateJSONResult{}, g.err
+	}
+	if request.Validate != nil {
+		if err := request.Validate(g.jsonContent); err != nil {
+			return ai.GenerateJSONResult{}, err
+		}
+	}
+	return ai.GenerateJSONResult{Content: g.jsonContent}, nil
+}
+
+type fakeToolExecutor struct {
+	call   ToolCall
+	userID int64
+	result ToolExecutionResult
+	err    error
+}
+
+func (e *fakeToolExecutor) Execute(_ context.Context, userID, _ int64, call ToolCall) (ToolExecutionResult, error) {
+	e.userID = userID
+	e.call = call
+	return e.result, e.err
 }
 
 func (g *fakeTextStreamer) GenerateTextStream(_ context.Context, request ai.GenerateTextRequest, onDelta func([]byte) error) (ai.GenerateTextResult, error) {
@@ -409,6 +433,39 @@ func TestServiceStreamsMessageDeltasAndPersistsFinalReply(t *testing.T) {
 	}
 	if streamer.request.Feature != "copilot.chat_stream" {
 		t.Fatalf("request = %+v", streamer.request)
+	}
+}
+
+func TestServiceExecutesWhitelistedToolIntentAndPersistsResultMetadata(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "执行计划", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{jsonContent: []byte(`{"tool":"create_task","arguments":{"title":"访谈10位客户","description":"记录高频问题","priority":"high"}}`)}
+	executor := &fakeToolExecutor{result: ToolExecutionResult{
+		Tool: ToolCreateTask, Status: "completed", EntityID: 81, Title: "访谈10位客户", URL: "/tasks", Message: "已创建任务：访谈10位客户",
+	}}
+	service := NewService(repository, streamer, WithToolExecutor(executor))
+	var events []StreamEvent
+
+	result, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "帮我创建任务：访谈10位客户", RequestID: "tool-001",
+	}, func(event StreamEvent) error {
+		events = append(events, event)
+		return nil
+	})
+
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if executor.call.Tool != ToolCreateTask || executor.userID != 42 || executor.call.Arguments.Title != "访谈10位客户" {
+		t.Fatalf("executor = %+v", executor)
+	}
+	if result.AssistantMessage.Content != "已创建任务：访谈10位客户" || !strings.Contains(string(result.AssistantMessage.Metadata), "tool_result") {
+		t.Fatalf("assistant = %+v", result.AssistantMessage)
+	}
+	if len(events) != 3 || events[1].Delta != "已创建任务：访谈10位客户" || events[2].Type != StreamEventAssistantMessage {
+		t.Fatalf("events = %+v", events)
+	}
+	if streamer.request.Feature != "" {
+		t.Fatalf("text stream should not run for tool execution: %+v", streamer.request)
 	}
 }
 

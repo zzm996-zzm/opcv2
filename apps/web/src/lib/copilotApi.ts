@@ -24,6 +24,14 @@ export type CopilotMessage = {
   output_tokens?: number;
   metadata?: {
     kind?: "compare_question" | "compare_answer" | "compare_summary" | string;
+    tool_result?: {
+      tool: "create_task" | "project_match" | string;
+      status: string;
+      entity_id: number;
+      title: string;
+      url: string;
+      message: string;
+    };
   };
   created_at: string;
 };

@@ -33,6 +33,7 @@ var (
 	ErrFileTooLarge        = errors.New("copilot file is too large")
 	ErrUnsupportedFileType = errors.New("unsupported copilot file type")
 	ErrInvalidFileEncoding = errors.New("invalid copilot file encoding")
+	ErrToolNotAvailable    = errors.New("copilot tool is not available")
 )
 
 type CreateThreadInput struct {
@@ -196,6 +197,34 @@ type StreamEvent struct {
 	Delta            string   `json:"delta,omitempty"`
 	UserMessage      *Message `json:"user_message,omitempty"`
 	AssistantMessage *Message `json:"assistant_message,omitempty"`
+}
+
+const (
+	ToolNone         = "none"
+	ToolCreateTask   = "create_task"
+	ToolProjectMatch = "project_match"
+)
+
+type ToolArguments struct {
+	Title       string   `json:"title,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Priority    string   `json:"priority,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Intent      string   `json:"intent,omitempty"`
+}
+
+type ToolCall struct {
+	Tool      string        `json:"tool"`
+	Arguments ToolArguments `json:"arguments"`
+}
+
+type ToolExecutionResult struct {
+	Tool     string `json:"tool"`
+	Status   string `json:"status"`
+	EntityID int64  `json:"entity_id"`
+	Title    string `json:"title"`
+	URL      string `json:"url"`
+	Message  string `json:"message"`
 }
 
 type CompareAnswer struct {

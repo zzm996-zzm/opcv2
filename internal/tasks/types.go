@@ -29,6 +29,7 @@ const (
 	SourceCRMCustomer          = "crm_customer"
 	SourceLearningDiagnosis    = "learning_diagnosis"
 	SourceGrowthModel          = "growth_model"
+	SourceCopilotMessage       = "copilot_message"
 )
 
 var (
