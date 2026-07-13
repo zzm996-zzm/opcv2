@@ -26,6 +26,8 @@ type Repository interface {
 	ListEvents(ctx context.Context, userID int64, limit int) ([]Event, error)
 	ListScriptAccounts(ctx context.Context, platform string, limit int) ([]ScriptAccount, error)
 	UpsertScriptAccount(ctx context.Context, account ScriptAccount) (ScriptAccount, error)
+	AcquireScriptAccount(ctx context.Context, platform string, scanID int64, now time.Time) (ScriptAccount, int64, error)
+	FinishScriptAccountRun(ctx context.Context, accountID, runID int64, status, errorCode string, cooldownUntil *time.Time, now time.Time) error
 }
 
 func (s *Service) ListScriptAccounts(ctx context.Context, adminUserID int64, platform string, limit int) ([]ScriptAccount, error) {
@@ -52,7 +54,7 @@ func (s *Service) UpsertScriptAccount(ctx context.Context, input ScriptAccountIn
 	if input.MaxRunsPerHour == 0 {
 		input.MaxRunsPerHour = 10
 	}
-	if input.Platform == "" || input.AccountLabel == "" || input.MaxRunsPerHour <= 0 || !validScriptAccountStatus(input.Status) || (input.ID == 0 && input.CredentialRef == "") {
+	if input.Platform == "" || input.AccountLabel == "" || input.MaxRunsPerHour <= 0 || !validScriptAccountStatus(input.Status) || (input.ID == 0 && input.CredentialRef == "") || (input.CredentialRef != "" && !validCredentialRef(input.CredentialRef)) {
 		return ScriptAccount{}, ErrInvalidScriptAccount
 	}
 	now := s.now()
@@ -72,6 +74,15 @@ func (s *Service) UpsertScriptAccount(ctx context.Context, input ScriptAccountIn
 	}
 	item.CredentialRef = ""
 	return item, nil
+}
+
+func validCredentialRef(value string) bool {
+	for _, prefix := range []string{"op://", "vault://", "secret://"} {
+		if strings.HasPrefix(value, prefix) && len(value) > len(prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) requireAdmin(ctx context.Context, userID int64) error {
@@ -102,7 +113,8 @@ type Queue interface {
 }
 
 type Scanner interface {
-	Scan(ctx context.Context, scan Scan) (ScanResult, error)
+	Platform() string
+	Scan(ctx context.Context, scan Scan, account *ScriptAccount) (ScanResult, error)
 }
 
 type QuotaConsumer interface {
@@ -371,13 +383,39 @@ func (s *Service) ProcessScan(ctx context.Context, id int64) error {
 		_, err = s.repository.UpdateScanStatus(ctx, id, StatusFailed, 100, "failed", "scanner_not_configured")
 		return err
 	}
-	result, err := s.scanner.Scan(ctx, scan)
+	var account *ScriptAccount
+	var runID int64
+	platform := strings.TrimSpace(s.scanner.Platform())
+	if platform != "" {
+		leased, leasedRunID, acquireErr := s.repository.AcquireScriptAccount(ctx, platform, id, s.now())
+		if acquireErr != nil {
+			_, updateErr := s.repository.UpdateScanStatus(ctx, id, StatusFailed, 100, "failed", "script_account_unavailable")
+			if updateErr != nil {
+				return updateErr
+			}
+			return acquireErr
+		}
+		account = &leased
+		runID = leasedRunID
+	}
+	result, err := s.scanner.Scan(ctx, scan, account)
 	if err != nil {
-		_, updateErr := s.repository.UpdateScanStatus(ctx, id, StatusFailed, 100, "failed", strings.TrimSpace(err.Error()))
+		if account != nil {
+			status, cooldownUntil := failedAccountState(*account, s.now())
+			if finishErr := s.repository.FinishScriptAccountRun(ctx, account.ID, runID, status, "scanner_failed", cooldownUntil, s.now()); finishErr != nil {
+				return finishErr
+			}
+		}
+		_, updateErr := s.repository.UpdateScanStatus(ctx, id, StatusFailed, 100, "failed", "scanner_failed")
 		if updateErr != nil {
 			return updateErr
 		}
 		return err
+	}
+	if account != nil {
+		if err := s.repository.FinishScriptAccountRun(ctx, account.ID, runID, ScriptAccountAvailable, "", nil, s.now()); err != nil {
+			return err
+		}
 	}
 	if result.Competitors == nil {
 		result.Competitors = []Competitor{}
@@ -396,6 +434,18 @@ func (s *Service) ProcessScan(ctx context.Context, id int64) error {
 	}
 	_, err = s.repository.UpdateScanStatus(ctx, id, StatusSucceeded, 100, StatusSucceeded, "")
 	return err
+}
+
+func failedAccountState(account ScriptAccount, now time.Time) (string, *time.Time) {
+	if account.FailureCount+1 >= 5 {
+		return ScriptAccountDisabled, nil
+	}
+	multiplier := account.FailureCount + 1
+	if multiplier > 24 {
+		multiplier = 24
+	}
+	cooldown := now.Add(time.Duration(multiplier) * 15 * time.Minute)
+	return ScriptAccountCooldown, &cooldown
 }
 
 func defaultCompetitors(targets []string) []Competitor {

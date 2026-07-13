@@ -15,7 +15,9 @@ func NewDevelopmentScanner() *DevelopmentScanner {
 	return &DevelopmentScanner{now: time.Now}
 }
 
-func (s *DevelopmentScanner) Scan(_ context.Context, scan Scan) (ScanResult, error) {
+func (s *DevelopmentScanner) Platform() string { return "" }
+
+func (s *DevelopmentScanner) Scan(_ context.Context, scan Scan, _ *ScriptAccount) (ScanResult, error) {
 	competitors := defaultCompetitors(scan.Targets)
 	evidence := make([]EvidenceSource, 0, len(competitors))
 	snapshots := make([]RawSnapshot, 0, len(competitors))

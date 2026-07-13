@@ -47,6 +47,43 @@ func TestPostgresRepositoryManagesSafeScriptAccountMetadata(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryLeasesAndFinishesScriptAccountRun(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+
+	db.ExpectBegin()
+	db.ExpectQuery("WITH candidate AS").WithArgs("xiaohongshu", now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "platform", "account_label", "credential_ref", "status", "cooldown_until", "failure_count", "max_runs_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(int64(88), "xiaohongshu", "运营账号A", "op://vault/a", ScriptAccountInUse, nil, 1, 5, &now, now, now))
+	db.ExpectQuery("INSERT INTO competitor_script_account_runs").WithArgs(int64(88), int64(99), now).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(int64(700)))
+	db.ExpectCommit()
+
+	cooldown := now.Add(30 * time.Minute)
+	db.ExpectBegin()
+	db.ExpectExec("UPDATE competitor_script_account_runs").WithArgs(int64(88), int64(700), ScriptAccountCooldown, "scanner_failed", now).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	db.ExpectExec("UPDATE competitor_script_accounts").WithArgs(int64(88), ScriptAccountCooldown, &cooldown, now).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	db.ExpectCommit()
+
+	repository := NewPostgresRepository(db)
+	account, runID, err := repository.AcquireScriptAccount(context.Background(), "xiaohongshu", 99, now)
+	if err != nil || account.ID != 88 || account.CredentialRef != "op://vault/a" || runID != 700 {
+		t.Fatalf("lease = %+v/%d err=%v", account, runID, err)
+	}
+	if err := repository.FinishScriptAccountRun(context.Background(), account.ID, runID, ScriptAccountCooldown, "scanner_failed", &cooldown, now); err != nil {
+		t.Fatalf("FinishScriptAccountRun() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryCreatesScan(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

@@ -24,7 +24,19 @@ type fakeRepository struct {
 	results            ScanResult
 	scriptAccounts     []ScriptAccount
 	upsertedAccount    ScriptAccount
+	leasedAccount      ScriptAccount
+	leasedRunID        int64
+	finishedAccount    scriptAccountFinish
+	acquireErr         error
 	err                error
+}
+
+type scriptAccountFinish struct {
+	accountID     int64
+	runID         int64
+	status        string
+	errorCode     string
+	cooldownUntil *time.Time
 }
 
 func (r *fakeRepository) IsAdmin(_ context.Context, _ int64) (bool, error) {
@@ -51,6 +63,18 @@ func (r *fakeRepository) UpsertScriptAccount(_ context.Context, account ScriptAc
 	return account, r.err
 }
 
+func (r *fakeRepository) AcquireScriptAccount(_ context.Context, _ string, _ int64, _ time.Time) (ScriptAccount, int64, error) {
+	if r.acquireErr != nil {
+		return ScriptAccount{}, 0, r.acquireErr
+	}
+	return r.leasedAccount, r.leasedRunID, nil
+}
+
+func (r *fakeRepository) FinishScriptAccountRun(_ context.Context, accountID, runID int64, status, errorCode string, cooldownUntil *time.Time, _ time.Time) error {
+	r.finishedAccount = scriptAccountFinish{accountID: accountID, runID: runID, status: status, errorCode: errorCode, cooldownUntil: cooldownUntil}
+	return r.err
+}
+
 type scanStatusUpdate struct {
 	id              int64
 	status          string
@@ -65,8 +89,10 @@ type fakeQueue struct {
 }
 
 type fakeScanner struct {
-	scan Scan
-	err  error
+	scan     Scan
+	account  *ScriptAccount
+	platform string
+	err      error
 }
 
 type fakeQuotaConsumer struct {
@@ -79,8 +105,11 @@ func (q *fakeQueue) Enqueue(_ context.Context, job jobs.Job) error {
 	return q.err
 }
 
-func (s *fakeScanner) Scan(_ context.Context, scan Scan) (ScanResult, error) {
+func (s *fakeScanner) Platform() string { return s.platform }
+
+func (s *fakeScanner) Scan(_ context.Context, scan Scan, account *ScriptAccount) (ScanResult, error) {
 	s.scan = scan
+	s.account = account
 	if s.err != nil {
 		return ScanResult{}, s.err
 	}
@@ -268,6 +297,9 @@ func TestServiceRejectsNonAdminAndRawCredentiallessScriptAccount(t *testing.T) {
 	if _, err := service.UpsertScriptAccount(context.Background(), ScriptAccountInput{AdminUserID: 42, Platform: "web", AccountLabel: "A"}); !errors.Is(err, ErrInvalidScriptAccount) {
 		t.Fatalf("invalid account err = %v", err)
 	}
+	if _, err := service.UpsertScriptAccount(context.Background(), ScriptAccountInput{AdminUserID: 42, Platform: "web", AccountLabel: "A", CredentialRef: "plaintext-password"}); !errors.Is(err, ErrInvalidScriptAccount) {
+		t.Fatalf("raw credential err = %v", err)
+	}
 }
 
 func TestServiceCreateScanStopsWhenCompetitorQuotaExceeded(t *testing.T) {
@@ -381,8 +413,56 @@ func TestServiceProcessScanMarksFailedWhenScannerFails(t *testing.T) {
 		t.Fatalf("updates = %+v, want running and failed", repository.updates)
 	}
 	failed := repository.updates[1]
-	if failed.status != StatusFailed || failed.progressPercent != 100 || failed.currentStep != "failed" || failed.errorMessage != cause.Error() {
+	if failed.status != StatusFailed || failed.progressPercent != 100 || failed.currentStep != "failed" || failed.errorMessage != "scanner_failed" {
 		t.Fatalf("failed update = %+v", failed)
+	}
+}
+
+func TestServiceLeasesAndReleasesScriptAccountForPlatformScanner(t *testing.T) {
+	account := ScriptAccount{ID: 88, Platform: "xiaohongshu", AccountLabel: "账号A", CredentialRef: "op://vault/a", FailureCount: 1}
+	repository := &fakeRepository{scan: Scan{ID: 99, UserID: 42, Status: StatusQueued}, leasedAccount: account, leasedRunID: 700}
+	scanner := &fakeScanner{platform: "xiaohongshu"}
+	service := NewService(repository, WithScanner(scanner))
+
+	if err := service.ProcessScan(context.Background(), 99); err != nil {
+		t.Fatalf("ProcessScan() error = %v", err)
+	}
+	if scanner.account == nil || scanner.account.CredentialRef != "op://vault/a" {
+		t.Fatalf("scanner account = %+v", scanner.account)
+	}
+	if repository.finishedAccount.accountID != 88 || repository.finishedAccount.runID != 700 || repository.finishedAccount.status != ScriptAccountAvailable {
+		t.Fatalf("finish = %+v", repository.finishedAccount)
+	}
+}
+
+func TestServiceCoolsDownFailedScriptAccountAndUsesSafeScanError(t *testing.T) {
+	cause := errors.New("provider response included private detail")
+	account := ScriptAccount{ID: 88, Platform: "xiaohongshu", CredentialRef: "op://vault/a", FailureCount: 1}
+	repository := &fakeRepository{scan: Scan{ID: 99, UserID: 42, Status: StatusQueued}, leasedAccount: account, leasedRunID: 700}
+	service := NewService(repository, WithScanner(&fakeScanner{platform: "xiaohongshu", err: cause}))
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	if err := service.ProcessScan(context.Background(), 99); !errors.Is(err, cause) {
+		t.Fatalf("ProcessScan() error = %v", err)
+	}
+	finish := repository.finishedAccount
+	if finish.status != ScriptAccountCooldown || finish.errorCode != "scanner_failed" || finish.cooldownUntil == nil || !finish.cooldownUntil.Equal(now.Add(30*time.Minute)) {
+		t.Fatalf("finish = %+v", finish)
+	}
+	if repository.updates[len(repository.updates)-1].errorMessage != "scanner_failed" {
+		t.Fatalf("updates = %+v", repository.updates)
+	}
+}
+
+func TestServiceFailsSafelyWhenScriptAccountUnavailable(t *testing.T) {
+	repository := &fakeRepository{scan: Scan{ID: 99, UserID: 42, Status: StatusQueued}, acquireErr: ErrScriptAccountUnavailable}
+	service := NewService(repository, WithScanner(&fakeScanner{platform: "xiaohongshu"}))
+	if err := service.ProcessScan(context.Background(), 99); !errors.Is(err, ErrScriptAccountUnavailable) {
+		t.Fatalf("ProcessScan() error = %v", err)
+	}
+	if repository.updates[len(repository.updates)-1].errorMessage != "script_account_unavailable" {
+		t.Fatalf("updates = %+v", repository.updates)
 	}
 }
 

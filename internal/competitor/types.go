@@ -15,13 +15,14 @@ const (
 )
 
 var (
-	ErrServiceNotReady       = errors.New("competitor service is not configured")
-	ErrScanNotFound          = errors.New("competitor scan not found")
-	ErrInvalidWatchItem      = errors.New("invalid competitor watch item")
-	ErrWatchItemNotFound     = errors.New("competitor watch item not found")
-	ErrAdminRequired         = errors.New("admin role required")
-	ErrInvalidScriptAccount  = errors.New("invalid competitor script account")
-	ErrScriptAccountNotFound = errors.New("competitor script account not found")
+	ErrServiceNotReady          = errors.New("competitor service is not configured")
+	ErrScanNotFound             = errors.New("competitor scan not found")
+	ErrInvalidWatchItem         = errors.New("invalid competitor watch item")
+	ErrWatchItemNotFound        = errors.New("competitor watch item not found")
+	ErrAdminRequired            = errors.New("admin role required")
+	ErrInvalidScriptAccount     = errors.New("invalid competitor script account")
+	ErrScriptAccountNotFound    = errors.New("competitor script account not found")
+	ErrScriptAccountUnavailable = errors.New("competitor script account unavailable")
 )
 
 const (

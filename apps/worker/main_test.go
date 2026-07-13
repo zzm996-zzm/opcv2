@@ -23,7 +23,7 @@ func TestNewCompetitorScannerUsesDevelopmentProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newCompetitorScanner() error = %v", err)
 	}
-	result, err := scanner.Scan(context.Background(), competitor.Scan{Targets: []string{"小鹅通"}, Focus: "价格变化"})
+	result, err := scanner.Scan(context.Background(), competitor.Scan{Targets: []string{"小鹅通"}, Focus: "价格变化"}, nil)
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)
 	}

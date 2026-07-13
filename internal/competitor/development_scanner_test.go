@@ -13,7 +13,7 @@ func TestDevelopmentScannerReturnsCompetitorsConclusionsAndEvidence(t *testing.T
 		UserID:  42,
 		Targets: []string{"小鹅通", "有赞教育"},
 		Focus:   "价格变化",
-	})
+	}, nil)
 
 	if err != nil {
 		t.Fatalf("Scan() error = %v", err)

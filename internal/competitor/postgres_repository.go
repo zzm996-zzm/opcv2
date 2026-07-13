@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -81,6 +82,83 @@ func (r *PostgresRepository) UpsertScriptAccount(ctx context.Context, account Sc
 		return ScriptAccount{}, ErrScriptAccountNotFound
 	}
 	return item, err
+}
+
+func (r *PostgresRepository) AcquireScriptAccount(ctx context.Context, platform string, scanID int64, now time.Time) (ScriptAccount, int64, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return ScriptAccount{}, 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	account, err := scanScriptAccountWithCredential(tx.QueryRow(ctx, `
+		WITH candidate AS (
+			SELECT a.id
+			FROM competitor_script_accounts a
+			WHERE a.platform = $1
+			  AND (a.status = 'available'
+			       OR (a.status = 'cooldown' AND a.cooldown_until <= $2)
+			       OR (a.status = 'in_use' AND a.last_used_at <= $2 - INTERVAL '15 minutes'))
+			  AND (SELECT COUNT(*) FROM competitor_script_account_runs r
+			       WHERE r.account_id = a.id AND r.started_at > $2 - INTERVAL '1 hour') < a.max_runs_per_hour
+			ORDER BY a.last_used_at NULLS FIRST, a.failure_count, a.id
+			FOR UPDATE SKIP LOCKED
+			LIMIT 1
+		)
+		UPDATE competitor_script_accounts a
+		SET status = 'in_use', last_used_at = $2, updated_at = $2
+		FROM candidate
+		WHERE a.id = candidate.id
+		RETURNING a.id, a.platform, a.account_label, a.credential_ref, a.status, a.cooldown_until,
+		          a.failure_count, a.max_runs_per_hour, a.last_used_at, a.created_at, a.updated_at
+	`, platform, now))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ScriptAccount{}, 0, ErrScriptAccountUnavailable
+	}
+	if err != nil {
+		return ScriptAccount{}, 0, err
+	}
+	var runID int64
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO competitor_script_account_runs (account_id, scan_id, status, started_at)
+		VALUES ($1, $2, 'running', $3)
+		RETURNING id
+	`, account.ID, scanID, now).Scan(&runID); err != nil {
+		return ScriptAccount{}, 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ScriptAccount{}, 0, err
+	}
+	return account, runID, nil
+}
+
+func (r *PostgresRepository) FinishScriptAccountRun(ctx context.Context, accountID, runID int64, status, errorCode string, cooldownUntil *time.Time, now time.Time) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+		UPDATE competitor_script_account_runs
+		SET status = CASE WHEN $3 = 'available' THEN 'succeeded' ELSE 'failed' END,
+		    error_code = $4, finished_at = $5
+		WHERE id = $2 AND account_id = $1
+	`, accountID, runID, status, errorCode, now); err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, `
+		UPDATE competitor_script_accounts
+		SET status = $2, cooldown_until = $3,
+		    failure_count = CASE WHEN $2 = 'available' THEN 0 ELSE failure_count + 1 END,
+		    updated_at = $4
+		WHERE id = $1
+	`, accountID, status, cooldownUntil, now)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrScriptAccountNotFound
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *PostgresRepository) CreateScan(ctx context.Context, scan Scan) (Scan, error) {
@@ -376,5 +454,18 @@ func scanScriptAccount(scanner scanScanner) (ScriptAccount, error) {
 	); err != nil {
 		return ScriptAccount{}, err
 	}
+	return item, nil
+}
+
+func scanScriptAccountWithCredential(scanner scanScanner) (ScriptAccount, error) {
+	var item ScriptAccount
+	if err := scanner.Scan(
+		&item.ID, &item.Platform, &item.AccountLabel, &item.CredentialRef, &item.Status,
+		&item.CooldownUntil, &item.FailureCount, &item.MaxRunsPerHour, &item.LastUsedAt,
+		&item.CreatedAt, &item.UpdatedAt,
+	); err != nil {
+		return ScriptAccount{}, err
+	}
+	item.HasCredential = item.CredentialRef != ""
 	return item, nil
 }
