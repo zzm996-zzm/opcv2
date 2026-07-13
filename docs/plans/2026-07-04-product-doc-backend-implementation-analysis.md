@@ -2,6 +2,8 @@
 
 Date: 2026-07-04
 
+Last updated: 2026-07-13
+
 Source product material:
 
 - `/Users/zzm/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/wxid_5iu3dbhushlw22_7043/msg/file/2026-06/详细版 2/智活AI · OPC V4 0 开发需求（详细版）— 逐页功能规格 e333234f28d347deba1378d995da963d.md`
@@ -36,10 +38,10 @@ Current coverage by product area:
 | Area | Current state | Main gap |
 | --- | --- | --- |
 | Auth/account | SMS login/register/refresh/logout, profile, onboarding JSON sections, preferences, account content/quotas skeleton | WeChat scan login, phone/WeChat binding, password update wiring, richer 6-group profile schema, profile write-back prompts |
-| Membership | Plans, quotas table, usage read, orders, manual checkout, redemption | Real payment callback, subscription activation, real quota deduction/reset engine, admin config surface |
+| Membership | Plans, quotas, transactional check/consume/refund with idempotency, resettable usage cycles, orders, manual checkout, redemption | Real payment callback, subscription activation, broader feature coverage, admin config surface |
 | Content/top nav | Articles, tools, help, community config, favorites/bookmarks, limited admin upserts | Full CMS fields, tool recommendation, insight search/RAG, community QR code variants, course/admin content management |
-| Copilot | Threads, messages, compare, memories, files metadata, model options, AI run history | SSE streaming, real upload/object storage/parsing, RAG, entitlement/quota gating, tool/function execution into modules |
-| Project market | Match sessions with AI JSON, list/detail/favorite | Opportunity catalog, project detail evidence/source model, paid unlock, compare, export, follow-up Q&A persistence |
+| Copilot | Threads/messages, compare, memories, quota gating, multipart file upload and extraction, file lifecycle, upstream SSE streaming, task/project tools, model options, AI run history | Embeddings/RAG, object storage, richer document parsers, additional module tools |
+| Project market | Opportunity and evidence catalog, match sessions, persistent follow-up Q&A, compare, export, task sync, list/detail/favorite APIs | Remove remaining frontend static fallbacks, complete saved-project UX, paid unlock policy |
 | Sandbox | Create/list/get/run session; AI JSON report | Draft step persistence, roles catalog, async progress, per-role conversation, quota check/charge, report evidence/labels |
 | Tasks | CRUD, filters, stats | Reminder rules, notification delivery, AI task generation, source links from other modules, batch operations |
 | Competitor | Scan create/list/get, monitoring read model | Currently uses generated default conclusions; needs script job queue, account pool, source evidence, status/progress, CRUD monitoring rules |
@@ -48,6 +50,34 @@ Current coverage by product area:
 | GEO | Overview and queued analysis request skeleton | Product doc says GEO is mostly locked/placeholder in this version; if kept, mark example data and avoid pretending real execution |
 | Leads/CRM/Dashboard | Lead tasks/results, CRM customer/follow-up board, dashboard summary | Batch import, provider health/error detail, CRM handoff depth, report generation |
 | Enterprise | Overview read model | Product doc needs public intro, cases, inquiry form, consultant QR; current API is too dashboard-like |
+
+### 2.1 Progress handoff (2026-07-13)
+
+The latest completed large module is **Copilot deep closure**. Backend and frontend work were completed together in five small commits and pushed to `origin/feature/bootstrap`:
+
+| Commit | Completed scope |
+| --- | --- |
+| `f5a410e` | Resettable Copilot message/compare quotas, idempotent consumption, failure refunds, frontend usage display |
+| `684120d` | Real multipart upload, 10 MB limits, extension/UTF-8 checks, text and DOCX extraction |
+| `38d3b99` | File detail/delete lifecycle, status/source/SHA256/extracted-character metadata, safe list responses |
+| `8982fea` | Provider-backed SSE streaming, cancellation, incremental frontend rendering, persisted final messages |
+| `15f56f5` | Whitelisted `create_task` and `project_match` tools, audited task source, persisted/rendered tool results |
+
+Database migrations added:
+
+- `000047_copilot_quotas`
+- `000048_copilot_file_quota`
+- `000049_copilot_file_metadata`
+
+Final verification at `15f56f5`:
+
+- `go test ./...`: passed.
+- Frontend tests: 66 files and 358 tests passed.
+- `npm run build`: passed.
+- `npm run lint`: 0 errors; 2 pre-existing warnings in `CompetitorDataPage.tsx` and `CrmPage.tsx`.
+- PostgreSQL 16 empty-database migration reached version 49.
+
+No production deployment was performed for this module.
 
 ## 3. Backend design target
 
@@ -93,7 +123,7 @@ Every paid or limited action must check entitlement in the service layer, not on
 - exports and long-term history
 - board-three locked "use" actions should return a clear paywall/upgrade response and should not create real jobs
 
-The existing `membership_usage` read table is not enough. Add transactional check-and-consume semantics.
+Transactional check-and-consume/refund semantics now exist and are used by several implemented workflows, including Copilot. New limited actions must reuse this service rather than introduce domain-local counters or frontend-only checks.
 
 ## 4. Domain-by-domain backend implementation
 
@@ -246,13 +276,16 @@ Keep courses in CMS/admin eventually. Learning should own user progress and diag
 
 ### 4.9 Copilot
 
-Current Copilot has the right domain shape. Next depth:
+Copilot deep closure is complete for the current release scope:
 
-- SSE endpoint for message streaming
-- real file upload pipeline: object storage path, parser job, extracted text, embeddings later
-- function/tool execution registry to call modules: create task, run project match, start sandbox, start competitor scan
-- model entitlement checks before compare/deep thinking
-- quota usage records tied to `ai_runs`
+- `POST /api/v1/copilot/threads/:id/messages/stream` streams provider output over SSE and persists the final assistant message.
+- OpenAI Responses, OpenAI-compatible chat completions, the model router, and the development provider implement streaming.
+- Multipart uploads validate size/type/UTF-8 and extract supported text formats plus DOCX content.
+- File list/detail/delete APIs expose lifecycle metadata without returning extracted full text in list responses.
+- Membership quotas cover messages, model comparison, and file analysis with idempotent consumption and failure refunds.
+- The whitelisted tool registry can create tasks and run project matching; tool results are stored in message metadata and rendered as frontend action cards.
+
+Remaining Copilot depth is optional follow-up work rather than a release blocker: object storage, asynchronous parsing for large documents, PDF/spreadsheet parsers, embeddings/RAG, and additional tools such as sandbox or competitor scan. Any new tool must remain explicitly whitelisted and auditable.
 
 ### 4.10 Board-three locked pages and enterprise
 
@@ -326,4 +359,12 @@ This slice is the highest leverage because many pages depend on honest paid/free
 
 ## 7. Practical next step
 
-If backend work continues now, start with Slice A. It stabilizes the monetization and usage contract before adding more page depth, and it gives every later workflow a consistent way to check permission, consume quota, refund failed jobs, and show upgrade states.
+The next large module is **Project Market transparency cleanup**, because the backend project workflow is substantially implemented while several frontend routes still display static compatibility data. Complete it as five backend/frontend-verified small modules:
+
+1. Remove the static `/projects/results` fallback and add explicit loading, empty, and error states.
+2. Replace the old static `/projects/detail` dashboard with opportunity, match, and evidence APIs.
+3. Remove the static match-history fallback and render only persisted sessions.
+4. Connect saved/favorite projects to real records and complete the save/unsave UX.
+5. Remove static `ProjectCopilot` business recommendations, make displayed claims traceable, run backend/frontend tests and build, then push the completed large module.
+
+After this large module, continue with the remaining domain sub-tasks in priority order: competitor script-job/evidence architecture, sandbox workflow depth, learning writes, content/admin catalog depth, and enterprise public conversion flows.
