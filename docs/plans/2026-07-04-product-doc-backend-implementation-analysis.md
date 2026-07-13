@@ -46,7 +46,7 @@ Current coverage by product area:
 | Tasks | CRUD, filters, stats | Reminder rules, notification delivery, AI task generation, source links from other modules, batch operations |
 | Competitor | Queued scans, worker/provider interface, status/progress/retry, normalized raw snapshots/evidence, safe admin account pool, monitoring read/write flow | Real platform-specific scripts are intentionally not connected; monitoring schedules/events still need worker depth |
 | Growth | Models plus derived scenarios/forecast/recommendations | Dynamic AI clarification, saved snapshots, transparent assumptions, export/share, quota/paid gates |
-| Learning | Courses, progress read, diagnoses and derived gap/recommendation/plan/report | Assessment submit/read, progress writes, course materials, recommendation snapshots |
+| Learning | Courses/materials, user progress writes, AI assessments, immutable gap/recommendation/plan/report snapshots, and per-diagnosis plan completion | Course/admin catalog management, richer lesson structure, and operator-controlled recommendation mapping |
 | GEO | Overview and queued analysis request skeleton | Product doc says GEO is mostly locked/placeholder in this version; if kept, mark example data and avoid pretending real execution |
 | Leads/CRM/Dashboard | Lead tasks/results, CRM customer/follow-up board, dashboard summary | Batch import, provider health/error detail, CRM handoff depth, report generation |
 | Enterprise | Overview read model | Product doc needs public intro, cases, inquiry form, consultant QR; current API is too dashboard-like |
@@ -176,6 +176,51 @@ Final verification:
 
 - `go test ./...`: passed.
 - Frontend tests: 66 files and 361 tests passed.
+- `npm run build`: passed (existing bundle-size warning only).
+- `npm run lint`: 0 errors; 1 pre-existing Hook dependency warning remains in
+  `CrmPage.tsx`.
+- A PostgreSQL empty-database migration run was not available because local
+  PostgreSQL was not running; migration/repository behavior is covered by
+  automated tests.
+
+No production deployment was performed for this module.
+
+### 2.5 Learning write-loop handoff (2026-07-13)
+
+The **learning writes / AI teaching write loop** is complete in four commits on
+`feature/bootstrap`:
+
+| Commit | Completed scope |
+| --- | --- |
+| `94e5ba4` | Replaced fixed diagnosis estimates with profile-aware AI assessment, explicit model provenance, and persisted immutable gap/recommendation/plan/report snapshots. |
+| `2dbfcbe` | Added persisted course materials plus user/diagnosis/stage-scoped plan completion and undo. |
+| `d5cdb0b` | Connected assessment, result, plan, course, material, progress, and history pages to real APIs; removed static learning conclusions and unsupported actions. |
+| `2292a74` | Updated authenticated route smoke tests for the real loading and catalog states. |
+
+Database migrations added:
+
+- `000053_learning_assessment_snapshots`
+- `000054_learning_materials_plan_items`
+
+Current behavior:
+
+- Assessment submissions call the structured AI workflow with submitted answers
+  and available user profile context, then persist the completed diagnosis.
+- Every new result is labeled `model_assessment` and carries a disclaimer,
+  assumptions, and structured input/profile evidence sources. Historical rows are
+  labeled `legacy_estimate`.
+- Gap, recommendation, plan, and report responses read immutable generation-time
+  snapshots. Diagnosis and plan can also be read by persisted diagnosis ID.
+- Course materials are persisted catalog data. Progress and plan completion are
+  real user writes; plan completion is isolated by user, diagnosis, and stage.
+- Learning frontend routes now render only persisted/API data. Fixed scores,
+  synthetic recommendations, fake history/trends, fake downloads/materials, and
+  unsupported favorite/refresh actions were removed.
+
+Final verification:
+
+- `go test ./...`: passed.
+- Frontend tests: 66 files and 352 tests passed.
 - `npm run build`: passed (existing bundle-size warning only).
 - `npm run lint`: 0 errors; 1 pre-existing Hook dependency warning remains in
   `CrmPage.tsx`.
@@ -380,15 +425,18 @@ Store assumptions separately from generated recommendations so reports can show 
 
 ### 4.8 Learning
 
-Current learning diagnosis-derived endpoints are enough for basic UI. Missing writes:
+The learning write loop is complete for the current release scope:
 
-- assessment submit/read
-- diagnosis snapshot by id
-- progress update
-- course material list
-- plan item completion
+- assessment submit/latest/by-ID reads use a structured AI workflow and persisted provenance;
+- gap, recommendation, plan, and report payloads are immutable diagnosis-time snapshots;
+- course material lists and user course progress are persisted;
+- plan stages support user/diagnosis/stage-scoped completion and undo;
+- frontend assessment, result, course, study, progress, and history routes use real APIs and explicit loading/empty/error states.
 
-Keep courses in CMS/admin eventually. Learning should own user progress and diagnoses, not generic article content.
+The next learning-related work belongs to content/admin catalog depth: course and
+material authoring, richer lesson structure, publication state, and
+operator-controlled mapping between diagnosis gaps and published courses.
+Learning should continue to own user progress and diagnoses, not generic content.
 
 ### 4.9 Copilot
 
@@ -488,5 +536,7 @@ scope was delivered as five backend/frontend-verified parts:
 
 **Completed on 2026-07-13:** sandbox workflow depth.
 
-The next large module is now **learning writes**. After that, continue with
-content/admin catalog depth and enterprise public conversion flows.
+**Completed on 2026-07-13:** learning writes / AI teaching write loop.
+
+The next large module is now **content/admin catalog depth**. After that,
+continue with enterprise public conversion flows.

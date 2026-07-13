@@ -1569,7 +1569,18 @@ Errors:
 
 ## Learning
 
-Course endpoints are public. Progress and diagnosis endpoints are protected.
+Course and course-material endpoints are public. Progress,
+assessment, diagnosis, and plan-state endpoints are protected and scoped to the
+authenticated user.
+
+New assessments run the configured AI JSON workflow with the submitted intake
+and any available saved profile context. The completed diagnosis always records
+`basis=model_assessment`, a disclaimer, assumptions, and structured
+`evidence_sources`; the scores are model assessments rather than exam results.
+Gap, recommendation, plan, and report payloads are stored with the diagnosis as
+immutable generation-time snapshots. Plan-item completion is a separate mutable
+user state and does not rewrite those snapshots. Migrated historical rows use
+`basis=legacy_estimate` and an explicit legacy disclaimer.
 
 ### List Courses
 
@@ -1586,6 +1597,34 @@ Response:
 ### Get Course
 
 `GET /api/v1/learning/courses/{slug}`
+
+Errors:
+
+- `404 course_not_found`
+
+### List Course Materials
+
+`GET /api/v1/learning/courses/{slug}/materials`
+
+Returns published material records ordered by `position` and `id`:
+
+```json
+{
+  "materials": [
+    {
+      "id": 9,
+      "course_slug": "ai-market-analysis",
+      "title": "行业分析讲义",
+      "material_type": "article",
+      "content_url": "/content/9",
+      "position": 1,
+      "downloadable": false,
+      "created_at": "2026-07-13T08:00:00Z",
+      "updated_at": "2026-07-13T08:00:00Z"
+    }
+  ]
+}
+```
 
 Errors:
 
@@ -1643,11 +1682,12 @@ Errors:
 - `400 invalid_progress`
 - `404 course_not_found`
 
-### Create Diagnosis
+### Submit Assessment
 
-`POST /api/v1/learning/diagnoses`
+`POST /api/v1/learning/assessments`
 
-Protected.
+Protected. Creates one completed, user-scoped AI assessment and all four
+generation-time snapshots in the same persisted diagnosis record.
 
 Request:
 
@@ -1657,7 +1697,14 @@ Request:
   "project": "智能客服",
   "focus_abilities": ["数据洞察能力"],
   "weekly_time": "5-8 小时",
-  "bottleneck": "缺少真实项目案例"
+  "bottleneck": "缺少真实项目案例",
+  "answers": [
+    {
+      "key": "delivery_experience",
+      "question": "是否完成过真实项目交付？",
+      "answer": "完成过一次内部试点"
+    }
+  ]
 }
 ```
 
@@ -1666,9 +1713,67 @@ Validation:
 - `goal` and `project` must be non-empty after trimming.
 - `focus_abilities` is normalized by trimming values and removing duplicates.
 - `weekly_time` and `bottleneck` are optional diagnosis intake context.
+- Assessment answers require a non-empty `key` and `answer`; duplicate keys and
+  blank entries are discarded.
 - Client-supplied `user_id` is ignored.
 
-Response `200`: `LearningDiagnosis`
+Response `201`: `LearningDiagnosis`, including the normalized `answers`, model
+scores, recommendations, and provenance fields:
+
+```json
+{
+  "id": 99,
+  "status": "completed",
+  "overall_score": 72,
+  "basis": "model_assessment",
+  "disclaimer": "本诊断由 AI 基于用户提交信息与可用画像进行模型评估，不代表标准化考试成绩或客观能力认证。",
+  "assumptions": ["当前诊断未接入标准化考试或外部能力认证数据。"],
+  "evidence_sources": [
+    {
+      "type": "assessment_input",
+      "label": "用户本次提交的诊断目标、项目与自述信息",
+      "captured_at": "2026-07-13T08:00:00Z"
+    }
+  ]
+}
+```
+
+Errors:
+
+- `400 invalid_request`
+- `400 invalid_diagnosis`
+- `500 invalid_ai_result`
+- `500 service_not_ready`
+
+`POST /api/v1/learning/diagnoses` is the compatibility endpoint for the same
+workflow and request body; it returns `200` instead of `201`.
+
+### Get Assessment Snapshot
+
+`GET /api/v1/learning/assessments/{id}`
+
+Protected and user-scoped. Returns the persisted `LearningDiagnosis`; it never
+regenerates the model result.
+
+`GET /api/v1/learning/assessments/latest` returns the authenticated user's most
+recent persisted diagnosis using the same response shape.
+
+Errors:
+
+- `400 invalid_diagnosis_id`
+- `404 diagnosis_not_found`
+
+### Get Diagnosis by ID
+
+`GET /api/v1/learning/diagnoses/{id}`
+
+Protected and user-scoped. This is the diagnosis-named alias for reading the
+same persisted record.
+
+Errors:
+
+- `400 invalid_diagnosis_id`
+- `404 diagnosis_not_found`
 
 ### Latest Diagnosis
 
@@ -1676,7 +1781,8 @@ Response `200`: `LearningDiagnosis`
 
 Protected.
 
-Response `200`: `LearningDiagnosis`
+Response `200`: persisted `LearningDiagnosis`. This route is also the
+diagnosis-named alias of `GET /api/v1/learning/assessments/latest`.
 
 Errors:
 
@@ -1686,7 +1792,8 @@ Errors:
 
 `GET /api/v1/learning/diagnoses/latest/gaps`
 
-Protected. Derived from the latest completed diagnosis; no separate table.
+Protected. Returns the stored gap snapshot from the latest completed diagnosis.
+Historical pre-snapshot rows use a labeled compatibility derivation.
 
 Response `200`:
 
@@ -1721,7 +1828,8 @@ Errors:
 
 `GET /api/v1/learning/diagnoses/latest/recommendations`
 
-Protected. Derived from the latest completed diagnosis.
+Protected. Returns the stored recommendation snapshot from the latest completed
+diagnosis.
 
 Response `200` includes `focus`, `recommendations`, and suggested learning
 `methods`.
@@ -1734,7 +1842,8 @@ Errors:
 
 `GET /api/v1/learning/diagnoses/latest/plan`
 
-Protected. Derived from the latest completed diagnosis.
+Protected. Returns the stored plan snapshot from the latest completed diagnosis,
+merged with that user's persisted plan-item completion state.
 
 Response `200` includes `title`, `description`, `recommendations`, `stages`,
 `estimated_hours`, and `weekly_suggestion`.
@@ -1743,11 +1852,61 @@ Errors:
 
 - `404 diagnosis_not_found`
 
+### Diagnosis Plan by ID
+
+`GET /api/v1/learning/diagnoses/{id}/plan`
+
+Protected and user-scoped. Returns the selected diagnosis's immutable plan
+snapshot, with its current `items` and matching stage `status` values overlaid.
+
+Errors:
+
+- `400 invalid_diagnosis_id`
+- `404 diagnosis_not_found`
+
+### Update Diagnosis Plan Item
+
+`PUT /api/v1/learning/diagnoses/{id}/plan/items/{stageNumber}`
+
+Protected and user-scoped. Completion is isolated by user, diagnosis, and stage.
+Both completion and undo are supported.
+
+Request:
+
+```json
+{
+  "completed": true
+}
+```
+
+Response `200`:
+
+```json
+{
+  "id": 77,
+  "user_id": 42,
+  "diagnosis_id": 99,
+  "stage_number": 1,
+  "title": "数据分析能力",
+  "completed": true,
+  "completed_at": "2026-07-13T09:00:00Z",
+  "updated_at": "2026-07-13T09:00:00Z"
+}
+```
+
+Errors:
+
+- `400 invalid_request`
+- `400 invalid_diagnosis_id`
+- `400 invalid_plan_item`
+- `404 diagnosis_not_found`
+
 ### Latest Diagnosis Report
 
 `GET /api/v1/learning/diagnoses/latest/report`
 
-Protected. Derived from the latest completed diagnosis.
+Protected. Returns the stored report snapshot from the latest completed
+diagnosis.
 
 Response `200` includes `overall_score`, `dimensions`, `priority_gaps`,
 `recommendations`, and `evidence`.
@@ -1755,6 +1914,10 @@ Response `200` includes `overall_score`, `dimensions`, `priority_gaps`,
 Errors:
 
 - `404 diagnosis_not_found`
+
+Learning snapshot persistence was added by migration
+`000053_learning_assessment_snapshots`; course materials and plan completion
+state were added by `000054_learning_materials_plan_items`.
 
 ## Copilot
 
