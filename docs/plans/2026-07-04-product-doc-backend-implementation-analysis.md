@@ -51,7 +51,7 @@ Current coverage by product area:
 | Leads/CRM/Dashboard | Lead tasks/results, CRM customer/follow-up board, dashboard summary | Batch import, provider health/error detail, CRM handoff depth, report generation |
 | Enterprise | Overview read model | Product doc needs public intro, cases, inquiry form, consultant QR; current API is too dashboard-like |
 
-### 2.1 Progress handoff (2026-07-13)
+### 2.1 Copilot progress handoff (2026-07-13)
 
 The latest completed large module is **Copilot deep closure**. Backend and frontend work were completed together in five small commits and pushed to `origin/feature/bootstrap`:
 
@@ -76,6 +76,34 @@ Final verification at `15f56f5`:
 - `npm run build`: passed.
 - `npm run lint`: 0 errors; 2 pre-existing warnings in `CompetitorDataPage.tsx` and `CrmPage.tsx`.
 - PostgreSQL 16 empty-database migration reached version 49.
+
+No production deployment was performed for this module.
+
+### 2.2 Project Market transparency handoff (2026-07-13)
+
+The Section 7 **Project Market transparency cleanup** is complete in two small
+commits on `feature/bootstrap`:
+
+| Commit | Completed scope |
+| --- | --- |
+| `9182c55` | Added user-scoped favorite listing with embedded persisted match sessions and idempotent unfavorite API support. |
+| `7ae9ec6` | Removed static results/detail/history/Copilot business fallbacks, connected real save/unsave UX, added opportunity evidence sources, explicit loading/empty/error states, tests, and API contract updates. |
+
+Current behavior:
+
+- `/projects/results` reads the latest completed persisted match and never substitutes a static recommendation set.
+- `/projects/detail` is now an explicit empty legacy route; opportunity detail uses the published opportunity and case APIs, while match detail labels scores and claims as model-generated output from a specific record.
+- `/projects/history` renders only persisted sessions and favorites, with working remove-from-favorites behavior.
+- Project Market Copilot no longer displays hardcoded businesses, scores, startup times, or revenue claims without a record.
+- Favorite create/list/delete APIs are user-scoped; no schema migration was needed because `project_match_favorites` already existed.
+
+Final verification:
+
+- `go test ./...`: passed.
+- Frontend tests: 66 files and 360 tests passed.
+- `npm run build`: passed (existing bundle-size warning only).
+- `npm run lint`: 0 errors; the same 2 pre-existing Hook dependency warnings remain in `CompetitorDataPage.tsx` and `CrmPage.tsx`.
+- Protected-route visual inspection could not reach the Project Market screen because the local PostgreSQL dependency was not running; the browser confirmed the expected login redirect and no console errors.
 
 No production deployment was performed for this module.
 
@@ -359,7 +387,8 @@ This slice is the highest leverage because many pages depend on honest paid/free
 
 ## 7. Practical next step
 
-The next large module is **Project Market transparency cleanup**, because the backend project workflow is substantially implemented while several frontend routes still display static compatibility data. Complete it as five backend/frontend-verified small modules:
+**Completed on 2026-07-13:** Project Market transparency cleanup. The completed
+scope was delivered as five backend/frontend-verified parts:
 
 1. Remove the static `/projects/results` fallback and add explicit loading, empty, and error states.
 2. Replace the old static `/projects/detail` dashboard with opportunity, match, and evidence APIs.
@@ -367,4 +396,6 @@ The next large module is **Project Market transparency cleanup**, because the ba
 4. Connect saved/favorite projects to real records and complete the save/unsave UX.
 5. Remove static `ProjectCopilot` business recommendations, make displayed claims traceable, run backend/frontend tests and build, then push the completed large module.
 
-After this large module, continue with the remaining domain sub-tasks in priority order: competitor script-job/evidence architecture, sandbox workflow depth, learning writes, content/admin catalog depth, and enterprise public conversion flows.
+The next large module is now **competitor script-job/evidence architecture**.
+After that, continue with sandbox workflow depth, learning writes,
+content/admin catalog depth, and enterprise public conversion flows.
