@@ -20,6 +20,8 @@ type Application interface {
 	AskRole(ctx context.Context, input AskRoleInput) (Message, error)
 	ListMessages(ctx context.Context, userID, sessionID int64) ([]Message, error)
 	RunSession(ctx context.Context, userID, id int64) (Session, error)
+	RetrySession(ctx context.Context, userID, id int64) (Session, error)
+	CancelSession(ctx context.Context, userID, id int64) (Session, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error)
 	GetSession(ctx context.Context, userID, id int64) (Session, error)
 }
@@ -37,6 +39,9 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/sandbox/sessions", h.createSession)
 	router.PATCH("/sandbox/sessions/:id/draft", h.updateSessionDraft)
 	router.POST("/sandbox/sessions/:id/run", h.runSession)
+	router.POST("/sandbox/sessions/:id/retry", h.retrySession)
+	router.POST("/sandbox/sessions/:id/cancel", h.cancelSession)
+	router.GET("/sandbox/sessions/:id/status", h.getSession)
 	router.GET("/sandbox/sessions/:id/messages", h.listMessages)
 	router.POST("/sandbox/sessions/:id/messages", h.askRole)
 	router.GET("/sandbox/sessions", h.listSessions)
@@ -99,6 +104,32 @@ func (h *HTTPHandler) createSession(c *gin.Context) {
 	c.JSON(http.StatusOK, session)
 }
 
+func (h *HTTPHandler) retrySession(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	session, err := h.app.RetrySession(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, session)
+}
+
+func (h *HTTPHandler) cancelSession(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	session, err := h.app.CancelSession(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, session)
+}
+
 func validCreateInput(input CreateInput) bool {
 	return strings.TrimSpace(input.Goal) != "" &&
 		strings.TrimSpace(input.TargetUsers) != "" &&
@@ -133,7 +164,7 @@ func (h *HTTPHandler) runSession(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, session)
+	c.JSON(http.StatusAccepted, session)
 }
 
 func (h *HTTPHandler) listSessions(c *gin.Context) {
@@ -181,6 +212,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusInternalServerError, "invalid_ai_result")
 	case errors.Is(err, ErrInvalidSession):
 		httpapi.BadRequest(c, "invalid_session")
+	case errors.Is(err, ErrStaleRun):
+		httpapi.Error(c, http.StatusConflict, "stale_run")
 	case errors.Is(err, membership.ErrQuotaExceeded):
 		httpapi.Error(c, http.StatusPaymentRequired, "quota_exceeded")
 	case errors.Is(err, membership.ErrQuotaNotFound):

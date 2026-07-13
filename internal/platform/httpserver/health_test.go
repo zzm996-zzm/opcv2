@@ -388,7 +388,13 @@ func (fakeSandboxApp) ListMessages(context.Context, int64, int64) ([]sandbox.Mes
 	return []sandbox.Message{}, nil
 }
 func (fakeSandboxApp) RunSession(context.Context, int64, int64) (sandbox.Session, error) {
-	return sandbox.Session{ID: 99, UserID: 42, Status: sandbox.StatusCompleted, Report: sandbox.Report{Score: 83}}, nil
+	return sandbox.Session{ID: 99, UserID: 42, Status: sandbox.StatusQueued, RunAttempt: 1}, nil
+}
+func (fakeSandboxApp) RetrySession(context.Context, int64, int64) (sandbox.Session, error) {
+	return sandbox.Session{ID: 99, UserID: 42, Status: sandbox.StatusQueued, RunAttempt: 2}, nil
+}
+func (fakeSandboxApp) CancelSession(context.Context, int64, int64) (sandbox.Session, error) {
+	return sandbox.Session{ID: 99, UserID: 42, Status: sandbox.StatusCanceled, RunAttempt: 1}, nil
 }
 func (fakeSandboxApp) ListSessions(context.Context, int64, int) ([]sandbox.Session, error) {
 	return []sandbox.Session{{ID: 99, UserID: 42, Status: sandbox.StatusDraft}}, nil

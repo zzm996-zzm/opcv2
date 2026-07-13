@@ -15,21 +15,6 @@ type postgresDB interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-func (r *PostgresRepository) UpdateSessionStatus(ctx context.Context, userID, id int64, status string) error {
-	result, err := r.db.Exec(ctx, `
-		UPDATE sandbox_sessions
-		SET status = $1, updated_at = NOW()
-		WHERE user_id = $2 AND id = $3
-	`, status, userID, id)
-	if err != nil {
-		return err
-	}
-	if result.RowsAffected() == 0 {
-		return ErrSessionNotFound
-	}
-	return nil
-}
-
 type PostgresRepository struct {
 	db postgresDB
 }
@@ -48,8 +33,8 @@ func (r *PostgresRepository) CreateSession(ctx context.Context, session Session)
 		return Session{}, err
 	}
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO sandbox_sessions (user_id, goal, target_users, product, roles, status, report, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+		INSERT INTO sandbox_sessions (user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
 		RETURNING id
 	`,
 		session.UserID,
@@ -58,6 +43,10 @@ func (r *PostgresRepository) CreateSession(ctx context.Context, session Session)
 		session.Product,
 		roles,
 		session.Status,
+		session.ProgressPercent,
+		session.CurrentStep,
+		session.ErrorMessage,
+		session.RunAttempt,
 		report,
 		session.CreatedAt,
 	).Scan(&session.ID)
@@ -73,7 +62,7 @@ func (r *PostgresRepository) UpdateSessionDraft(ctx context.Context, userID, id 
 		UPDATE sandbox_sessions
 		SET goal = $1, target_users = $2, product = $3, roles = $4, updated_at = NOW()
 		WHERE user_id = $5 AND id = $6 AND status = $7
-		RETURNING id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
 	`, *update.Goal, *update.TargetUsers, *update.Product, roles, userID, id, StatusDraft))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Session{}, ErrSessionNotFound
@@ -112,19 +101,59 @@ func (r *PostgresRepository) ListMessages(ctx context.Context, userID, sessionID
 	return messages, rows.Err()
 }
 
-func (r *PostgresRepository) UpdateSessionResult(ctx context.Context, userID, id int64, result Report) (Session, error) {
+func (r *PostgresRepository) PrepareSessionRun(ctx context.Context, userID, id int64) (Session, error) {
+	session, err := scanSession(r.db.QueryRow(ctx, `
+		UPDATE sandbox_sessions
+		SET status = $1, progress_percent = 0, current_step = $1, error_message = '',
+		    run_attempt = run_attempt + 1, updated_at = NOW()
+		WHERE user_id = $2 AND id = $3 AND status IN ($4, $5, $6)
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
+	`, StatusQueued, userID, id, StatusDraft, StatusFailed, StatusCanceled))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrInvalidSession
+	}
+	return session, err
+}
+
+func (r *PostgresRepository) UpdateSessionProgress(ctx context.Context, userID, id int64, attempt int, status string, progress int, step, errorMessage string) (Session, error) {
+	session, err := scanSession(r.db.QueryRow(ctx, `
+		UPDATE sandbox_sessions
+		SET status = $1, progress_percent = $2, current_step = $3, error_message = $4, updated_at = NOW()
+		WHERE user_id = $5 AND id = $6 AND run_attempt = $7
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
+	`, status, progress, step, errorMessage, userID, id, attempt))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrStaleRun
+	}
+	return session, err
+}
+
+func (r *PostgresRepository) CancelSession(ctx context.Context, userID, id int64) (Session, error) {
+	session, err := scanSession(r.db.QueryRow(ctx, `
+		UPDATE sandbox_sessions
+		SET status = $1, progress_percent = 100, current_step = $1, error_message = '', updated_at = NOW()
+		WHERE user_id = $2 AND id = $3 AND status IN ($4, $5)
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
+	`, StatusCanceled, userID, id, StatusQueued, StatusRunning))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, ErrInvalidSession
+	}
+	return session, err
+}
+
+func (r *PostgresRepository) UpdateSessionResult(ctx context.Context, userID, id int64, attempt int, result Report) (Session, error) {
 	report, err := marshalReport(result)
 	if err != nil {
 		return Session{}, err
 	}
 	session, err := scanSession(r.db.QueryRow(ctx, `
 		UPDATE sandbox_sessions
-		SET status = $1, report = $2, updated_at = NOW()
-		WHERE user_id = $3 AND id = $4
-		RETURNING id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
-	`, StatusCompleted, report, userID, id))
+		SET status = $1, progress_percent = 100, current_step = $1, error_message = '', report = $2, updated_at = NOW()
+		WHERE user_id = $3 AND id = $4 AND run_attempt = $5 AND status = $6
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
+	`, StatusCompleted, report, userID, id, attempt, StatusRunning))
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Session{}, ErrSessionNotFound
+		return Session{}, ErrStaleRun
 	}
 	return session, err
 }
@@ -143,7 +172,7 @@ func marshalReport(report Report) ([]byte, error) {
 
 func (r *PostgresRepository) ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
+		SELECT id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
 		FROM sandbox_sessions
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -170,7 +199,7 @@ func (r *PostgresRepository) ListSessions(ctx context.Context, userID int64, lim
 
 func (r *PostgresRepository) GetSession(ctx context.Context, userID, id int64) (Session, error) {
 	session, err := scanSession(r.db.QueryRow(ctx, `
-		SELECT id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
+		SELECT id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
 		FROM sandbox_sessions
 		WHERE user_id = $1 AND id = $2
 	`, userID, id))
@@ -196,6 +225,10 @@ func scanSession(scanner sessionScanner) (Session, error) {
 		&session.Product,
 		&roles,
 		&session.Status,
+		&session.ProgressPercent,
+		&session.CurrentStep,
+		&session.ErrorMessage,
+		&session.RunAttempt,
 		&report,
 		&session.CreatedAt,
 		&session.UpdatedAt,

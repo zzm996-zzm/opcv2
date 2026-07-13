@@ -27,6 +27,7 @@ import (
 	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/notifications"
+	"github.com/zzm/opcv2/internal/platform/aiprovider"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/health"
 	"github.com/zzm/opcv2/internal/platform/httpserver"
@@ -146,6 +147,7 @@ func main() {
 		aiService,
 		sandbox.WithQuotaConsumer(membershipService),
 		sandbox.WithProfileContextProvider(accountService),
+		sandbox.WithQueue(taskqueue.NewClient(cfg.RedisAddr)),
 	)
 	sandboxHTTP := sandbox.NewHTTPHandler(sandboxService)
 	tasksRepository := tasks.NewPostgresRepository(db)
@@ -261,58 +263,7 @@ func newLeadProvider(cfg config.Config) (leads.LeadProvider, error) {
 }
 
 func newAIProvider(cfg config.Config) (ai.Provider, error) {
-	if len(cfg.AIModelRoutes) > 0 {
-		routes := make([]ai.ModelRoute, 0, len(cfg.AIModelRoutes))
-		for _, route := range cfg.AIModelRoutes {
-			provider, err := newAIProviderForRoute(route, cfg)
-			if err != nil {
-				return nil, err
-			}
-			routes = append(routes, ai.ModelRoute{
-				Alias:        route.Alias,
-				ProviderName: route.Provider,
-				Model:        route.Model,
-				Provider:     provider,
-			})
-		}
-		return ai.NewModelRouter(cfg.AIModel, routes), nil
-	}
-	switch cfg.AIProvider {
-	case "development":
-		return ai.NewDevelopmentProvider(), nil
-	case "openai":
-		return ai.NewOpenAIProvider(ai.OpenAIConfig{
-			BaseURL: cfg.AIBaseURL,
-			APIKey:  cfg.AIAPIKey,
-			Model:   cfg.AIModel,
-			Timeout: time.Duration(cfg.AITimeoutSeconds) * time.Second,
-		}), nil
-	default:
-		return nil, errors.New("unsupported AI provider")
-	}
-}
-
-func newAIProviderForRoute(route config.AIModelRoute, cfg config.Config) (ai.Provider, error) {
-	switch route.Provider {
-	case "openai-responses":
-		return ai.NewOpenAIProvider(ai.OpenAIConfig{
-			BaseURL: route.BaseURL,
-			APIKey:  route.APIKey,
-			Model:   route.Model,
-			Timeout: time.Duration(cfg.AITimeoutSeconds) * time.Second,
-		}), nil
-	case "openai-compatible":
-		return ai.NewOpenAICompatibleProvider(ai.OpenAICompatibleConfig{
-			BaseURL: route.BaseURL,
-			APIKey:  route.APIKey,
-			Model:   route.Model,
-			Timeout: time.Duration(cfg.AITimeoutSeconds) * time.Second,
-		}), nil
-	case "development":
-		return ai.NewDevelopmentProvider(), nil
-	default:
-		return nil, errors.New("unsupported AI model route provider")
-	}
+	return aiprovider.New(cfg)
 }
 
 func copilotModelOptions(cfg config.Config) []copilot.ModelOption {

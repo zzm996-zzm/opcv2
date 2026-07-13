@@ -10,6 +10,7 @@ func DefaultRegistry() jobs.Registry {
 		jobs.TypeLeadSearch:     true,
 		jobs.TypeGeoAnalysis:    true,
 		jobs.TypeCompetitorScan: true,
+		jobs.TypeSandboxRun:     true,
 	}
 }
 

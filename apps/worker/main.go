@@ -7,13 +7,17 @@ import (
 	"os"
 	"time"
 
+	"github.com/zzm/opcv2/internal/account"
+	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/geo"
 	"github.com/zzm/opcv2/internal/leads"
 	"github.com/zzm/opcv2/internal/membership"
+	"github.com/zzm/opcv2/internal/platform/aiprovider"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/postgres"
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
+	"github.com/zzm/opcv2/internal/sandbox"
 	"github.com/zzm/opcv2/internal/tasks"
 )
 
@@ -34,6 +38,13 @@ func main() {
 
 	membershipRepository := membership.NewPostgresRepository(db)
 	membershipService := membership.NewService(membershipRepository)
+	aiProvider, err := aiprovider.New(cfg)
+	if err != nil {
+		logger.Error("configure ai provider", "provider", cfg.AIProvider, "error", err)
+		os.Exit(1)
+	}
+	aiService := ai.NewService(ai.NewPostgresRepository(db), aiProvider, ai.Config{Provider: cfg.AIProvider, Model: cfg.AIModel, Logger: logger})
+	accountService := account.NewService(account.NewPostgresRepository(db))
 	leadsRepository := leads.NewPostgresRepository(db)
 	leadProvider, err := newLeadProvider(cfg)
 	if err != nil {
@@ -59,6 +70,7 @@ func main() {
 		competitorOptions = append(competitorOptions, competitor.WithScanner(competitorScanner))
 	}
 	competitorService := competitor.NewService(competitorRepository, competitorOptions...)
+	sandboxService := sandbox.NewService(sandbox.NewPostgresRepository(db), aiService, sandbox.WithQuotaConsumer(membershipService), sandbox.WithProfileContextProvider(accountService))
 	tasksRepository := tasks.NewPostgresRepository(db)
 	tasksService := tasks.NewService(tasksRepository)
 	go tasks.RunReminderWorker(context.Background(), tasksService, time.Minute, func(err error) {
@@ -69,6 +81,7 @@ func main() {
 	leads.RegisterWorker(mux, leadsService)
 	geo.RegisterWorker(mux, geoService)
 	competitor.RegisterWorker(mux, competitorService)
+	sandbox.RegisterWorker(mux, sandboxService)
 	logger.Info("worker starting", "redis_addr", cfg.RedisAddr)
 	if err := server.Run(mux); err != nil {
 		logger.Error("run worker", "error", err)

@@ -11,16 +11,19 @@ import (
 
 	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/jobs"
 	"github.com/zzm/opcv2/internal/membership"
 )
 
 type Repository interface {
 	CreateSession(ctx context.Context, session Session) (Session, error)
 	UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error)
-	UpdateSessionStatus(ctx context.Context, userID, id int64, status string) error
+	PrepareSessionRun(ctx context.Context, userID, id int64) (Session, error)
+	UpdateSessionProgress(ctx context.Context, userID, id int64, attempt int, status string, progress int, step, errorMessage string) (Session, error)
+	CancelSession(ctx context.Context, userID, id int64) (Session, error)
 	CreateMessage(ctx context.Context, message Message) (Message, error)
 	ListMessages(ctx context.Context, userID, sessionID int64) ([]Message, error)
-	UpdateSessionResult(ctx context.Context, userID, id int64, result Report) (Session, error)
+	UpdateSessionResult(ctx context.Context, userID, id int64, attempt int, result Report) (Session, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error)
 	GetSession(ctx context.Context, userID, id int64) (Session, error)
 }
@@ -39,6 +42,11 @@ type JSONGenerator interface {
 
 type QuotaConsumer interface {
 	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
+	RefundUsage(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
+}
+
+type Queue interface {
+	Enqueue(ctx context.Context, job jobs.Job) error
 }
 
 type ProfileContextProvider interface {
@@ -51,6 +59,7 @@ type Service struct {
 	repository Repository
 	generator  JSONGenerator
 	quota      QuotaConsumer
+	queue      Queue
 	profile    ProfileContextProvider
 	now        func() time.Time
 }
@@ -75,6 +84,12 @@ func WithProfileContextProvider(provider ProfileContextProvider) Option {
 	}
 }
 
+func WithQueue(queue Queue) Option {
+	return func(service *Service) {
+		service.queue = queue
+	}
+}
+
 func (s *Service) CreateSession(ctx context.Context, input CreateInput) (Session, error) {
 	if s.repository == nil {
 		return Session{}, ErrServiceNotReady
@@ -86,6 +101,7 @@ func (s *Service) CreateSession(ctx context.Context, input CreateInput) (Session
 		Product:     strings.TrimSpace(input.Product),
 		Roles:       normalizeRoles(input.Roles),
 		Status:      StatusDraft,
+		CurrentStep: StatusDraft,
 		CreatedAt:   s.now(),
 	}
 	return s.repository.CreateSession(ctx, session)
@@ -124,35 +140,116 @@ func (s *Service) UpdateSessionDraft(ctx context.Context, userID, id int64, upda
 }
 
 func (s *Service) RunSession(ctx context.Context, userID, id int64) (Session, error) {
-	if s.repository == nil || s.generator == nil {
+	if s.repository == nil || s.queue == nil {
 		return Session{}, ErrServiceNotReady
 	}
 	session, err := s.repository.GetSession(ctx, userID, id)
 	if err != nil {
 		return Session{}, err
 	}
-	if (session.Status != StatusDraft && session.Status != StatusFailed) || session.Goal == "" || session.TargetUsers == "" || session.Product == "" || len(session.Roles) == 0 {
+	if (session.Status != StatusDraft && session.Status != StatusFailed && session.Status != StatusCanceled) || session.Goal == "" || session.TargetUsers == "" || session.Product == "" || len(session.Roles) == 0 {
 		return Session{}, ErrInvalidSession
+	}
+	queued, err := s.repository.PrepareSessionRun(ctx, userID, id)
+	if err != nil {
+		return Session{}, err
 	}
 	if s.quota != nil {
 		if _, err := s.quota.CheckAndConsume(ctx, membership.ConsumeInput{
 			UserID:         userID,
 			FeatureKey:     membership.FeatureSandboxRuns,
 			Amount:         1,
-			IdempotencyKey: fmt.Sprintf("sandbox-run-%d", id),
+			IdempotencyKey: sandboxConsumeKey(id, queued.RunAttempt),
 		}); err != nil {
+			_, _ = s.repository.UpdateSessionProgress(ctx, userID, id, queued.RunAttempt, StatusFailed, 100, "failed", "quota_check_failed")
 			return Session{}, err
 		}
 	}
-	if err := s.repository.UpdateSessionStatus(ctx, userID, id, StatusRunning); err != nil {
+	if err := s.queue.Enqueue(ctx, jobs.Job{
+		Type:           jobs.TypeSandboxRun,
+		IdempotencyKey: fmt.Sprintf("sandbox-run-%d-attempt-%d", id, queued.RunAttempt),
+		Payload:        map[string]any{"user_id": userID, "session_id": id, "attempt": queued.RunAttempt},
+		MaxRetry:       1,
+		Timeout:        5 * time.Minute,
+	}); err != nil {
+		_, _ = s.repository.UpdateSessionProgress(ctx, userID, id, queued.RunAttempt, StatusFailed, 100, "failed", "queue_unavailable")
+		if refundErr := s.refundRun(ctx, userID, id, queued.RunAttempt); refundErr != nil {
+			return Session{}, refundErr
+		}
 		return Session{}, err
+	}
+	return queued, nil
+}
+
+func (s *Service) RetrySession(ctx context.Context, userID, id int64) (Session, error) {
+	return s.RunSession(ctx, userID, id)
+}
+
+func (s *Service) CancelSession(ctx context.Context, userID, id int64) (Session, error) {
+	if s.repository == nil {
+		return Session{}, ErrServiceNotReady
+	}
+	session, err := s.repository.CancelSession(ctx, userID, id)
+	if err != nil {
+		return Session{}, err
+	}
+	if err := s.refundRun(ctx, userID, id, session.RunAttempt); err != nil {
+		return Session{}, err
+	}
+	return session, nil
+}
+
+func (s *Service) ProcessSession(ctx context.Context, userID, id int64, attempt int) error {
+	if s.repository == nil || s.generator == nil {
+		return ErrServiceNotReady
+	}
+	session, err := s.repository.GetSession(ctx, userID, id)
+	if err != nil {
+		return err
+	}
+	if session.RunAttempt != attempt || session.Status == StatusCanceled || session.Status == StatusCompleted {
+		return nil
+	}
+	if session.Status != StatusQueued {
+		return ErrStaleRun
+	}
+	if _, err := s.repository.UpdateSessionProgress(ctx, userID, id, attempt, StatusRunning, 20, "generating_report", ""); err != nil {
+		return err
 	}
 	report, err := s.generateReport(ctx, session)
 	if err != nil {
-		_ = s.repository.UpdateSessionStatus(ctx, userID, id, StatusFailed)
-		return Session{}, err
+		_, _ = s.repository.UpdateSessionProgress(ctx, userID, id, attempt, StatusFailed, 100, "failed", "invalid_ai_result")
+		if refundErr := s.refundRun(ctx, userID, id, attempt); refundErr != nil {
+			return refundErr
+		}
+		return err
 	}
-	return s.repository.UpdateSessionResult(ctx, userID, id, report)
+	if _, err := s.repository.UpdateSessionProgress(ctx, userID, id, attempt, StatusRunning, 80, "storing_report", ""); err != nil {
+		if errors.Is(err, ErrStaleRun) {
+			return nil
+		}
+		return err
+	}
+	_, err = s.repository.UpdateSessionResult(ctx, userID, id, attempt, report)
+	if errors.Is(err, ErrStaleRun) {
+		return nil
+	}
+	return err
+}
+
+func (s *Service) refundRun(ctx context.Context, userID, id int64, attempt int) error {
+	if s.quota == nil {
+		return nil
+	}
+	_, err := s.quota.RefundUsage(ctx, membership.ConsumeInput{
+		UserID: userID, FeatureKey: membership.FeatureSandboxRuns, Amount: 1,
+		IdempotencyKey: fmt.Sprintf("sandbox-run-%d-attempt-%d-refund", id, attempt),
+	})
+	return err
+}
+
+func sandboxConsumeKey(id int64, attempt int) string {
+	return fmt.Sprintf("sandbox-run-%d-attempt-%d", id, attempt)
 }
 
 func (s *Service) ListSessions(ctx context.Context, userID int64, limit int) ([]Session, error) {

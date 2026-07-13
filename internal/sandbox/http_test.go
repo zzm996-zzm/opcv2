@@ -53,6 +53,14 @@ func (a *fakeApplication) RunSession(_ context.Context, userID, id int64) (Sessi
 	a.sessionID = id
 	return a.session, a.err
 }
+func (a *fakeApplication) RetrySession(ctx context.Context, userID, id int64) (Session, error) {
+	return a.RunSession(ctx, userID, id)
+}
+func (a *fakeApplication) CancelSession(_ context.Context, userID, id int64) (Session, error) {
+	a.userID = userID
+	a.sessionID = id
+	return a.session, a.err
+}
 
 func (a *fakeApplication) ListSessions(_ context.Context, userID int64, limit int) ([]Session, error) {
 	a.userID = userID
@@ -162,10 +170,10 @@ func TestRolesAndDraftUpdateEndpoints(t *testing.T) {
 
 func TestRunSessionEndpointUsesAuthenticatedUser(t *testing.T) {
 	app := &fakeApplication{session: Session{
-		ID:     99,
-		UserID: 42,
-		Status: StatusCompleted,
-		Report: Report{Score: 83, Summary: "可以验证"},
+		ID:         99,
+		UserID:     42,
+		Status:     StatusQueued,
+		RunAttempt: 1,
 	}}
 	router := sandboxTestRouter(app)
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/sandbox/sessions/99/run", nil)
@@ -173,14 +181,37 @@ func TestRunSessionEndpointUsesAuthenticatedUser(t *testing.T) {
 
 	router.ServeHTTP(recorder, request)
 
-	if recorder.Code != http.StatusOK {
+	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
 	if app.userID != 42 || app.sessionID != 99 {
 		t.Fatalf("user/session = %d/%d", app.userID, app.sessionID)
 	}
-	if !strings.Contains(recorder.Body.String(), `"score":83`) {
+	if !strings.Contains(recorder.Body.String(), `"status":"queued"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestRetryCancelAndStatusEndpoints(t *testing.T) {
+	app := &fakeApplication{session: Session{ID: 99, UserID: 42, Status: StatusCanceled, RunAttempt: 2}}
+	router := sandboxTestRouter(app)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/sandbox/sessions/99/retry", nil))
+	if recorder.Code != http.StatusAccepted || app.sessionID != 99 {
+		t.Fatalf("retry status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/sandbox/sessions/99/cancel", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("cancel status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/sandbox/sessions/99/status", nil))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"run_attempt":2`) {
+		t.Fatalf("status status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }
 

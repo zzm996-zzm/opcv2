@@ -10,6 +10,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/jobs"
 	"github.com/zzm/opcv2/internal/membership"
 )
 
@@ -22,16 +23,43 @@ type fakeRepository struct {
 	statuses []string
 }
 
-func (r *fakeRepository) UpdateSessionStatus(_ context.Context, userID, id int64, status string) error {
+func (r *fakeRepository) PrepareSessionRun(_ context.Context, userID, id int64) (Session, error) {
 	if r.err != nil {
-		return r.err
+		return Session{}, r.err
 	}
 	if r.session.UserID != userID || r.session.ID != id {
-		return ErrSessionNotFound
+		return Session{}, ErrSessionNotFound
 	}
-	r.session.Status = status
+	if r.session.Status != StatusDraft && r.session.Status != StatusFailed && r.session.Status != StatusCanceled {
+		return Session{}, ErrInvalidSession
+	}
+	r.session.Status = StatusQueued
+	r.session.ProgressPercent = 0
+	r.session.CurrentStep = StatusQueued
+	r.session.ErrorMessage = ""
+	r.session.RunAttempt++
+	r.statuses = append(r.statuses, StatusQueued)
+	return r.session, nil
+}
+
+func (r *fakeRepository) UpdateSessionProgress(_ context.Context, userID, id int64, attempt int, status string, progress int, step, errorMessage string) (Session, error) {
+	if r.err != nil {
+		return Session{}, r.err
+	}
+	if r.session.UserID != userID || r.session.ID != id || r.session.RunAttempt != attempt {
+		return Session{}, ErrStaleRun
+	}
+	r.session.Status, r.session.ProgressPercent, r.session.CurrentStep, r.session.ErrorMessage = status, progress, step, errorMessage
 	r.statuses = append(r.statuses, status)
-	return nil
+	return r.session, nil
+}
+
+func (r *fakeRepository) CancelSession(_ context.Context, userID, id int64) (Session, error) {
+	if r.session.UserID != userID || r.session.ID != id || (r.session.Status != StatusQueued && r.session.Status != StatusRunning) {
+		return Session{}, ErrInvalidSession
+	}
+	r.session.Status, r.session.ProgressPercent, r.session.CurrentStep = StatusCanceled, 100, StatusCanceled
+	return r.session, nil
 }
 
 func (r *fakeRepository) CreateMessage(_ context.Context, message Message) (Message, error) {
@@ -80,15 +108,17 @@ func (r *fakeRepository) CreateSession(_ context.Context, session Session) (Sess
 	return session, r.err
 }
 
-func (r *fakeRepository) UpdateSessionResult(_ context.Context, userID, id int64, result Report) (Session, error) {
+func (r *fakeRepository) UpdateSessionResult(_ context.Context, userID, id int64, attempt int, result Report) (Session, error) {
 	if r.err != nil {
 		return Session{}, r.err
 	}
-	if r.session.UserID != userID || r.session.ID != id {
-		return Session{}, ErrSessionNotFound
+	if r.session.UserID != userID || r.session.ID != id || r.session.RunAttempt != attempt || r.session.Status != StatusRunning {
+		return Session{}, ErrStaleRun
 	}
 	r.session.Status = StatusCompleted
 	r.session.Report = result
+	r.session.ProgressPercent = 100
+	r.session.CurrentStep = StatusCompleted
 	return r.session, nil
 }
 
@@ -138,6 +168,7 @@ func (g *fakeGenerator) GenerateJSON(_ context.Context, request ai.GenerateJSONR
 
 type fakeQuotaConsumer struct {
 	consumed []membership.ConsumeInput
+	refunded []membership.ConsumeInput
 	err      error
 }
 
@@ -147,6 +178,21 @@ func (c *fakeQuotaConsumer) CheckAndConsume(_ context.Context, input membership.
 		return membership.UsageItem{}, c.err
 	}
 	return membership.UsageItem{Key: input.FeatureKey, Used: 1, Limit: 20}, nil
+}
+
+func (c *fakeQuotaConsumer) RefundUsage(_ context.Context, input membership.ConsumeInput) (membership.UsageItem, error) {
+	c.refunded = append(c.refunded, input)
+	return membership.UsageItem{Key: input.FeatureKey}, c.err
+}
+
+type fakeQueue struct {
+	jobs []jobs.Job
+	err  error
+}
+
+func (q *fakeQueue) Enqueue(_ context.Context, job jobs.Job) error {
+	q.jobs = append(q.jobs, job)
+	return q.err
 }
 
 type fakeProfileContextProvider struct {
@@ -203,7 +249,7 @@ func TestServiceUpdatesOwnedDraftAndListsRoles(t *testing.T) {
 }
 
 func TestServiceRejectsRunningIncompleteDraft(t *testing.T) {
-	service := NewService(&fakeRepository{session: Session{ID: 99, UserID: 42, Goal: "验证项目", Status: StatusDraft}}, &fakeGenerator{})
+	service := NewService(&fakeRepository{session: Session{ID: 99, UserID: 42, Goal: "验证项目", Status: StatusDraft}}, &fakeGenerator{}, WithQueue(&fakeQueue{}))
 
 	_, err := service.RunSession(context.Background(), 42, 99)
 
@@ -231,7 +277,7 @@ func TestServiceRunSessionAddsProfileContextToPrompt(t *testing.T) {
 			{Key: account.ProfileGroupResources, Title: "能力与资源", Fields: map[string]string{"budget": "3万以内"}},
 		},
 	}}
-	service := NewService(&fakeRepository{session: Session{
+	repository := &fakeRepository{session: Session{
 		ID:          99,
 		UserID:      42,
 		Status:      StatusDraft,
@@ -239,12 +285,16 @@ func TestServiceRunSessionAddsProfileContextToPrompt(t *testing.T) {
 		TargetUsers: "中小企业老板",
 		Product:     "AI 顾问服务",
 		Roles:       []string{"用户"},
-	}}, generator, WithProfileContextProvider(profile))
+	}}
+	service := NewService(repository, generator, WithProfileContextProvider(profile), WithQueue(&fakeQueue{}))
 
-	_, err := service.RunSession(context.Background(), 42, 99)
+	queued, err := service.RunSession(context.Background(), 42, 99)
 
 	if err != nil {
 		t.Fatalf("RunSession() error = %v", err)
+	}
+	if err := service.ProcessSession(context.Background(), 42, 99, queued.RunAttempt); err != nil {
+		t.Fatalf("ProcessSession() error = %v", err)
 	}
 	if !strings.Contains(generator.request.UserPrompt, "用户画像上下文") ||
 		!strings.Contains(generator.request.UserPrompt, "智活AI") ||
@@ -272,7 +322,7 @@ func TestServiceRunSessionConsumesSandboxQuota(t *testing.T) {
 		TargetUsers: "教培机构",
 		Product:     "AI 工具",
 		Roles:       []string{"用户"},
-	}}, &fakeGenerator{content: payload}, WithQuotaConsumer(quota))
+	}}, &fakeGenerator{content: payload}, WithQuotaConsumer(quota), WithQueue(&fakeQueue{}))
 
 	_, err := service.RunSession(context.Background(), 42, 99)
 
@@ -283,7 +333,7 @@ func TestServiceRunSessionConsumesSandboxQuota(t *testing.T) {
 		t.Fatalf("consumed = %+v, want one quota consume", quota.consumed)
 	}
 	consumed := quota.consumed[0]
-	if consumed.FeatureKey != membership.FeatureSandboxRuns || consumed.IdempotencyKey != "sandbox-run-99" {
+	if consumed.FeatureKey != membership.FeatureSandboxRuns || consumed.IdempotencyKey != "sandbox-run-99-attempt-1" {
 		t.Fatalf("consumed = %+v", consumed)
 	}
 }
@@ -298,7 +348,7 @@ func TestServiceRunSessionStopsWhenSandboxQuotaExceeded(t *testing.T) {
 		TargetUsers: "教培机构",
 		Product:     "AI 工具",
 		Roles:       []string{"用户"},
-	}}, generator, WithQuotaConsumer(&fakeQuotaConsumer{err: membership.ErrQuotaExceeded}))
+	}}, generator, WithQuotaConsumer(&fakeQuotaConsumer{err: membership.ErrQuotaExceeded}), WithQueue(&fakeQueue{}))
 
 	_, err := service.RunSession(context.Background(), 42, 99)
 
@@ -330,27 +380,35 @@ func TestServiceRunSessionGeneratesReportThroughAI(t *testing.T) {
 		Roles:       []string{"用户", "投资人"},
 	}}
 	generator := &fakeGenerator{content: payload}
-	service := NewService(repository, generator)
+	queue := &fakeQueue{}
+	service := NewService(repository, generator, WithQueue(queue))
 
-	session, err := service.RunSession(context.Background(), 42, 99)
+	queued, err := service.RunSession(context.Background(), 42, 99)
 
 	if err != nil {
 		t.Fatalf("RunSession() error = %v", err)
 	}
+	if queued.Status != StatusQueued || len(queue.jobs) != 1 || queue.jobs[0].Type != jobs.TypeSandboxRun {
+		t.Fatalf("queued/job = %+v/%+v", queued, queue.jobs)
+	}
+	if err := service.ProcessSession(context.Background(), 42, 99, queued.RunAttempt); err != nil {
+		t.Fatalf("ProcessSession() error = %v", err)
+	}
+	session := repository.session
 	if session.Status != StatusCompleted || session.Report.Score != 83 {
 		t.Fatalf("session = %+v", session)
 	}
 	if generator.request.Feature != "sandbox.run" || generator.request.SchemaName != "sandbox_report" {
 		t.Fatalf("ai request = %+v", generator.request)
 	}
-	if len(repository.statuses) != 1 || repository.statuses[0] != StatusRunning {
+	if len(repository.statuses) != 3 || repository.statuses[0] != StatusQueued || repository.statuses[1] != StatusRunning {
 		t.Fatalf("statuses = %+v", repository.statuses)
 	}
 }
 
 func TestServiceRunSessionRejectsOtherUsersSession(t *testing.T) {
 	repository := &fakeRepository{session: Session{ID: 99, UserID: 7, Status: StatusDraft}}
-	service := NewService(repository, &fakeGenerator{content: []byte(`{}`)})
+	service := NewService(repository, &fakeGenerator{content: []byte(`{}`)}, WithQueue(&fakeQueue{}))
 
 	_, err := service.RunSession(context.Background(), 42, 99)
 
@@ -369,15 +427,42 @@ func TestServiceReturnsSafeErrorForInvalidAIReport(t *testing.T) {
 		Product:     "AI 工具",
 		Roles:       []string{"用户"},
 	}}
-	service := NewService(repository, &fakeGenerator{content: []byte(`{"score":0}`)})
+	quota := &fakeQuotaConsumer{}
+	service := NewService(repository, &fakeGenerator{content: []byte(`{"score":0}`)}, WithQueue(&fakeQueue{}), WithQuotaConsumer(quota))
 
-	_, err := service.RunSession(context.Background(), 42, 99)
+	queued, err := service.RunSession(context.Background(), 42, 99)
+	if err == nil {
+		err = service.ProcessSession(context.Background(), 42, 99, queued.RunAttempt)
+	}
 
 	if !errors.Is(err, ErrInvalidAIResult) {
 		t.Fatalf("err = %v, want ErrInvalidAIResult", err)
 	}
 	if repository.session.Status != StatusFailed {
 		t.Fatalf("status = %s, want failed", repository.session.Status)
+	}
+	if len(quota.refunded) != 1 || quota.refunded[0].IdempotencyKey != "sandbox-run-99-attempt-1-refund" {
+		t.Fatalf("refunds = %+v", quota.refunded)
+	}
+}
+
+func TestServiceCancelsQueuedRunAndRefundsQuota(t *testing.T) {
+	quota := &fakeQuotaConsumer{}
+	repository := &fakeRepository{session: Session{ID: 99, UserID: 42, Status: StatusDraft, Goal: "验证", TargetUsers: "客户", Product: "产品", Roles: []string{"用户"}}}
+	service := NewService(repository, &fakeGenerator{}, WithQueue(&fakeQueue{}), WithQuotaConsumer(quota))
+	queued, err := service.RunSession(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("RunSession() error = %v", err)
+	}
+	canceled, err := service.CancelSession(context.Background(), 42, 99)
+	if err != nil || canceled.Status != StatusCanceled || queued.RunAttempt != canceled.RunAttempt {
+		t.Fatalf("canceled = %+v err=%v", canceled, err)
+	}
+	if len(quota.refunded) != 1 {
+		t.Fatalf("refunds = %+v", quota.refunded)
+	}
+	if err := service.ProcessSession(context.Background(), 42, 99, queued.RunAttempt); err != nil {
+		t.Fatalf("canceled stale job should no-op: %v", err)
 	}
 }
 

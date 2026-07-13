@@ -7,9 +7,11 @@ import (
 
 const (
 	StatusDraft     = "draft"
+	StatusQueued    = "queued"
 	StatusRunning   = "running"
 	StatusCompleted = "completed"
 	StatusFailed    = "failed"
+	StatusCanceled  = "canceled"
 )
 
 var (
@@ -17,6 +19,7 @@ var (
 	ErrInvalidAIResult = errors.New("invalid sandbox ai result")
 	ErrInvalidSession  = errors.New("invalid sandbox session")
 	ErrSessionNotFound = errors.New("sandbox session not found")
+	ErrStaleRun        = errors.New("stale sandbox run")
 )
 
 type Role struct {
@@ -71,16 +74,20 @@ func DefaultRoles() []Role {
 }
 
 type Session struct {
-	ID          int64     `json:"id"`
-	UserID      int64     `json:"user_id"`
-	Goal        string    `json:"goal"`
-	TargetUsers string    `json:"target_users"`
-	Product     string    `json:"product"`
-	Roles       []string  `json:"roles"`
-	Status      string    `json:"status"`
-	Report      Report    `json:"report,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID              int64     `json:"id"`
+	UserID          int64     `json:"user_id"`
+	Goal            string    `json:"goal"`
+	TargetUsers     string    `json:"target_users"`
+	Product         string    `json:"product"`
+	Roles           []string  `json:"roles"`
+	Status          string    `json:"status"`
+	ProgressPercent int       `json:"progress_percent"`
+	CurrentStep     string    `json:"current_step"`
+	ErrorMessage    string    `json:"error_message,omitempty"`
+	RunAttempt      int       `json:"run_attempt"`
+	Report          Report    `json:"report,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 type Report struct {

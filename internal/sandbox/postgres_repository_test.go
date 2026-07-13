@@ -18,8 +18,8 @@ func TestPostgresRepositoryCreatesSession(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO sandbox_sessions (user_id, goal, target_users, product, roles, status, report, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+		INSERT INTO sandbox_sessions (user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
 		RETURNING id
 	`)).
 		WithArgs(
@@ -29,6 +29,10 @@ func TestPostgresRepositoryCreatesSession(t *testing.T) {
 			"AI 客服工具",
 			[]byte(`["用户","投资人"]`),
 			StatusDraft,
+			0,
+			StatusDraft,
+			"",
+			0,
 			[]byte(`{}`),
 			now,
 		).
@@ -42,6 +46,7 @@ func TestPostgresRepositoryCreatesSession(t *testing.T) {
 		Product:     "AI 客服工具",
 		Roles:       []string{"用户", "投资人"},
 		Status:      StatusDraft,
+		CurrentStep: StatusDraft,
 		CreatedAt:   now,
 	})
 	if err != nil {
@@ -65,18 +70,20 @@ func TestPostgresRepositoryUpdatesOwnedSessionResult(t *testing.T) {
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
 		UPDATE sandbox_sessions
-		SET status = $1, report = $2, updated_at = NOW()
-		WHERE user_id = $3 AND id = $4
-		RETURNING id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
+		SET status = $1, progress_percent = 100, current_step = $1, error_message = '', report = $2, updated_at = NOW()
+		WHERE user_id = $3 AND id = $4 AND run_attempt = $5 AND status = $6
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
 	`)).
 		WithArgs(
 			StatusCompleted,
 			pgxmock.AnyArg(),
 			int64(42),
 			int64(99),
+			1,
+			StatusRunning,
 		).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "goal", "target_users", "product", "roles", "status", "report", "created_at", "updated_at",
+			"id", "user_id", "goal", "target_users", "product", "roles", "status", "progress_percent", "current_step", "error_message", "run_attempt", "report", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -85,13 +92,17 @@ func TestPostgresRepositoryUpdatesOwnedSessionResult(t *testing.T) {
 			"AI 客服工具",
 			[]byte(`["用户","投资人"]`),
 			StatusCompleted,
+			100,
+			StatusCompleted,
+			"",
+			1,
 			[]byte(`{"score":83,"summary":"可以验证","metrics":[{"label":"市场吸引力","value":"8.4"}],"role_summaries":[{"role":"用户","view":"关注效率"}],"risks":["客户教育成本高"],"next_actions":["访谈客户"]}`),
 			now,
 			now,
 		))
 
 	repository := NewPostgresRepository(db)
-	session, err := repository.UpdateSessionResult(context.Background(), 42, 99, Report{
+	session, err := repository.UpdateSessionResult(context.Background(), 42, 99, 1, Report{
 		Score:         83,
 		Summary:       "可以验证",
 		Metrics:       []Metric{{Label: "市场吸引力", Value: "8.4"}},
@@ -110,21 +121,38 @@ func TestPostgresRepositoryUpdatesOwnedSessionResult(t *testing.T) {
 	}
 }
 
-func TestPostgresRepositoryUpdatesOwnedSessionStatus(t *testing.T) {
+func TestPostgresRepositoryPreparesAndUpdatesOwnedSessionRun(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("NewPool() error = %v", err)
 	}
 	defer db.Close()
-	db.ExpectExec(regexp.QuoteMeta(`
+	now := time.Date(2026, 7, 13, 13, 0, 0, 0, time.UTC)
+	columns := []string{"id", "user_id", "goal", "target_users", "product", "roles", "status", "progress_percent", "current_step", "error_message", "run_attempt", "report", "created_at", "updated_at"}
+	db.ExpectQuery(regexp.QuoteMeta(`
 		UPDATE sandbox_sessions
-		SET status = $1, updated_at = NOW()
-		WHERE user_id = $2 AND id = $3
-	`)).WithArgs(StatusRunning, int64(42), int64(99)).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+		SET status = $1, progress_percent = 0, current_step = $1, error_message = '',
+		    run_attempt = run_attempt + 1, updated_at = NOW()
+		WHERE user_id = $2 AND id = $3 AND status IN ($4, $5, $6)
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
+	`)).WithArgs(StatusQueued, int64(42), int64(99), StatusDraft, StatusFailed, StatusCanceled).
+		WillReturnRows(pgxmock.NewRows(columns).AddRow(int64(99), int64(42), "验证", "客户", "产品", []byte(`["用户"]`), StatusQueued, 0, StatusQueued, "", 1, []byte(`{}`), now, now))
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE sandbox_sessions
+		SET status = $1, progress_percent = $2, current_step = $3, error_message = $4, updated_at = NOW()
+		WHERE user_id = $5 AND id = $6 AND run_attempt = $7
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
+	`)).WithArgs(StatusRunning, 20, "generating_report", "", int64(42), int64(99), 1).
+		WillReturnRows(pgxmock.NewRows(columns).AddRow(int64(99), int64(42), "验证", "客户", "产品", []byte(`["用户"]`), StatusRunning, 20, "generating_report", "", 1, []byte(`{}`), now, now))
 
 	repository := NewPostgresRepository(db)
-	if err := repository.UpdateSessionStatus(context.Background(), 42, 99, StatusRunning); err != nil {
-		t.Fatalf("UpdateSessionStatus() error = %v", err)
+	prepared, err := repository.PrepareSessionRun(context.Background(), 42, 99)
+	if err != nil || prepared.RunAttempt != 1 || prepared.Status != StatusQueued {
+		t.Fatalf("prepared = %+v err=%v", prepared, err)
+	}
+	running, err := repository.UpdateSessionProgress(context.Background(), 42, 99, 1, StatusRunning, 20, "generating_report", "")
+	if err != nil || running.ProgressPercent != 20 {
+		t.Fatalf("running = %+v err=%v", running, err)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -142,10 +170,10 @@ func TestPostgresRepositoryUpdatesOwnedDraft(t *testing.T) {
 		UPDATE sandbox_sessions
 		SET goal = $1, target_users = $2, product = $3, roles = $4, updated_at = NOW()
 		WHERE user_id = $5 AND id = $6 AND status = $7
-		RETURNING id, user_id, goal, target_users, product, roles, status, report, created_at, updated_at
+		RETURNING id, user_id, goal, target_users, product, roles, status, progress_percent, current_step, error_message, run_attempt, report, created_at, updated_at
 	`)).WithArgs("验证项目", "连锁门店", "AI运营平台", []byte(`["用户视角"]`), int64(42), int64(99), StatusDraft).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "goal", "target_users", "product", "roles", "status", "report", "created_at", "updated_at"}).AddRow(
-			int64(99), int64(42), "验证项目", "连锁门店", "AI运营平台", []byte(`["用户视角"]`), StatusDraft, []byte(`{}`), now, now,
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "goal", "target_users", "product", "roles", "status", "progress_percent", "current_step", "error_message", "run_attempt", "report", "created_at", "updated_at"}).AddRow(
+			int64(99), int64(42), "验证项目", "连锁门店", "AI运营平台", []byte(`["用户视角"]`), StatusDraft, 0, StatusDraft, "", 0, []byte(`{}`), now, now,
 		))
 
 	repository := NewPostgresRepository(db)

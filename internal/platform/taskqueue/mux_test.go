@@ -29,4 +29,7 @@ func TestDefaultRegistryIncludesKnownJobTypes(t *testing.T) {
 	if !registry[jobs.TypeCompetitorScan] {
 		t.Fatalf("DefaultRegistry() = %+v, want competitor scan type", registry)
 	}
+	if !registry[jobs.TypeSandboxRun] {
+		t.Fatalf("DefaultRegistry() = %+v, want sandbox run type", registry)
+	}
 }
