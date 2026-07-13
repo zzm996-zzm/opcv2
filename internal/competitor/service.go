@@ -13,6 +13,7 @@ import (
 )
 
 type Repository interface {
+	IsAdmin(ctx context.Context, userID int64) (bool, error)
 	CreateScan(ctx context.Context, scan Scan) (Scan, error)
 	ListScans(ctx context.Context, userID int64, limit int) ([]Scan, error)
 	GetScan(ctx context.Context, userID, id int64) (Scan, error)
@@ -23,6 +24,77 @@ type Repository interface {
 	DeleteWatchItem(ctx context.Context, userID, id int64) error
 	ListWatchlist(ctx context.Context, userID int64, limit int) ([]WatchItem, error)
 	ListEvents(ctx context.Context, userID int64, limit int) ([]Event, error)
+	ListScriptAccounts(ctx context.Context, platform string, limit int) ([]ScriptAccount, error)
+	UpsertScriptAccount(ctx context.Context, account ScriptAccount) (ScriptAccount, error)
+}
+
+func (s *Service) ListScriptAccounts(ctx context.Context, adminUserID int64, platform string, limit int) ([]ScriptAccount, error) {
+	if err := s.requireAdmin(ctx, adminUserID); err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	return s.repository.ListScriptAccounts(ctx, strings.TrimSpace(platform), limit)
+}
+
+func (s *Service) UpsertScriptAccount(ctx context.Context, input ScriptAccountInput) (ScriptAccount, error) {
+	if err := s.requireAdmin(ctx, input.AdminUserID); err != nil {
+		return ScriptAccount{}, err
+	}
+	input.Platform = strings.TrimSpace(input.Platform)
+	input.AccountLabel = strings.TrimSpace(input.AccountLabel)
+	input.CredentialRef = strings.TrimSpace(input.CredentialRef)
+	input.Status = strings.TrimSpace(input.Status)
+	if input.Status == "" {
+		input.Status = ScriptAccountAvailable
+	}
+	if input.MaxRunsPerHour == 0 {
+		input.MaxRunsPerHour = 10
+	}
+	if input.Platform == "" || input.AccountLabel == "" || input.MaxRunsPerHour <= 0 || !validScriptAccountStatus(input.Status) || (input.ID == 0 && input.CredentialRef == "") {
+		return ScriptAccount{}, ErrInvalidScriptAccount
+	}
+	now := s.now()
+	item, err := s.repository.UpsertScriptAccount(ctx, ScriptAccount{
+		ID:             input.ID,
+		Platform:       input.Platform,
+		AccountLabel:   input.AccountLabel,
+		CredentialRef:  input.CredentialRef,
+		HasCredential:  input.CredentialRef != "",
+		Status:         input.Status,
+		MaxRunsPerHour: input.MaxRunsPerHour,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	})
+	if err != nil {
+		return ScriptAccount{}, err
+	}
+	item.CredentialRef = ""
+	return item, nil
+}
+
+func (s *Service) requireAdmin(ctx context.Context, userID int64) error {
+	if s.repository == nil || userID <= 0 {
+		return ErrAdminRequired
+	}
+	ok, err := s.repository.IsAdmin(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrAdminRequired
+	}
+	return nil
+}
+
+func validScriptAccountStatus(status string) bool {
+	switch status {
+	case ScriptAccountAvailable, ScriptAccountCooldown, ScriptAccountDisabled:
+		return true
+	default:
+		return false
+	}
 }
 
 type Queue interface {

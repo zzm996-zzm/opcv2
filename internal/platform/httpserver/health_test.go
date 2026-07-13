@@ -638,6 +638,12 @@ func (fakeCompetitorApp) AddScanCompetitorToWatchlist(context.Context, int64, in
 func (fakeCompetitorApp) GetMonitoring(context.Context, int64, int) (competitor.MonitoringSnapshot, error) {
 	return competitor.MonitoringSnapshot{Watchlist: []competitor.WatchItem{{Name: "小鹅通", Threat: "high"}}}, nil
 }
+func (fakeCompetitorApp) ListScriptAccounts(context.Context, int64, string, int) ([]competitor.ScriptAccount, error) {
+	return nil, competitor.ErrAdminRequired
+}
+func (fakeCompetitorApp) UpsertScriptAccount(context.Context, competitor.ScriptAccountInput) (competitor.ScriptAccount, error) {
+	return competitor.ScriptAccount{}, competitor.ErrAdminRequired
+}
 
 func TestCompetitorRoutesAreMountedBehindAuth(t *testing.T) {
 	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)

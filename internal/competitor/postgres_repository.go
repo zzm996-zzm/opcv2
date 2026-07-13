@@ -24,6 +24,65 @@ func NewPostgresRepository(db postgresDB) *PostgresRepository {
 	return &PostgresRepository{db: db}
 }
 
+func (r *PostgresRepository) IsAdmin(ctx context.Context, userID int64) (bool, error) {
+	var isAdmin bool
+	err := r.db.QueryRow(ctx, `SELECT role = 'admin' FROM users WHERE id = $1 AND status = 'active'`, userID).Scan(&isAdmin)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return isAdmin, err
+}
+
+func (r *PostgresRepository) ListScriptAccounts(ctx context.Context, platform string, limit int) ([]ScriptAccount, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, platform, account_label, credential_ref <> '', status, cooldown_until,
+		       failure_count, max_runs_per_hour, last_used_at, created_at, updated_at
+		FROM competitor_script_accounts
+		WHERE ($1 = '' OR platform = $1)
+		ORDER BY platform, account_label
+		LIMIT $2
+	`, platform, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]ScriptAccount, 0)
+	for rows.Next() {
+		item, err := scanScriptAccount(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *PostgresRepository) UpsertScriptAccount(ctx context.Context, account ScriptAccount) (ScriptAccount, error) {
+	if account.ID == 0 {
+		return scanScriptAccount(r.db.QueryRow(ctx, `
+			INSERT INTO competitor_script_accounts (platform, account_label, credential_ref, status, max_runs_per_hour, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $6)
+			RETURNING id, platform, account_label, credential_ref <> '', status, cooldown_until,
+			          failure_count, max_runs_per_hour, last_used_at, created_at, updated_at
+		`, account.Platform, account.AccountLabel, account.CredentialRef, account.Status, account.MaxRunsPerHour, account.CreatedAt))
+	}
+	item, err := scanScriptAccount(r.db.QueryRow(ctx, `
+		UPDATE competitor_script_accounts
+		SET platform = $2, account_label = $3,
+		    credential_ref = COALESCE(NULLIF($4, ''), credential_ref),
+		    status = $5, max_runs_per_hour = $6,
+		    cooldown_until = CASE WHEN $5 = 'available' THEN NULL ELSE cooldown_until END,
+		    updated_at = $7
+		WHERE id = $1
+		RETURNING id, platform, account_label, credential_ref <> '', status, cooldown_until,
+		          failure_count, max_runs_per_hour, last_used_at, created_at, updated_at
+	`, account.ID, account.Platform, account.AccountLabel, account.CredentialRef, account.Status, account.MaxRunsPerHour, account.UpdatedAt))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ScriptAccount{}, ErrScriptAccountNotFound
+	}
+	return item, err
+}
+
 func (r *PostgresRepository) CreateScan(ctx context.Context, scan Scan) (Scan, error) {
 	targets, err := json.Marshal(scan.Targets)
 	if err != nil {
@@ -306,4 +365,16 @@ func scanScan(scanner scanScanner) (Scan, error) {
 		return Scan{}, err
 	}
 	return scan, nil
+}
+
+func scanScriptAccount(scanner scanScanner) (ScriptAccount, error) {
+	var item ScriptAccount
+	if err := scanner.Scan(
+		&item.ID, &item.Platform, &item.AccountLabel, &item.HasCredential, &item.Status,
+		&item.CooldownUntil, &item.FailureCount, &item.MaxRunsPerHour, &item.LastUsedAt,
+		&item.CreatedAt, &item.UpdatedAt,
+	); err != nil {
+		return ScriptAccount{}, err
+	}
+	return item, nil
 }

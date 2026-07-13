@@ -11,6 +11,7 @@ import (
 )
 
 type fakeRepository struct {
+	isAdmin            bool
 	createdScan        Scan
 	createdWatch       WatchItem
 	deletedWatchUserID int64
@@ -21,7 +22,33 @@ type fakeRepository struct {
 	events             []Event
 	updates            []scanStatusUpdate
 	results            ScanResult
+	scriptAccounts     []ScriptAccount
+	upsertedAccount    ScriptAccount
 	err                error
+}
+
+func (r *fakeRepository) IsAdmin(_ context.Context, _ int64) (bool, error) {
+	return r.isAdmin, r.err
+}
+
+func (r *fakeRepository) ListScriptAccounts(_ context.Context, platform string, limit int) ([]ScriptAccount, error) {
+	items := make([]ScriptAccount, 0)
+	for _, item := range r.scriptAccounts {
+		if platform == "" || item.Platform == platform {
+			items = append(items, item)
+		}
+	}
+	return items[:min(len(items), limit)], r.err
+}
+
+func (r *fakeRepository) UpsertScriptAccount(_ context.Context, account ScriptAccount) (ScriptAccount, error) {
+	r.upsertedAccount = account
+	if account.ID == 0 {
+		account.ID = 88
+	}
+	account.HasCredential = account.CredentialRef != ""
+	r.scriptAccounts = append(r.scriptAccounts, account)
+	return account, r.err
 }
 
 type scanStatusUpdate struct {
@@ -207,6 +234,39 @@ func TestServiceCreateScanConsumesCompetitorQuota(t *testing.T) {
 	consumed := quota.consumed[0]
 	if consumed.FeatureKey != membership.FeatureCompetitorScans || consumed.IdempotencyKey == "" {
 		t.Fatalf("consumed = %+v", consumed)
+	}
+}
+
+func TestServiceAdminCreatesAndListsSafeScriptAccounts(t *testing.T) {
+	repository := &fakeRepository{isAdmin: true}
+	service := NewService(repository)
+	now := time.Date(2026, 7, 13, 11, 30, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+
+	created, err := service.UpsertScriptAccount(context.Background(), ScriptAccountInput{
+		AdminUserID: 42, Platform: " xiaohongshu ", AccountLabel: " 运营账号A ",
+		CredentialRef: " op://Production/XHS-A/password ", MaxRunsPerHour: 6,
+	})
+	if err != nil {
+		t.Fatalf("UpsertScriptAccount() error = %v", err)
+	}
+	if created.ID != 88 || created.Status != ScriptAccountAvailable || !created.HasCredential || created.CredentialRef != "" {
+		t.Fatalf("created = %+v", created)
+	}
+	items, err := service.ListScriptAccounts(context.Background(), 42, "xiaohongshu", 20)
+	if err != nil || len(items) != 1 || items[0].AccountLabel != "运营账号A" {
+		t.Fatalf("items = %+v err=%v", items, err)
+	}
+}
+
+func TestServiceRejectsNonAdminAndRawCredentiallessScriptAccount(t *testing.T) {
+	service := NewService(&fakeRepository{})
+	if _, err := service.UpsertScriptAccount(context.Background(), ScriptAccountInput{AdminUserID: 42, Platform: "web", AccountLabel: "A", CredentialRef: "op://vault/a"}); !errors.Is(err, ErrAdminRequired) {
+		t.Fatalf("non-admin err = %v", err)
+	}
+	service = NewService(&fakeRepository{isAdmin: true})
+	if _, err := service.UpsertScriptAccount(context.Background(), ScriptAccountInput{AdminUserID: 42, Platform: "web", AccountLabel: "A"}); !errors.Is(err, ErrInvalidScriptAccount) {
+		t.Fatalf("invalid account err = %v", err)
 	}
 }
 

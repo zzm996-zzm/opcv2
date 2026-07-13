@@ -15,10 +15,20 @@ const (
 )
 
 var (
-	ErrServiceNotReady   = errors.New("competitor service is not configured")
-	ErrScanNotFound      = errors.New("competitor scan not found")
-	ErrInvalidWatchItem  = errors.New("invalid competitor watch item")
-	ErrWatchItemNotFound = errors.New("competitor watch item not found")
+	ErrServiceNotReady       = errors.New("competitor service is not configured")
+	ErrScanNotFound          = errors.New("competitor scan not found")
+	ErrInvalidWatchItem      = errors.New("invalid competitor watch item")
+	ErrWatchItemNotFound     = errors.New("competitor watch item not found")
+	ErrAdminRequired         = errors.New("admin role required")
+	ErrInvalidScriptAccount  = errors.New("invalid competitor script account")
+	ErrScriptAccountNotFound = errors.New("competitor script account not found")
+)
+
+const (
+	ScriptAccountAvailable = "available"
+	ScriptAccountInUse     = "in_use"
+	ScriptAccountCooldown  = "cooldown"
+	ScriptAccountDisabled  = "disabled"
 )
 
 type CreateScanInput struct {
@@ -115,4 +125,29 @@ type Event struct {
 type MonitoringSnapshot struct {
 	Watchlist []WatchItem `json:"watchlist"`
 	Events    []Event     `json:"events"`
+}
+
+type ScriptAccount struct {
+	ID             int64      `json:"id"`
+	Platform       string     `json:"platform"`
+	AccountLabel   string     `json:"account_label"`
+	CredentialRef  string     `json:"-"`
+	HasCredential  bool       `json:"has_credential"`
+	Status         string     `json:"status"`
+	CooldownUntil  *time.Time `json:"cooldown_until,omitempty"`
+	FailureCount   int        `json:"failure_count"`
+	MaxRunsPerHour int        `json:"max_runs_per_hour"`
+	LastUsedAt     *time.Time `json:"last_used_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+type ScriptAccountInput struct {
+	ID             int64  `json:"-"`
+	AdminUserID    int64  `json:"-"`
+	Platform       string `json:"platform"`
+	AccountLabel   string `json:"account_label"`
+	CredentialRef  string `json:"credential_ref"`
+	Status         string `json:"status"`
+	MaxRunsPerHour int    `json:"max_runs_per_hour"`
 }

@@ -10,6 +10,43 @@ import (
 	pgxmock "github.com/pashagolub/pgxmock/v4"
 )
 
+func TestPostgresRepositoryManagesSafeScriptAccountMetadata(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 7, 13, 11, 30, 0, 0, time.UTC)
+
+	db.ExpectQuery(regexp.QuoteMeta(`SELECT role = 'admin' FROM users WHERE id = $1 AND status = 'active'`)).
+		WithArgs(int64(42)).WillReturnRows(pgxmock.NewRows([]string{"is_admin"}).AddRow(true))
+	db.ExpectQuery("INSERT INTO competitor_script_accounts").
+		WithArgs("web", "运营账号A", "op://vault/a", ScriptAccountAvailable, 5, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "platform", "account_label", "has_credential", "status", "cooldown_until", "failure_count", "max_runs_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(int64(88), "web", "运营账号A", true, ScriptAccountAvailable, nil, 0, 5, nil, now, now))
+	db.ExpectQuery("SELECT id, platform, account_label, credential_ref <> ''").
+		WithArgs("web", 20).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "platform", "account_label", "has_credential", "status", "cooldown_until", "failure_count", "max_runs_per_hour", "last_used_at", "created_at", "updated_at"}).
+			AddRow(int64(88), "web", "运营账号A", true, ScriptAccountAvailable, nil, 0, 5, nil, now, now))
+
+	repository := NewPostgresRepository(db)
+	isAdmin, err := repository.IsAdmin(context.Background(), 42)
+	if err != nil || !isAdmin {
+		t.Fatalf("IsAdmin() = %v/%v", isAdmin, err)
+	}
+	created, err := repository.UpsertScriptAccount(context.Background(), ScriptAccount{Platform: "web", AccountLabel: "运营账号A", CredentialRef: "op://vault/a", Status: ScriptAccountAvailable, MaxRunsPerHour: 5, CreatedAt: now})
+	if err != nil || created.ID != 88 || !created.HasCredential || created.CredentialRef != "" {
+		t.Fatalf("created = %+v err=%v", created, err)
+	}
+	items, err := repository.ListScriptAccounts(context.Background(), "web", 20)
+	if err != nil || len(items) != 1 || items[0].CredentialRef != "" {
+		t.Fatalf("items = %+v err=%v", items, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryCreatesScan(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

@@ -12,17 +12,31 @@ import (
 )
 
 type fakeApplication struct {
-	input      CreateScanInput
-	watchInput CreateWatchItemInput
-	userID     int64
-	scanID     int64
-	watchID    int64
-	limit      int
-	scan       Scan
-	watchItem  WatchItem
-	scans      []Scan
-	monitoring MonitoringSnapshot
-	err        error
+	input          CreateScanInput
+	watchInput     CreateWatchItemInput
+	userID         int64
+	scanID         int64
+	watchID        int64
+	limit          int
+	scan           Scan
+	watchItem      WatchItem
+	scans          []Scan
+	monitoring     MonitoringSnapshot
+	scriptAccounts []ScriptAccount
+	scriptInput    ScriptAccountInput
+	err            error
+}
+
+func (a *fakeApplication) ListScriptAccounts(_ context.Context, userID int64, _ string, limit int) ([]ScriptAccount, error) {
+	a.userID = userID
+	a.limit = limit
+	return a.scriptAccounts, a.err
+}
+
+func (a *fakeApplication) UpsertScriptAccount(_ context.Context, input ScriptAccountInput) (ScriptAccount, error) {
+	a.userID = input.AdminUserID
+	a.scriptInput = input
+	return ScriptAccount{ID: 88, Platform: input.Platform, AccountLabel: input.AccountLabel, HasCredential: input.CredentialRef != "", Status: ScriptAccountAvailable}, a.err
 }
 
 func (a *fakeApplication) CreateScan(_ context.Context, input CreateScanInput) (Scan, error) {
@@ -107,6 +121,34 @@ func TestCreateScanEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if app.input.UserID != 42 || len(app.input.Targets) != 2 {
 		t.Fatalf("input = %+v", app.input)
+	}
+}
+
+func TestAdminScriptAccountEndpointsNeverReturnCredentialReference(t *testing.T) {
+	app := &fakeApplication{scriptAccounts: []ScriptAccount{{ID: 88, Platform: "web", AccountLabel: "运营账号A", CredentialRef: "op://vault/a", HasCredential: true, Status: ScriptAccountAvailable}}}
+	router := competitorTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/admin/competitor/script-accounts", nil))
+	if recorder.Code != http.StatusOK || strings.Contains(recorder.Body.String(), "op://") || !strings.Contains(recorder.Body.String(), `"has_credential":true`) {
+		t.Fatalf("list status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/competitor/script-accounts", strings.NewReader(`{"platform":"web","account_label":"运营账号A","credential_ref":"op://vault/a","max_runs_per_hour":5}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || app.scriptInput.AdminUserID != 42 || strings.Contains(recorder.Body.String(), "op://") {
+		t.Fatalf("create status/input/body = %d/%+v/%s", recorder.Code, app.scriptInput, recorder.Body.String())
+	}
+}
+
+func TestAdminScriptAccountEndpointMapsForbidden(t *testing.T) {
+	app := &fakeApplication{err: ErrAdminRequired}
+	router := competitorTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/admin/competitor/script-accounts", nil))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }
 

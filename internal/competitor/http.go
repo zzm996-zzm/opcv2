@@ -23,6 +23,8 @@ type Application interface {
 	StartWatchItemScan(ctx context.Context, userID, id int64) (Scan, error)
 	AddScanCompetitorToWatchlist(ctx context.Context, userID, scanID int64, competitorName string) (WatchItem, error)
 	GetMonitoring(ctx context.Context, userID int64, limit int) (MonitoringSnapshot, error)
+	ListScriptAccounts(ctx context.Context, adminUserID int64, platform string, limit int) ([]ScriptAccount, error)
+	UpsertScriptAccount(ctx context.Context, input ScriptAccountInput) (ScriptAccount, error)
 }
 
 type HTTPHandler struct {
@@ -43,6 +45,51 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.DELETE("/competitor/monitoring/watchlist/:id", h.deleteWatchItem)
 	router.POST("/competitor/monitoring/watchlist/:id/scan", h.startWatchItemScan)
 	router.GET("/competitor/monitoring", h.monitoring)
+	router.GET("/admin/competitor/script-accounts", h.listScriptAccounts)
+	router.POST("/admin/competitor/script-accounts", h.createScriptAccount)
+	router.PUT("/admin/competitor/script-accounts/:id", h.updateScriptAccount)
+}
+
+func (h *HTTPHandler) listScriptAccounts(c *gin.Context) {
+	limit := queryLimit(c)
+	if limit == 0 {
+		return
+	}
+	items, err := h.app.ListScriptAccounts(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), c.Query("platform"), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"script_accounts": httpapi.EnsureSlice(items)})
+}
+
+func (h *HTTPHandler) createScriptAccount(c *gin.Context) {
+	h.upsertScriptAccount(c, 0)
+}
+
+func (h *HTTPHandler) updateScriptAccount(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		httpapi.BadRequest(c, "invalid_script_account")
+		return
+	}
+	h.upsertScriptAccount(c, id)
+}
+
+func (h *HTTPHandler) upsertScriptAccount(c *gin.Context, id int64) {
+	var request ScriptAccountInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.ID = id
+	request.AdminUserID = c.GetInt64(auth.UserIDContextKey)
+	item, err := h.app.UpsertScriptAccount(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
 }
 
 func (h *HTTPHandler) createScan(c *gin.Context) {
@@ -212,6 +259,12 @@ func writeError(c *gin.Context, err error) {
 		httpapi.BadRequest(c, "invalid_watch_item")
 	case errors.Is(err, ErrWatchItemNotFound):
 		httpapi.Error(c, http.StatusNotFound, "watch_item_not_found")
+	case errors.Is(err, ErrAdminRequired):
+		httpapi.Error(c, http.StatusForbidden, "admin_required")
+	case errors.Is(err, ErrInvalidScriptAccount):
+		httpapi.BadRequest(c, "invalid_script_account")
+	case errors.Is(err, ErrScriptAccountNotFound):
+		httpapi.Error(c, http.StatusNotFound, "script_account_not_found")
 	case errors.Is(err, membership.ErrQuotaExceeded):
 		httpapi.Error(c, http.StatusPaymentRequired, "quota_exceeded")
 	case errors.Is(err, membership.ErrQuotaNotFound):
