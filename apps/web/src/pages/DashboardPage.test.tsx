@@ -4,6 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 import { authSession } from "../lib/authSession";
+import { membershipApi } from "../lib/membershipApi";
+
+vi.mock("../lib/membershipApi", async (importActual) => {
+  const actual = await importActual<typeof import("../lib/membershipApi")>();
+  return {
+    ...actual,
+    membershipApi: {
+      ...actual.membershipApi,
+      featureAccess: vi.fn()
+    }
+  };
+});
 
 describe("DashboardPage", () => {
   afterEach(() => {
@@ -28,6 +40,9 @@ describe("DashboardPage", () => {
 
   function renderDashboardRoute() {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "dashboard", label: "仪表盘", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <App />
@@ -42,8 +57,8 @@ describe("DashboardPage", () => {
 
     renderDashboardRoute();
 
+    expect(await screen.findByRole("button", { name: "生成经营周报" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "仪表盘" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "生成经营周报" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "经营指标" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "增长趋势" })).toBeInTheDocument();
     expect(await screen.findByText("暂无经营指标")).toBeInTheDocument();
@@ -87,5 +102,34 @@ describe("DashboardPage", () => {
     expect(await screen.findByText("请求参数有误，请检查后重试")).toBeInTheDocument();
     expect(screen.getByText("暂无经营指标")).toBeInTheDocument();
     expect(screen.queryByText("智能客服系统")).not.toBeInTheDocument();
+  });
+
+  it("shows locked state without loading dashboard summary", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ metrics: [{ label: "本月收入", value: "¥23.4万" }] }), { status: 200 })
+    );
+    signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{
+        key: "dashboard",
+        label: "仪表盘",
+        status: "locked",
+        required_plan: "pro",
+        upgrade_url: "/membership",
+        contact_url: "/enterprise",
+        allow_read_only: false,
+        allow_workflow: false
+      }]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("当前不会读取业务数据，也不会创建任务、客户或分析请求。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看升级方案" })).toHaveAttribute("href", "/membership");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

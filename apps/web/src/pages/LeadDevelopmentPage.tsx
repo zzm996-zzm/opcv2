@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import FeatureLockedPanel from "../components/FeatureLockedPanel";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { crmApi } from "../lib/crmApi";
 import { leadsApi, type LeadResult, type LeadTask, type LeadTaskDetail } from "../lib/leadsApi";
-import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
+import { membershipApi, type FeatureAccess, type MembershipUsageItem } from "../lib/membershipApi";
 import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
 import { CdkTopNav } from "./AnalysisPage";
 
@@ -94,9 +95,33 @@ function LeadDevelopmentPage() {
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState("");
   const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
+  const [featureAccess, setFeatureAccess] = useState<FeatureAccess | null>(null);
+  const [featureAccessError, setFeatureAccessError] = useState("");
   const leadTaskQuota = quotaSummary(usage, quotaKeys.leadTasks, "AI线索任务");
 
   useEffect(() => {
+    let active = true;
+    membershipApi
+      .featureAccess(["ai_lead_development"])
+      .then((payload) => {
+        if (!active) return;
+        setFeatureAccess(payload.features[0] ?? null);
+        setFeatureAccessError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setFeatureAccess(null);
+        setFeatureAccessError(apiErrorMessage(error, "暂时无法读取功能开通状态"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const canUseWorkflow = featureAccess?.allow_workflow === true;
+
+  useEffect(() => {
+    if (!canUseWorkflow) return;
     let active = true;
     async function loadUsage() {
       try {
@@ -136,10 +161,11 @@ function LeadDevelopmentPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [canUseWorkflow]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!canUseWorkflow) return;
     if (!query.trim() || status === "submitting") return;
     if (leadTaskQuota.blocked) {
       setError("本月 AI线索任务额度已用完，请升级套餐或等待下月重置。");
@@ -163,6 +189,32 @@ function LeadDevelopmentPage() {
     } finally {
       setStatus("idle");
     }
+  }
+
+  if (!canUseWorkflow) {
+    return (
+      <main className="cdk-analysis-page cdk-leads-page">
+        <CdkTopNav active="VIP获客" />
+        <section className="cdk-leads-hero" aria-label="AI线索开发">
+          <div className="cdk-crown-art" aria-hidden="true" />
+          <div>
+            <h1>VIP获客</h1>
+            <h2>AI线索开发</h2>
+            <p>基于行业、地域、关键词与客户角色，AI 为你寻找高意向、可触达的精准客户</p>
+          </div>
+        </section>
+        {featureAccessError ? <p className="form-error" role="alert">{featureAccessError}</p> : null}
+        {featureAccess ? (
+          <FeatureLockedPanel
+            description={featureAccess.message}
+            feature={featureAccess}
+            title="AI线索开发当前版本暂未开放真实采集"
+          />
+        ) : (
+          <p className="module-empty-state" role="status">正在读取功能开通状态...</p>
+        )}
+      </main>
+    );
   }
 
   const companies = results.length > 0

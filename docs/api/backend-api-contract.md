@@ -2759,6 +2759,12 @@ keys are:
 Usage is reset monthly at the first day of the next month. Service methods use
 idempotency keys so retried actions do not double-charge quota.
 
+Feature availability is also exposed through a read-only feature-access
+endpoint. The current product-doc-aligned default locks board-three workflows:
+GEO acquisition, AI lead development, Dashboard, and CRM. Locked features are
+visible in navigation/pages but must not trigger business API reads or write
+workflows from the frontend.
+
 ### List Plans
 
 `GET /api/v1/membership/plans`
@@ -2809,6 +2815,47 @@ Response `200`:
   ]
 }
 ```
+
+### Get Feature Access
+
+`GET /api/v1/membership/feature-access?key=crm&key=dashboard`
+
+Protected. `key` is optional and repeatable. When omitted, returns the configured
+feature-access records for all known feature keys.
+
+Current keys:
+
+- `geo_acquisition`
+- `ai_lead_development`
+- `dashboard`
+- `crm`
+
+Response `200`:
+
+```json
+{
+  "features": [
+    {
+      "key": "crm",
+      "label": "CRM客户管理",
+      "status": "locked",
+      "required_plan": "pro",
+      "message": "该模块当前版本仅开放入口展示，真实工作流暂未对外启用。请升级或预约企业顾问确认开通方式。",
+      "cta": "查看升级方案",
+      "upgrade_url": "/membership",
+      "contact_url": "/enterprise",
+      "data_policy": "locked_no_workflow",
+      "allow_read_only": false,
+      "allow_workflow": false
+    }
+  ]
+}
+```
+
+Client rule:
+
+- If `allow_workflow` is `false`, pages must show a locked/upgrade state and
+  must not call the corresponding business APIs or submit workflow writes.
 
 ### List Orders
 

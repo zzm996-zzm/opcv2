@@ -15,6 +15,7 @@ type Application interface {
 	Redeem(ctx context.Context, input RedeemInput) (RedeemResult, error)
 	ListPlans(ctx context.Context) ([]PlanOption, error)
 	CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, error)
+	FeatureAccess(ctx context.Context, userID int64, keys []string) (FeatureAccessResponse, error)
 	ListOrders(ctx context.Context, userID int64, limit int) ([]Order, error)
 	CreateCheckout(ctx context.Context, input CheckoutInput) (CheckoutResult, error)
 }
@@ -31,6 +32,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/membership/me", h.me)
 	router.GET("/membership/plans", h.listPlans)
 	router.GET("/membership/usage", h.usage)
+	router.GET("/membership/feature-access", h.featureAccess)
 	router.GET("/membership/orders", h.listOrders)
 	router.POST("/membership/checkout", h.checkout)
 	router.POST("/redemptions/redeem", h.redeem)
@@ -61,6 +63,15 @@ func (h *HTTPHandler) usage(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"usage": httpapi.EnsureSlice(usage)})
+}
+
+func (h *HTTPHandler) featureAccess(c *gin.Context) {
+	result, err := h.app.FeatureAccess(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), c.QueryArray("key"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *HTTPHandler) listOrders(c *gin.Context) {

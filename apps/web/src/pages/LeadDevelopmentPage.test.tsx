@@ -4,6 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 import { authSession } from "../lib/authSession";
+import { membershipApi } from "../lib/membershipApi";
+
+vi.mock("../lib/membershipApi", async (importActual) => {
+  const actual = await importActual<typeof import("../lib/membershipApi")>();
+  return {
+    ...actual,
+    membershipApi: {
+      ...actual.membershipApi,
+      featureAccess: vi.fn()
+    }
+  };
+});
 
 describe("LeadDevelopmentPage", () => {
   afterEach(() => {
@@ -28,6 +40,9 @@ describe("LeadDevelopmentPage", () => {
 
   function renderLeadRoute() {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "ai_lead_development", label: "AI线索开发", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     render(
       <MemoryRouter initialEntries={["/leads"]}>
         <App />
@@ -54,8 +69,8 @@ describe("LeadDevelopmentPage", () => {
     });
     renderLeadRoute();
 
+    expect(await screen.findByRole("button", { name: "新建线索任务" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "AI线索开发" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新建线索任务" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "高意向线索" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "开发路径" })).toBeInTheDocument();
     expect(await screen.findByText("暂无高意向线索")).toBeInTheDocument();
@@ -309,7 +324,7 @@ describe("LeadDevelopmentPage", () => {
     });
     renderLeadRoute();
 
-    fireEvent.change(screen.getByLabelText("描述目标客户画像"), {
+    fireEvent.change(await screen.findByLabelText("描述目标客户画像"), {
       target: { value: "成都 教培 私域转化" }
     });
     fireEvent.click(screen.getByRole("button", { name: "生成线索池" }));
@@ -335,7 +350,7 @@ describe("LeadDevelopmentPage", () => {
     renderLeadRoute();
 
     expect(await screen.findByText("0/30")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("描述目标客户画像"), {
+    fireEvent.change(await screen.findByLabelText("描述目标客户画像"), {
       target: { value: "成都 教培 私域转化" }
     });
 
@@ -343,5 +358,34 @@ describe("LeadDevelopmentPage", () => {
     expect(submitButton).toBeDisabled();
     expect(screen.getByRole("link", { name: "升级套餐" })).toHaveAttribute("href", "/membership");
     expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/leads/tasks", expect.any(Object));
+  });
+
+  it("shows locked state without loading lead workflows", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ tasks: [] }), { status: 200 })
+    );
+    signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{
+        key: "ai_lead_development",
+        label: "AI线索开发",
+        status: "locked",
+        required_plan: "pro",
+        upgrade_url: "/membership",
+        contact_url: "/enterprise",
+        allow_read_only: false,
+        allow_workflow: false
+      }]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/leads"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("当前不会读取业务数据，也不会创建任务、客户或分析请求。")).toBeInTheDocument();
+    expect(screen.queryByLabelText("描述目标客户画像")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

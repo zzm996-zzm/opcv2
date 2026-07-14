@@ -39,6 +39,20 @@ export type MembershipUsageItem = {
   reset_at?: string;
 };
 
+export type FeatureAccess = {
+  key: string;
+  label: string;
+  status: "available" | "locked" | string;
+  required_plan?: string;
+  message?: string;
+  cta?: string;
+  upgrade_url?: string;
+  contact_url?: string;
+  data_policy?: string;
+  allow_read_only: boolean;
+  allow_workflow: boolean;
+};
+
 export type MembershipOrder = {
   id: number;
   order_no: string;
@@ -78,6 +92,11 @@ export const membershipApi = {
 
   usage() {
     return apiRequest<{ usage: MembershipUsageItem[] }>("/api/v1/membership/usage");
+  },
+
+  featureAccess(keys: string[] = []) {
+    const query = keys.map((key) => `key=${encodeURIComponent(key)}`).join("&");
+    return apiRequest<{ features: FeatureAccess[] }>(`/api/v1/membership/feature-access${query ? `?${query}` : ""}`);
   },
 
   listOrders(limit = 20) {

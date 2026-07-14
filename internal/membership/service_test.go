@@ -247,6 +247,37 @@ func TestServiceListsUsageAndOrdersWithCappedLimit(t *testing.T) {
 	}
 }
 
+func TestServiceReturnsDefaultFeatureAccess(t *testing.T) {
+	service := NewService(newMemoryRepository())
+
+	response, err := service.FeatureAccess(context.Background(), 42, nil)
+
+	if err != nil {
+		t.Fatalf("FeatureAccess() error = %v", err)
+	}
+	if len(response.Features) != 4 {
+		t.Fatalf("features = %+v", response.Features)
+	}
+	for _, feature := range response.Features {
+		if feature.Status != "locked" || feature.AllowWorkflow {
+			t.Fatalf("feature should be locked without workflow: %+v", feature)
+		}
+	}
+}
+
+func TestServiceFiltersFeatureAccessByKey(t *testing.T) {
+	service := NewService(newMemoryRepository())
+
+	response, err := service.FeatureAccess(context.Background(), 42, []string{FeatureCRM})
+
+	if err != nil {
+		t.Fatalf("FeatureAccess() error = %v", err)
+	}
+	if len(response.Features) != 1 || response.Features[0].Key != FeatureCRM {
+		t.Fatalf("features = %+v", response.Features)
+	}
+}
+
 func TestServiceCreatesManualCheckoutOrder(t *testing.T) {
 	repository := newMemoryRepository()
 	repository.plans = []PlanOption{{Code: PlanPro, BillingCycle: "month", PriceCents: 6900}}

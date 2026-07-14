@@ -4,6 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 import { authSession } from "../lib/authSession";
+import { membershipApi } from "../lib/membershipApi";
+
+vi.mock("../lib/membershipApi", async (importActual) => {
+  const actual = await importActual<typeof import("../lib/membershipApi")>();
+  return {
+    ...actual,
+    membershipApi: {
+      ...actual.membershipApi,
+      featureAccess: vi.fn()
+    }
+  };
+});
 
 describe("CrmPage", () => {
   afterEach(() => {
@@ -23,6 +35,9 @@ describe("CrmPage", () => {
         account: "zhangjing",
         status: "active"
       }
+    });
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
     });
   }
 
@@ -50,8 +65,8 @@ describe("CrmPage", () => {
       }), { status: 200 }));
     renderCrmRoute();
 
+    expect(await screen.findByRole("button", { name: "新建客户" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "CRM客户管理" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "新建客户" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "客户列表" })).toBeInTheDocument();
     expect(await screen.findByText("暂无CRM客户")).toBeInTheDocument();
     expect(screen.getByText("暂无客户详情")).toBeInTheDocument();
@@ -652,6 +667,9 @@ describe("CrmPage", () => {
 
   it("renders an empty follow-up list instead of static sample records", async () => {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ follow_ups: [] }), { status: 200 })
     );
@@ -661,7 +679,7 @@ describe("CrmPage", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("heading", { name: "全部跟进" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "全部跟进" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "全部跟进列表" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "跟进提醒" })).toBeInTheDocument();
     expect(await screen.findByText("暂无跟进记录")).toBeInTheDocument();
@@ -672,6 +690,9 @@ describe("CrmPage", () => {
 
   it("loads follow-up records from API", async () => {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
         follow_ups: [{
@@ -691,7 +712,7 @@ describe("CrmPage", () => {
       </MemoryRouter>
     );
 
-    const table = screen.getByRole("table", { name: "全部跟进列表" });
+    const table = await screen.findByRole("table", { name: "全部跟进列表" });
     expect(await within(table).findByText("客户 #100")).toBeInTheDocument();
     expect(within(table).getByText("已发送企业AI运营方案，等待客户确认演示时间")).toBeInTheDocument();
     expect(within(table).getByRole("link", { name: "查看详情" })).toHaveAttribute("href", "/crm?customer_id=100");
@@ -699,6 +720,9 @@ describe("CrmPage", () => {
 
   it("searches follow-up records through the backend API", async () => {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
       if (String(url).includes("/api/v1/crm/customers?")) {
         return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
@@ -757,6 +781,9 @@ describe("CrmPage", () => {
 
   it("filters follow-up records by due window through the backend API", async () => {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
       if (String(url).includes("/api/v1/crm/customers?")) {
         return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
@@ -802,6 +829,9 @@ describe("CrmPage", () => {
 
   it("reschedules a follow-up record from the follow-up list", async () => {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     const nextInputValue = "2026-06-27T15:00";
     const expectedNextAt = new Date(nextInputValue).toISOString();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
@@ -864,6 +894,9 @@ describe("CrmPage", () => {
 
   it("records a new follow-up from the follow-up list", async () => {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     const nextInputValue = "2026-06-28T10:00";
     const expectedNextAt = new Date(nextInputValue).toISOString();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url, init) => {
@@ -929,6 +962,9 @@ describe("CrmPage", () => {
 
   it("filters, paginates, and exports follow-up records", async () => {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     const createObjectURL = vi.fn(() => "blob:crm-followups");
     const revokeObjectURL = vi.fn();
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
@@ -967,7 +1003,7 @@ describe("CrmPage", () => {
       </MemoryRouter>
     );
 
-    const table = screen.getByRole("table", { name: "全部跟进列表" });
+    const table = await screen.findByRole("table", { name: "全部跟进列表" });
     expect((await within(table).findAllByText("跟进记录 1")).length).toBeGreaterThan(0);
     fireEvent.change(screen.getByLabelText("跟进状态筛选"), { target: { value: "pending" } });
     await waitFor(() => expect(within(table).queryByText(/^跟进记录 1$/)).not.toBeInTheDocument());
@@ -984,6 +1020,9 @@ describe("CrmPage", () => {
 
   it("loads follow-up records for a specific customer from query string", async () => {
     signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "crm", label: "CRM客户管理", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
       if (String(url).includes("/api/v1/crm/customers?")) {
         return Promise.resolve(new Response(JSON.stringify({ customers: [] }), { status: 200 }));
@@ -1020,5 +1059,34 @@ describe("CrmPage", () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/crm/follow-ups?customer_id=100&limit=100", expect.any(Object)));
     await waitFor(() => expect(screen.getAllByText("企业交付客户复盘下一步").length).toBeGreaterThan(0));
+  });
+
+  it("shows locked state without loading CRM APIs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ customers: [] }), { status: 200 })
+    );
+    signIn();
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{
+        key: "crm",
+        label: "CRM客户管理",
+        status: "locked",
+        required_plan: "pro",
+        upgrade_url: "/membership",
+        contact_url: "/enterprise",
+        allow_read_only: false,
+        allow_workflow: false
+      }]
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/crm"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("当前不会读取业务数据，也不会创建任务、客户或分析请求。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "新建客户" })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

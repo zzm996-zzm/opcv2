@@ -20,6 +20,10 @@ const (
 	FeatureCopilotMessages     = "copilot_messages"
 	FeatureCopilotCompareCalls = "copilot_compare_calls"
 	FeatureCopilotFileAnalysis = "copilot_file_analysis"
+	FeatureGeoAcquisition      = "geo_acquisition"
+	FeatureAILeadDevelopment   = "ai_lead_development"
+	FeatureDashboard           = "dashboard"
+	FeatureCRM                 = "crm"
 )
 
 var (
@@ -68,6 +72,24 @@ type UsageItem struct {
 	Limit   int        `json:"limit"`
 	Unit    string     `json:"unit"`
 	ResetAt *time.Time `json:"reset_at,omitempty"`
+}
+
+type FeatureAccess struct {
+	Key           string `json:"key"`
+	Label         string `json:"label"`
+	Status        string `json:"status"`
+	RequiredPlan  string `json:"required_plan,omitempty"`
+	Message       string `json:"message,omitempty"`
+	CTA           string `json:"cta,omitempty"`
+	UpgradeURL    string `json:"upgrade_url,omitempty"`
+	ContactURL    string `json:"contact_url,omitempty"`
+	DataPolicy    string `json:"data_policy,omitempty"`
+	AllowReadOnly bool   `json:"allow_read_only"`
+	AllowWorkflow bool   `json:"allow_workflow"`
+}
+
+type FeatureAccessResponse struct {
+	Features []FeatureAccess `json:"features"`
 }
 
 type ConsumeInput struct {
@@ -241,6 +263,26 @@ func (s *Service) CurrentUsage(ctx context.Context, userID int64) ([]UsageItem, 
 	return s.repository.CurrentUsage(ctx, userID, s.now())
 }
 
+func (s *Service) FeatureAccess(ctx context.Context, userID int64, keys []string) (FeatureAccessResponse, error) {
+	if userID <= 0 {
+		return FeatureAccessResponse{}, ErrUserIDRequired
+	}
+	requested := map[string]bool{}
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key != "" {
+			requested[key] = true
+		}
+	}
+	features := []FeatureAccess{}
+	for _, feature := range defaultFeatureAccess() {
+		if len(requested) == 0 || requested[feature.Key] {
+			features = append(features, feature)
+		}
+	}
+	return FeatureAccessResponse{Features: features}, nil
+}
+
 func (s *Service) CheckAndConsume(ctx context.Context, input ConsumeInput) (UsageItem, error) {
 	input, err := normalizeConsumeInput(input)
 	if err != nil {
@@ -313,4 +355,62 @@ func (s *Service) CreateCheckout(ctx context.Context, input CheckoutInput) (Chec
 
 func normalizeCode(code string) string {
 	return strings.ToUpper(strings.TrimSpace(code))
+}
+
+func defaultFeatureAccess() []FeatureAccess {
+	lockedMessage := "该模块当前版本仅开放入口展示，真实工作流暂未对外启用。请升级或预约企业顾问确认开通方式。"
+	return []FeatureAccess{
+		{
+			Key:           FeatureGeoAcquisition,
+			Label:         "GEO获客",
+			Status:        "locked",
+			RequiredPlan:  PlanPro,
+			Message:       lockedMessage,
+			CTA:           "查看升级方案",
+			UpgradeURL:    "/membership",
+			ContactURL:    "/enterprise",
+			DataPolicy:    "locked_no_workflow",
+			AllowReadOnly: false,
+			AllowWorkflow: false,
+		},
+		{
+			Key:           FeatureAILeadDevelopment,
+			Label:         "AI线索开发",
+			Status:        "locked",
+			RequiredPlan:  PlanPro,
+			Message:       lockedMessage,
+			CTA:           "查看升级方案",
+			UpgradeURL:    "/membership",
+			ContactURL:    "/enterprise",
+			DataPolicy:    "locked_no_workflow",
+			AllowReadOnly: false,
+			AllowWorkflow: false,
+		},
+		{
+			Key:           FeatureDashboard,
+			Label:         "仪表盘",
+			Status:        "locked",
+			RequiredPlan:  PlanPro,
+			Message:       lockedMessage,
+			CTA:           "查看升级方案",
+			UpgradeURL:    "/membership",
+			ContactURL:    "/enterprise",
+			DataPolicy:    "locked_no_workflow",
+			AllowReadOnly: false,
+			AllowWorkflow: false,
+		},
+		{
+			Key:           FeatureCRM,
+			Label:         "CRM客户管理",
+			Status:        "locked",
+			RequiredPlan:  PlanPro,
+			Message:       lockedMessage,
+			CTA:           "查看升级方案",
+			UpgradeURL:    "/membership",
+			ContactURL:    "/enterprise",
+			DataPolicy:    "locked_no_workflow",
+			AllowReadOnly: false,
+			AllowWorkflow: false,
+		},
+	}
 }

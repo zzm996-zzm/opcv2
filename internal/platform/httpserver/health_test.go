@@ -130,6 +130,9 @@ func (fakeMembershipApp) ListOrders(context.Context, int64, int) ([]membership.O
 func (fakeMembershipApp) CreateCheckout(context.Context, membership.CheckoutInput) (membership.CheckoutResult, error) {
 	return membership.CheckoutResult{}, nil
 }
+func (fakeMembershipApp) FeatureAccess(context.Context, int64, []string) (membership.FeatureAccessResponse, error) {
+	return membership.FeatureAccessResponse{}, nil
+}
 
 type fakeAccountApp struct{}
 

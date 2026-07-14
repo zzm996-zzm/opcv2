@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
+import FeatureLockedPanel from "../components/FeatureLockedPanel";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { geoApi, type GeoAnalysisRequest, type GeoOverview } from "../lib/geoApi";
+import { membershipApi, type FeatureAccess } from "../lib/membershipApi";
 
 const roadmap = [
   ["1", "锁定问题", "从客户搜索、竞品内容和 AI 回答里提取高意向问题"],
@@ -17,12 +19,36 @@ function GeoAcquisitionPage() {
   const [analysisRequests, setAnalysisRequests] = useState<GeoAnalysisRequest[]>([]);
   const [loadError, setLoadError] = useState("");
   const [requestLoadError, setRequestLoadError] = useState("");
+  const [featureAccess, setFeatureAccess] = useState<FeatureAccess | null>(null);
+  const [featureAccessError, setFeatureAccessError] = useState("");
   const [target, setTarget] = useState("");
   const [submitStatus, setSubmitStatus] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    membershipApi
+      .featureAccess(["geo_acquisition"])
+      .then((payload) => {
+        if (!active) return;
+        setFeatureAccess(payload.features[0] ?? null);
+        setFeatureAccessError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setFeatureAccess(null);
+        setFeatureAccessError(apiErrorMessage(error, "暂时无法读取功能开通状态"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const canUseWorkflow = featureAccess?.allow_workflow === true;
+
+  useEffect(() => {
+    if (!canUseWorkflow) return;
     let active = true;
     geoApi
       .overview()
@@ -51,7 +77,7 @@ function GeoAcquisitionPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [canUseWorkflow]);
 
   const stats = overview?.stats ?? [];
   const engines = overview?.engines ?? [];
@@ -88,6 +114,31 @@ function GeoAcquisitionPage() {
       setSubmitting(false);
     }
   };
+
+  if (!canUseWorkflow) {
+    return (
+      <V4PageShell className="geo-acquisition-shell">
+        <section className="module-page geo-acquisition-page" aria-label="GEO获客">
+          <div className="page-title-row">
+            <div>
+              <h1>GEO获客</h1>
+              <p>围绕 AI 搜索、答案引用和高意向问题建立内容阵地，让客户在提问时更容易看到你</p>
+            </div>
+          </div>
+          {featureAccessError ? <p className="form-error" role="alert">{featureAccessError}</p> : null}
+          {featureAccess ? (
+            <FeatureLockedPanel
+              description={featureAccess.message}
+              feature={featureAccess}
+              title="GEO获客当前版本暂未开放真实分析"
+            />
+          ) : (
+            <p className="module-empty-state" role="status">正在读取功能开通状态...</p>
+          )}
+        </section>
+      </V4PageShell>
+    );
+  }
 
   return (
     <V4PageShell className="geo-acquisition-shell">

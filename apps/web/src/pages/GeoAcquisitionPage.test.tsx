@@ -4,6 +4,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 import { authSession } from "../lib/authSession";
+import { membershipApi } from "../lib/membershipApi";
+
+vi.mock("../lib/membershipApi", async (importActual) => {
+  const actual = await importActual<typeof import("../lib/membershipApi")>();
+  return {
+    ...actual,
+    membershipApi: {
+      ...actual.membershipApi,
+      featureAccess: vi.fn()
+    }
+  };
+});
 
 describe("GeoAcquisitionPage", () => {
   afterEach(() => {
@@ -11,7 +23,14 @@ describe("GeoAcquisitionPage", () => {
     vi.restoreAllMocks();
   });
 
+  function mockGeoAvailable() {
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{ key: "geo_acquisition", label: "GEO获客", status: "available", allow_read_only: true, allow_workflow: true }]
+    });
+  }
+
   it("renders backend-connected GEO empty states", async () => {
+    mockGeoAvailable();
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({
         stats: [],
@@ -40,8 +59,8 @@ describe("GeoAcquisitionPage", () => {
       </MemoryRouter>
     );
 
+    expect(await screen.findByRole("button", { name: "生成GEO方案" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "GEO获客" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "生成GEO方案" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "AI 搜索覆盖" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "内容阵地任务" })).toBeInTheDocument();
     expect(screen.getByText("暂无GEO概览数据，提交一次分析请求后将逐步沉淀覆盖、关键词和内容任务。")).toBeInTheDocument();
@@ -60,6 +79,7 @@ describe("GeoAcquisitionPage", () => {
   });
 
   it("focuses the GEO target input from the primary action", async () => {
+    mockGeoAvailable();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({
         stats: [],
@@ -82,13 +102,14 @@ describe("GeoAcquisitionPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "生成GEO方案" }));
+    fireEvent.click(await screen.findByRole("button", { name: "生成GEO方案" }));
 
     expect(screen.getByLabelText("输入GEO获客目标")).toHaveFocus();
     expect(await screen.findByText("暂无 GEO 分析请求")).toBeInTheDocument();
   });
 
   it("renders GEO overview records from the backend API", async () => {
+    mockGeoAvailable();
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({
         stats: [{ key: "coverage", label: "AI引用覆盖", value: "12%" }],
@@ -142,6 +163,7 @@ describe("GeoAcquisitionPage", () => {
   });
 
   it("submits a GEO analysis request without rendering generated mock results", async () => {
+    mockGeoAvailable();
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({
         stats: [],
@@ -172,7 +194,7 @@ describe("GeoAcquisitionPage", () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByLabelText("输入GEO获客目标"), {
+    fireEvent.change(await screen.findByLabelText("输入GEO获客目标"), {
       target: { value: "面向制造业的 AI 质检工具" }
     });
     fireEvent.click(screen.getByRole("button", { name: "分析 AI 搜索机会" }));
@@ -184,5 +206,39 @@ describe("GeoAcquisitionPage", () => {
     expect(await screen.findByText("GEO 分析请求已提交")).toBeInTheDocument();
     expect(screen.getByText("面向制造业的 AI 质检工具")).toBeInTheDocument();
     expect(screen.queryByText("智能客服系统怎么选")).not.toBeInTheDocument();
+  });
+
+  it("shows locked state without loading GEO business APIs", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ stats: [] }), { status: 200 })
+    );
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{
+        key: "geo_acquisition",
+        label: "GEO获客",
+        status: "locked",
+        required_plan: "pro",
+        upgrade_url: "/membership",
+        contact_url: "/enterprise",
+        allow_read_only: false,
+        allow_workflow: false
+      }]
+    });
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-23T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张婧", phone: "", account: "zhangjing", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/geo"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("当前不会读取业务数据，也不会创建任务、客户或分析请求。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "分析 AI 搜索机会" })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

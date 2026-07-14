@@ -12,16 +12,18 @@ import (
 )
 
 type fakeApplication struct {
-	snapshot Snapshot
-	result   RedeemResult
-	plans    []PlanOption
-	usage    []UsageItem
-	orders   []Order
-	checkout CheckoutResult
-	input    CheckoutInput
-	userID   int64
-	limit    int
-	err      error
+	snapshot      Snapshot
+	result        RedeemResult
+	plans         []PlanOption
+	usage         []UsageItem
+	featureAccess FeatureAccessResponse
+	featureKeys   []string
+	orders        []Order
+	checkout      CheckoutResult
+	input         CheckoutInput
+	userID        int64
+	limit         int
+	err           error
 }
 
 func (a *fakeApplication) CurrentSnapshot(_ context.Context, _ int64) (Snapshot, error) {
@@ -39,6 +41,12 @@ func (a *fakeApplication) ListPlans(context.Context) ([]PlanOption, error) {
 func (a *fakeApplication) CurrentUsage(_ context.Context, userID int64) ([]UsageItem, error) {
 	a.userID = userID
 	return a.usage, a.err
+}
+
+func (a *fakeApplication) FeatureAccess(_ context.Context, userID int64, keys []string) (FeatureAccessResponse, error) {
+	a.userID = userID
+	a.featureKeys = keys
+	return a.featureAccess, a.err
 }
 
 func (a *fakeApplication) ListOrders(_ context.Context, userID int64, limit int) ([]Order, error) {
@@ -138,6 +146,29 @@ func TestUsageAndOrdersEndpointsUseAuthenticatedUser(t *testing.T) {
 	router.ServeHTTP(ordersRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/membership/orders?limit=500", nil))
 	if ordersRecorder.Code != http.StatusOK || app.limit != 100 {
 		t.Fatalf("orders status/limit/body = %d/%d/%s", ordersRecorder.Code, app.limit, ordersRecorder.Body.String())
+	}
+}
+
+func TestFeatureAccessEndpointUsesAuthenticatedUserAndKeys(t *testing.T) {
+	app := &fakeApplication{featureAccess: FeatureAccessResponse{Features: []FeatureAccess{{
+		Key:           FeatureCRM,
+		Label:         "CRM客户管理",
+		Status:        "locked",
+		AllowWorkflow: false,
+	}}}}
+	router := testRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/membership/feature-access?key=crm", nil))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.userID != 42 || len(app.featureKeys) != 1 || app.featureKeys[0] != "crm" {
+		t.Fatalf("user/keys = %d/%+v", app.userID, app.featureKeys)
+	}
+	if !strings.Contains(recorder.Body.String(), `"status":"locked"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }
 

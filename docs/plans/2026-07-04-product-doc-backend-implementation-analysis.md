@@ -503,10 +503,16 @@ Remaining Copilot depth is optional follow-up work rather than a release blocker
 
 The product doc says GEO, AI leads, dashboard, CRM are visible but not actually usable in this version, while enterprise consulting is real.
 
-The current backend already has real-looking `geo`, `leads`, `dashboard`, and `crm` APIs. Decide product direction:
+The current backend already has real-looking `geo`, `leads`, `dashboard`, and `crm` APIs. The release direction now follows the doc strictly:
 
-- If following the doc strictly, UI actions in these four pages should call a paywall/upgrade config endpoint and not execute real workflows.
-- If keeping the implemented backend, mark any seeded/demo data clearly and avoid fake production claims.
+- `GET /api/v1/membership/feature-access` returns feature-access/paywall state.
+- GEO, AI lead development, dashboard, and CRM default to `status = locked`,
+  `allow_read_only = false`, `allow_workflow = false`, and
+  `data_policy = locked_no_workflow`.
+- The four frontend pages read feature access before loading domain data. Locked
+  pages show upgrade/enterprise-consulting actions and do not call business APIs
+  or create analysis requests, lead tasks, dashboard summaries, customers, or
+  follow-up workflows.
 
 For enterprise, current `/enterprise/overview` should be expanded toward the doc:
 
@@ -616,6 +622,21 @@ Known boundary: the backend endpoints are public, but the current frontend
 product wants a fully anonymous enterprise landing page, move this route out of
 `RequireAuth` in a separate frontend routing pass.
 
-The next large module should be **board-three locked page/paywall cleanup**:
-decide whether GEO, AI leads, dashboard, and CRM remain real logged-in workflows
-or become product-doc-aligned locked pages with upgrade/paywall configuration.
+**Completed on 2026-07-14:** board-three locked page/paywall cleanup.
+
+Delivered scope:
+
+1. Added membership feature-access records for GEO acquisition, AI lead
+   development, Dashboard, and CRM, all locked by default for this release.
+2. Added `GET /api/v1/membership/feature-access` with optional repeated `key`
+   filtering.
+3. Connected GEO, AI leads, Dashboard, and CRM frontend pages to feature access.
+   When locked, these pages render a shared upgrade/enterprise-consulting panel
+   and skip domain API reads and workflow writes.
+4. Added focused backend and frontend tests for default locked configuration,
+   key filtering, endpoint wiring, and locked-page behavior.
+
+The next large module should be selected from the remaining warnings: profile
+schema/context reuse, growth AI clarification/saved snapshots, task AI
+generation/source links, payment callback/subscription activation, or public
+enterprise route exposure outside the authenticated app shell.

@@ -82,4 +82,17 @@ describe("membershipApi", () => {
       })
     );
   });
+
+  it("loads feature access for selected keys", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        features: [{ key: "crm", label: "CRM客户管理", status: "locked", allow_read_only: false, allow_workflow: false }]
+      }), { status: 200 })
+    );
+
+    const response = await membershipApi.featureAccess(["crm", "dashboard"]);
+
+    expect(response.features[0].status).toBe("locked");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/membership/feature-access?key=crm&key=dashboard", expect.any(Object));
+  });
 });

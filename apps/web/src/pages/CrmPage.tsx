@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 
+import FeatureLockedPanel from "../components/FeatureLockedPanel";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { crmApi, type CrmActivity, type CrmCustomer, type CrmFollowUp, type CrmPipelineStats, type CrmStage } from "../lib/crmApi";
+import { membershipApi, type FeatureAccess } from "../lib/membershipApi";
 import { CdkTopNav } from "./AnalysisPage";
 
 type CrmPageProps = {
@@ -150,6 +152,8 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   const [activities, setActivities] = useState<CrmActivity[]>([]);
   const [stats, setStats] = useState<CrmPipelineStats | null>(null);
   const [error, setError] = useState("");
+  const [featureAccess, setFeatureAccess] = useState<FeatureAccess | null>(null);
+  const [featureAccessError, setFeatureAccessError] = useState("");
   const [sourceFilter, setSourceFilter] = useState<CustomerSourceFilter>("all");
   const [stageFilter, setStageFilter] = useState<CustomerStageFilter>("all");
   const [customerQuery, setCustomerQuery] = useState("");
@@ -192,6 +196,28 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
 
   useEffect(() => {
     let active = true;
+    membershipApi
+      .featureAccess(["crm"])
+      .then((payload) => {
+        if (!active) return;
+        setFeatureAccess(payload.features[0] ?? null);
+        setFeatureAccessError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setFeatureAccess(null);
+        setFeatureAccessError(apiErrorMessage(error, "暂时无法读取功能开通状态"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const canUseWorkflow = featureAccess?.allow_workflow === true;
+
+  useEffect(() => {
+    if (!canUseWorkflow) return;
+    let active = true;
     setError("");
     const customersRequest = requestedCustomerID > 0
       ? crmApi.getCustomer(requestedCustomerID).then((customer) => ({ customers: [customer] }))
@@ -214,9 +240,10 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     return () => {
       active = false;
     };
-  }, [sourceFilter, stageFilter, customerQuery, requestedCustomerID]);
+  }, [sourceFilter, stageFilter, customerQuery, requestedCustomerID, canUseWorkflow]);
 
   useEffect(() => {
+    if (!canUseWorkflow) return;
     const customer = apiCustomers[0];
     if (!customer) {
       setActivities([]);
@@ -234,7 +261,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     return () => {
       active = false;
     };
-  }, [apiCustomers]);
+  }, [apiCustomers, canUseWorkflow]);
 
   const visibleCustomers = apiCustomers.map(toCustomerCard);
   const visibleStats = toStatCards(stats);
@@ -263,11 +290,36 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     setFollowUpError("");
   }, [selectedApiCustomer?.id]);
 
+  if (!canUseWorkflow) {
+    return (
+      <main className="cdk-crm-page">
+        <CdkTopNav />
+        <section className="crm-hero" aria-label="CRM客户管理">
+          <div>
+            <h1>CRM客户管理</h1>
+            <p>统一管理客户、跟进、商机阶段和成交复盘</p>
+          </div>
+        </section>
+        {featureAccessError ? <p className="form-error" role="alert">{featureAccessError}</p> : null}
+        {featureAccess ? (
+          <FeatureLockedPanel
+            description={featureAccess.message}
+            feature={featureAccess}
+            title="CRM客户管理当前版本暂未开放真实工作流"
+          />
+        ) : (
+          <p className="module-empty-state" role="status">正在读取功能开通状态...</p>
+        )}
+      </main>
+    );
+  }
+
   if (variant === "followUps") {
     return <FollowUpsPage />;
   }
 
   const recordSelectedFollowUp = async () => {
+    if (!canUseWorkflow) return;
     if (!selectedApiCustomer) return;
     const normalizedNote = followUpNote.trim();
     if (!normalizedNote) {
@@ -297,6 +349,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   };
 
   const generateSelectedFollowUpCopy = async () => {
+    if (!canUseWorkflow) return;
     if (!selectedApiCustomer) return;
     const normalizedGoal = followUpGoal.trim();
     if (!normalizedGoal) {

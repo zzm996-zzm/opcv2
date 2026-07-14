@@ -1,15 +1,41 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import FeatureLockedPanel from "../components/FeatureLockedPanel";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { dashboardApi, type DashboardSummary } from "../lib/dashboardApi";
+import { membershipApi, type FeatureAccess } from "../lib/membershipApi";
 
 function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [featureAccess, setFeatureAccess] = useState<FeatureAccess | null>(null);
+  const [featureAccessError, setFeatureAccessError] = useState("");
 
   useEffect(() => {
+    let active = true;
+    membershipApi
+      .featureAccess(["dashboard"])
+      .then((payload) => {
+        if (!active) return;
+        setFeatureAccess(payload.features[0] ?? null);
+        setFeatureAccessError("");
+      })
+      .catch((error) => {
+        if (!active) return;
+        setFeatureAccess(null);
+        setFeatureAccessError(apiErrorMessage(error, "暂时无法读取功能开通状态"));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const canUseWorkflow = featureAccess?.allow_workflow === true;
+
+  useEffect(() => {
+    if (!canUseWorkflow) return;
     let active = true;
     dashboardApi
       .getSummary()
@@ -26,7 +52,7 @@ function DashboardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [canUseWorkflow]);
 
   const visibleMetrics = summary?.metrics.map((item) => [item.label, item.value, item.change] as const) ?? [];
   const visibleProjects = summary?.projects.map((item) => [item.name, item.value, item.leads, item.stage] as const) ?? [];
@@ -34,6 +60,31 @@ function DashboardPage() {
   const visiblePipeline = summary?.pipeline.map((item) => [item.stage, item.count, item.percent] as const) ?? [];
   const visibleAlerts = summary?.alerts.map((item) => [item.title, item.detail] as const) ?? [];
   const visibleTasks = summary?.actions.map((item) => [item.time, item.title] as const) ?? [];
+
+  if (!canUseWorkflow) {
+    return (
+      <V4PageShell className="dashboard-shell">
+        <section className="module-page dashboard-page" aria-label="仪表盘">
+          <div className="page-title-row">
+            <div>
+              <h1>仪表盘</h1>
+              <p>汇总项目收入、线索、任务、CRM 和预警，帮你判断今天该优先推进什么</p>
+            </div>
+          </div>
+          {featureAccessError ? <p className="form-error" role="alert">{featureAccessError}</p> : null}
+          {featureAccess ? (
+            <FeatureLockedPanel
+              description={featureAccess.message}
+              feature={featureAccess}
+              title="仪表盘当前版本暂未开放真实经营数据"
+            />
+          ) : (
+            <p className="module-empty-state" role="status">正在读取功能开通状态...</p>
+          )}
+        </section>
+      </V4PageShell>
+    );
+  }
 
   return (
     <V4PageShell className="dashboard-shell">
