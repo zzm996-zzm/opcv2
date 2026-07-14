@@ -49,6 +49,24 @@ const sourceLabels: Record<string, string> = {
   manual: "手工录入"
 };
 
+const crmLockedHighlights = [
+  { label: "客户资产", value: "统一客户池", detail: "线索、企业咨询和手动客户最终沉淀到一个视图" },
+  { label: "跟进节奏", value: "提醒/话术", detail: "开放后记录每次沟通并生成下一步动作" },
+  { label: "数据边界", value: "未写入", detail: "当前版本不会读取客户或创建跟进记录" }
+];
+
+const crmLockedWorkflow = [
+  { step: "01", title: "沉淀客户资料", detail: "把来源、联系人、阶段、预算和证据整理到统一客户档案。" },
+  { step: "02", title: "推进销售阶段", detail: "按新线索、需求确认、方案演示、成交复盘管理管道。" },
+  { step: "03", title: "生成跟进动作", detail: "开放后根据客户上下文生成话术、提醒和复盘记录。" }
+];
+
+const crmLockedPreview = [
+  { tag: "Customer 360", title: "客户完整视图", detail: "把联系方式、来源、阶段和历史活动放到同一个页面。" },
+  { tag: "Pipeline", title: "销售阶段看板", detail: "看清每个客户卡在哪一步以及下一步该做什么。" },
+  { tag: "Follow-up AI", title: "AI 跟进话术", detail: "开放后根据目标和上下文生成更具体的沟通内容。" }
+];
+
 function toCustomerCard(customer: CrmCustomer): CustomerCard {
   const nextDate = customer.next_follow_up_at
     ? new Date(customer.next_follow_up_at).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
@@ -303,9 +321,13 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
         {featureAccessError ? <p className="form-error" role="alert">{featureAccessError}</p> : null}
         {featureAccess ? (
           <FeatureLockedPanel
+            accent="客户中台预览"
             description={featureAccess.message}
             feature={featureAccess}
+            highlights={crmLockedHighlights}
+            preview={crmLockedPreview}
             title="CRM客户管理当前版本暂未开放真实工作流"
+            workflow={crmLockedWorkflow}
           />
         ) : (
           <p className="module-empty-state" role="status">正在读取功能开通状态...</p>
