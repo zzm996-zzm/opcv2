@@ -13,24 +13,6 @@ const roadmap = [
   ["4", "承接线索", "把高意向访问导入诊断表单、CRM 和跟进任务"]
 ] as const;
 
-const geoLockedHighlights = [
-  { label: "覆盖入口", value: "AI 搜索", detail: "围绕问答引用、品牌露出和竞品缺口设计" },
-  { label: "内容资产", value: "4类页面", detail: "选型、对比、案例、FAQ 形成可引用矩阵" },
-  { label: "数据边界", value: "未启用", detail: "当前版本不采集真实关键词和线索" }
-];
-
-const geoLockedWorkflow = [
-  { step: "01", title: "识别高意向问题", detail: "从客户会问的问题出发，定位最容易产生购买意图的 AI 搜索场景。" },
-  { step: "02", title: "补齐可信内容", detail: "把案例、价格、能力边界和证据源整理成更容易被 AI 引用的结构。" },
-  { step: "03", title: "承接访问线索", detail: "开放后再把高意向访问导入诊断表单、任务和 CRM 跟进。" }
-];
-
-const geoLockedPreview = [
-  { tag: "Answer Engine", title: "AI 答案覆盖雷达", detail: "查看品牌是否出现在 ChatGPT、Perplexity 等 AI 答案场景中。" },
-  { tag: "Content Map", title: "内容缺口地图", detail: "按问题意图拆出该补案例页、对比页还是 FAQ。" },
-  { tag: "Lead Intent", title: "高意向问题池", detail: "把提问里的预算、场景和采购时机提炼成线索信号。" }
-];
-
 function GeoAcquisitionPage() {
   const geoTargetRef = useRef<HTMLTextAreaElement | null>(null);
   const [overview, setOverview] = useState<GeoOverview | null>(null);
@@ -134,32 +116,8 @@ function GeoAcquisitionPage() {
   };
 
   if (!canUseWorkflow) {
-    return (
-      <V4PageShell className="geo-acquisition-shell">
-        <section className="module-page geo-acquisition-page" aria-label="GEO获客">
-          <div className="page-title-row">
-            <div>
-              <h1>GEO获客</h1>
-              <p>围绕 AI 搜索、答案引用和高意向问题建立内容阵地，让客户在提问时更容易看到你</p>
-            </div>
-          </div>
-          {featureAccessError ? <p className="form-error" role="alert">{featureAccessError}</p> : null}
-          {featureAccess ? (
-            <FeatureLockedPanel
-              accent="GEO 能力预览"
-              description={featureAccess.message}
-              feature={featureAccess}
-              highlights={geoLockedHighlights}
-              preview={geoLockedPreview}
-              title="GEO获客当前版本暂未开放真实分析"
-              workflow={geoLockedWorkflow}
-            />
-          ) : (
-            <p className="module-empty-state" role="status">正在读取功能开通状态...</p>
-          )}
-        </section>
-      </V4PageShell>
-    );
+    if (featureAccess) return <FeatureLockedPanel feature={featureAccess} variant="geo" />;
+    return <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>;
   }
 
   return (

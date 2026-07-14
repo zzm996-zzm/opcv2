@@ -7,24 +7,6 @@ import { apiErrorMessage } from "../lib/apiErrors";
 import { dashboardApi, type DashboardSummary } from "../lib/dashboardApi";
 import { membershipApi, type FeatureAccess } from "../lib/membershipApi";
 
-const dashboardLockedHighlights = [
-  { label: "经营视图", value: "统一口径", detail: "收入、线索、任务、CRM 指标集中呈现" },
-  { label: "决策节奏", value: "周报", detail: "开放后生成经营复盘和优先动作建议" },
-  { label: "数据边界", value: "未读取", detail: "当前版本不会拉取真实经营数据" }
-];
-
-const dashboardLockedWorkflow = [
-  { step: "01", title: "汇总核心指标", detail: "把项目、线索、客户、任务聚合为统一经营视图。" },
-  { step: "02", title: "识别异常和机会", detail: "发现漏斗断点、跟进延迟、增长异常和待处理预警。" },
-  { step: "03", title: "生成经营周报", detail: "输出本周结论、风险、动作清单和负责人。" }
-];
-
-const dashboardLockedPreview = [
-  { tag: "Metric Wall", title: "关键指标墙", detail: "用同一口径呈现收入、转化、线索和交付效率。" },
-  { tag: "Alert Center", title: "经营预警", detail: "把需要今天处理的风险从列表里推出来。" },
-  { tag: "Weekly Brief", title: "AI 经营周报", detail: "开放后基于真实数据生成复盘和下一步建议。" }
-];
-
 function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -80,32 +62,8 @@ function DashboardPage() {
   const visibleTasks = summary?.actions.map((item) => [item.time, item.title] as const) ?? [];
 
   if (!canUseWorkflow) {
-    return (
-      <V4PageShell className="dashboard-shell">
-        <section className="module-page dashboard-page" aria-label="仪表盘">
-          <div className="page-title-row">
-            <div>
-              <h1>仪表盘</h1>
-              <p>汇总项目收入、线索、任务、CRM 和预警，帮你判断今天该优先推进什么</p>
-            </div>
-          </div>
-          {featureAccessError ? <p className="form-error" role="alert">{featureAccessError}</p> : null}
-          {featureAccess ? (
-            <FeatureLockedPanel
-              accent="经营中枢预览"
-              description={featureAccess.message}
-              feature={featureAccess}
-              highlights={dashboardLockedHighlights}
-              preview={dashboardLockedPreview}
-              title="仪表盘当前版本暂未开放真实经营数据"
-              workflow={dashboardLockedWorkflow}
-            />
-          ) : (
-            <p className="module-empty-state" role="status">正在读取功能开通状态...</p>
-          )}
-        </section>
-      </V4PageShell>
-    );
+    if (featureAccess) return <FeatureLockedPanel feature={featureAccess} variant="dashboard" />;
+    return <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>;
   }
 
   return (

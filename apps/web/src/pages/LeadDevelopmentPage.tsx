@@ -40,24 +40,6 @@ const scoringRules = [
   ["成交价值", "客单价、复购潜力和交付复杂度综合判断"]
 ] as const;
 
-const leadLockedHighlights = [
-  { label: "目标画像", value: "行业×区域", detail: "从业务场景生成更窄、更可触达的客户池" },
-  { label: "意图评分", value: "AI 排序", detail: "开放后按匹配度、时机和触达质量排序" },
-  { label: "数据边界", value: "未采集", detail: "当前版本不会创建线索任务或导入 CRM" }
-];
-
-const leadLockedWorkflow = [
-  { step: "01", title: "输入目标客户画像", detail: "用行业、地域、公司规模、触发事件描述想找的人群。" },
-  { step: "02", title: "采集公开信号", detail: "开放后从企业资料、官网、招聘、内容动态中提取购买意图。" },
-  { step: "03", title: "进入 CRM 跟进", detail: "线索通过确认后再生成客户、话术和下一步提醒。" }
-];
-
-const leadLockedPreview = [
-  { tag: "ICP Builder", title: "客户画像收窄", detail: "把宽泛目标拆成可执行的企业筛选条件。" },
-  { tag: "Signal Rank", title: "购买信号评分", detail: "区分只是匹配的企业和近期更可能采购的企业。" },
-  { tag: "CRM Handoff", title: "跟进交接", detail: "开放后支持把确认线索带证据导入 CRM。" }
-];
-
 const statusLabels: Record<LeadTask["status"], string> = {
   queued: "排队中",
   running: "采集中",
@@ -210,33 +192,8 @@ function LeadDevelopmentPage() {
   }
 
   if (!canUseWorkflow) {
-    return (
-      <main className="cdk-analysis-page cdk-leads-page">
-        <CdkTopNav active="VIP获客" />
-        <section className="cdk-leads-hero" aria-label="AI线索开发">
-          <div className="cdk-crown-art" aria-hidden="true" />
-          <div>
-            <h1>VIP获客</h1>
-            <h2>AI线索开发</h2>
-            <p>基于行业、地域、关键词与客户角色，AI 为你寻找高意向、可触达的精准客户</p>
-          </div>
-        </section>
-        {featureAccessError ? <p className="form-error" role="alert">{featureAccessError}</p> : null}
-        {featureAccess ? (
-          <FeatureLockedPanel
-            accent="线索能力预览"
-            description={featureAccess.message}
-            feature={featureAccess}
-            highlights={leadLockedHighlights}
-            preview={leadLockedPreview}
-            title="AI线索开发当前版本暂未开放真实采集"
-            workflow={leadLockedWorkflow}
-          />
-        ) : (
-          <p className="module-empty-state" role="status">正在读取功能开通状态...</p>
-        )}
-      </main>
-    );
+    if (featureAccess) return <FeatureLockedPanel feature={featureAccess} variant="leads" />;
+    return <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>;
   }
 
   const companies = results.length > 0
