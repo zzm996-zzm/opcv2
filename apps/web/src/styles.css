@@ -109,6 +109,11 @@ a {
   }
 }
 
+.route-motion-frame {
+  min-height: 100vh;
+  animation: page-rise-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 .v4-page-main,
 .cdk-analysis-page,
 .project-market-page,
@@ -121,6 +126,71 @@ a {
 .toolhub-page,
 .board3-main {
   animation: page-rise-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.v4-page-main > *,
+.cdk-analysis-page > section,
+.project-market-main > *,
+.module-page > *,
+.sandbox-page > *,
+.learning-page > *,
+.community-page > *,
+.insights-page > *,
+.toolhub-page > *,
+.board3-main > * {
+  animation: panel-pop-in 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.v4-page-main > :nth-child(1),
+.cdk-analysis-page > section:nth-of-type(1),
+.project-market-main > :nth-child(1),
+.module-page > :nth-child(1),
+.sandbox-page > :nth-child(1),
+.learning-page > :nth-child(1),
+.community-page > :nth-child(1),
+.insights-page > :nth-child(1),
+.toolhub-page > :nth-child(1),
+.board3-main > :nth-child(1) {
+  animation-delay: 40ms;
+}
+
+.v4-page-main > :nth-child(2),
+.cdk-analysis-page > section:nth-of-type(2),
+.project-market-main > :nth-child(2),
+.module-page > :nth-child(2),
+.sandbox-page > :nth-child(2),
+.learning-page > :nth-child(2),
+.community-page > :nth-child(2),
+.insights-page > :nth-child(2),
+.toolhub-page > :nth-child(2),
+.board3-main > :nth-child(2) {
+  animation-delay: 90ms;
+}
+
+.v4-page-main > :nth-child(3),
+.cdk-analysis-page > section:nth-of-type(3),
+.project-market-main > :nth-child(3),
+.module-page > :nth-child(3),
+.sandbox-page > :nth-child(3),
+.learning-page > :nth-child(3),
+.community-page > :nth-child(3),
+.insights-page > :nth-child(3),
+.toolhub-page > :nth-child(3),
+.board3-main > :nth-child(3) {
+  animation-delay: 140ms;
+}
+
+.v4-page-main > :nth-child(n + 4),
+.cdk-analysis-page > section:nth-of-type(n + 4),
+.project-market-main > :nth-child(n + 4),
+.module-page > :nth-child(n + 4),
+.sandbox-page > :nth-child(n + 4),
+.learning-page > :nth-child(n + 4),
+.community-page > :nth-child(n + 4),
+.insights-page > :nth-child(n + 4),
+.toolhub-page > :nth-child(n + 4),
+.board3-main > :nth-child(n + 4) {
+  animation-delay: 180ms;
 }
 
 .ui-modal-scrim,
@@ -222,6 +292,89 @@ a:active {
 .board3-art-geo:hover i,
 .board3-art-dashboard:hover i {
   transform: translateY(-4px);
+}
+
+.v4-topnav a,
+.board3-topbar nav a,
+.cdk-topbar nav a {
+  position: relative;
+}
+
+.v4-topnav a::before,
+.board3-topbar nav a::before,
+.cdk-topbar nav a::before {
+  position: absolute;
+  right: 50%;
+  bottom: -7px;
+  left: 50%;
+  height: 2px;
+  content: "";
+  background: linear-gradient(90deg, #1557ff, #19d5ff, #7b58ff);
+  border-radius: 999px;
+  opacity: 0;
+  transition: left 180ms ease, right 180ms ease, opacity 180ms ease;
+}
+
+.v4-topnav a:hover::before,
+.v4-topnav a.active::before,
+.board3-topbar nav a:hover::before,
+.board3-topbar nav a.active::before,
+.cdk-topbar nav a:hover::before,
+.cdk-topbar nav a.active::before {
+  right: 10%;
+  left: 10%;
+  opacity: 1;
+}
+
+.module-hero-card,
+.module-overview-card,
+.module-filter-card,
+.module-list-card,
+.pm-core-card,
+.pm-opportunity-grid article,
+.board3-card-row article,
+.board3-source-row article,
+.board3-flow article,
+.board3-stats article,
+.board3-metric-preview article {
+  position: relative;
+  overflow: hidden;
+}
+
+.module-hero-card::before,
+.module-overview-card::before,
+.module-filter-card::before,
+.module-list-card::before,
+.pm-core-card::before,
+.pm-opportunity-grid article::before,
+.board3-card-row article::before,
+.board3-source-row article::before,
+.board3-flow article::before,
+.board3-stats article::before,
+.board3-metric-preview article::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(115deg, transparent 0%, rgba(255, 255, 255, 0.38) 46%, transparent 64%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-36%);
+  transition: opacity 220ms ease, transform 520ms ease;
+}
+
+.module-hero-card:hover::before,
+.module-overview-card:hover::before,
+.module-filter-card:hover::before,
+.module-list-card:hover::before,
+.pm-core-card:hover::before,
+.pm-opportunity-grid article:hover::before,
+.board3-card-row article:hover::before,
+.board3-source-row article:hover::before,
+.board3-flow article:hover::before,
+.board3-stats article:hover::before,
+.board3-metric-preview article:hover::before {
+  opacity: 1;
+  transform: translateX(36%);
 }
 
 @media (prefers-reduced-motion: reduce) {

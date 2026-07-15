@@ -46,6 +46,8 @@ import TasksPage from "./pages/TasksPage";
 import ToolsPage from "./pages/ToolsPage";
 
 function App() {
+  const location = useLocation();
+
   useEffect(() => {
     const session = authSession.get();
     if (session.accessToken || session.ready) return;
@@ -85,7 +87,8 @@ function App() {
   }, []);
 
   return (
-    <Routes>
+    <div className="route-motion-frame" key={location.pathname + location.search}>
+      <Routes location={location}>
       <Route element={<HomePage />} path="/" />
       <Route
         element={
@@ -803,7 +806,8 @@ function App() {
         }
         path="/help"
       />
-    </Routes>
+      </Routes>
+    </div>
   );
 }
 

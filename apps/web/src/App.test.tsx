@@ -3,12 +3,39 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authSession } from "./lib/authSession";
+import { membershipApi } from "./lib/membershipApi";
 import App from "./App";
+
+vi.mock("./lib/membershipApi", async (importActual) => {
+  const actual = await importActual<typeof import("./lib/membershipApi")>();
+  return {
+    ...actual,
+    membershipApi: {
+      ...actual.membershipApi,
+      featureAccess: vi.fn()
+    }
+  };
+});
 
 describe("App", () => {
   afterEach(() => {
+    authSession.clear();
     vi.restoreAllMocks();
   });
+
+  function mockLockedLeadFeature() {
+    vi.mocked(membershipApi.featureAccess).mockResolvedValue({
+      features: [{
+        key: "ai_lead_development",
+        label: "AI线索开发",
+        status: "locked",
+        required_plan: "pro",
+        message: "该模块当前版本仅开放入口展示，真实工作流暂未对外启用。",
+        allow_read_only: false,
+        allow_workflow: false
+      }]
+    });
+  }
 
   it("renders the OPC product shell", () => {
     render(
@@ -42,7 +69,8 @@ describe("App", () => {
     );
   });
 
-  it("renders a product route for a signed-in user", () => {
+  it("renders a product route for a signed-in user", async () => {
+    mockLockedLeadFeature();
     authSession.set({
       access_token: "access-token",
       access_token_expires_at: "2026-06-11T12:00:00Z",
@@ -61,10 +89,11 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("heading", { name: "AI线索开发" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "AI线索开发" })).toBeInTheDocument();
   });
 
-  it("renders the CDK top navigation on reference pages", () => {
+  it("renders the locked board-three navigation on visible but unavailable growth pages", async () => {
+    mockLockedLeadFeature();
     authSession.set({
       access_token: "access-token",
       access_token_expires_at: "2026-06-11T12:00:00Z",
@@ -83,9 +112,10 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("navigation", { name: "CDK 顶部导航" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "VIP获客" })).toHaveClass("active");
-    expect(screen.getByRole("link", { name: "会员计划" })).toHaveAttribute("href", "/membership");
+    expect(await screen.findByRole("navigation", { name: "顶部全局功能区" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "板块三导航" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "智活 Copilot" })).toHaveAttribute("href", "/copilot");
+    expect(screen.getByRole("link", { name: "GEO获客" })).toHaveAttribute("href", "/geo");
   });
 
   it("renders first-class V4 account routes for a signed-in user", () => {
