@@ -24,6 +24,13 @@ type PreviewTable = {
   rows: string[][];
 };
 
+type NavItem = {
+  label: string;
+  href: string;
+  icon: string;
+  badge?: string;
+};
+
 type BoardThreeConfig = {
   active: string;
   title: string;
@@ -159,10 +166,33 @@ const configs: Record<BoardThreeVariant, BoardThreeConfig> = {
   }
 };
 
-const leftSections: Array<[string, string[]]> = [
-  ["项目确定及拆解", ["项目超市", "商业沙盘"]],
-  ["落地执行", ["任务中心", "竞品全盘数据破解", "竞品动态监测", "增长测算"]],
-  ["增长", ["GEO获客", "AI线索开发", "仪表盘", "CRM客户管理", "企业定制化陪跑"]]
+const topNav: NavItem[] = [
+  { label: "工作台", href: "/", icon: "" },
+  { label: "智活 Copilot", href: "/copilot", icon: "brand" },
+  { label: "工具箱", href: "/tools", icon: "" },
+  { label: "咨询通", href: "/insights", icon: "" },
+  { label: "AI社群", href: "/community", icon: "" },
+  { label: "AI教学", href: "/learning", icon: "" }
+];
+
+const leftSections: Array<[string, NavItem[]]> = [
+  ["项目确定及拆解", [
+    { label: "项目超市", href: "/projects", icon: "▤" },
+    { label: "商业沙盘", href: "/sandbox", icon: "▤" }
+  ]],
+  ["落地执行", [
+    { label: "任务中心", href: "/tasks", icon: "▤" },
+    { label: "竞品全盘数据破解", href: "/competitor-data", icon: "▤" },
+    { label: "竞品动态监测", href: "/competitor-monitoring", icon: "▤" },
+    { label: "增长测算", href: "/growth-calculator", icon: "▤" }
+  ]],
+  ["增长", [
+    { label: "GEO获客", href: "/geo", icon: "⚙" },
+    { label: "AI线索开发", href: "/leads", icon: "◇", badge: "NEW" },
+    { label: "仪表盘", href: "/dashboard", icon: "⌂" },
+    { label: "CRM客户管理", href: "/crm", icon: "♙" },
+    { label: "企业定制化陪跑", href: "/enterprise", icon: "▤" }
+  ]]
 ];
 
 function FeatureLockedPanel({ feature, variant }: FeatureLockedPanelProps) {
@@ -179,8 +209,11 @@ function FeatureLockedPanel({ feature, variant }: FeatureLockedPanelProps) {
           <em>OPC V4.0</em>
         </Link>
         <nav aria-label="顶部全局功能区">
-          {["工作台", "智活 Copilot", "工具箱", "咨询通", "AI社群", "AI教学"].map((item) => (
-            <Link className={item === "智活 Copilot" ? "active" : ""} key={item} to="/">{item === "智活 Copilot" ? <span aria-hidden="true" /> : null}{item}</Link>
+          {topNav.map((item) => (
+            <Link className={item.label === "智活 Copilot" ? "active" : ""} key={item.label} to={item.href}>
+              {item.icon === "brand" ? <span aria-hidden="true" /> : null}
+              {item.label}
+            </Link>
           ))}
         </nav>
         <div className="board3-account">
@@ -199,10 +232,10 @@ function FeatureLockedPanel({ feature, variant }: FeatureLockedPanelProps) {
           <section key={title}>
             <h2>{title}<span>⌄</span></h2>
             {items.map((item) => (
-              <Link className={item === config.active ? "active" : ""} key={item} to="/">
-                <i aria-hidden="true">{item === "AI线索开发" ? "◇" : item === "CRM客户管理" ? "♙" : item === "仪表盘" ? "⌂" : item === "GEO获客" ? "⚙" : "▤"}</i>
-                {item}
-                {item === "AI线索开发" ? <b>NEW</b> : null}
+              <Link className={item.label === config.active ? "active" : ""} key={item.label} to={item.href}>
+                <i aria-hidden="true">{item.icon}</i>
+                {item.label}
+                {item.badge ? <b>{item.badge}</b> : null}
               </Link>
             ))}
           </section>
