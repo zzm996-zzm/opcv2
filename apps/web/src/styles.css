@@ -6701,6 +6701,20 @@ a:active {
   background: #fbfcff;
 }
 
+.v4-logo,
+.mini-logo {
+  background: url("/home/logo.png") center / contain no-repeat;
+  filter: none;
+  mix-blend-mode: multiply;
+}
+
+.v4-logo::before,
+.v4-logo::after,
+.mini-logo::before,
+.mini-logo::after {
+  display: none;
+}
+
 .v4-sidebar {
   width: 260px;
   padding: 24px 24px 30px;
@@ -6757,7 +6771,7 @@ a:active {
 
 .v4-topbar {
   min-height: 78px;
-  padding: 12px 44px 10px 238px;
+  padding: 12px 28px 10px 58px;
   background: rgba(255, 255, 255, 0.88);
   border-bottom-color: rgba(31, 55, 112, 0.06);
   box-shadow: 0 12px 34px rgba(31, 55, 112, 0.035);
@@ -6792,10 +6806,14 @@ a:active {
 
 .notice-menu {
   z-index: 80;
-  right: -106px;
+  right: -226px;
   width: 360px;
   border-radius: 10px;
   box-shadow: 0 28px 80px rgba(35, 55, 118, 0.13);
+}
+
+.notice-menu::before {
+  right: 226px;
 }
 
 .v4-account-trigger {
@@ -6832,9 +6850,9 @@ a:active {
 }
 
 .v4-main {
-  grid-template-columns: minmax(780px, 1fr) 338px;
+  grid-template-columns: minmax(780px, 1fr) 268px;
   gap: 30px;
-  padding: 42px 30px 44px 60px;
+  padding: 60px 30px 44px 60px;
 }
 
 .v4-main.with-assistant {
@@ -6860,16 +6878,27 @@ a:active {
 
 .welcome-card {
   grid-template-columns: minmax(300px, 1fr) minmax(430px, 560px);
-  min-height: 116px;
-  padding: 18px 0 24px;
+  min-height: 106px;
+  padding: 0;
   background: transparent;
   border: 0;
+}
+
+.welcome-card > div:first-child {
+  position: relative;
 }
 
 .welcome-card h1 {
   margin-bottom: 10px;
   font-size: 28px;
   font-weight: 860;
+}
+
+.welcome-wave {
+  display: inline-block;
+  margin-left: 10px;
+  font-size: 24px;
+  transform: rotate(-8deg);
 }
 
 .welcome-card p {
@@ -6885,7 +6914,7 @@ a:active {
 }
 
 .home-account-summary {
-  display: inline-flex;
+  display: none;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
@@ -6915,6 +6944,9 @@ a:active {
 }
 
 .home-summary-status {
+  position: absolute;
+  top: 70px;
+  left: 0;
   margin: 12px 0 0;
   color: #526ba5;
   font-size: 13px;
@@ -6922,6 +6954,9 @@ a:active {
 }
 
 .home-summary-error {
+  position: absolute;
+  top: 68px;
+  left: 0;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -6988,7 +7023,7 @@ a:active {
 }
 
 .feature-card {
-  min-height: 204px;
+  min-height: 196px;
   padding: 32px 28px;
   background: rgba(255, 255, 255, 0.46);
   border: 0;
@@ -7020,10 +7055,34 @@ a:active {
 }
 
 .glass-art {
-  right: 32px;
-  bottom: 24px;
-  width: 136px;
-  height: 122px;
+  right: 10px;
+  bottom: 18px;
+  width: 140px;
+  height: 134px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter: none;
+  mix-blend-mode: multiply;
+}
+
+.glass-art.cube {
+  background-image: url("/home/hero-project.png");
+}
+
+.glass-art.ring {
+  background-image: url("/home/hero-landing.png");
+}
+
+.glass-art.growth {
+  background-image: url("/home/hero-growth.png");
+}
+
+.glass-art::before,
+.glass-art::after,
+.mini-art::before,
+.mini-art::after {
+  display: none;
 }
 
 .recommend-panel,
@@ -7054,13 +7113,33 @@ a:active {
 }
 
 .recommend-card {
-  grid-template-columns: 42px 1fr 94px;
+  grid-template-columns: 36px 1fr 76px;
+  height: 108px;
   min-height: 108px;
-  padding: 17px 16px 16px 20px;
+  padding: 10px 12px 10px 18px;
   background: rgba(255, 255, 255, 0.48);
   border: 0;
   border-radius: 0;
   box-shadow: none;
+}
+
+.mini-art {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  mix-blend-mode: multiply;
+}
+
+.mini-art.board {
+  background-image: url("/home/recommend-project.png");
+}
+
+.mini-art.blocks {
+  background-image: url("/home/recommend-tools.png");
+}
+
+.mini-art.news {
+  background-image: url("/home/recommend-news.png");
 }
 
 .recommend-card + .recommend-card {
@@ -7132,12 +7211,14 @@ a:active {
 }
 
 .recommend-card h3 {
-  font-size: 17px;
+  margin-bottom: 5px;
+  font-size: 16px;
 }
 
 .recommend-card p {
+  margin-bottom: 5px;
   color: #65749b;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .recommend-card small {
@@ -7193,6 +7274,27 @@ a:active {
   min-width: auto;
   padding: 2px 8px;
   font-size: 12px;
+}
+
+.task-tag.priority-project {
+  color: #673bd6;
+  background: #f1eaff;
+}
+
+.task-tag.priority-consulting,
+.task-tag.priority-learning {
+  color: #1476c9;
+  background: #eaf5ff;
+}
+
+.task-tag.priority-crm {
+  color: #15966c;
+  background: #e9f8f2;
+}
+
+.task-tag.priority-leads {
+  color: #d87824;
+  background: #fff2e6;
 }
 
 .task-row time {
@@ -7264,7 +7366,7 @@ a:active {
 }
 
 .copilot-panel {
-  top: 108px;
+  top: 160px;
   min-height: 610px;
   padding: 18px 15px;
   background: rgba(255, 255, 255, 0.72);
@@ -7273,14 +7375,28 @@ a:active {
   box-shadow: 0 18px 50px rgba(54, 75, 130, 0.06);
 }
 
+.copilot-panel.open {
+  display: flex;
+  height: 610px;
+  min-height: 610px;
+  margin-top: 22px;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.copilot-panel.open:has(.copilot-settings),
+.copilot-panel.open:has(.attachment-strip) {
+  height: 700px;
+  min-height: 700px;
+}
+
 .copilot-panel.closed {
-  position: sticky;
+  position: fixed;
   top: auto;
-  right: auto;
-  bottom: auto;
+  right: 30px;
+  bottom: 152px;
   grid-column: 2;
   grid-row: 1;
-  align-self: end;
   width: 338px;
   min-height: auto;
   border-radius: 10px;
@@ -7299,6 +7415,10 @@ a:active {
   color: #536795;
 }
 
+.copilot-panel:has(.copilot-settings) .copilot-head p {
+  display: none;
+}
+
 .copilot-head-actions button {
   width: 28px;
   height: 28px;
@@ -7308,7 +7428,14 @@ a:active {
 
 .copilot-thread {
   gap: 16px;
+  min-height: 0;
   margin-top: 16px;
+  overflow-y: auto;
+}
+
+.copilot-thread article.user .ai-avatar,
+.copilot-panel:has(.copilot-settings) .copilot-thread article:not(:last-child) {
+  display: none;
 }
 
 .copilot-thread article {
@@ -7410,7 +7537,7 @@ a:active {
 
 .floating-orb {
   right: 44px;
-  bottom: 32px;
+  bottom: 60px;
   width: 76px;
   height: 76px;
 }

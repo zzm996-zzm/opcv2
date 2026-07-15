@@ -85,6 +85,47 @@ const emptyWorkbenchActions = [
   }
 ];
 
+const guestRecommendations = [
+  {
+    title: "项目推荐",
+    desc: "发现优质项目，把握市场机会",
+    meta: "智能匹配",
+    cta: "精准推荐",
+    href: "/projects",
+    priority: "",
+    accent: "violet",
+    art: "board"
+  },
+  {
+    title: "工具推荐",
+    desc: "精选高效工具，提升落地效率",
+    meta: "热门工具",
+    cta: "场景适配",
+    href: "/tools",
+    priority: "",
+    accent: "blue",
+    art: "blocks"
+  },
+  {
+    title: "资讯推荐",
+    desc: "洞察行业动态，掌握最新趋势",
+    meta: "精选资讯",
+    cta: "每日更新",
+    href: "/insights",
+    priority: "",
+    accent: "cyan",
+    art: "news"
+  }
+];
+
+const guestTasks = [
+  { title: "完成【AI 智能硬件】项目商业画布", project: "", status: "", priority: "项目拆解", priorityClass: "project", time: "今天 10:00", overdue: false },
+  { title: "与咨询顾问沟通落地方案细节", project: "", status: "", priority: "咨询通", priorityClass: "consulting", time: "今天 14:30", overdue: false },
+  { title: "处理新客户需求：智能客服系统", project: "", status: "", priority: "CRM 客户管理", priorityClass: "crm", time: "明天 09:30", overdue: false },
+  { title: "查看 AI 学习计划：数据分析工程师", project: "", status: "", priority: "AI 教学", priorityClass: "learning", time: "06-25 11:00", overdue: false },
+  { title: "分析投放数据并优化获客策略", project: "", status: "", priority: "AI 线索开发", priorityClass: "leads", time: "06-25 15:00", overdue: false }
+];
+
 const assistantReplies = [
   {
     from: "assistant",
@@ -160,7 +201,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
       accent: ["violet", "blue", "cyan"][index % 3],
       art: ["board", "blocks", "news"][index % 3]
     }))
-  ) : [];
+  ) : signedIn ? [] : guestRecommendations;
   const visibleTasks = summary ? summary.recent_tasks.map((task) => ({
     title: task.title,
     project: task.project,
@@ -169,12 +210,19 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
     priorityClass: task.priority || "medium",
     time: task.due_at ? dueLabel(task.due_at, task.is_overdue) : "暂无截止",
     overdue: task.is_overdue
-  })) : [];
-  const visibleMetrics = summary?.metrics.length ? summary.metrics.slice(0, 3) : [
-    { label: "进行中任务", value: signedIn ? String(visibleTasks.length) : "-", icon: "folder" },
-    { label: "待办任务", value: signedIn ? String(visibleTasks.length) : "-", icon: "inbox" },
+  })) : signedIn ? [] : guestTasks;
+  const visibleMetrics = summary?.metrics.length ? summary.metrics.slice(0, 3) : signedIn ? [
+    { label: "进行中任务", value: String(visibleTasks.length), icon: "folder" },
+    { label: "待办任务", value: String(visibleTasks.length), icon: "inbox" },
     { label: "今日跟进", value: "-", icon: "trend" }
+  ] : [
+    { label: "进行中项目", value: "-", icon: "folder" },
+    { label: "待办事项", value: "-", icon: "inbox" },
+    { label: "本周新增线索", value: "-", icon: "trend" }
   ];
+  const inProgressTaskCount = signedIn
+    ? visibleTasks.filter((task) => task.status === "进行中").length
+    : 3;
   const visibleNotifications = summary ? summary.notification_summary.latest.map((item) => ({
     title: item.title,
     desc: item.summary ?? "",
@@ -435,7 +483,10 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
           <section className="v4-dashboard" aria-label="智活AI 工作台">
             <div className="welcome-card">
               <div>
-                <h1>{signedIn ? `上午好，${nickname}` : "欢迎来到 智活AI"}</h1>
+                <h1>
+                  {signedIn ? `上午好，${nickname}` : "欢迎来到 智活AI"}
+                  {signedIn && <span className="welcome-wave" aria-hidden="true">👋</span>}
+                </h1>
                 <p>{signedIn ? "专注创造价值的每一步" : "一站式智能项目到增长工作台"}</p>
                 {!signedIn && (
                   <small>从项目确定到规模增长，智活AI 助你高效决策、快速落地、持续增长。</small>
@@ -477,9 +528,9 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               ))}
             </div>
 
-            <section className="recommend-panel" aria-label="行动队列">
+            <section className="recommend-panel" aria-label="为你推荐">
               <div className="panel-heading">
-                <h2>行动队列</h2>
+                <h2>为你推荐</h2>
                 <Link to="/tasks">查看全部 <span aria-hidden="true">›</span></Link>
               </div>
               <div className="recommend-grid">
@@ -496,7 +547,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     <Link key={card.title} className="recommend-card" to={card.href}>
                       <span className={`recommend-icon ${card.accent}`} aria-hidden="true" />
                       <div>
-                        <span className={`action-priority ${card.priority}`}>{priorityLabel(card.priority)}</span>
+                        {card.priority && <span className={`action-priority ${card.priority}`}>{priorityLabel(card.priority)}</span>}
                         <h3>{card.title}</h3>
                         <p>{card.desc}</p>
                         <small>{card.meta} · {card.cta}</small>
@@ -513,7 +564,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                 <div className="task-tabs">
                   <h2>我的待办 / 进行中</h2>
                   <button className="active" type="button">待办 {visibleTasks.length}</button>
-                  <button type="button">进行中 {visibleTasks.length}</button>
+                  <button type="button">进行中 {inProgressTaskCount}</button>
                 </div>
                 <Link to="/tasks">查看全部 <span aria-hidden="true">›</span></Link>
               </div>
@@ -539,7 +590,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       <span className="task-check" aria-hidden="true" />
                       <span className="task-title">
                         <strong>{task.title}</strong>
-                        <small>{task.project} · {task.status}</small>
+                        {task.project && <small>{task.project} · {task.status}</small>}
                       </span>
                       <span className={`task-tag priority-${task.priorityClass}`}>{task.priority}</span>
                       <time>{task.time}</time>

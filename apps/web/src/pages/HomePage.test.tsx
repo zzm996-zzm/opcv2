@@ -182,6 +182,21 @@ describe("HomePage", () => {
     expect(screen.queryByText("竞品价格监测数据已更新完成")).not.toBeInTheDocument();
   });
 
+  it("renders the reference recommendations and task preview for guests", () => {
+    render(
+      <MemoryRouter>
+        <HomePage />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "欢迎来到 智活AI" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "为你推荐" })).toBeInTheDocument();
+    expect(screen.getByText("项目推荐")).toBeInTheDocument();
+    expect(screen.getByText("完成【AI 智能硬件】项目商业画布")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "进行中 3" })).toBeInTheDocument();
+    expect(homeApi.summary).not.toHaveBeenCalled();
+  });
+
   it("shows home summary load errors and retries", async () => {
     signIn();
     vi.mocked(homeApi.summary)
