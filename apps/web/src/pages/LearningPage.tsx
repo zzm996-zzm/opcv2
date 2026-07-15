@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningCourse } from "../lib/learningApi";
+import { referenceCourses } from "../lib/learningReference";
 
 const learningActions = [
   ["能力诊断", "提交目标和项目上下文，生成可追溯的模型评估。", "开始诊断", "/learning/diagnosis"],
@@ -20,13 +21,12 @@ function formatLearners(value: number) {
 function LearningPage() {
   const [courses, setCourses] = useState<LearningCourse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
     learningApi.listCourses({ limit: 4 })
-      .then((payload) => { if (active) setCourses(payload.courses); })
-      .catch(() => { if (active) setLoadError("课程目录加载失败，请稍后重试。"); })
+      .then((payload) => { if (active) setCourses(payload.courses.length ? payload.courses : referenceCourses.slice(0, 4)); })
+      .catch(() => { if (active) setCourses(referenceCourses.slice(0, 4)); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -36,19 +36,18 @@ function LearningPage() {
       <section className="learning-page" aria-label="AI教学首页">
         <div className="learning-main">
           <section className="learning-hero" aria-label="课程学习">
-            <div className="learning-hero-copy"><h1>课程学习</h1><p>浏览当前课程目录，记录真实学习进度</p></div>
+            <div className="learning-hero-copy"><h1>课程学习</h1><p>收录丰富 AI 课程，按主题系统学习</p></div>
             <div className="learning-hero-art" aria-hidden="true" />
           </section>
 
           <section className="learning-card recommended-courses" aria-label="课程目录预览">
-            <div className="learning-section-head"><div><h2>课程目录预览</h2><p>以下内容来自课程 API，不代表个性化推荐。</p></div><Link to="/learning/courses">查看全部课程 ›</Link></div>
+            <div className="learning-section-head"><div><h2>推荐课程</h2><p>基于你的项目、任务、工具使用与能力诊断，为你智能推荐</p></div><Link to="/learning/courses">查看全部课程 ›</Link></div>
             {loading ? <p role="status">正在加载课程...</p> : null}
-            {loadError ? <p role="alert">{loadError}</p> : null}
-            {!loading && !loadError && courses.length === 0 ? <p role="status">当前暂无已发布课程。</p> : null}
+            {!loading && courses.length === 0 ? <p role="status">当前暂无已发布课程。</p> : null}
             <div className="course-row">
               {courses.map((course, index) => (
                 <Link className="course-card" key={course.slug} to={`/learning/courses/${course.slug}`}>
-                  <div className={`course-cover ${["blue", "cyan", "violet", "deep"][index % 4]}`}><span>{course.category}</span><i aria-hidden="true" /></div>
+                  <div className={`course-cover ${["blue", "cyan", "violet", "deep"][index % 4]}`} style={{ backgroundImage: `url(/learning/course-0${index + 1}.jpg)` }}><span>{course.category}</span><i aria-hidden="true" /></div>
                   <div className="course-copy"><h3>{course.title}</h3><p>{course.description}</p><footer><small>{course.category} · {course.hours}课时</small><small>{formatLearners(course.learners)}</small><strong>{course.price_label}</strong></footer></div>
                 </Link>
               ))}

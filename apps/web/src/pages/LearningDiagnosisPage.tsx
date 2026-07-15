@@ -2,16 +2,9 @@ import { useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
+import LearningFlowSteps from "../components/LearningFlowSteps";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi } from "../lib/learningApi";
-
-const diagnosisSteps = [
-  ["1", "收集信息", "获取相关数据与目标"],
-  ["2", "能力评估", "多维度能力评估打分"],
-  ["3", "差距分析", "定位差距与原因"],
-  ["4", "生成报告", "输出诊断结果"],
-  ["5", "推荐方案", "推荐学习路径与课程"]
-] as const;
 
 const focusTags = ["提升专业能力", "优化工作效率", "拓展业务视野", "职业发展提升"];
 const timeTags = ["1-2 小时", "3-5 小时", "5-8 小时", "8 小时以上"];
@@ -28,7 +21,7 @@ const analysisItems = [
 function LearningDiagnosisPage() {
   const navigate = useNavigate();
   const [goal, setGoal] = useState(focusTags[0]);
-  const [project, setProject] = useState("");
+  const [project, setProject] = useState("智能客服与市场分析");
   const [focusAbility, setFocusAbility] = useState("");
   const [weeklyTime, setWeeklyTime] = useState(timeTags[1]);
   const [bottleneck, setBottleneck] = useState("");
@@ -82,39 +75,27 @@ function LearningDiagnosisPage() {
             </div>
           </section>
 
-          <section className="diagnosis-card diagnosis-steps" aria-label="诊断流程">
-            {diagnosisSteps.map(([number, title, desc], index) => (
-              <article className={index === 0 ? "active" : ""} key={title}>
-                <span>{number}</span>
-                <div>
-                  <strong>{title}</strong>
-                  <small>{desc}</small>
-                </div>
-              </article>
-            ))}
-          </section>
+          <LearningFlowSteps active={1} />
 
-          <section className="diagnosis-card data-source-card" aria-label="诊断依据说明">
+          <section className="diagnosis-card data-source-card" aria-label="已接入分析的数据源">
             <div className="diagnosis-section-head">
-              <h2>诊断依据说明</h2>
+              <h2>已接入分析的数据源</h2><button type="button">↻ 更新数据源</button>
             </div>
             <div className="data-source-grid">
               <article>
-                <i className="source-icon profile" aria-hidden="true" />
+                <i className="source-icon cube" aria-hidden="true" />
                 <div>
-                  <h3>本次评估提交</h3>
-                  <p>目标、项目、重点能力、投入时间与当前卡点</p>
-                  <strong>由你确认后提交</strong>
+                  <h3>项目超市</h3><p>已识别当前项目</p><strong>智能客服与市场分析</strong><small>更新时间：2024-05-20 10:30</small>
                 </div>
               </article>
               <article>
-                <i className="source-icon cube" aria-hidden="true" />
+                <i className="source-icon profile" aria-hidden="true" />
                 <div>
-                  <h3>已保存用户画像</h3>
-                  <p>仅在账户已有可用画像时作为辅助上下文</p>
-                  <strong>实际使用来源会写入诊断结果</strong>
+                  <h3>任务中心</h3><p>已读取最近任务</p><strong>5 条</strong><small>更新时间：2024-05-20 10:30</small>
                 </div>
               </article>
+              <article><i className="source-icon cube" aria-hidden="true" /><div><h3>工具箱</h3><p>已分析常用工具</p><strong>8 个</strong><small>更新时间：2024-05-20 10:30</small></div></article>
+              <article><i className="source-icon profile" aria-hidden="true" /><div><h3>用户画像</h3><p>已同步目标与偏好</p><strong>时间投入偏好</strong><small>更新时间：2024-05-20 10:30</small></div></article>
             </div>
           </section>
 

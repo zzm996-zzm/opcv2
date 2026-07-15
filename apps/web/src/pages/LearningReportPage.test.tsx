@@ -18,7 +18,7 @@ describe("LearningReportPage", () => {
       assumptions: ["基于用户自述"], evidence_sources: [{ type: "assessment_input", label: "用户本次提交", captured_at: "2026-07-13T08:00:00Z" }], generated_at: "2026-07-13T08:00:00Z"
     }), { status: 200 }));
     render(<MemoryRouter><LearningReportPage /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "能力诊断报告" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "能力诊断" })).toBeInTheDocument();
     expect(screen.getByText("82/100")).toBeInTheDocument();
     expect(screen.getByText("自动化运营能力")).toBeInTheDocument();
     expect(screen.getByText("用户本次提交")).toBeInTheDocument();

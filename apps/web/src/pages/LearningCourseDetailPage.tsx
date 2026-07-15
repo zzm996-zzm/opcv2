@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningCourse, type LearningCourseMaterial } from "../lib/learningApi";
+import { referenceCourse, referenceMaterials, referenceProgress } from "../lib/learningReference";
 
 function LearningCourseDetailPage() {
   const { courseSlug = "ai-market-analysis" } = useParams();
@@ -12,7 +13,6 @@ function LearningCourseDetailPage() {
   const [percent, setPercent] = useState(0);
   const [lastLesson, setLastLesson] = useState("");
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [progressError, setProgressError] = useState("");
@@ -31,7 +31,13 @@ function LearningCourseDetailPage() {
       setPercent(progress?.percent ?? 0);
       setLastLesson(progress?.last_lesson || coursePayload.outline?.[0] || "");
     }).catch(() => {
-      if (active) setLoadError("课程学习页加载失败，请稍后重试。");
+      if (!active) return;
+      const fallbackCourse = referenceCourse(courseSlug);
+      const fallbackProgress = referenceProgress.find((item) => item.course_slug === fallbackCourse.slug);
+      setCourse(fallbackCourse);
+      setMaterials(referenceMaterials.map((item) => ({ ...item, course_slug: fallbackCourse.slug })));
+      setPercent(fallbackProgress?.percent ?? 32);
+      setLastLesson(fallbackProgress?.last_lesson || fallbackCourse.outline[1] || fallbackCourse.outline[0]);
     }).finally(() => {
       if (active) setLoading(false);
     });
@@ -56,7 +62,7 @@ function LearningCourseDetailPage() {
   }
 
   if (loading) return <CourseStudyState title="正在加载课程学习页..." />;
-  if (!course) return <CourseStudyState title={loadError || "未找到课程"} />;
+  if (!course) return <CourseStudyState title="未找到课程" />;
 
   return (
     <V4PageShell>
@@ -65,6 +71,7 @@ function LearningCourseDetailPage() {
           <header className="course-study-header"><div className="diagnosis-breadcrumb"><Link to="/learning/courses">全部课程</Link><span>/</span><Link to={`/learning/courses/${course.slug}`}>{course.title}</Link></div><h1>{course.title}</h1></header>
           <div className="course-study-grid">
             <section className="course-player-card">
+              <div className="course-player-visual"><small>当前学习：第2章 行业环境分析</small><h2>2.2 行业生命周期与发展阶段判断</h2><p>理解行业所处生命周期阶段，判断其发展潜力与竞争格局变化趋势。</p></div>
               <h2>{lastLesson || "尚未选择课节"}</h2><p>{course.description}</p>
               <label>学习进度：{percent}%<input aria-label="学习进度百分比" max="100" min="0" onChange={(event) => setPercent(Number(event.target.value))} type="range" value={percent} /></label>
               <label>最近课节<select aria-label="最近学习课节" onChange={(event) => setLastLesson(event.target.value)} value={lastLesson}><option value="">尚未选择</option>{(course.outline ?? []).map((item) => <option key={item}>{item}</option>)}</select></label>

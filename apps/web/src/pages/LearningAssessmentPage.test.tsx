@@ -12,11 +12,12 @@ function signIn() {
 describe("LearningAssessmentPage", () => {
   afterEach(() => { authSession.clear(); vi.restoreAllMocks(); });
 
-  it("shows an explicit empty state without an assessment", async () => {
+  it("shows the reference assessment when no saved assessment exists", async () => {
     signIn();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ error: "diagnosis_not_found" }), { status: 404 }));
     render(<MemoryRouter><LearningAssessmentPage /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "暂无可查看的能力评估，请先提交诊断信息。" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "能力诊断" })).toBeInTheDocument();
+    expect(screen.getByText("62/100")).toBeInTheDocument();
   });
 
   it("renders persisted model provenance and dimensions", async () => {
@@ -29,7 +30,7 @@ describe("LearningAssessmentPage", () => {
       answers: [], focus_abilities: [], weekly_time: "", bottleneck: "", created_at: "2026-07-13T08:00:00Z", updated_at: "2026-07-13T08:00:00Z"
     }), { status: 200 }));
     render(<MemoryRouter><LearningAssessmentPage /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "能力模型评估已生成" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "能力诊断" })).toBeInTheDocument();
     expect(screen.getByText("82/100")).toBeInTheDocument();
     expect(screen.getByText("市场判断较强")).toBeInTheDocument();
     expect(screen.getByText("用户本次提交")).toBeInTheDocument();

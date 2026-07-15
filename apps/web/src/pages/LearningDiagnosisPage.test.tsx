@@ -17,7 +17,7 @@ describe("LearningDiagnosisPage", () => {
     signIn();
     render(<MemoryRouter><LearningDiagnosisPage /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "能力诊断" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "诊断依据说明" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "已接入分析的数据源" })).toBeInTheDocument();
     expect(screen.getByLabelText("目标项目或应用场景")).toBeInTheDocument();
     expect(screen.getByText(/不会声称读取未接入的数据/)).toBeInTheDocument();
   });

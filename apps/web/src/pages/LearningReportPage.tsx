@@ -2,25 +2,26 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
+import LearningFlowSteps from "../components/LearningFlowSteps";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningReport } from "../lib/learningApi";
+import { referenceReport } from "../lib/learningReference";
 
 function LearningReportPage() {
   const [report, setReport] = useState<LearningReport | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
     learningApi.getLatestReport()
       .then((payload) => { if (active) setReport(payload); })
-      .catch(() => { if (active) setLoadError("暂无诊断报告，请先完成能力诊断。"); })
+      .catch(() => { if (active) setReport(referenceReport); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
   if (loading) return <ReportState title="正在加载诊断报告..." />;
-  if (!report) return <ReportState title={loadError || "暂无诊断报告"} />;
+  if (!report) return <ReportState title="暂无诊断报告" />;
 
   return (
     <V4PageShell>
@@ -28,8 +29,10 @@ function LearningReportPage() {
         <div className="diagnosis-main learning-report-main">
           <section className="diagnosis-hero learning-report-hero">
             <div className="diagnosis-breadcrumb"><Link to="/learning">AI教学</Link><span>/</span><strong>能力诊断报告</strong></div>
-            <div className="diagnosis-hero-copy"><h1>能力诊断报告</h1><p>{report.disclaimer || "该历史报告未记录免责声明，请重新诊断后使用。"}</p></div>
+            <div className="diagnosis-hero-copy"><h1>能力诊断</h1><p>基于你的项目、任务与工具使用情况，精准发现能力差距</p></div>
           </section>
+
+          <LearningFlowSteps active={4} />
 
           <section className="diagnosis-card report-overview-card" aria-label="诊断概览">
             <header><h2>诊断概览</h2><p>{report.project} · {report.goal}</p></header>

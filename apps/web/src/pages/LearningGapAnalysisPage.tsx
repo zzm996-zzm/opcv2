@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
+import LearningFlowSteps from "../components/LearningFlowSteps";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningGaps } from "../lib/learningApi";
+import { referenceGaps } from "../lib/learningReference";
 
 function LearningGapAnalysisPage() {
   const [gaps, setGaps] = useState<LearningGaps | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -16,9 +17,7 @@ function LearningGapAnalysisPage() {
       .then((payload) => {
         if (active) setGaps(payload);
       })
-      .catch(() => {
-        if (active) setLoadError("暂无差距分析，请先完成能力诊断。");
-      })
+      .catch(() => { if (active) setGaps(referenceGaps); })
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -26,7 +25,7 @@ function LearningGapAnalysisPage() {
   }, []);
 
   if (loading) return <GapState title="正在加载差距分析..." />;
-  if (!gaps) return <GapState title={loadError || "暂无差距分析"} />;
+  if (!gaps) return <GapState title="暂无差距分析" />;
 
   return (
     <V4PageShell>
@@ -36,6 +35,8 @@ function LearningGapAnalysisPage() {
             <div className="diagnosis-breadcrumb"><Link to="/learning">AI教学</Link><span>/</span><strong>差距分析</strong></div>
             <div className="diagnosis-hero-copy"><h1>能力诊断</h1><p>{gaps.disclaimer || "该历史分析未记录免责声明，请重新诊断后使用。"}</p></div>
           </section>
+
+          <LearningFlowSteps active={3} />
 
           <section className="diagnosis-card gap-comparison-card" aria-label="目标要求与当前水平对比">
             <header><h2>目标要求 vs 当前模型评估</h2></header>

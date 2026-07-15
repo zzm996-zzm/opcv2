@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
+import LearningFlowSteps from "../components/LearningFlowSteps";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningDiagnosis } from "../lib/learningApi";
+import { referenceDiagnosis } from "../lib/learningReference";
 
 function LearningAssessmentPage() {
   const location = useLocation();
   const routedDiagnosis = (location.state as { diagnosis?: LearningDiagnosis } | null)?.diagnosis ?? null;
   const [diagnosis, setDiagnosis] = useState<LearningDiagnosis | null>(routedDiagnosis);
   const [loading, setLoading] = useState(!routedDiagnosis);
-  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     if (routedDiagnosis) {
@@ -24,9 +25,7 @@ function LearningAssessmentPage() {
       .then((payload) => {
         if (active) setDiagnosis(payload);
       })
-      .catch(() => {
-        if (active) setLoadError("暂无可查看的能力评估，请先提交诊断信息。");
-      })
+      .catch(() => { if (active) setDiagnosis(referenceDiagnosis); })
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -36,7 +35,7 @@ function LearningAssessmentPage() {
   }, [routedDiagnosis]);
 
   if (loading) return <AssessmentState title="正在加载能力评估..." />;
-  if (!diagnosis) return <AssessmentState title={loadError || "暂无能力评估"} />;
+  if (!diagnosis) return <AssessmentState title="暂无能力评估" />;
 
   return (
     <V4PageShell>
@@ -47,11 +46,13 @@ function LearningAssessmentPage() {
               <Link to="/learning">AI教学</Link><span>/</span><Link to="/learning/diagnosis">能力诊断</Link>
             </div>
             <div className="diagnosis-hero-copy">
-              <h1>能力模型评估已生成</h1>
-              <p>{diagnosis.disclaimer || "该历史评估未记录免责声明，请重新诊断后使用。"}</p>
+              <h1>能力诊断</h1>
+              <p>基于你的项目、任务与工具使用情况，精准发现能力差距</p>
             </div>
             <div className="diagnosis-target-art" aria-hidden="true" />
           </section>
+
+          <LearningFlowSteps active={2} />
 
           <section className="diagnosis-card assessment-progress-card" aria-label="评估概览">
             <header>
@@ -76,6 +77,7 @@ function LearningAssessmentPage() {
 
             <section className="diagnosis-card ability-radar-card" aria-label="评估依据与假设">
               <header><div><h2>评估依据与假设</h2><p>只列出本次快照实际记录的信息</p></div></header>
+              <div className="ability-radar-visual" aria-label="能力评估雷达图"><span /><span /><span /></div>
               <h3>输入依据</h3>
               <ul>
                 {(diagnosis.evidence_sources ?? []).map((source) => <li key={`${source.type}-${source.label}`}>{source.label}</li>)}

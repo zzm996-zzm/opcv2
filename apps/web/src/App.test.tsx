@@ -436,7 +436,7 @@ describe("App", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("heading", { name: "课程选择" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "推荐课程" })).toBeInTheDocument();
   });
 
   it("renders the learning course intro route for a signed-in user", () => {

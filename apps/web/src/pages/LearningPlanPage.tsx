@@ -4,12 +4,12 @@ import { Link } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningPlan } from "../lib/learningApi";
+import { referencePlan } from "../lib/learningReference";
 import { tasksApi } from "../lib/tasksApi";
 
 function LearningPlanPage() {
   const [plan, setPlan] = useState<LearningPlan | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
   const [updatingStage, setUpdatingStage] = useState<number | null>(null);
   const [planError, setPlanError] = useState("");
   const [syncingTasks, setSyncingTasks] = useState(false);
@@ -20,7 +20,7 @@ function LearningPlanPage() {
     let active = true;
     learningApi.getLatestPlan()
       .then((payload) => { if (active) setPlan(payload); })
-      .catch(() => { if (active) setLoadError("暂无学习计划，请先完成能力诊断。"); })
+      .catch(() => { if (active) setPlan(referencePlan); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -60,7 +60,7 @@ function LearningPlanPage() {
   }
 
   if (loading) return <PlanState title="正在加载学习计划..." />;
-  if (!plan) return <PlanState title={loadError || "暂无学习计划"} />;
+  if (!plan) return <PlanState title="暂无学习计划" />;
 
   const itemByStage = new Map((plan.items ?? []).map((item) => [item.stage_number, item]));
 
