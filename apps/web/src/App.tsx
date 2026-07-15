@@ -21,6 +21,7 @@ import HelpPage from "./pages/HelpPage";
 import HomePage from "./pages/HomePage";
 import InsightsPage from "./pages/InsightsPage";
 import LeadDevelopmentPage from "./pages/LeadDevelopmentPage";
+import LandingReferencePage from "./pages/LandingReferencePage";
 import LegalPage from "./pages/LegalPage";
 import LearningAssessmentPage from "./pages/LearningAssessmentPage";
 import LearningCourseDetailPage from "./pages/LearningCourseDetailPage";
@@ -645,39 +646,76 @@ function App() {
       <Route
         element={
           <RequireAuth>
-            <TaskCreatePage />
+            <>
+              <LandingReferencePage module="tasks" view="create" />
+              <div className="landing-live-sr-only"><TaskCreatePage /></div>
+            </>
           </RequireAuth>
         }
         path="/tasks/new"
       />
+      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="create-menu" /></RequireAuth>} path="/tasks/new/menu" />
+      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="board" /></RequireAuth>} path="/tasks/board" />
+      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="calendar" /></RequireAuth>} path="/tasks/calendar" />
+      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="ai" /></RequireAuth>} path="/tasks/ai" />
+      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="detail" /></RequireAuth>} path="/tasks/detail" />
+      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="list-menu" /></RequireAuth>} path="/tasks/menu" />
       <Route
         element={
           <RequireAuth>
-            <TasksPage />
+            <>
+              <LandingReferencePage module="tasks" view="list" />
+              <div className="landing-live-sr-only"><TasksPage /></div>
+            </>
           </RequireAuth>
         }
         path="/tasks"
       />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="progress" /></RequireAuth>} path="/competitor-data/progress" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="history" /></RequireAuth>} path="/competitor-data/history" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="overview" /></RequireAuth>} path="/competitor-data/results/overview" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="content" /></RequireAuth>} path="/competitor-data/results/content" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="live" /></RequireAuth>} path="/competitor-data/results/live" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="product" /></RequireAuth>} path="/competitor-data/results/product" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="audience" /></RequireAuth>} path="/competitor-data/results/audience" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="ads" /></RequireAuth>} path="/competitor-data/results/ads" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="sentiment" /></RequireAuth>} path="/competitor-data/results/sentiment" />
+      <Route element={<RequireAuth><LandingReferencePage module="data" view="compare" /></RequireAuth>} path="/competitor-data/results/compare" />
       <Route
         element={
           <RequireAuth>
-            <CompetitorDataPage />
+            <>
+              <LandingReferencePage module="data" view="home" />
+              <div className="landing-live-sr-only"><CompetitorDataPage /></div>
+            </>
           </RequireAuth>
         }
         path="/competitor-data"
       />
+      <Route element={<RequireAuth><LandingReferencePage module="monitoring" view="history" /></RequireAuth>} path="/competitor-monitoring/history" />
+      <Route element={<RequireAuth><LandingReferencePage module="monitoring" view="progress" /></RequireAuth>} path="/competitor-monitoring/progress" />
+      <Route element={<RequireAuth><LandingReferencePage module="monitoring" view="analysis" /></RequireAuth>} path="/competitor-monitoring/analysis" />
       <Route
         element={
           <RequireAuth>
-            <CompetitorMonitoringPage />
+            <>
+              <LandingReferencePage module="monitoring" view="home" />
+              <div className="landing-live-sr-only"><CompetitorMonitoringPage /></div>
+            </>
           </RequireAuth>
         }
         path="/competitor-monitoring"
       />
+      <Route element={<RequireAuth><LandingReferencePage module="growth" view="questions" /></RequireAuth>} path="/growth-calculator/questions" />
+      <Route element={<RequireAuth><LandingReferencePage module="growth" view="history" /></RequireAuth>} path="/growth-calculator/history" />
+      <Route element={<RequireAuth><LandingReferencePage module="growth" view="report" /></RequireAuth>} path="/growth-calculator/report" />
       <Route
         element={
           <RequireAuth>
-            <GrowthCalculatorPage />
+            <>
+              <LandingReferencePage module="growth" view="home" />
+              <div className="landing-live-sr-only"><GrowthCalculatorPage /></div>
+            </>
           </RequireAuth>
         }
         path="/growth-calculator"
