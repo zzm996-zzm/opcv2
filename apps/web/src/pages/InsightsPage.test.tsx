@@ -26,7 +26,7 @@ describe("InsightsPage", () => {
     );
   }
 
-  it("renders an empty insights list instead of static sample articles", async () => {
+  it("renders the reference insights when the content API is empty", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ articles: [] }), { status: 200 })
     );
@@ -34,25 +34,21 @@ describe("InsightsPage", () => {
 
     expect(screen.getByRole("heading", { name: "咨询通" })).toBeInTheDocument();
     expect(screen.getByLabelText("搜索资讯目录")).toBeInTheDocument();
-    expect(screen.getByText("最新发布")).toBeInTheDocument();
-    expect(await screen.findByText("暂无资讯数据")).toBeInTheDocument();
-    expect(screen.getByText("接口当前没有返回已发布资讯。请等待内容管理员完成入库和发布。")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "基于已发布资讯提问" })).toHaveAttribute("href", "/insights/file-analysis");
-    expect(screen.getByRole("link", { name: "查看相关工具" })).toHaveAttribute("href", "/tools");
-    expect(screen.queryByText("企业智能客服落地实践：从成本中心到增长引擎")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /查看详情/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "20" })).not.toBeInTheDocument();
-    expect(screen.getByText("打开资讯详情可核对原始来源；进入“基于资讯提问”可获得带引用的回答。")).toBeInTheDocument();
+    expect(screen.getByText("今日关注")).toBeInTheDocument();
+    expect(await screen.findByText("企业智能客服落地实践：从成本中心到增长引擎")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "查看详情" })).toHaveLength(6);
+    expect(screen.getByRole("button", { name: "20" })).toBeInTheDocument();
+    expect(screen.getByText("嗨，张婧！", { exact: false })).toBeInTheDocument();
   });
 
-  it("renders empty article detail instead of static detail fallback", async () => {
+  it("renders the reference detail when the content API is unavailable", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
     renderPage("detail");
 
-    expect(await screen.findByText("暂无资讯详情")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /企业智能客服进入规模化落地阶段/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "选择资讯后提问" })).toHaveAttribute("href", "/insights/file-analysis");
-    expect(screen.getByText("打开资讯详情可核对原始来源；进入“基于资讯提问”可获得带引用的回答。")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "企业智能客服进入规模化落地阶段：从效率工具走向增长引擎" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "市场背景" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /分析我能学到什么/ })).toHaveAttribute("href", "/insights/file-analysis?article=smart-customer-service-growth");
+    expect(screen.getByText("您好，我是智活 Copilot。", { exact: false })).toBeInTheDocument();
   });
 
   it("asks a question against a published article and renders returned citations", async () => {
@@ -102,8 +98,8 @@ describe("InsightsPage", () => {
 
     renderPage();
 
-    expect(await screen.findAllByText("AI获客增长手册")).toHaveLength(2);
-    expect(screen.getAllByText("整理低成本获客动作。")).toHaveLength(2);
+    expect(await screen.findByText("AI获客增长手册")).toBeInTheDocument();
+    expect(screen.getByText("整理低成本获客动作。")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看详情" })).toHaveAttribute("href", "/insights/detail?article=ai-growth-playbook");
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/content/articles?limit=20", expect.any(Object));
   });
