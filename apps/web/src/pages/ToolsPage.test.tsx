@@ -26,7 +26,7 @@ describe("ToolsPage", () => {
     );
   }
 
-  it("renders an explicit empty catalog without static tool defaults", async () => {
+  it("renders the curated reference catalog when the API is empty", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ tools: [] }), { status: 200 })
     );
@@ -34,41 +34,39 @@ describe("ToolsPage", () => {
 
     expect(screen.getByRole("heading", { name: "工具箱" })).toBeInTheDocument();
     expect(screen.getByLabelText("搜索工具")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "常见工具场景" })).toBeInTheDocument();
-    expect(await screen.findByText("没有匹配的工具，换个关键词或分类试试")).toBeInTheDocument();
-    expect(screen.queryByText("Notion AI")).not.toBeInTheDocument();
-    expect(screen.queryByText("Midjourney")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /开始匹配/ })).toHaveAttribute("href", "/tools/recommend");
+    expect(screen.getByRole("heading", { name: "本周热门工具" })).toBeInTheDocument();
+    expect(await screen.findByText("Notion AI")).toBeInTheDocument();
+    expect(screen.getByText("Midjourney")).toBeInTheDocument();
+    expect(screen.getByLabelText("智活 Copilot 工具助手")).toBeInTheDocument();
+    expect(screen.getByLabelText("产品侧边导航")).toBeInTheDocument();
   });
 
-  it("renders the full catalog empty state when the API is empty", async () => {
+  it("renders the full four-column reference catalog without Copilot", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ tools: [] }), { status: 200 })
     );
     renderPage("all");
 
-    expect(await screen.findByText("没有匹配的工具，换个关键词或分类试试")).toBeInTheDocument();
-    expect(screen.queryByText("Perplexity")).not.toBeInTheDocument();
-    expect(screen.queryByText("Similarweb")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "平台⌄" })).toBeInTheDocument();
+    expect(await screen.findByText("Perplexity")).toBeInTheDocument();
+    expect(screen.getByText("Claude")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "平台" })).toBeInTheDocument();
     expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
   });
 
-  it("refetches the real catalog from the left category rail", async () => {
+  it("refetches the real catalog from the category tabs", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ tools: [] }), { status: 200 })
     );
     renderPage();
 
-    expect(await screen.findByText("没有匹配的工具，换个关键词或分类试试")).toBeInTheDocument();
-    const leadCategory = screen.getByRole("button", { name: "创业获客" });
-    fireEvent.click(leadCategory);
+    expect(await screen.findByText("Notion AI")).toBeInTheDocument();
+    const drawingCategory = screen.getByRole("tab", { name: "绘图" });
+    fireEvent.click(drawingCategory);
 
-    expect(leadCategory).toHaveClass("active");
-    await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(expect.stringContaining("category=%E5%88%9B%E4%B8%9A%E8%8E%B7%E5%AE%A2"), expect.any(Object)));
-    expect(screen.queryByText("Canva AI")).not.toBeInTheDocument();
-    expect(screen.queryByText("Apollo AI")).not.toBeInTheDocument();
-    expect(screen.queryByText("Similarweb")).not.toBeInTheDocument();
+    expect(drawingCategory).toHaveClass("active");
+    await waitFor(() => expect(fetchMock).toHaveBeenLastCalledWith(expect.stringContaining("category=%E7%BB%98%E5%9B%BE"), expect.any(Object)));
+    expect(screen.getByText("Midjourney")).toBeInTheDocument();
+    expect(screen.queryByText("Runway")).not.toBeInTheDocument();
   });
 
   it("loads public tools from content API", async () => {
@@ -101,8 +99,7 @@ describe("ToolsPage", () => {
     renderPage("all");
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole("button", { name: "创业获客" }));
-    fireEvent.click(screen.getByRole("tab", { name: "热门" }));
+    fireEvent.click(screen.getByRole("tab", { name: "营销" }));
     fireEvent.change(screen.getByLabelText("搜索工具"), { target: { value: "agent" } });
 
     await waitFor(() => {
@@ -112,7 +109,7 @@ describe("ToolsPage", () => {
       );
     });
     const lastUrl = String(fetchMock.mock.calls.at(-1)?.[0]);
-    expect(lastUrl).toContain("category=%E5%88%9B%E4%B8%9A%E8%8E%B7%E5%AE%A2");
+    expect(lastUrl).toContain("category=%E8%90%A5%E9%94%80");
     expect(lastUrl).toContain("q=agent");
     expect(lastUrl).toContain("sort=hot");
   });
@@ -171,16 +168,16 @@ describe("ToolsPage", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       basis: "catalog_match",
       criteria: { goal: "获客", scenario: "社媒海报", limit: 6 },
-      tools: [{ id: 9, slug: "canva-ai", name: "Canva AI", description: "海报设计", status: "published", category: "创业获客", tags: ["设计"], platforms: ["Web"], features: [], use_cases: ["社媒海报"], limitations: [], sort_weight: 10, created_at: "", updated_at: "" }]
+      tools: [{ id: 9, slug: "deep-research-agent", name: "Deep Research Agent", description: "海报与市场研究", status: "published", category: "创业获客", tags: ["设计"], platforms: ["Web"], features: [], use_cases: ["社媒海报"], limitations: [], sort_weight: 10, created_at: "", updated_at: "" }]
     }), { status: 200 }));
     renderPage("recommend");
 
     expect(screen.getByRole("heading", { name: "工具推荐结果" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("工具匹配目标"), { target: { value: "获客" } });
     fireEvent.change(screen.getByLabelText("工具使用场景"), { target: { value: "社媒海报" } });
-    fireEvent.click(screen.getByRole("button", { name: "匹配目录工具" }));
+    fireEvent.click(screen.getByRole("button", { name: "换一换" }));
 
-    expect(await screen.findByText("Canva AI")).toBeInTheDocument();
+    expect(await screen.findByText("Deep Research Agent")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/content/tools/recommendations", expect.objectContaining({ method: "POST" }));
   });
 
@@ -188,17 +185,17 @@ describe("ToolsPage", () => {
     renderPage("plan");
 
     expect(screen.getByRole("heading", { name: /整套工具方案/ })).toBeInTheDocument();
-    expect(screen.getByText("暂无工具方案")).toBeInTheDocument();
-    expect(screen.queryByText("推荐执行流程")).not.toBeInTheDocument();
-    expect(screen.queryByText("市场调研")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /推荐执行流程/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "市场调研" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "执行建议" })).toBeInTheDocument();
   });
 
-  it("renders empty tool detail instead of static detail fallback", async () => {
+  it("renders the Midjourney reference detail when no slug is supplied", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
     renderPage("detail");
 
-    expect(await screen.findByText("暂无工具详情")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Midjourney" })).not.toBeInTheDocument();
-    expect(screen.queryByText("专业 AI 图像生成工具")).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Midjourney" })).toBeInTheDocument();
+    expect(screen.getAllByText(/专业 AI 图像生成工具/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "用它解决什么" })).toBeInTheDocument();
   });
 });

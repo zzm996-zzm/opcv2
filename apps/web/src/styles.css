@@ -22,6 +22,1353 @@
   --shadow-soft: 0 16px 48px rgba(47, 91, 176, 0.1);
 }
 
+/* Tools workspace: pixel-aligned to the supplied V4 tool references. */
+.tools-shell {
+  background: #fbfcff;
+}
+
+.tools-shell .v4-page-main {
+  padding: 26px 30px 34px;
+}
+
+.tools-shell .toolhub-page {
+  display: grid;
+  max-width: 1380px;
+  margin: 0 auto;
+  align-items: start;
+}
+
+.tools-shell .toolhub-page.with-copilot {
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 24px;
+}
+
+.tools-shell .sidebar-collapse {
+  display: none;
+}
+
+.tools-shell .toolhub-main {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+
+.tools-shell .toolhub-title h1 {
+  margin: 0;
+  color: #071638;
+  font-size: 30px;
+  line-height: 1.16;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-title.compact h1 {
+  font-size: 27px;
+}
+
+.tools-shell .toolhub-title h1 span {
+  min-height: 24px;
+  margin-left: 8px;
+  padding: 3px 9px;
+  color: #2e5dd7;
+  background: #f0f5ff;
+  border: 1px solid #dfe9ff;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.tools-shell .toolhub-title p {
+  margin: 6px 0 0;
+  color: #7082a8;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 650;
+}
+
+.tools-shell .toolhub-search-block {
+  display: grid;
+  gap: 10px;
+}
+
+.tools-shell .toolhub-search {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  align-items: center;
+  min-height: 50px;
+  padding: 0 16px;
+  background: #fff;
+  border: 1px solid #e4eaf5;
+  border-radius: 5px;
+  box-shadow: 0 6px 18px rgba(38, 64, 124, 0.04);
+}
+
+.tools-shell .toolhub-search > span {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #6c7fa7;
+  border-radius: 50%;
+}
+
+.tools-shell .toolhub-search > span::after {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+  width: 7px;
+  height: 2px;
+  content: "";
+  background: #6c7fa7;
+  transform: rotate(45deg);
+}
+
+.tools-shell .toolhub-search input {
+  color: #183160;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.tools-shell .toolhub-search input::placeholder {
+  color: #7b8cae;
+}
+
+.tools-shell .toolhub-filter-row {
+  display: flex;
+  min-height: 42px;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tools-shell .toolhub-tabs,
+.tools-shell .toolhub-selects {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 5px;
+}
+
+.tools-shell .toolhub-tabs button,
+.tools-shell .toolhub-selects button {
+  min-height: 35px;
+  padding: 0 15px;
+  color: #263d78;
+  background: transparent;
+  border: 0;
+  border-radius: 18px;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.tools-shell .toolhub-tabs button.active {
+  color: #fff;
+  background: #1761ed;
+  box-shadow: 0 6px 14px rgba(23, 97, 237, 0.18);
+}
+
+.tools-shell .toolhub-selects button {
+  display: inline-flex;
+  min-width: 92px;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border: 1px solid #e4eaf5;
+  border-radius: 5px;
+}
+
+.tools-shell .toolhub-hot,
+.tools-shell .toolhub-card,
+.tools-shell .toolhub-summary,
+.tools-shell .toolhub-recommend-results article,
+.tools-shell .toolhub-advice,
+.tools-shell .toolhub-plan-summary,
+.tools-shell .toolhub-flow,
+.tools-shell .toolhub-plan-aside section,
+.tools-shell .toolhub-execution,
+.tools-shell .toolhub-detail-panel,
+.tools-shell .toolhub-solve,
+.tools-shell .toolhub-detail-hero {
+  background: #fff;
+  border: 1px solid #e8edf6;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(37, 64, 125, 0.035);
+  backdrop-filter: none;
+}
+
+.tools-shell .toolhub-hot {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  background: linear-gradient(104deg, #f8fbff 0%, #f3f7ff 100%);
+}
+
+.tools-shell .toolhub-hot header {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.tools-shell .toolhub-hot h2,
+.tools-shell .toolhub-recommend-results h2,
+.tools-shell .toolhub-advice h2,
+.tools-shell .toolhub-flow h2,
+.tools-shell .toolhub-execution h2,
+.tools-shell .toolhub-detail-panel h2,
+.tools-shell .toolhub-solve h2 {
+  margin: 0;
+  color: #142b63;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-hot h2 > span {
+  color: #ff6a1a;
+  font-size: 9px;
+}
+
+.tools-shell .toolhub-hot header p {
+  margin: 0;
+  color: #7585a7;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.tools-shell .toolhub-hot header a {
+  margin-left: auto;
+  color: #235dc9;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tools-shell .toolhub-hot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tools-shell .toolhub-page.with-copilot .toolhub-hot-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tools-shell .toolhub-hot-grid article {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  min-height: 62px;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 9px 11px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #edf1f8;
+  border-radius: 4px;
+}
+
+.tools-shell .toolhub-hot-grid strong {
+  overflow: hidden;
+  color: #142b63;
+  font-size: 13px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tools-shell .toolhub-hot-grid small {
+  grid-column: 2;
+  overflow: hidden;
+  color: #7182a7;
+  font-size: 10px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tools-shell .toolhub-mini-art {
+  grid-row: span 2;
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  box-shadow: none;
+}
+
+.tools-shell .toolhub-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tools-shell .toolhub-grid.full {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.tools-shell .toolhub-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  min-height: 164px;
+  gap: 7px 12px;
+  padding: 16px 15px 11px;
+}
+
+.tools-shell .toolhub-card-copy {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+}
+
+.tools-shell .toolhub-logo {
+  width: 43px;
+  height: 43px;
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.tools-shell .toolhub-logo::before {
+  transform: scale(0.82);
+}
+
+.tools-shell .toolhub-logo.large {
+  width: 96px;
+  height: 96px;
+  border-radius: 9px;
+}
+
+.tools-shell .toolhub-logo.large::before {
+  transform: scale(1.45);
+}
+
+.tools-shell .toolhub-card h2 {
+  margin: 0;
+  color: #0c204f;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-card p {
+  display: -webkit-box;
+  min-height: 35px;
+  margin: 0;
+  overflow: hidden;
+  color: #64779f;
+  font-size: 11px;
+  line-height: 1.55;
+  font-weight: 620;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.tools-shell .toolhub-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tools-shell .toolhub-tag-row span {
+  padding: 2px 6px;
+  color: #2d58b6;
+  background: #f1f6ff;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.tools-shell .toolhub-favorite {
+  position: absolute;
+  top: 11px;
+  right: 12px;
+  width: 26px;
+  height: 28px;
+  padding: 0;
+  color: #244b9d;
+  background: transparent;
+  border: 0;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.tools-shell .toolhub-card footer {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  padding-top: 9px;
+  border-top: 1px solid #edf1f7;
+}
+
+.tools-shell .toolhub-card footer span,
+.tools-shell .toolhub-card footer small {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.tools-shell .toolhub-card footer a {
+  color: #2454b7;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.tools-shell .toolhub-pagination {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.tools-shell .toolhub-pagination button {
+  min-width: 32px;
+  height: 32px;
+  color: #26447f;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+  font-size: 11px;
+}
+
+.tools-shell .toolhub-pagination button.active {
+  color: #165de3;
+  background: #f0f5ff;
+}
+
+.tools-shell .toolhub-pagination span,
+.tools-shell .toolhub-pagination small {
+  color: #657aa5;
+  font-size: 11px;
+}
+
+.tools-shell .toolhub-pagination small {
+  position: absolute;
+  right: 0;
+}
+
+.tools-shell .toolhub-sync-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 6px 10px;
+  color: #8a5a00;
+  background: #fff9e8;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.tools-shell .toolhub-copilot {
+  position: sticky;
+  top: 98px;
+  display: grid;
+  min-height: 648px;
+  max-height: calc(100vh - 118px);
+  grid-template-rows: auto 1fr auto auto;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #edf1f7;
+  border-radius: 6px;
+  box-shadow: 0 8px 28px rgba(37, 64, 125, 0.055);
+}
+
+.tools-shell .toolhub-ai-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  padding: 18px 16px 13px;
+  border-bottom: 1px solid #eef2f8;
+}
+
+.tools-shell .toolhub-ai-head strong {
+  color: #11285c;
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-ai-head strong > span,
+.tools-shell .toolhub-ai-head b {
+  color: #1761ed;
+}
+
+.tools-shell .toolhub-ai-head p {
+  margin: 6px 0 0;
+  color: #6e80a5;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.tools-shell .toolhub-ai-head > span {
+  color: #243f7c;
+  font-size: 13px;
+}
+
+.tools-shell .toolhub-chat {
+  display: grid;
+  align-content: start;
+  gap: 13px;
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+}
+
+.tools-shell .toolhub-chat article {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.tools-shell .toolhub-chat article > div small {
+  display: block;
+  margin-bottom: 4px;
+  color: #294476;
+  font-size: 10px;
+}
+
+.tools-shell .toolhub-chat p {
+  margin: 0;
+  padding: 10px;
+  color: #3e5683;
+  background: #f7f9fd;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.tools-shell .toolhub-chat .toolhub-user-bubble {
+  display: block;
+  margin-left: 38px;
+}
+
+.tools-shell .toolhub-chat .toolhub-user-bubble p {
+  color: #2052aa;
+  background: #eef5ff;
+}
+
+.tools-shell .toolhub-copilot .ai-avatar {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  color: #fff;
+  background: linear-gradient(145deg, #2770eb, #1aa6e8);
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 850;
+  place-items: center;
+}
+
+.tools-shell .toolhub-copilot .learning-copilot-actions {
+  display: grid;
+  padding: 0 16px 10px;
+}
+
+.tools-shell .toolhub-copilot .learning-copilot-actions a {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  color: #2b477e;
+  border-top: 1px solid #eef2f8;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.tools-shell .toolhub-copilot .learning-copilot-actions a span {
+  margin-left: auto;
+}
+
+.tools-shell .toolhub-copilot .learning-copilot-input {
+  margin: 0 16px 15px;
+}
+
+/* Tool recommendation */
+.tools-shell .toolhub-recommend {
+  display: grid;
+  gap: 14px;
+}
+
+.tools-shell .toolhub-summary {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 7px 14px;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.tools-shell .toolhub-summary > strong {
+  grid-row: 1 / 3;
+  color: #142b63;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-summary label {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  color: #37517f;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.tools-shell .toolhub-summary input {
+  min-width: 0;
+  padding: 2px 5px;
+  color: #334b76;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  outline: 0;
+  font-size: 11px;
+}
+
+.tools-shell .toolhub-summary input:focus {
+  border-bottom-color: #8eb0ef;
+}
+
+.tools-shell .toolhub-recommend-results {
+  display: grid;
+  gap: 10px;
+}
+
+.tools-shell .toolhub-recommend-results h2 span {
+  color: #6075a0;
+  font-size: 11px;
+}
+
+.tools-shell .toolhub-recommend-results > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tools-shell .toolhub-recommend-results article {
+  display: grid;
+  gap: 8px;
+  min-height: 266px;
+  padding: 15px;
+}
+
+.tools-shell .toolhub-recommend-results article header {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #edf1f7;
+}
+
+.tools-shell .toolhub-recommend-results article header .toolhub-logo {
+  width: 47px;
+  height: 47px;
+}
+
+.tools-shell .toolhub-recommend-results h3 {
+  margin: 0;
+  color: #0d214f;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-recommend-results article header p {
+  margin: 3px 0 5px;
+  color: #63769d;
+  font-size: 10px;
+}
+
+.tools-shell .toolhub-recommend-results article header b {
+  padding: 2px 6px;
+  color: #159566;
+  background: #e9fbf3;
+  border-radius: 3px;
+  font-size: 9px;
+}
+
+.tools-shell .toolhub-recommend-results article > strong {
+  color: #1d366b;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-recommend-results article > p {
+  margin: 0;
+  color: #52678f;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.tools-shell .toolhub-recommend-results article > a {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  margin-top: auto;
+  color: #1d57bd;
+  border: 1px solid #2d64c4;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.tools-shell .toolhub-advice {
+  display: grid;
+  gap: 8px;
+  padding: 13px 16px;
+}
+
+.tools-shell .toolhub-advice ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.tools-shell .toolhub-advice li {
+  color: #4f668f;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.tools-shell .toolhub-bottom-actions {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+}
+
+.tools-shell .toolhub-bottom-actions a,
+.tools-shell .toolhub-bottom-actions button {
+  display: inline-flex;
+  min-width: 150px;
+  min-height: 42px;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  color: #2454b7;
+  background: #fff;
+  border: 1px solid #dce4f1;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.tools-shell .toolhub-bottom-actions .primary {
+  color: #fff;
+  background: #1761ed;
+  border-color: #1761ed;
+  box-shadow: 0 8px 18px rgba(23, 97, 237, 0.2);
+}
+
+.tools-shell .toolhub-bottom-actions .toolhub-refresh {
+  min-width: 78px;
+}
+
+/* Tool plan */
+.tools-shell .toolhub-breadcrumb {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #677ba4;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tools-shell .toolhub-plan-summary {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px;
+  background: #f7faff;
+}
+
+.tools-shell .toolhub-plan-summary article {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.tools-shell .toolhub-plan-summary strong {
+  color: #2053b0;
+  font-size: 11px;
+}
+
+.tools-shell .toolhub-plan-summary p {
+  margin: 0;
+  color: #4e638b;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.tools-shell .toolhub-plan-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 154px;
+  gap: 14px;
+}
+
+.tools-shell .toolhub-flow {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.tools-shell .toolhub-flow h2 span {
+  color: #6d7ea2;
+  font-size: 10px;
+}
+
+.tools-shell .toolhub-flow > div {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tools-shell .toolhub-flow article {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e9eef6;
+  border-radius: 5px;
+}
+
+.tools-shell .toolhub-flow article > i {
+  display: grid;
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 25px;
+  height: 25px;
+  color: #fff;
+  background: #1761ed;
+  border-radius: 50%;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+  place-items: center;
+  transform: translate(-16%, -30%);
+}
+
+.tools-shell .toolhub-flow h3 {
+  margin: 0 0 0 18px;
+  color: #1c54b6;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-flow article > small {
+  margin-left: 18px;
+  overflow: hidden;
+  color: #7081a4;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tools-shell .toolhub-plan-tools {
+  display: grid;
+  gap: 5px;
+  min-height: 78px;
+  align-content: center;
+  padding: 7px 0;
+}
+
+.tools-shell .toolhub-plan-tools > div {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.tools-shell .toolhub-plan-tools .toolhub-logo {
+  width: 36px;
+  height: 36px;
+}
+
+.tools-shell .toolhub-plan-tools strong,
+.tools-shell .toolhub-flow article > strong {
+  color: #1d3569;
+  font-size: 9px;
+}
+
+.tools-shell .toolhub-flow p {
+  margin: 0;
+  color: #586b91;
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.tools-shell .toolhub-flow a {
+  margin-top: auto;
+  color: #2760be;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.tools-shell .toolhub-flow article > b {
+  position: absolute;
+  top: 42%;
+  right: -10px;
+  z-index: 2;
+  color: #1761ed;
+  font-size: 13px;
+}
+
+.tools-shell .toolhub-plan-aside {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.tools-shell .toolhub-plan-aside section {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.tools-shell .toolhub-plan-aside h2 {
+  margin: 0 0 4px;
+  color: #163067;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-plan-aside strong {
+  color: #335181;
+  font-size: 9px;
+}
+
+.tools-shell .toolhub-plan-aside p,
+.tools-shell .toolhub-plan-aside small {
+  margin: 0;
+  color: #66799d;
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.tools-shell .budget-meter {
+  display: flex;
+  gap: 3px;
+}
+
+.tools-shell .budget-meter span {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  color: #fff;
+  background: #1fb481;
+  border-radius: 50%;
+  font-size: 10px;
+  place-items: center;
+}
+
+.tools-shell .budget-meter span.muted {
+  color: #98a4b9;
+  background: #e7ebf1;
+}
+
+.tools-shell .difficulty-stars {
+  color: #1761ed;
+  font-size: 13px;
+}
+
+.tools-shell .difficulty-stars span {
+  color: #d9dee8;
+}
+
+.tools-shell .toolhub-plan-aside button {
+  min-height: 33px;
+  padding: 0 8px;
+  color: #2257ba;
+  background: #fff;
+  border: 1px solid #2d64c4;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.tools-shell .toolhub-plan-aside button:first-of-type {
+  color: #fff;
+  background: #1761ed;
+}
+
+.tools-shell .toolhub-execution {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.tools-shell .toolhub-execution > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tools-shell .toolhub-execution article {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  background: #fff;
+  border: 0;
+}
+
+.tools-shell .toolhub-execution h3 {
+  margin: 0;
+  color: #2457b5;
+  font-size: 10px;
+}
+
+.tools-shell .toolhub-execution p,
+.tools-shell .toolhub-execution li {
+  color: #66799d;
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.tools-shell .toolhub-execution ul {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding-left: 16px;
+}
+
+.tools-shell .toolhub-execution h3 strong {
+  padding: 2px 6px;
+  color: #d27818;
+  background: #fff3df;
+  border-radius: 3px;
+  font-size: 8px;
+}
+
+/* Tool detail */
+.tools-shell .toolhub-detail-hero {
+  display: grid;
+  grid-template-columns: minmax(330px, 0.9fr) minmax(420px, 1.1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 4px 0 10px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.tools-shell .toolhub-detail-copy {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.tools-shell .toolhub-detail-copy h1 {
+  margin: 0 0 5px;
+  color: #0b1d49;
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.tools-shell .toolhub-detail-copy > div > p {
+  margin: 0 0 8px;
+  color: #2a57b5;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+.tools-shell .toolhub-detail-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.tools-shell .toolhub-detail-actions a,
+.tools-shell .toolhub-detail-actions button {
+  display: inline-flex;
+  min-height: 39px;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  color: #234c9d;
+  background: #fff;
+  border: 1px solid #dce4f1;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.tools-shell .toolhub-detail-actions a:first-child {
+  grid-column: auto;
+  color: #fff;
+  background: #1761ed;
+  border-color: #1761ed;
+}
+
+.tools-shell .toolhub-detail-actions a:last-child {
+  grid-column: 1 / -1;
+}
+
+.tools-shell .toolhub-detail-visual {
+  position: relative;
+  height: 238px;
+  margin: 0;
+  overflow: hidden;
+  background: #d8e5f7 url('/tool-midjourney-preview.jpg') center / cover no-repeat;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(37, 64, 125, 0.12);
+}
+
+.tools-shell .toolhub-detail-visual::before {
+  display: none;
+}
+
+.tools-shell .toolhub-detail-visual span {
+  position: absolute;
+  bottom: 10px;
+  left: calc(50% - 24px);
+  width: 7px;
+  height: 7px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 50%;
+}
+
+.tools-shell .toolhub-detail-visual span:nth-child(2) { left: calc(50% - 8px); opacity: 0.82; }
+.tools-shell .toolhub-detail-visual span:nth-child(3) { left: calc(50% + 8px); opacity: 0.72; }
+.tools-shell .toolhub-detail-visual span:nth-child(4) { left: calc(50% + 24px); opacity: 0.58; }
+
+.tools-shell .toolhub-detail-panel {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.tools-shell .toolhub-detail-panel > h2 {
+  width: fit-content;
+  margin-left: 14px;
+  padding: 12px 0 8px;
+  color: #1656c2;
+  border-bottom: 2px solid #1761ed;
+}
+
+.tools-shell .toolhub-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.tools-shell .toolhub-detail-grid article {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #edf1f7;
+  border-radius: 4px;
+}
+
+.tools-shell .toolhub-detail-grid h3 {
+  margin: 0;
+  color: #1f3e79;
+  font-size: 10px;
+  font-weight: 850;
+}
+
+.tools-shell .toolhub-detail-grid p {
+  margin: 0 0 2px;
+  color: #61749a;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.tools-shell .toolhub-detail-grid a {
+  color: #1761ed;
+}
+
+.tools-shell .toolhub-solve {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.tools-shell .toolhub-solve > p {
+  margin: 0;
+  color: #61749a;
+  font-size: 9px;
+}
+
+.tools-shell .toolhub-solve > div {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tools-shell .toolhub-solve article {
+  display: grid;
+  gap: 4px;
+  padding: 7px;
+  background: #fff;
+  border: 0;
+}
+
+.tools-shell .toolhub-solve strong {
+  color: #1f3e79;
+  font-size: 9px;
+}
+
+.tools-shell .toolhub-solve small {
+  color: #6b7da1;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+@media (max-width: 1420px) {
+  .tools-shell .toolhub-page.with-copilot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tools-shell .toolhub-copilot {
+    position: static;
+    min-height: 420px;
+    max-height: none;
+  }
+
+  .tools-shell .toolhub-page.with-copilot .toolhub-hot-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1040px) {
+  .tools-shell .toolhub-filter-row,
+  .tools-shell .toolhub-bottom-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tools-shell .toolhub-tabs,
+  .tools-shell .toolhub-selects {
+    overflow-x: auto;
+  }
+
+  .tools-shell .toolhub-grid,
+  .tools-shell .toolhub-grid.full,
+  .tools-shell .toolhub-recommend-results > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tools-shell .toolhub-plan-layout,
+  .tools-shell .toolhub-detail-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .tools-shell .toolhub-plan-aside {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .tools-shell .v4-sidebar {
+    min-height: 72px;
+    padding: 14px 16px;
+  }
+
+  .tools-shell .v4-side-nav,
+  .tools-shell .v4-sidebar-bottom {
+    display: none;
+  }
+
+  .tools-shell .v4-brand {
+    min-height: 42px;
+  }
+
+  .tools-shell .v4-topbar {
+    gap: 8px;
+    padding: 8px 14px 10px;
+    overflow: hidden;
+  }
+
+  .tools-shell .v4-topnav {
+    width: 100%;
+    min-width: 0;
+    padding: 0 10px;
+    gap: 22px;
+    overflow-x: auto;
+  }
+
+  .tools-shell .v4-account-area {
+    display: none;
+  }
+
+  .tools-shell .v4-workspace,
+  .tools-shell .v4-page-main,
+  .tools-shell .toolhub-page,
+  .tools-shell .toolhub-main {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .tools-shell .v4-page-main {
+    padding: 18px 14px 40px;
+  }
+
+  .tools-shell .toolhub-title,
+  .tools-shell .toolhub-search-block,
+  .tools-shell .toolhub-filter-row,
+  .tools-shell .toolhub-hot,
+  .tools-shell .toolhub-grid,
+  .tools-shell .toolhub-pagination {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .tools-shell .toolhub-tabs,
+  .tools-shell .toolhub-selects {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    flex: 0 0 auto;
+    overflow-x: auto;
+  }
+
+  .tools-shell .toolhub-tabs button,
+  .tools-shell .toolhub-selects button {
+    flex: 0 0 auto;
+  }
+
+  .tools-shell .toolhub-hot-grid,
+  .tools-shell .toolhub-page.with-copilot .toolhub-hot-grid,
+  .tools-shell .toolhub-grid,
+  .tools-shell .toolhub-grid.full,
+  .tools-shell .toolhub-recommend-results > div,
+  .tools-shell .toolhub-flow > div,
+  .tools-shell .toolhub-execution > div,
+  .tools-shell .toolhub-plan-aside,
+  .tools-shell .toolhub-detail-grid,
+  .tools-shell .toolhub-solve > div {
+    grid-template-columns: 1fr;
+  }
+
+  .tools-shell .toolhub-summary,
+  .tools-shell .toolhub-plan-summary article,
+  .tools-shell .toolhub-detail-copy {
+    grid-template-columns: 1fr;
+  }
+
+  .tools-shell .toolhub-summary > strong {
+    grid-row: auto;
+  }
+
+  .tools-shell .toolhub-pagination small {
+    display: none;
+  }
+
+  .tools-shell .toolhub-detail-actions,
+  .tools-shell .toolhub-plan-aside {
+    grid-template-columns: 1fr;
+  }
+
+  .tools-shell .toolhub-detail-visual {
+    height: 210px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
