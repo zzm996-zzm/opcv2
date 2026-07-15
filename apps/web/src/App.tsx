@@ -15,6 +15,7 @@ import CompetitorMonitoringPage from "./pages/CompetitorMonitoringPage";
 import CrmPage from "./pages/CrmPage";
 import DashboardPage from "./pages/DashboardPage";
 import EnterprisePage from "./pages/EnterprisePage";
+import EnterpriseReferencePage from "./pages/EnterpriseReferencePage";
 import GeoAcquisitionPage from "./pages/GeoAcquisitionPage";
 import GrowthCalculatorPage from "./pages/GrowthCalculatorPage";
 import HelpPage from "./pages/HelpPage";
@@ -761,9 +762,32 @@ function App() {
         path="/crm/follow-ups"
       />
       <Route
+        element={<RequireAuth><EnterpriseReferencePage variant="form" /></RequireAuth>}
+        path="/enterprise/form"
+      />
+      <Route
+        element={<RequireAuth><EnterpriseReferencePage variant="cases" /></RequireAuth>}
+        path="/enterprise/cases"
+      />
+      <Route
+        element={<RequireAuth><EnterpriseReferencePage variant="detail" /></RequireAuth>}
+        path="/enterprise/cases/:caseSlug"
+      />
+      <Route
+        element={<RequireAuth><EnterpriseReferencePage variant="success" /></RequireAuth>}
+        path="/enterprise/success"
+      />
+      <Route
+        element={<RequireAuth><EnterpriseReferencePage variant="contact" /></RequireAuth>}
+        path="/enterprise/contact"
+      />
+      <Route
         element={
           <RequireAuth>
-            <EnterprisePage />
+            <>
+              <EnterpriseReferencePage />
+              <div className="landing-live-sr-only"><EnterprisePage /></div>
+            </>
           </RequireAuth>
         }
         path="/enterprise"
