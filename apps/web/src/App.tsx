@@ -36,6 +36,7 @@ import LearningRecommendedCoursesPage from "./pages/LearningRecommendedCoursesPa
 import LearningReportPage from "./pages/LearningReportPage";
 import LoginPage from "./pages/LoginPage";
 import MembershipPage from "./pages/MembershipPage";
+import MembershipPaymentPage from "./pages/MembershipPaymentPage";
 import MessagesPage from "./pages/MessagesPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -150,6 +151,9 @@ function App() {
         }
         path="/membership/upgrade"
       />
+      <Route element={<RequireAuth><MembershipPaymentPage mode="checkout" /></RequireAuth>} path="/membership/checkout" />
+      <Route element={<RequireAuth><MembershipPaymentPage mode="quota" /></RequireAuth>} path="/membership/quota" />
+      <Route element={<RequireAuth><MembershipPaymentPage mode="success" /></RequireAuth>} path="/membership/success" />
       <Route
         element={
           <RequireAuth>

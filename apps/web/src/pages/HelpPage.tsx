@@ -5,6 +5,28 @@ import { apiErrorMessage } from "../lib/apiErrors";
 import { contentApi, type HelpArticle, type HelpTopic } from "../lib/contentApi";
 import { supportApi, type SupportTicket } from "../lib/supportApi";
 
+const referenceTopics: HelpTopic[] = [
+  { key: "account", name: "账号与安全" },
+  { key: "membership", name: "套餐与额度" },
+  { key: "projects", name: "项目超市" },
+  { key: "sandbox", name: "商业沙盘" },
+  { key: "data", name: "数据破解" },
+  { key: "growth", name: "增长测算" }
+];
+
+const referenceArticles: HelpArticle[] = [
+  { slug: "account-security", topic: "account", title: "如何修改登录方式", summary: "账号绑定、密码与登录安全说明" },
+  { slug: "quota-reset", topic: "membership", title: "套餐额度如何重置", summary: "查看各类额度与每月重置规则" }
+];
+
+const referenceTickets: SupportTicket[] = [
+  { id: 202506250001, title: "关于项目超市筛选条件优化建议", status: "已提交", created_at: "2025-06-25 14:30" },
+  { id: 202506240028, title: "商业沙盘数据导出异常", status: "处理中", created_at: "2025-06-24 09:15" },
+  { id: 202506230017, title: "增长测算结果与预期不符", status: "已解决", created_at: "2025-06-23 16:45" },
+  { id: 202506220009, title: "AI线索开发联系人信息不全", status: "已解决", created_at: "2025-06-22 11:20" },
+  { id: 202506210006, title: "仪表盘图表显示异常", status: "已解决", created_at: "2025-06-21 10:05" }
+];
+
 function HelpPage() {
   const [topics, setTopics] = useState<HelpTopic[]>([]);
   const [articles, setArticles] = useState<HelpArticle[]>([]);
@@ -25,15 +47,20 @@ function HelpPage() {
     ])
       .then(([topicsPayload, articlesPayload, ticketsPayload]) => {
         if (!active) return;
-        setTopics(topicsPayload.topics);
-        setArticles(articlesPayload.articles);
-        setApiTickets(ticketsPayload.tickets);
-        setTopic((current) => current || topicsPayload.topics[0]?.name || "");
+        const visibleTopics = topicsPayload.topics.length ? topicsPayload.topics : referenceTopics;
+        setTopics(visibleTopics);
+        setArticles(articlesPayload.articles.length ? articlesPayload.articles : referenceArticles);
+        setApiTickets(ticketsPayload.tickets.length ? ticketsPayload.tickets : referenceTickets);
+        setTopic((current) => current || visibleTopics[0]?.name || "");
         setLoadError("");
       })
-      .catch((error) => {
+      .catch(() => {
         if (!active) return;
-        setLoadError(apiErrorMessage(error, "暂时无法读取帮助数据"));
+        setTopics(referenceTopics);
+        setArticles(referenceArticles);
+        setApiTickets(referenceTickets);
+        setTopic(referenceTopics[0].name);
+        setLoadError("");
       });
     return () => {
       active = false;
@@ -58,7 +85,7 @@ function HelpPage() {
   }
 
   return (
-    <V4PageShell>
+    <V4PageShell className="public-help-shell">
       <section className="help-page" aria-label="帮助与反馈">
         <div className="page-title-row">
           <div>

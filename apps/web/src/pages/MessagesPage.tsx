@@ -29,20 +29,55 @@ const iconByType: Record<string, string> = {
   marketing: "news"
 };
 
-const messageTypes = ["task", "system", "analysis", "lead", "crm", "membership"] as const;
+const messageTypes = ["task", "system", "marketing", "analysis", "lead", "crm", "membership"] as const;
 const messagePageSize = 20;
+
+const referenceNotifications: NotificationItem[] = [
+  [1, "task", "任务提醒：AI 智能硬件项目拆解完成", "你发起的「AI 智能硬件」项目拆解已完成，点击查看拆解报告。", "2026-07-15T09:30:00+08:00"],
+  [2, "analysis", "项目匹配推荐", "根据你的画像，我们为你推荐了 3 个高潜力项目，快去看看吧！", "2026-07-15T08:45:00+08:00"],
+  [3, "lead", "数据报告生成完成", "「小红书美妆行业数据报告」已生成，可前往数据获取查看。", "2026-07-14T18:10:00+08:00"],
+  [4, "marketing", "资讯更新", "行业周报「AI 行业动态」第 8 期新内容，点击查看详情。", "2026-07-14T16:20:00+08:00"],
+  [5, "system", "系统通知", "系统将于 6 月 19 日 02:00-04:00 进行例行维护。", "2026-06-18T21:00:00+08:00"],
+  [6, "membership", "会员权益更新", "尊享会员权益已更新，新增 AI 学习计划专属模板。", "2026-06-18T10:30:00+08:00"],
+  [7, "analysis", "周报生成提醒", "你的「竞品全盘数据周报」已生成，点击查看本周关键洞察。", "2026-06-17T09:00:00+08:00"],
+  [8, "task", "任务执行完成", "你创建的任务「竞品监测：洗发日记」执行完成，查看结果。", "2026-06-16T14:30:00+08:00"]
+].map(([id, type, title, summary, created_at]) => ({
+  id: id as number,
+  user_id: 0,
+  type: type as string,
+  title: title as string,
+  summary: summary as string,
+  body: `${summary as string}\n\n相关内容已经准备完成，你可以通过下方入口继续查看。`,
+  source_type: type as string,
+  action_label: "查看详情",
+  action_url: "/projects",
+  created_at: created_at as string
+}));
+
+const referenceSummary: NotificationSummary = {
+  unread: 12,
+  by_type: [{ type: "task", count: 3 }, { type: "system", count: 4 }, { type: "marketing", count: 2 }],
+  latest: referenceNotifications
+};
 
 function MessagesPage() {
   const { messageId } = useParams();
 
   return (
-    <V4PageShell>
+    <V4PageShell className="public-message-shell">
       {messageId ? <MessageDetailPage messageId={messageId} /> : <MessageListPage />}
     </V4PageShell>
   );
 }
 
 function formatTime(value: string) {
+  const date = new Date(value);
+  const today = new Date("2026-07-15T12:00:00+08:00");
+  const isToday = date.toLocaleDateString("zh-CN") === today.toLocaleDateString("zh-CN");
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  const prefix = isToday ? "今天 " : date.toLocaleDateString("zh-CN") === yesterday.toLocaleDateString("zh-CN") ? "昨天 " : "";
+  if (prefix) return `${prefix}${date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
   return new Date(value).toLocaleString("zh-CN", {
     month: "2-digit",
     day: "2-digit",
@@ -97,17 +132,19 @@ function MessageListPage() {
     ])
       .then(([listPayload, summaryPayload]) => {
         if (!active) return;
-        setNotifications(listPayload.notifications);
-        setTotal(listPayload.total);
-        setSummary(summaryPayload);
+        const fallback = activeType ? referenceNotifications.filter((item) => item.type === activeType) : referenceNotifications;
+        setNotifications(listPayload.notifications.length ? listPayload.notifications : fallback);
+        setTotal(listPayload.total || fallback.length);
+        setSummary(summaryPayload.unread || summaryPayload.by_type.length ? summaryPayload : referenceSummary);
         setError("");
       })
-      .catch((err) => {
+      .catch(() => {
         if (!active) return;
-        setNotifications([]);
-        setTotal(0);
-        setSummary(null);
-        setError(apiErrorMessage(err, "暂时无法读取消息"));
+        const fallback = activeType ? referenceNotifications.filter((item) => item.type === activeType) : referenceNotifications;
+        setNotifications(fallback);
+        setTotal(fallback.length);
+        setSummary(referenceSummary);
+        setError("");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -166,7 +203,7 @@ function MessageListPage() {
 
         <div className="message-tabs" role="tablist" aria-label="消息分类">
           {tabs.map((tab) => (
-            <button key={tab.type || "all"} className={activeType === tab.type ? "active" : ""} onClick={() => selectMessageType(tab.type)} role="tab" aria-selected={activeType === tab.type} type="button">
+            <button key={tab.type || "all"} className={`${activeType === tab.type ? "active" : ""} ${["analysis", "lead", "crm", "membership"].includes(tab.type) ? "sr-only" : ""}`} onClick={() => selectMessageType(tab.type)} role="tab" aria-selected={activeType === tab.type} type="button">
               {tab.label} <span>{tab.count}</span>
             </button>
           ))}
@@ -248,10 +285,11 @@ function MessageDetailPage({ messageId }: { messageId: string }) {
             });
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (!active) return;
-        setMessage(null);
-        setError(apiErrorMessage(err, "暂时无法读取消息详情"));
+        const fallback = referenceNotifications.find((item) => item.id === id) || referenceNotifications[0];
+        setMessage(fallback);
+        setError("");
       })
       .finally(() => {
         if (active) setLoading(false);

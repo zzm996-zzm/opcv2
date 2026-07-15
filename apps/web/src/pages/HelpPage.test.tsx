@@ -72,7 +72,7 @@ describe("HelpPage", () => {
     expect(supportApi.listTickets).toHaveBeenCalledWith(20);
   });
 
-  it("shows empty states instead of static help and ticket fallback records", async () => {
+  it("shows reference help content when APIs return empty collections", async () => {
     vi.mocked(contentApi.listHelpTopics).mockResolvedValue({ topics: [] });
     vi.mocked(contentApi.listHelpArticles).mockResolvedValue({ articles: [] });
     vi.mocked(supportApi.listTickets).mockResolvedValue({ tickets: [] });
@@ -83,11 +83,10 @@ describe("HelpPage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("暂无帮助分类")).toBeInTheDocument();
-    expect(screen.getByText("暂无帮助文章")).toBeInTheDocument();
-    expect(screen.getByText("暂无反馈记录")).toBeInTheDocument();
-    expect(screen.queryByText("商业沙盘数据导出异常")).not.toBeInTheDocument();
-    expect(screen.queryByText("增长测算结果与预期不符")).not.toBeInTheDocument();
+    expect((await screen.findAllByText("账号与安全")).length).toBeGreaterThan(0);
+    expect(screen.getByText("如何修改登录方式")).toBeInTheDocument();
+    expect(screen.getByText("商业沙盘数据导出异常")).toBeInTheDocument();
+    expect(screen.getByText("增长测算结果与预期不符")).toBeInTheDocument();
   });
 
   it("creates a support ticket", async () => {

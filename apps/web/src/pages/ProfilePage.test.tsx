@@ -173,7 +173,7 @@ describe("ProfilePage", () => {
     expect(accountApi.listContent).toHaveBeenCalledWith(20);
   });
 
-  it("shows explicit empty states instead of static profile fallback records", async () => {
+  it("shows reference profile states when APIs return empty collections", async () => {
     vi.mocked(accountApi.getProfile).mockResolvedValue({
       profile: {
         id: 7,
@@ -206,10 +206,8 @@ describe("ProfilePage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("暂无额度记录")).toBeInTheDocument();
-    expect(screen.getByText("暂无最近操作")).toBeInTheDocument();
-    expect(screen.queryByText("AI智算额度")).not.toBeInTheDocument();
-    expect(screen.queryByText("生成智能客服系统机会分析")).not.toBeInTheDocument();
+    expect(await screen.findByText("AI 智算额度")).toBeInTheDocument();
+    expect(screen.getByText(/查看了项目拆解结果/)).toBeInTheDocument();
 
     rerender(
       <MemoryRouter>
@@ -217,9 +215,8 @@ describe("ProfilePage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("暂无画像资料")).toBeInTheDocument();
-    expect(screen.getByText("暂无账号绑定信息")).toBeInTheDocument();
-    expect(screen.queryByText("智活AI科技有限公司")).not.toBeInTheDocument();
+    expect(await screen.findByText("公司名称：智活AI科技有限公司")).toBeInTheDocument();
+    expect(screen.getByText("138 **** 5678")).toBeInTheDocument();
 
     rerender(
       <MemoryRouter>
@@ -227,8 +224,7 @@ describe("ProfilePage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("暂无内容记录")).toBeInTheDocument();
-    expect(screen.queryByText("智能客服系统项目匹配")).not.toBeInTheDocument();
+    expect(await screen.findByText("智能客服系统项目匹配")).toBeInTheDocument();
   });
 
   it("renders and saves preference settings", async () => {

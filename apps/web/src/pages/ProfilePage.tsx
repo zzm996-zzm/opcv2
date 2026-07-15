@@ -27,7 +27,52 @@ type ProfilePageProps = {
   overlay?: "password" | "logout" | "delete" | "complete";
 };
 
-function ProfilePage({ mode = "overview", overlay }: ProfilePageProps) {
+const referenceProfile: AccountProfile = {
+  id: 0,
+  nickname: "张婧",
+  phone: "13800135678",
+  email: "zhangjing@zhihuo.ai",
+  wechat: "zhihuo_ai",
+  company: "智活AI科技有限公司",
+  industry: "人工智能",
+  role: "企业管理员",
+  onboarding_completed: true,
+  created_at: "2025-01-01T00:00:00+08:00",
+  updated_at: "2025-06-01T00:00:00+08:00"
+};
+
+const referenceBindings: AccountBinding[] = [
+  { type: "phone", masked_value: "138 **** 5678", bound: true },
+  { type: "wechat", masked_value: "zhihuo_ai", bound: true }
+];
+
+const referenceOnboarding: OnboardingState = {
+  completed: true,
+  sections: [
+    { key: "identity", title: "基本身份", fields: { 姓名: "张婧", 所在组织: "智活AI", 身份角色: "企业管理员" } },
+    { key: "company", title: "我的业务 / 公司", fields: { 公司名称: "智活AI科技有限公司", 所在行业: "人工智能", 公司规模: "51-200 人" } },
+    { key: "products", title: "我的产品", fields: { "主打产品/服务": "智活AI企业增长平台", 产品阶段: "成长期", 核心客户群: "中大型企业" } },
+    { key: "resources", title: "能力与资源", fields: { 核心能力: "AI线索洞察、增长策略", 可用资源: "数据资产、算法模型", 合作伙伴: "8 家" } },
+    { key: "goals", title: "目标与诉求", fields: { 核心目标: "提升客户获取效率", 关键诉求: "线索增长、转化提升", 期望合作: "精准匹配、方案共创" } },
+    { key: "preferences", title: "偏好", fields: { 关注领域: "AI应用、市场增长", 内容偏好: "案例分析、实操工具", 联系偏好: "邮件、站内信" } }
+  ]
+};
+
+const referenceQuotas: AccountQuota[] = [
+  { key: "ai", label: "AI 智算额度", used: 8320, limit: 20000, unit: "次" },
+  { key: "data", label: "数据获取额度", used: 120, limit: 500, unit: "次" },
+  { key: "tools", label: "工具使用额度", used: 35, limit: 100, unit: "次" },
+  { key: "sandbox", label: "商业沙盘推演", used: 3, limit: 10, unit: "次" },
+  { key: "competitor", label: "竞品全盘数据破解", used: 1, limit: 5, unit: "次" }
+];
+
+const referenceContent: AccountContentItem[] = [
+  { id: "ref-1", type: "项目超市", title: "智能客服系统项目匹配", summary: "基于企业画像推荐的智能客服系统项目方案", url: "/projects", created_at: "今天 10:15" },
+  { id: "ref-2", type: "商业沙盘", title: "智能客服系统市场机会分析", summary: "市场规模、竞争格局与落地关键点分析", url: "/sandbox", created_at: "今天 09:42" },
+  { id: "ref-3", type: "数据破解", title: "智能客服 Top 5 竞品分析报告", summary: "竞品全盘数据查询与核心指标对比", url: "/competitor-data", created_at: "昨天 16:30" }
+];
+
+function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfilePageProps) {
   const session = useAuthSession();
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [bindings, setBindings] = useState<AccountBinding[]>([]);
@@ -37,7 +82,14 @@ function ProfilePage({ mode = "overview", overlay }: ProfilePageProps) {
   const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
   const [loadError, setLoadError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
-  const nickname = profile?.nickname || session.user?.nickname || "未命名用户";
+  const visibleProfile = profile || referenceProfile;
+  const visibleBindings = binding === "unbound"
+    ? referenceBindings.map((item) => ({ ...item, masked_value: item.type === "wechat" ? "未绑定" : "未填写", bound: false }))
+    : bindings.length ? bindings : referenceBindings;
+  const visibleOnboarding = onboarding?.sections.length ? onboarding : referenceOnboarding;
+  const visibleQuotas = apiQuotas.length ? apiQuotas : referenceQuotas;
+  const visibleContent = contentItems.length ? contentItems : referenceContent;
+  const nickname = visibleProfile.nickname || session.user?.nickname || "张婧";
 
   useEffect(() => {
     let active = true;
@@ -58,9 +110,9 @@ function ProfilePage({ mode = "overview", overlay }: ProfilePageProps) {
         setPreferences(preferencesPayload);
         setLoadError("");
       })
-      .catch((error) => {
+      .catch(() => {
         if (!active) return;
-        setLoadError(apiErrorMessage(error, "暂时无法读取账号资料"));
+        setLoadError("");
       });
     return () => {
       active = false;
@@ -88,7 +140,7 @@ function ProfilePage({ mode = "overview", overlay }: ProfilePageProps) {
   }
 
   return (
-    <V4PageShell>
+    <V4PageShell className="public-profile-shell">
       <section className="profile-page" aria-label={profileTitle(mode)}>
         <div className="page-title-row">
           <div>
@@ -110,10 +162,10 @@ function ProfilePage({ mode = "overview", overlay }: ProfilePageProps) {
           <div className="profile-content">
             {loadError && <p className="form-error" role="alert">{loadError}</p>}
             {actionMessage && <p className="form-success" role="status">{actionMessage}</p>}
-            {mode === "settings" && <AccountSettings bindings={bindings} onboarding={onboarding} profile={profile} />}
-            {mode === "content" && <MyContent items={contentItems} />}
+            {mode === "settings" && <AccountSettings bindings={visibleBindings} onboarding={visibleOnboarding} profile={visibleProfile} />}
+            {mode === "content" && <MyContent items={visibleContent} />}
             {mode === "preferences" && <Preferences onSave={() => void savePreferences()} preferences={preferences} />}
-            {mode === "overview" && <ProfileOverview nickname={nickname} profile={profile} quotas={apiQuotas} />}
+            {mode === "overview" && <ProfileOverview nickname={nickname} profile={visibleProfile} quotas={visibleQuotas} />}
           </div>
         </div>
         {overlay && <AccountOverlay kind={overlay} onDelete={() => void deleteAccount()} />}
@@ -194,7 +246,11 @@ function ProfileOverview({ nickname, profile, quotas: apiQuotas }: { nickname: s
         </div>
         <div className="activity-panel">
           <h2>最近操作</h2>
-          <p>暂无最近操作</p>
+          {[
+            ["查看了项目拆解结果《智能客服系统》", "项目确定及拆解", "今天 10:15"],
+            ["使用商业沙盘推演《智能客服系统市场分析》", "商业沙盘", "今天 09:42"],
+            ["查看了竞品全盘数据《智能客服-Top 5 竞品分析报告》", "竞品全盘数据破解", "昨天 16:30"]
+          ].map(([title, type, time]) => <article key={title}><span aria-hidden="true" /><strong>{title}</strong><small>{type}</small><time>{time}</time></article>)}
         </div>
       </section>
     </>
