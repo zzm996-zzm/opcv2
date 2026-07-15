@@ -846,8 +846,16 @@ function ProjectCompare() {
 }
 
 function ProjectHero({ title, subtitle, action, href }: { title: string; subtitle: string; action: string; href: string }) {
+  const heroKind = title === "机会探索"
+    ? "explore"
+    : title === "真实案例库"
+      ? "cases"
+      : title === "匹配历史与收藏"
+        ? "history"
+        : "match";
+
   return (
-    <section className="pm-hero compact">
+    <section className={`pm-hero compact ${heroKind}`}>
       <div>
         <p>项目超市 / {title}</p>
         <h1>{title}</h1>

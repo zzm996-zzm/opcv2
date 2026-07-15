@@ -818,6 +818,7 @@ function SandboxStepper({ active }: { active: 1 | 2 | 3 }) {
 
 function SandboxCopilot({ mode }: { mode: SandboxVariant }) {
   const resultMode = mode === "run" || mode === "report" || mode === "history";
+  const roleMode = mode === "roles";
   return (
     <aside className="sandbox-copilot" aria-label="智活 Copilot">
       <header>
@@ -829,21 +830,38 @@ function SandboxCopilot({ mode }: { mode: SandboxVariant }) {
         <button type="button">⌃</button>
       </header>
       <div className="sandbox-chat mine">
-        {mode === "home" ? "如何使用商业沙盘？" : "这些推演结果可以直接作为市场事实吗？"}
+        {mode === "home"
+          ? "如何使用商业沙盘？"
+          : roleMode
+            ? "我想做一款面向上班族的低卡代餐奶昔"
+            : "这些推演结果可以直接作为市场事实吗？"}
       </div>
       <div className="sandbox-chat">
-        {resultMode
+        {roleMode
+          ? "已理解你的初步想法。为了更精准地推演，请先选择一个或多个角色，AI 将从该角色的立场与你对话并给出建议。"
+          : resultMode
           ? "不可以。沙盘结果是基于输入条件的 AI 情景推演，关键假设和结论仍需通过访谈、实验或可信数据验证。"
           : "先填写目标用户、产品方案和推演目标，再选择角色。系统会生成模型推演报告，并明确标注假设与证据边界。"}
       </div>
-      <nav>
+      {roleMode ? (
+        <div className="sandbox-copilot-pager" aria-label="角色建议页码">
+          <button type="button" aria-label="上一页">‹</button>
+          <strong>1 / 5</strong>
+          <button type="button" aria-label="下一页">›</button>
+        </div>
+      ) : <nav>
         {(resultMode
           ? [["开始新推演", "/sandbox/setup"], ["历史推演记录", "/sandbox/history"]]
-          : [["开始多角色推演", "/sandbox/setup"], ["历史推演记录", "/sandbox/history"]]
+          : [
+              ["开始多角色推演", "/sandbox/setup"],
+              ["查看推演思路", "/sandbox/setup"],
+              ["生成推演大纲", "/sandbox/questions"],
+              ["历史推演记录", "/sandbox/history"]
+            ]
         ).map((item) => (
           <Link key={item[0]} to={item[1]}>{item[0]}</Link>
         ))}
-      </nav>
+      </nav>}
       <MiniCopilotForm className="sandbox-copilot-input" inputAriaLabel="向沙盘 Copilot 提问" attachIcon="＋" sendIcon="↗" />
     </aside>
   );

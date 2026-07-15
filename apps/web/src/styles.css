@@ -17621,7 +17621,7 @@ a:active {
 }
 
 .project-market-shell .v4-sidebar {
-  width: 250px;
+  width: 260px;
   padding: 24px 22px 22px;
 }
 
@@ -17640,7 +17640,7 @@ a:active {
 }
 
 .project-market-shell .v4-workspace {
-  padding-left: 250px;
+  padding-left: 260px;
 }
 
 .project-market-shell.v4-shell-sidebar-collapsed .v4-sidebar {
@@ -17679,7 +17679,7 @@ a:active {
 }
 
 .project-market-shell .v4-page-main {
-  padding: 22px 28px 38px;
+  padding: 4px 28px 38px 38px;
   background:
     radial-gradient(circle at 48% 0%, rgba(105, 124, 255, 0.14), transparent 31%),
     linear-gradient(180deg, #fbfcff 0%, #f5f8ff 100%);
@@ -17691,8 +17691,8 @@ a:active {
 
 .project-market-layout {
   display: grid;
-  grid-template-columns: minmax(930px, 1fr) 330px;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) 308px;
+  gap: 30px;
   align-items: start;
 }
 
@@ -17708,21 +17708,37 @@ a:active {
   grid-template-columns: minmax(390px, 0.78fr) minmax(500px, 1.22fr);
   align-items: center;
   min-height: 310px;
-  padding: 34px 34px 30px;
+  padding: 34px 0 30px;
   overflow: hidden;
   background:
     radial-gradient(circle at 73% 50%, rgba(110, 96, 255, 0.2), transparent 24%),
     radial-gradient(circle at 88% 17%, rgba(255, 255, 255, 0.95), transparent 18%),
     linear-gradient(106deg, rgba(255, 255, 255, 0.98) 0%, rgba(238, 243, 255, 0.9) 55%, rgba(226, 235, 255, 0.95) 100%);
-  border: 1px solid rgba(65, 96, 198, 0.12);
-  border-radius: 16px;
-  box-shadow: 0 20px 54px rgba(58, 78, 158, 0.085);
+  border: 1px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .pm-hero.compact {
   grid-template-columns: minmax(330px, 0.92fr) minmax(280px, 1fr) auto;
   min-height: 166px;
-  padding: 22px 26px;
+  height: 166px;
+  margin-bottom: -17px;
+  padding: 8px 0;
+}
+
+.pm-hero.compact p {
+  margin-bottom: 17px;
+}
+
+.pm-hero.compact h1 {
+  font-size: 50px;
+}
+
+.pm-hero.compact small {
+  margin-top: 4px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .pm-hero p,
@@ -17821,6 +17837,68 @@ a:active {
   width: min(560px, 100%);
   aspect-ratio: 1.9;
   place-items: center;
+}
+
+.pm-hero.home .pm-ai-art {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 650px;
+  height: 365px;
+  aspect-ratio: auto;
+  background: transparent url("/project-market/home-hero.jpg") center / 650px 365px no-repeat;
+  z-index: 0;
+}
+
+.pm-hero.home > div {
+  position: relative;
+  z-index: 2;
+  align-self: start;
+  padding-top: 0;
+}
+
+.pm-hero.home {
+  height: 336px;
+  min-height: 336px;
+}
+
+.pm-hero.home .pm-search {
+  width: 350px;
+  margin-top: 62px;
+}
+
+.pm-hero.compact .pm-ai-art {
+  width: min(430px, 100%);
+  height: 150px;
+  aspect-ratio: auto;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.pm-hero.compact.match .pm-ai-art {
+  background-image: url("/project-market/match-hero.jpg");
+}
+
+.pm-hero.compact.explore .pm-ai-art {
+  background-image: url("/project-market/explore-hero.jpg");
+}
+
+.pm-hero.compact.cases .pm-ai-art {
+  background-image: url("/project-market/cases-hero.jpg");
+}
+
+.pm-hero.compact.history .pm-ai-art {
+  background-image: url("/project-market/history-hero.jpg");
+}
+
+.pm-hero.home .pm-ai-art::before,
+.pm-hero.home .pm-ai-art::after,
+.pm-hero.home .pm-ai-art > *,
+.pm-hero.compact .pm-ai-art::before,
+.pm-hero.compact .pm-ai-art::after,
+.pm-hero.compact .pm-ai-art > * {
+  display: none;
 }
 
 .pm-ai-art::before {
@@ -17982,6 +18060,10 @@ a:active {
   gap: 10px;
 }
 
+.pm-core-section {
+  gap: 0;
+}
+
 .pm-core-section > h2,
 .pm-opportunity-section h2 {
   margin: 0;
@@ -18000,7 +18082,7 @@ a:active {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 126px;
-  min-height: 142px;
+  min-height: 154px;
   padding: 20px;
   overflow: hidden;
   border-radius: 13px;
@@ -18018,6 +18100,8 @@ a:active {
 
 .pm-core-card a {
   z-index: 1;
+  grid-column: 1;
+  grid-row: 2;
   align-self: end;
   justify-self: start;
   min-height: 34px;
@@ -18030,32 +18114,30 @@ a:active {
   font-weight: 900;
 }
 
+.pm-core-card > div {
+  grid-column: 1;
+  grid-row: 1;
+}
+
 .pm-core-card::after {
+  position: absolute;
+  top: 50%;
+  right: 18px;
   align-self: center;
   justify-self: end;
   width: 104px;
   height: 104px;
   content: "";
-  background:
-    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.94) 0 18%, transparent 19%),
-    radial-gradient(circle at 50% 50%, rgba(102, 231, 255, 0.62) 0 23%, transparent 24%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.56), rgba(87, 97, 255, 0.2));
-  border-radius: 28px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.55), 0 18px 38px rgba(34, 51, 170, 0.14);
+  background: transparent url("/project-market/core-match.jpg") center / contain no-repeat;
+  transform: translateY(-50%);
 }
 
 .pm-core-card.lens::after {
-  background:
-    radial-gradient(circle at 42% 42%, rgba(255,255,255,0.92) 0 17%, transparent 18%),
-    radial-gradient(circle at 44% 42%, rgba(92, 117, 255, 0.34) 0 36%, transparent 37%),
-    linear-gradient(135deg, transparent 58%, rgba(70, 84, 210, 0.3) 59% 67%, transparent 68%);
+  background-image: url("/project-market/core-explore.jpg");
 }
 
 .pm-core-card.case::after {
-  background:
-    linear-gradient(90deg, rgba(255,255,255,0.5), transparent 32%),
-    repeating-linear-gradient(180deg, rgba(80, 90, 220, 0.18) 0 12px, transparent 12px 24px),
-    linear-gradient(145deg, rgba(245, 248, 255, 0.98), rgba(146, 127, 255, 0.32));
+  background-image: url("/project-market/core-cases.jpg");
 }
 
 .pm-section-head {
@@ -18104,31 +18186,22 @@ a:active {
 
 .pm-opportunity-grid article:nth-child(1) .pm-thumb,
 .pm-result-card:nth-child(1) .pm-result-image {
-  background:
-    radial-gradient(circle at 35% 45%, rgba(255,255,255,0.55) 0 9%, transparent 10%),
-    radial-gradient(circle at 50% 58%, rgba(185, 117, 57, 0.72), transparent 24%),
-    linear-gradient(135deg, #22150e 0%, #b26b36 48%, #f0c99f 100%);
+  background: #dbe5f7 url("/project-market/opportunity-01.jpg") center / cover no-repeat;
 }
 
 .pm-opportunity-grid article:nth-child(2) .pm-thumb,
 .pm-result-card:nth-child(2) .pm-result-image {
-  background:
-    radial-gradient(circle at 38% 42%, rgba(255,255,255,0.48), transparent 12%),
-    linear-gradient(135deg, #f6d6e5 0%, #c88df5 46%, #6f52ff 100%);
+  background: #e8e7f7 url("/project-market/opportunity-02.jpg") center / cover no-repeat;
 }
 
 .pm-opportunity-grid article:nth-child(3) .pm-thumb,
 .pm-result-card:nth-child(3) .pm-result-image {
-  background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,0.14) 0 10px, transparent 10px 24px),
-    linear-gradient(135deg, #101a54 0%, #0a72cf 50%, #6de6ff 100%);
+  background: #dfe9f8 url("/project-market/opportunity-03.jpg") center / cover no-repeat;
 }
 
 .pm-opportunity-grid article:nth-child(4) .pm-thumb,
 .pm-result-card:nth-child(4) .pm-result-image {
-  background:
-    radial-gradient(circle at 68% 42%, rgba(255,255,255,0.5), transparent 16%),
-    linear-gradient(135deg, #37135e 0%, #dd8dff 48%, #6c84ff 100%);
+  background: #e1e5f6 url("/project-market/opportunity-04.jpg") center / cover no-repeat;
 }
 
 .pm-opportunity-grid h3,
@@ -18164,6 +18237,8 @@ a:active {
   top: 86px;
   display: grid;
   gap: 12px;
+  min-height: 710px;
+  margin-top: 44px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 14px;
@@ -18304,14 +18379,29 @@ a:active {
   place-items: center;
 }
 
+.pm-copilot-input {
+  margin-top: auto;
+}
+
 .pm-panel {
   display: grid;
   gap: 18px;
   padding: 22px;
 }
 
+.project-market-main > form {
+  display: grid;
+  gap: 10px;
+}
+
+.pm-input-panel {
+  position: relative;
+  height: 264px;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .pm-input-panel textarea {
-  min-height: 160px;
+  min-height: 180px;
   padding: 18px;
   color: #172b73;
   background: white;
@@ -18322,9 +18412,18 @@ a:active {
 }
 
 .pm-input-tools {
+  position: absolute;
+  right: 42px;
+  bottom: 30px;
+  left: 42px;
   display: flex;
   align-items: center;
   gap: 20px;
+}
+
+.pm-recognized {
+  gap: 14px;
+  padding: 18px 22px;
 }
 
 .pm-input-tools a {
@@ -19109,6 +19208,11 @@ a:active {
     grid-template-columns: 1fr;
   }
 
+  .pm-hero.compact {
+    height: auto;
+    margin-bottom: 0;
+  }
+
   .pm-badge-strip,
   .pm-opportunity-grid,
   .pm-factor-grid,
@@ -19142,6 +19246,10 @@ a:active {
   .pm-hero,
   .pm-hero.compact {
     padding: 22px;
+  }
+
+  .pm-hero.compact small {
+    white-space: normal;
   }
 
   .pm-hero h1,
@@ -37291,7 +37399,7 @@ a:active {
 
 .sandbox-shell .v4-page-main {
   min-height: calc(100vh - 78px);
-  padding: 24px 20px 34px;
+  padding: 14px 20px 34px;
 }
 
 .sandbox-shell .v4-page-topbar {
@@ -37322,9 +37430,15 @@ a:active {
 .sandbox-home-layout,
 .sandbox-work-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 278px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
   align-items: start;
+}
+
+.sandbox-work-layout {
+  grid-template-columns: minmax(0, 970px) 300px;
+  gap: 87px;
+  padding-left: 13px;
 }
 
 .sandbox-home-layout > main,
@@ -37335,7 +37449,7 @@ a:active {
 .sandbox-hero-v2 {
   position: relative;
   display: grid;
-  min-height: 590px;
+  min-height: 730px;
   padding: 70px 24px 24px;
   overflow: hidden;
   background:
@@ -37408,14 +37522,14 @@ a:active {
 
 .sandbox-start-card {
   position: absolute;
-  top: 270px;
-  left: 0;
+  top: 276px;
+  left: -16px;
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) 150px 124px;
   align-items: center;
   gap: 12px;
-  width: 408px;
-  min-height: 170px;
+  width: 380px;
+  min-height: 260px;
   padding: 28px 26px;
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(246, 249, 255, 0.72)),
@@ -37473,7 +37587,13 @@ a:active {
 .sandbox-orbit {
   position: absolute;
   z-index: 1;
-  inset: 28px 10px 76px 360px;
+  inset: 0 0 0 360px;
+  background: transparent url("/sandbox/home-hero.jpg") center top / contain no-repeat;
+}
+
+.sandbox-orbit > * {
+  display: none;
+  visibility: hidden;
 }
 
 .sandbox-orbit strong {
@@ -37687,6 +37807,15 @@ a:active {
   box-shadow: 0 18px 52px rgba(55, 65, 153, 0.08);
 }
 
+.sandbox-home-layout .sandbox-copilot {
+  margin-top: 36px;
+}
+
+.sandbox-work-layout .sandbox-copilot {
+  min-height: 658px;
+  margin-top: 68px;
+}
+
 .sandbox-copilot header {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr) 28px;
@@ -37778,6 +37907,24 @@ a:active {
   content: "›";
   font-size: 20px;
   justify-self: end;
+}
+
+.sandbox-copilot-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: auto;
+  color: #19206c;
+}
+
+.sandbox-copilot-pager button {
+  width: 30px;
+  height: 30px;
+  color: #53629a;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 8px 18px rgba(42, 51, 132, 0.07);
 }
 
 .sandbox-copilot label,
@@ -38095,6 +38242,7 @@ a:active {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 22px;
+  margin-top: 7px;
 }
 
 .role-select-grid > button,
@@ -38148,27 +38296,28 @@ a:active {
   width: 82px;
   height: 92px;
   margin: 4px auto 12px;
-  background:
-    radial-gradient(circle at 50% 22%, #ffffff 0 14%, transparent 15%),
-    radial-gradient(circle at 48% 29%, #bcd9ff 0 24%, transparent 25%),
-    linear-gradient(165deg, rgba(255,255,255,0.9), rgba(91, 77, 255, 0.72));
-  border-radius: 36px 36px 22px 22px;
-  box-shadow: 0 16px 24px rgba(66, 71, 184, 0.18);
+  background: transparent url("/sandbox/role-user.jpg") center / contain no-repeat;
 }
 
 .role-avatar::before,
 .role-avatar::after {
-  position: absolute;
-  content: "";
+  display: none;
 }
 
 .role-avatar::before {
-  left: 18px;
-  right: 18px;
-  bottom: 16px;
-  height: 34px;
-  background: rgba(255,255,255,0.42);
-  border-radius: 20px 20px 10px 10px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: #fafbff;
+  content: "";
+}
+
+.role-select-grid > button:nth-child(3) strong {
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .role-avatar::after {
@@ -38185,31 +38334,19 @@ a:active {
 }
 
 .role-avatar.investor {
-  background:
-    radial-gradient(circle at 50% 22%, #ffffff 0 14%, transparent 15%),
-    radial-gradient(circle at 48% 29%, #dff8ff 0 24%, transparent 25%),
-    linear-gradient(165deg, rgba(255,255,255,0.9), rgba(60, 174, 236, 0.72));
+  background-image: url("/sandbox/role-investor.jpg");
 }
 
 .role-avatar.channel {
-  background:
-    radial-gradient(circle at 50% 22%, #ffffff 0 14%, transparent 15%),
-    radial-gradient(circle at 48% 29%, #cde1ff 0 24%, transparent 25%),
-    linear-gradient(165deg, rgba(255,255,255,0.9), rgba(55, 132, 235, 0.72));
+  background-image: url("/sandbox/role-channel.jpg");
 }
 
 .role-avatar.competitor {
-  background:
-    radial-gradient(circle at 50% 22%, #ffffff 0 14%, transparent 15%),
-    radial-gradient(circle at 48% 29%, #ddceff 0 24%, transparent 25%),
-    linear-gradient(165deg, rgba(255,255,255,0.9), rgba(103, 63, 225, 0.72));
+  background-image: url("/sandbox/role-competitor.jpg");
 }
 
 .role-avatar.operator {
-  background:
-    radial-gradient(circle at 50% 22%, #ffffff 0 14%, transparent 15%),
-    radial-gradient(circle at 48% 29%, #d9fff4 0 24%, transparent 25%),
-    linear-gradient(165deg, rgba(255,255,255,0.9), rgba(29, 199, 165, 0.72));
+  background-image: url("/sandbox/role-operator.jpg");
 }
 
 .role-select-grid strong,
@@ -43260,11 +43397,18 @@ a:active {
   .sandbox-home-layout,
   .sandbox-work-layout {
     grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    padding-left: 0;
   }
 
   .sandbox-copilot {
     position: static;
     min-height: auto;
+  }
+
+  .sandbox-home-layout .sandbox-copilot,
+  .sandbox-work-layout .sandbox-copilot {
+    margin-top: 0;
   }
 
   .role-select-grid {
