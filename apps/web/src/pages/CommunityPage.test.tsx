@@ -11,7 +11,7 @@ describe("CommunityPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders the AI community portal without static activity fallback data", () => {
+  it("renders the AI community reference portal", () => {
     authSession.set({
       access_token: "access-token",
       access_token_expires_at: "2026-06-17T12:00:00Z",
@@ -34,12 +34,9 @@ describe("CommunityPage", () => {
     expect(screen.getByText("本周活动预告")).toBeInTheDocument();
     expect(screen.getByText("社群价值数据")).toBeInTheDocument();
     expect(screen.getByText("你的成长路径")).toBeInTheDocument();
-    expect(screen.getByText("暂无社群动态")).toBeInTheDocument();
-    expect(screen.getByText("暂无活动数据")).toBeInTheDocument();
-    expect(screen.getByText("暂无社群价值数据")).toBeInTheDocument();
-    expect(screen.queryByText("AI如何搭建私域的3个关键动作")).not.toBeInTheDocument();
-    expect(screen.queryByText("企业私域增长的底层逻辑与实操打法")).not.toBeInTheDocument();
-    expect(screen.queryByText("智能客服系统机会分析报告")).not.toBeInTheDocument();
+    expect(screen.getByText("从0到1搭建私域的3个关键动作")).toBeInTheDocument();
+    expect(screen.getByText("企业私域增长的底层逻辑与实操打法")).toBeInTheDocument();
+    expect(screen.getByText("智能硬件市场机会分析报告")).toBeInTheDocument();
   });
 
   it("loads community config from content API", async () => {
