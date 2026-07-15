@@ -422,7 +422,7 @@ function HeroArt({ kind, stats }: { kind: BoardThreeConfig["heroKind"]; stats?: 
         <span />
         <span />
       </div>
-      {(stats ?? []).slice(0, 4).map(([value, label]) => <i key={label}>{label}</i>)}
+      {(stats ?? []).slice(0, 4).map(([, label]) => <i key={label}>{label}</i>)}
     </div>
   );
 }

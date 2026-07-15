@@ -47345,6 +47345,12 @@ a:active {
 .board3-art-target { background-image: url("/growth-reference/leads-hero.jpg"); }
 .board3-art-geo { background-image: url("/growth-reference/geo-hero.jpg"); }
 .board3-art-dashboard { background-image: url("/growth-reference/dashboard-hero.jpg"); }
+
+.board3-art-dashboard {
+  overflow: hidden;
+  background-position: center top;
+  background-size: auto calc(100% + 22px);
+}
 .board3-art-crm { background-image: url("/growth-reference/crm-hero.jpg"); }
 
 .board3-art-target::before,
@@ -47370,12 +47376,15 @@ a:active {
 }
 
 .enterprise-ref-shell .v4-page-topbar {
+  height: 68px;
   min-height: 68px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .enterprise-ref-shell .v4-page-main {
   min-height: calc(100vh - 68px);
-  padding: 18px 22px 28px 34px;
+  padding: 27px 22px 28px 34px;
   background:
     radial-gradient(circle at 57% 10%, rgba(90, 100, 255, 0.08), transparent 28%),
     linear-gradient(180deg, #fbfbff, #f6f7ff);
@@ -47522,14 +47531,20 @@ a:active {
 
 .er-summary-grid article > b {
   display: grid;
-  width: 50px;
-  height: 50px;
-  color: #5e50eb;
-  background: #f0efff;
+  width: 58px;
+  height: 58px;
+  color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   border-radius: 50%;
   place-items: center;
   font-size: 24px;
 }
+
+.er-summary-grid article:nth-child(1) > b { background-image: url("/enterprise-reference/summary-audience.jpg"); }
+.er-summary-grid article:nth-child(2) > b { background-image: url("/enterprise-reference/summary-delivery.jpg"); }
+.er-summary-grid article:nth-child(3) > b { background-image: url("/enterprise-reference/summary-process.jpg"); }
 
 .er-summary-grid h3,
 .er-service-grid h3,
@@ -47552,6 +47567,11 @@ a:active {
   line-height: 1.55;
 }
 
+.er-summary-grid p::before {
+  content: "\2022";
+  margin-right: 7px;
+}
+
 .er-section-title {
   margin: 12px 0;
   color: #10145b;
@@ -47567,7 +47587,7 @@ a:active {
 
 .er-service-grid article {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 10px;
   min-height: 104px;
   padding: 16px;
@@ -47575,14 +47595,17 @@ a:active {
 
 .er-service-grid i {
   display: block;
-  width: 58px;
-  height: 58px;
-  background:
-    radial-gradient(circle at 45% 45%, #fff 0 18%, transparent 19%),
-    linear-gradient(135deg, #b9c6ff, #6655ef);
-  border-radius: 18px;
-  box-shadow: 0 12px 22px rgba(78, 72, 215, 0.16);
+  width: 72px;
+  height: 72px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
+
+.er-service-grid article:nth-child(1) i { background-image: url("/enterprise-reference/service-strategy.jpg"); }
+.er-service-grid article:nth-child(2) i { background-image: url("/enterprise-reference/service-product.jpg"); }
+.er-service-grid article:nth-child(3) i { background-image: url("/enterprise-reference/service-growth.jpg"); }
+.er-service-grid article:nth-child(4) i { background-image: url("/enterprise-reference/service-execution.jpg"); }
 
 .er-home-bottom {
   display: grid;
@@ -47640,14 +47663,22 @@ a:active {
 
 .er-process i {
   display: grid;
-  width: 42px;
-  height: 42px;
-  color: #5849e8;
-  background: #efefff;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   border-radius: 50%;
   place-items: center;
   font-style: normal;
 }
+
+.er-process article:nth-child(1) i { background-image: url("/enterprise-reference/process-demand.jpg"); }
+.er-process article:nth-child(2) i { background-image: url("/enterprise-reference/process-plan.jpg"); }
+.er-process article:nth-child(3) i { background-image: url("/enterprise-reference/process-execute.jpg"); }
+.er-process article:nth-child(4) i { background-image: url("/enterprise-reference/process-review.jpg"); }
 
 .er-consultant {
   position: sticky;
@@ -47821,6 +47852,13 @@ a:active {
 }
 
 .er-upload b { font-size: 28px; }
+.er-upload b {
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  color: transparent;
+  background: url("/enterprise-reference/form-upload.jpg") center / cover no-repeat;
+}
 .er-upload small { color: #8b92aa; }
 
 .er-form-page .er-agreement {
@@ -47959,34 +47997,41 @@ a:active {
 .er-success-page {
   display:grid;
   justify-items:center;
-  width:100%;
-  max-width:1000px;
-  margin:40px auto 0;
+  width:1075px;
+  max-width:calc(100% - 73px);
+  margin:18px 0 0 73px;
   text-align:center;
 }
 
-.er-success-icon { display:grid; width:88px; height:88px; color:#fff; background:linear-gradient(135deg,#31d395,#0bb973); border-radius:50%; place-items:center; font-size:52px; box-shadow:0 16px 36px rgba(13,185,115,.2); }
-.er-success-page > h1 { margin-top:52px; font-size:42px; }
+.er-success-icon { display:grid; width:310px; height:120px; overflow:hidden; color:transparent; background:url("/enterprise-reference/success-check.png") center / contain no-repeat; place-items:center; font-size:0; }
+.er-success-page > h1 { margin-top:44px; font-size:42px; }
 .er-success-page > p { margin:14px 0 0; color:#68729c; font-size:16px; line-height:1.8; }
 .er-success-page > p b { color:#3c3bd2; }
-.er-success-info { width:880px; margin:42px 0 60px; padding:24px 34px; }
+.er-success-info { width:880px; margin:26px 0 60px; padding:32px 34px; }
 .er-success-info h2 { margin:0 0 20px; }
 .er-success-info { display:grid; grid-template-columns:repeat(4,1fr); }
 .er-success-info h2 { grid-column:1/-1; }
-.er-success-info article { display:grid; grid-template-columns:40px 1fr; gap:6px; padding:0 20px; border-right:1px solid #eceef4; text-align:left; }
+.er-success-info article { display:grid; grid-template-columns:42px 1fr; gap:6px; padding:0 20px; border-right:1px solid #eceef4; text-align:left; }
 .er-success-info article:last-child { border-right:0; }
-.er-success-info i { grid-row:1/3; display:grid; width:34px; height:34px; color:#5a4ce7; background:#f0efff; border-radius:50%; place-items:center; font-style:normal; }
+.er-success-info i { grid-row:1/3; display:grid; width:42px; height:42px; overflow:hidden; color:transparent; background-position:center; background-repeat:no-repeat; background-size:cover; border-radius:50%; place-items:center; font-style:normal; }
+.er-success-info article:nth-of-type(1) i { background-image:url("/enterprise-reference/success-company.jpg"); }
+.er-success-info article:nth-of-type(2) i { background-image:url("/enterprise-reference/success-contact.jpg"); }
+.er-success-info article:nth-of-type(3) i { background-image:url("/enterprise-reference/success-phone.jpg"); }
+.er-success-info article:nth-of-type(4) i { background-image:url("/enterprise-reference/success-time.jpg"); }
 .er-success-info span { color:#4e557e; font-size:12px; }
-.er-success-services { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; width:1000px; }
-.er-success-services article { display:grid; grid-template-columns:70px 1fr; gap:14px; align-items:center; min-height:140px; padding:22px; text-align:left; }
-.er-success-services i { display:grid; width:62px; height:62px; color:#5a4ce7; background:#f0efff; border-radius:50%; place-items:center; font-size:30px; font-style:normal; }
+.er-success-services { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; width:100%; }
+.er-success-services article { display:grid; grid-template-columns:82px 1fr; gap:14px; align-items:center; min-height:140px; padding:22px; text-align:left; }
+.er-success-services i { display:grid; width:82px; height:82px; overflow:hidden; color:transparent; background-position:center; background-repeat:no-repeat; background-size:cover; border-radius:50%; place-items:center; font-size:0; font-style:normal; }
+.er-success-services article:nth-child(1) i { background-image:url("/enterprise-reference/success-advisor.jpg"); }
+.er-success-services article:nth-child(2) i { background-image:url("/enterprise-reference/success-solution.jpg"); }
+.er-success-services article:nth-child(3) i { background-image:url("/enterprise-reference/success-schedule.jpg"); }
 .er-success-services p { color:#747c9e; font-size:12px; line-height:1.7; }
 .er-success-page > a { margin-top:32px; }
 
 .er-contact-backdrop {
   position:fixed;
   z-index:80;
-  top:-78px;
+  top:-68px;
   right:auto;
   bottom:auto;
   left:-260px;
@@ -48016,6 +48061,11 @@ a:active {
 .er-contact-modal img { width:270px; height:270px; margin-top:16px; }
 .er-contact-modal strong,.er-contact-modal span { color:#555d83; font-size:14px; }
 
+.route-motion-frame:has(.er-contact-backdrop) {
+  height: 100vh;
+  overflow: hidden;
+}
+
 @media (max-width: 1280px) {
   .er-home-layout,
   .er-detail-layout { grid-template-columns:minmax(0,1fr); }
@@ -48024,7 +48074,13 @@ a:active {
 }
 
 @media (max-width: 760px) {
-  .enterprise-ref-shell .v4-page-main { padding:14px; }
+  .enterprise-ref-shell .v4-sidebar { display:none; }
+  .enterprise-ref-shell .v4-workspace { min-height:100vh; padding-left:0; }
+  .enterprise-ref-shell .v4-page-topbar { height:auto; min-height:62px; padding:7px 10px; }
+  .enterprise-ref-shell .v4-topnav { width:100%; max-width:100%; padding:0; gap:16px; justify-self:start; justify-content:flex-start; overflow-x:auto; }
+  .enterprise-ref-shell .v4-topnav a { flex:0 0 auto; font-size:12px; }
+  .enterprise-ref-shell .v4-account-area { display:none; }
+  .enterprise-ref-shell .v4-page-main { min-height:calc(100vh - 69px); padding:14px; }
   .er-summary-grid,.er-service-grid,.er-home-bottom,.er-form-grid,.er-case-grid,.er-result-grid,.er-success-services { grid-template-columns:1fr; }
   .er-home-hero > div:first-child { width:100%; }
   .er-home-art { display:none; }
@@ -48033,8 +48089,10 @@ a:active {
   .er-form-page fieldset { grid-template-columns:repeat(2,1fr); gap:10px; }
   .er-case-toolbar,.er-case-toolbar nav { align-items:stretch; flex-direction:column; }
   .er-case-toolbar label,.er-submit,.er-success-info,.er-success-services { width:100%; }
+  .er-success-page { width:100%; max-width:100%; margin:18px auto 0; }
   .er-detail-card.solution { grid-template-columns:1fr; }
   .er-success-info { grid-template-columns:1fr; }
   .er-success-info article { padding:12px 0; border-right:0; border-bottom:1px solid #eceef4; }
+  .er-contact-backdrop { top:-69px; left:0; width:100%; }
   .er-contact-modal { width:calc(100vw - 24px); min-height:auto; padding:30px 20px; }
 }
