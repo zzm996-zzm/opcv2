@@ -22,6 +22,400 @@
   --shadow-soft: 0 16px 48px rgba(47, 91, 176, 0.1);
 }
 
+/* Copilot reference alignment: scoped to keep the shared shell unchanged. */
+.copilot-shell .copilot-quota-inline {
+  display: none;
+}
+
+.copilot-shell .v4-page-main,
+.copilot-shell .v4-page-main > * {
+  animation: none;
+  transform: none;
+}
+
+.route-motion-frame:has(.copilot-shell) {
+  animation: none;
+  transform: none;
+}
+
+.copilot-shell .copilot-message.report-continuation {
+  margin-top: -12px;
+  margin-left: 48px;
+}
+
+.copilot-shell .report-card {
+  position: relative;
+  width: min(100%, 860px);
+  padding: 16px 60px 12px 18px;
+  border-radius: 5px;
+}
+
+.copilot-shell .report-card > time {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+}
+
+.copilot-shell .comparison-card p {
+  white-space: pre-line;
+}
+
+.copilot-shell .comparison-card p + p {
+  margin-top: 4px;
+}
+
+.copilot-shell .comparison-card .compare-section-title {
+  margin-top: 13px;
+  color: #0a1d57;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 900;
+}
+
+.copilot-shell .comparison-card section .compare-section-title:first-child {
+  margin-top: 0;
+}
+
+.copilot-shell .compare-user-question {
+  margin-bottom: 16px;
+}
+
+.copilot-shell .reference-upload-tools {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+}
+
+.copilot-shell .reference-upload-tools > summary {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  color: #3158c8;
+  border: 1px solid rgba(31, 68, 140, 0.12);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0;
+  list-style: none;
+  place-items: center;
+}
+
+.copilot-shell .reference-upload-tools > summary::before {
+  content: "+";
+  font-size: 16px;
+}
+
+.copilot-shell .reference-upload-tools[open] {
+  position: static;
+  padding: 0 14px 8px;
+}
+
+.copilot-shell .reference-upload-tools[open] > summary {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.copilot-shell .reference-upload-tools .reference-dropzone,
+.copilot-shell .reference-upload-tools .reference-upload-form {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.copilot-shell .reference-list-item {
+  position: relative;
+}
+
+.copilot-shell .reference-list-item > button {
+  position: absolute;
+  right: 4px;
+  opacity: 0;
+}
+
+.copilot-shell .reference-list-item:hover > button,
+.copilot-shell .reference-list-item:focus-within > button {
+  opacity: 1;
+}
+
+.copilot-shell .copilot-composer-wrap:has(.reference-picker) .selected-reference-bar {
+  display: none;
+}
+
+.copilot-shell .model-diagnostics-panel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (min-width: 761px) {
+  .copilot-shell .copilot-workbench {
+    grid-template-columns: minmax(0, 1fr) 306px;
+    background: #fff;
+  }
+
+  .copilot-shell .copilot-main-panel {
+    background: #fff;
+  }
+
+  .copilot-shell .copilot-workbench-head,
+  .copilot-shell .copilot-compare-head {
+    gap: 4px 14px;
+    padding: 27px 46px 10px;
+  }
+
+  .copilot-shell .copilot-workbench-head {
+    padding-top: 50px;
+    padding-bottom: 15px;
+  }
+
+  .copilot-shell .copilot-workbench-head h1,
+  .copilot-shell .copilot-compare-head h1 {
+    font-size: 23px;
+  }
+
+  .copilot-shell .copilot-workbench-head p,
+  .copilot-shell .copilot-compare-head p {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .copilot-shell .copilot-quick-actions {
+    gap: 12px;
+    margin-top: 23px;
+  }
+
+  .copilot-shell .copilot-quick-actions button,
+  .copilot-shell .copilot-compare-settings button {
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 22px;
+    border-radius: 5px;
+    box-shadow: 0 5px 14px rgba(43, 76, 143, 0.025);
+    font-size: 13px;
+  }
+
+  .copilot-shell .copilot-quick-actions button {
+    width: 164px;
+    justify-content: flex-start;
+  }
+
+  .copilot-shell .copilot-chat-area {
+    padding: 0 46px;
+  }
+
+  .copilot-shell .copilot-chat-thread {
+    gap: 13px;
+  }
+
+  .copilot-shell .copilot-bubble.compact {
+    max-width: 850px;
+    border-radius: 5px;
+  }
+
+  .copilot-shell .user-message-bubble {
+    border-radius: 6px 6px 2px 6px;
+  }
+
+  .copilot-shell .copilot-composer-wrap {
+    padding: 0 28px 28px;
+  }
+
+  .copilot-shell .copilot-composer {
+    min-height: 112px;
+    border-radius: 8px;
+  }
+
+  .copilot-shell .composer-toolbar button,
+  .copilot-shell .composer-toolbar a {
+    border-radius: 5px;
+  }
+
+  .copilot-shell .copilot-history {
+    padding: 28px 20px 22px;
+    background: #fff;
+  }
+
+  .copilot-shell .copilot-history > header {
+    gap: 16px;
+  }
+
+  .copilot-shell .copilot-history > header button,
+  .copilot-shell .copilot-history > header a,
+  .copilot-shell .history-search,
+  .copilot-shell .history-list article {
+    border-radius: 5px;
+  }
+
+  .copilot-shell .history-list {
+    margin-top: 8px;
+  }
+
+  .copilot-shell .history-list h2 {
+    margin: 16px 0 6px;
+  }
+
+  .copilot-shell .history-list article {
+    padding: 9px 7px;
+  }
+
+  .copilot-shell .history-list span {
+    margin-top: 5px;
+  }
+
+  .copilot-shell .copilot-empty-card {
+    width: min(560px, 90%);
+    padding: 20px 16px 24px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .copilot-shell .copilot-empty-card h1 {
+    font-size: 20px;
+  }
+
+  .copilot-shell .copilot-empty-card p {
+    font-size: 12px;
+  }
+
+  .copilot-shell .empty-orbit {
+    margin-bottom: 2px;
+    transform: scale(0.82);
+  }
+
+  .copilot-shell .copilot-prompt-list {
+    width: 340px;
+    gap: 8px;
+    margin-top: 22px;
+  }
+
+  .copilot-shell .copilot-prompt-list button {
+    min-height: 40px;
+    border-radius: 4px;
+  }
+
+  .copilot-shell .model-picker {
+    left: 268px;
+    width: 202px;
+    padding: 7px;
+    border-radius: 7px;
+  }
+
+  .copilot-shell .model-picker button {
+    min-height: 42px;
+    border-radius: 5px;
+  }
+
+  .copilot-shell .reference-picker {
+    left: 238px;
+    width: 268px;
+    height: 480px;
+    max-height: min(490px, calc(100vh - 190px));
+    border-radius: 7px;
+  }
+
+  .copilot-shell .reference-picker > h2 {
+    padding: 15px 16px 10px;
+    font-size: 14px;
+  }
+
+  .copilot-shell .reference-search {
+    margin: 0 12px 8px;
+    border-radius: 4px;
+  }
+
+  .copilot-shell .reference-list {
+    padding: 0 12px 8px;
+  }
+
+  .copilot-shell .reference-list h3 {
+    margin: 9px 0 5px;
+    font-size: 10px;
+  }
+
+  .copilot-shell .reference-list-item {
+    border-radius: 4px;
+  }
+
+  .copilot-shell .reference-list-item > label {
+    grid-template-columns: 16px 22px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 6px 4px;
+  }
+
+  .copilot-shell .reference-picker footer {
+    padding: 10px 12px;
+  }
+
+  .copilot-shell .copilot-compare-settings {
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .copilot-shell .copilot-compare-settings button {
+    min-height: 36px;
+    padding: 0 12px;
+  }
+
+  .copilot-shell .copilot-comparison {
+    padding-top: 22px;
+  }
+
+  .copilot-shell .comparison-grid {
+    gap: 10px;
+  }
+
+  .copilot-shell .comparison-grid .comparison-card {
+    min-height: 390px;
+  }
+
+  .copilot-shell .comparison-card {
+    padding: 16px 14px;
+    border-radius: 5px;
+  }
+
+  .copilot-shell .comparison-card > header {
+    margin-bottom: 16px;
+  }
+
+  .copilot-shell .compare-summary-button {
+    min-height: 42px;
+    margin-top: 12px;
+    border-radius: 5px;
+  }
+
+  .copilot-shell .copilot-dialog {
+    width: min(660px, calc(100vw - 40px));
+    padding: 32px 34px;
+    border-radius: 10px;
+  }
+
+  .copilot-shell .rename-dialog {
+    padding: 38px 36px;
+  }
+
+  .copilot-shell .delete-dialog {
+    width: min(440px, calc(100vw - 40px));
+    padding: 34px 30px 30px 86px;
+  }
+
+  .copilot-shell .copilot-dialog footer button {
+    border-radius: 5px;
+  }
+}
+
+@media (max-width: 760px) {
+  .copilot-shell .copilot-message.report-continuation {
+    margin-left: 20px;
+  }
+}
+
 /* Tools workspace: pixel-aligned to the supplied V4 tool references. */
 .tools-shell {
   background: #fbfcff;

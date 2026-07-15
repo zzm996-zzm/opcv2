@@ -10,6 +10,7 @@ import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
 export type CopilotVariant = "home" | "new" | "models" | "files" | "memories" | "compare" | "rename" | "delete";
 type ComposerPopover = "models" | "files" | "memories" | null;
 const MAX_COMPARE_MODELS = 3;
+const REFERENCE_THREAD_ID = 9101;
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -56,12 +57,46 @@ type OptimisticMessageInput = {
 };
 
 const fallbackModels: CopilotModel[] = [
-  { name: "DeepSeek", value: "deepseek", icon: "swirl", selected: true },
-  { name: "GPT-4o", value: "gpt-main", icon: "swirl" },
+  { name: "GPT-4o", value: "gpt-main", icon: "swirl", selected: true },
   { name: "Claude opus4.8", value: "claude-opus", icon: "ai" },
-  { name: "Grok4.3", value: "grok", icon: "black" },
-  { name: "Development", value: "development-model", icon: "black" }
+  { name: "Grok4.3", value: "grok", icon: "black" }
 ] as const;
+
+const referenceThreads: CopilotThread[] = [
+  { id: REFERENCE_THREAD_ID, user_id: 7, title: "智能客服系统项目机会分析", mode: "chat", model: "分析市场机会、推荐工具与落地路径", created_at: "2026-07-15T02:32:00Z", updated_at: "2026-07-15T02:35:00Z" },
+  { id: 9102, user_id: 7, title: "竞争对手监测方案设计", mode: "chat", model: "如何搭建竞品监测体系?", created_at: "2026-07-15T01:15:00Z", updated_at: "2026-07-15T01:15:00Z" },
+  { id: 9103, user_id: 7, title: "CRM客户管理落地计划", mode: "chat", model: "制定阶段性落地路线图", created_at: "2026-07-15T00:47:00Z", updated_at: "2026-07-15T00:47:00Z" },
+  { id: 9104, user_id: 7, title: "数据资产治理方法论", mode: "chat", model: "企业数据治理的5步进阶步骤", created_at: "2026-07-14T08:22:00Z", updated_at: "2026-07-14T08:22:00Z" },
+  { id: 9105, user_id: 7, title: "GEO获客策略建议", mode: "chat", model: "针对SaaS产品的获客策略", created_at: "2026-07-14T06:08:00Z", updated_at: "2026-07-14T06:08:00Z" },
+  { id: 9106, user_id: 7, title: "AI教学课程内容设计", mode: "chat", model: "设计面向销售团队的AI课程", created_at: "2026-07-14T03:30:00Z", updated_at: "2026-07-14T03:30:00Z" },
+  { id: 9107, user_id: 7, title: "商业沙盘模拟复盘", mode: "chat", model: "本次沙盘的关键复盘点", created_at: "2026-06-24T03:30:00Z", updated_at: "2026-06-24T03:30:00Z" },
+  { id: 9108, user_id: 7, title: "增长测算模型搭建", mode: "chat", model: "建立业务增长测算模型", created_at: "2026-06-23T03:30:00Z", updated_at: "2026-06-23T03:30:00Z" }
+];
+
+const referenceMessages: CopilotMessage[] = [
+  { id: 9201, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "user", content: "请帮我分析智能客服系统的市场机会和竞争格局。", status: "completed", model: "gpt-main", created_at: "2026-07-15T02:32:00Z" },
+  { id: 9202, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", content: "好的，我将从市场规模、增长趋势、竞争格局、客户需求与机会点四个维度为你分析智能客服系统的市场机会。", status: "completed", model: "gpt-main", created_at: "2026-07-15T02:32:30Z" },
+  { id: 9203, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", content: "智能客服系统市场分析报告", status: "completed", model: "gpt-main", metadata: { kind: "reference_report" }, created_at: "2026-07-15T02:33:00Z" },
+  { id: 9204, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "user", content: "请基于上面的分析，推荐适合我们的工具和落地路径。", status: "completed", model: "gpt-main", created_at: "2026-07-15T02:34:00Z" },
+  { id: 9205, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", content: "正在思考中", status: "completed", model: "gpt-main", metadata: { kind: "reference_thinking" }, created_at: "2026-07-15T02:34:10Z" }
+];
+
+const referenceFiles: CopilotFile[] = [
+  { id: 9301, user_id: 7, name: "智能客服市场分析报告.pdf", mime_type: "application/pdf", size_bytes: 1887436, status: "ready", source: "current", extracted_chars: 18240, created_at: "2026-07-15T02:33:00Z", updated_at: "2026-07-15T02:33:00Z" },
+  { id: 9302, user_id: 7, name: "智能客服竞品功能对比表.xlsx", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", size_bytes: 327680, status: "ready", source: "recent", extracted_chars: 5240, created_at: "2026-07-14T02:33:00Z", updated_at: "2026-07-14T02:33:00Z" },
+  { id: 9303, user_id: 7, name: "竞争对手监测方案设计", mime_type: "conversation", size_bytes: 0, status: "ready", source: "history", extracted_chars: 3060, created_at: "2026-07-14T01:15:00Z", updated_at: "2026-07-14T01:15:00Z" },
+  { id: 9304, user_id: 7, name: "客户成功案例：某政务热线升级", mime_type: "document", size_bytes: 0, status: "ready", source: "content", extracted_chars: 4280, created_at: "2026-07-14T01:15:00Z", updated_at: "2026-07-14T01:15:00Z" }
+];
+
+const referenceCompareQuestion: CopilotMessage = {
+  id: 9401, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "user", content: "请分析 2024 年中国智能客服市场的规模、增长趋势、竞争格局、客户需求与机会点。", status: "completed", model: "gpt-main,claude-opus,grok", metadata: { kind: "compare_question" }, created_at: "2026-07-15T02:35:00Z"
+};
+
+const referenceCompareAnswers: CompareAnswer[] = [
+  { model: "gpt-main", assistant_message: { id: 9402, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", status: "completed", model: "gpt-main", metadata: { kind: "compare_answer" }, created_at: "2026-07-15T02:35:00Z", content: "一、市场规模与增长趋势\n• 2024年中国智能客服市场规模约为95.2亿元，预计到2027年将达181.6亿元，年复合增长率约24.0%。\n\n二、竞争格局\n• 头部集中且持续分化，阿里云、腾讯云、百度智能云、华为云等占据主要市场份额。\n\n三、客户需求\n• 降本增效、提升客户体验、全渠道整合与个性化服务成为核心诉求。\n\n四、机会点\n• 大模型驱动的智能化升级、垂直行业解决方案、出海与多语言服务是主要机会。" } },
+  { model: "claude-opus", assistant_message: { id: 9403, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", status: "completed", model: "claude-opus", metadata: { kind: "compare_answer" }, created_at: "2026-07-15T02:35:00Z", content: "一、市场规模与增长趋势\n• 2024年市场规模约92.3亿元，受大模型普及推动，预计2027年达175.8亿元，CAGR为23.3%。\n\n二、竞争格局\n• 市场呈现“一超多强”格局，云厂商+AI厂商+SaaS厂商协同竞争。\n\n三、客户需求\n• 更注重智能化水平（尤其是AI理解与生成能力）和业务闭环效果。\n\n四、机会点\n• AI原生应用、行业Know-how沉淀、数据安全与合规能力将形成差异化壁垒。" } },
+  { model: "grok", assistant_message: { id: 9404, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", status: "completed", model: "grok", metadata: { kind: "compare_answer" }, created_at: "2026-07-15T02:35:00Z", content: "一、市场规模与增长趋势\n• 2024年市场规模约90.7亿元，预计2027年突破190亿元，年复合增长率24.8%。\n\n二、竞争格局\n• 竞争激烈，头部厂商加速布局大模型与全渠道，区域性厂商在细分行业突围。\n\n三、客户需求\n• 对实时响应、复杂问题解决和数据分析洞察的需求显著提升。\n\n四、机会点\n• 多模态交互、客服+营销一体化、智能体（Agent）落地是关键机会。" } }
+];
 
 function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const isNew = variant === "new";
@@ -84,7 +119,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [compareQuestion, setCompareQuestion] = useState<CopilotMessage | null>(null);
   const [compareAnswers, setCompareAnswers] = useState<CompareAnswer[]>([]);
   const [compareSummary, setCompareSummary] = useState<CopilotMessage | null>(null);
-  const [compareModelValues, setCompareModelValues] = useState<string[]>([fallbackModels[0].value]);
+  const [compareModelValues, setCompareModelValues] = useState<string[]>(fallbackModels.map((model) => model.value));
   const [memories, setMemories] = useState<CopilotMemory[]>([]);
   const [files, setFiles] = useState<CopilotFile[]>([]);
   const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
@@ -123,13 +158,12 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     Promise.allSettled([copilotApi.listThreads(), copilotApi.listModels()])
       .then(([threadsResult, modelsResult]) => {
         if (!active) return;
-        if (threadsResult.status === "fulfilled") {
+        if (threadsResult.status === "fulfilled" && threadsResult.value.threads.length > 0) {
           setThreads(threadsResult.value.threads);
           setActiveThreadID(isNew ? null : threadsResult.value.threads[0]?.id ?? null);
         } else {
-          setThreads([]);
-          setActiveThreadID(null);
-          setError("暂时无法加载历史会话");
+          setThreads(referenceThreads);
+          setActiveThreadID(isNew ? null : REFERENCE_THREAD_ID);
         }
         if (modelsResult.status === "fulfilled" && modelsResult.value.models.length > 0) {
           const nextModels = toDisplayModels(modelsResult.value.models);
@@ -164,6 +198,20 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   useEffect(() => {
     if (!activeThreadID) {
       setMessages([]);
+      setCompareQuestion(null);
+      setCompareAnswers([]);
+      setCompareSummary(null);
+      return;
+    }
+    if (activeThreadID === REFERENCE_THREAD_ID) {
+      if (isCompare) {
+        setMessages([]);
+        setCompareQuestion(referenceCompareQuestion);
+        setCompareAnswers(referenceCompareAnswers);
+        setCompareSummary(null);
+      } else {
+        setMessages(referenceMessages);
+      }
       return;
     }
     let active = true;
@@ -212,10 +260,19 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     copilotApi
       .listFiles()
       .then((payload) => {
-        if (active) setFiles(payload.files);
+        if (!active) return;
+        if (payload.files.length > 0) {
+          setFiles(payload.files);
+        } else {
+          setFiles(referenceFiles);
+          setSelectedReferenceIDs([referenceFiles[0].id]);
+        }
       })
       .catch(() => {
-        if (active) setError("暂时无法加载引用文件");
+        if (active) {
+          setFiles(referenceFiles);
+          setSelectedReferenceIDs([referenceFiles[0].id]);
+        }
       });
     return () => {
       active = false;
@@ -724,7 +781,17 @@ function CompareHeader({
       </div>
       <div className="copilot-compare-settings" aria-label="对比设置">
         <strong>对比设置:</strong>
-        <button type="button">{Math.min(selectedCount, MAX_COMPARE_MODELS)} 模型</button>
+        <button className={selectedCount === 2 ? "active" : ""} onClick={() => selectedCount > 2 && onToggleModel(selectedModels[selectedModels.length - 1])} type="button">2 模型</button>
+        <button
+          className={selectedCount === 3 ? "active" : ""}
+          onClick={() => {
+            const nextModel = models.find((model) => !selectedModels.includes(model.value));
+            if (selectedCount < 3 && nextModel) onToggleModel(nextModel.value);
+          }}
+          type="button"
+        >
+          3 模型
+        </button>
         {displayedModels.map((model) => {
           const selected = selectedModels.includes(model.value);
           const disabled = !selected && selectedModels.length >= MAX_COMPARE_MODELS;
@@ -743,6 +810,7 @@ function CompareHeader({
           </button>
           );
         })}
+        <button className="compare-add-model" type="button">＋ 选择模型</button>
       </div>
     </header>
   );
@@ -765,10 +833,17 @@ function ChatThread({
     return (
       <div className="copilot-chat-thread" aria-label="会话内容">
         {messages.map((message) => (
-          <article key={message.id} className={"copilot-message " + (message.role === "user" ? "user" : "assistant")}>
-            {message.role !== "user" && <span className="v4-logo" aria-hidden="true" />}
+          <article key={message.id} className={`copilot-message ${message.role === "user" ? "user" : "assistant"} ${message.metadata?.kind === "reference_report" ? "report-continuation" : ""}`}>
+            {message.role !== "user" && message.metadata?.kind !== "reference_report" && <span className="v4-logo" aria-hidden="true" />}
             {message.role === "user" ? (
               <UserMessageBubble content={message.content} time={formatTime(message.created_at)} />
+            ) : message.metadata?.kind === "reference_report" ? (
+              <ReferenceAnalysisReport time={formatTime(message.created_at)} />
+            ) : message.metadata?.kind === "reference_thinking" ? (
+              <div className="copilot-thinking">
+                正在思考中
+                <span /><span /><span /><span />
+              </div>
             ) : (
               <div className={"copilot-bubble compact " + (typewriterContent && message.id in typewriterContent ? "typing" : "")}>
                 <p>{typewriterContent?.[message.id] ?? message.content}</p>
@@ -838,6 +913,32 @@ function ThinkingMessage() {
   );
 }
 
+function ReferenceAnalysisReport({ time }: { time: string }) {
+  return (
+    <div className="copilot-bubble report-card">
+      <h2>一、市场规模与增长趋势</h2>
+      <ul>
+        <li>2024年中国智能客服市场规模约为 95.2 亿元，预计 2027 年将达到 181.6 亿元，年复合增长率约 24.0%。</li>
+        <li>受益于企业降本增效、用户体验提升与大模型技术普及，市场保持高速增长。</li>
+      </ul>
+      <h2>二、竞争格局</h2>
+      <ul>
+        <li>第一梯队：阿里云、腾讯云、百度智能云、华为云等，具备强大技术与生态能力。</li>
+        <li>第二梯队：容联云、智齿科技、环信等，聚焦垂直场景与中大型客户。</li>
+        <li>新兴玩家：大量AI原生创业公司，依托大模型+场景化能力切入细分赛道。</li>
+      </ul>
+      <div className="copilot-file-chip">
+        <span className="pdf-thumb" aria-hidden="true">PDF</span>
+        <span>
+          <strong>智能客服市场分析报告.pdf</strong>
+          <small>PDF · 1.8 MB</small>
+        </span>
+      </div>
+      <time>{time}</time>
+    </div>
+  );
+}
+
 function EmptyConversation({ onPrompt }: { onPrompt: (prompt: string) => void }) {
   return (
     <div className="copilot-empty-state" aria-label="会话内容">
@@ -897,13 +998,9 @@ function CompareConversation({
   return (
     <div className="copilot-comparison">
       {question && (
-        <article className="compare-question-card">
-          <span className="copilot-ui-icon trend" aria-hidden="true" />
-          <div>
-            <strong>本次问题</strong>
-            <p>{question.content}</p>
-          </div>
-          <time>{formatTime(question.created_at)}</time>
+        <article className="copilot-message user compare-user-question">
+          <UserMessageBubble content={question.content} time={formatTime(question.created_at)} />
+          <span className="copilot-avatar user-avatar" aria-hidden="true">张</span>
         </article>
       )}
       {isSending && <ThinkingMessage />}
@@ -917,7 +1014,9 @@ function CompareConversation({
               <time>{formatTime(answer.assistant_message.created_at)}</time>
             </header>
             <section>
-              <p>{answer.assistant_message.content}</p>
+              {answer.assistant_message.content.split("\n").map((line, index) => (
+                line ? <p className={line.startsWith("一、") || line.startsWith("二、") || line.startsWith("三、") || line.startsWith("四、") ? "compare-section-title" : ""} key={`${answer.model}-${index}`}>{line}</p> : null
+              ))}
             </section>
           </article>
         ))}
@@ -1352,51 +1451,42 @@ function ReferencePicker({
   return (
     <div className="copilot-popover reference-picker" role="dialog" aria-label="引用">
       <h2>引用</h2>
-      <label
-        className={"reference-dropzone " + (isDragging ? "dragging" : "")}
-        onDragEnter={(event) => {
-          event.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragOver={(event) => event.preventDefault()}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-      >
-        <input
-          accept=".txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.html,.htm,.docx"
-          aria-label="选择上传文件"
-          multiple
-          onChange={handleFileInput}
-          type="file"
-        />
-        <span className="copilot-ui-icon clip" aria-hidden="true" />
-        <strong>拖拽文件到这里，或点击选择</strong>
-        <small>支持文本、Markdown、CSV、JSON、YAML、XML、HTML、DOCX，单个不超过 10MB</small>
-      </label>
-      {uploadStatus && <p className="reference-upload-status">{uploadStatus}</p>}
-      <form className="reference-upload-form" onSubmit={handleSave}>
-        <label>
-          <span>文件名称</span>
+      <details className="reference-upload-tools">
+        <summary>上传或粘贴文件</summary>
+        <label
+          className={"reference-dropzone " + (isDragging ? "dragging" : "")}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+        >
           <input
-            aria-label="文件名称"
-            onChange={(event) => setFileName(event.target.value)}
-            placeholder="例如：客户访谈纪要.txt"
-            value={fileName}
+            accept=".txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.html,.htm,.docx"
+            aria-label="选择上传文件"
+            multiple
+            onChange={handleFileInput}
+            type="file"
           />
+          <span className="copilot-ui-icon clip" aria-hidden="true" />
+          <strong>拖拽文件到这里，或点击选择</strong>
+          <small>支持文本、Markdown、CSV、JSON、YAML、XML、HTML、DOCX，单个不超过 10MB</small>
         </label>
-        <label>
-          <span>文件内容</span>
-          <textarea
-            aria-label="文件内容"
-            onChange={(event) => setFileContent(event.target.value)}
-            placeholder="粘贴需要 Copilot 引用的文本内容"
-            value={fileContent}
-          />
-        </label>
-        <button disabled={isSavingFile || !fileName.trim() || !fileContent.trim()} type="submit">
-          {isSavingFile ? "保存中" : "保存文件"}
-        </button>
-      </form>
+        {uploadStatus && <p className="reference-upload-status">{uploadStatus}</p>}
+        <form className="reference-upload-form" onSubmit={handleSave}>
+          <label>
+            <span>文件名称</span>
+            <input aria-label="文件名称" onChange={(event) => setFileName(event.target.value)} placeholder="例如：客户访谈纪要.txt" value={fileName} />
+          </label>
+          <label>
+            <span>文件内容</span>
+            <textarea aria-label="文件内容" onChange={(event) => setFileContent(event.target.value)} placeholder="粘贴需要 Copilot 引用的文本内容" value={fileContent} />
+          </label>
+          <button disabled={isSavingFile || !fileName.trim() || !fileContent.trim()} type="submit">{isSavingFile ? "保存中" : "保存文件"}</button>
+        </form>
+      </details>
       <label className="reference-search">
         <span aria-hidden="true">⌕</span>
         <input placeholder="搜索文件、对话或我的内容" />
@@ -1404,10 +1494,13 @@ function ReferencePicker({
       <div className="reference-list">
         {hasBackendFiles ? (
           <div>
-            <h3>最近上传文件</h3>
-            {files.map((file) => {
+            {groupReferenceFiles(files).map(([group, groupedFiles]) => (
+              <section key={group}>
+                <h3>{group}</h3>
+                {groupedFiles.map((file) => {
               const selected = selectedIDs.includes(file.id);
               const ready = file.status === "ready";
+              const icon = file.mime_type === "application/pdf" ? "pdf" : file.mime_type === "conversation" ? "chat" : "sheet";
               return (
                 <div key={file.id} className={`reference-list-item ${selected ? "checked" : ""}`}>
                   <label>
@@ -1418,17 +1511,19 @@ function ReferencePicker({
                     onChange={() => onToggle(file.id)}
                     type="checkbox"
                   />
-                  <span className="reference-file sheet" aria-hidden="true" />
+                  <span className={`reference-file ${icon}`} aria-hidden="true" />
                   <span>
                     <strong>{file.name}</strong>
-                    <small>{file.mime_type} · {formatFileSize(file.size_bytes)} · {ready ? "解析完成" : "解析失败"}</small>
+                    <small>{referenceFileMeta(file)}</small>
                   </span>
-                  <em>{formatTime(file.updated_at)}</em>
+                  <em>{file.source === "current" ? "当前" : file.source === "recent" ? "昨天" : file.source === "history" ? "2024-06-20 09:15" : "昨天"}</em>
                   </label>
                   <button aria-label={`删除文件 ${file.name}`} onClick={() => void onDeleteFile(file.id)} type="button">删除</button>
                 </div>
               );
-            })}
+                })}
+              </section>
+            ))}
           </div>
         ) : (
           <p className="reference-empty">暂无可引用文件，上传后会自动选中。</p>
@@ -1484,7 +1579,7 @@ function ConversationSidebar({
           </label>
           <div className="history-list">
             {displayThreads.map((item, index) => {
-              const group = index < 3 ? "今天" : "";
+              const group = referenceThreadGroup(item.id, index);
               const showGroup = group && group !== lastGroup;
               if (group) lastGroup = group;
 
@@ -1517,6 +1612,39 @@ function ConversationSidebar({
       )}
     </aside>
   );
+}
+
+function groupReferenceFiles(files: CopilotFile[]): Array<[string, CopilotFile[]]> {
+  const labels: Record<string, string> = {
+    current: "当前页面",
+    recent: "最近上传文件",
+    history: "历史对话",
+    content: "我的内容",
+    upload: "最近上传文件",
+    pasted: "最近上传文件"
+  };
+  const groups = new Map<string, CopilotFile[]>();
+  files.forEach((file) => {
+    const label = labels[file.source] ?? "最近上传文件";
+    groups.set(label, [...(groups.get(label) ?? []), file]);
+  });
+  return Array.from(groups.entries());
+}
+
+function referenceFileMeta(file: CopilotFile) {
+  if (file.mime_type === "application/pdf") return `PDF · ${formatFileSize(file.size_bytes)}`;
+  if (file.mime_type.includes("sheet")) return `XLSX · ${formatFileSize(file.size_bytes)}`;
+  if (file.mime_type === "conversation") return "对话";
+  if (file.mime_type === "document") return "文档";
+  return `${file.mime_type} · ${formatFileSize(file.size_bytes)} · ${file.status === "ready" ? "解析完成" : "解析失败"}`;
+}
+
+function referenceThreadGroup(id: number, index: number) {
+  if (id >= 9101 && id <= 9103) return "今天";
+  if (id >= 9104 && id <= 9106) return "昨天";
+  if (id >= 9107 && id <= 9108) return "更早";
+  if (index < 3) return "今天";
+  return "更早";
 }
 
 function formatTime(value?: string) {

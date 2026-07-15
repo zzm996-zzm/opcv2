@@ -40,13 +40,14 @@ describe("CopilotPage", () => {
     );
   }
 
-  it("renders the conversation workspace", () => {
+  it("renders the reference conversation workspace when the backend is unavailable", async () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "智活 Copilot" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "开始一段新的对话" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /市场规模与增长趋势/ })).not.toBeInTheDocument();
-    expect(screen.queryByText("智能客服市场分析报告.pdf")).not.toBeInTheDocument();
+    expect(await screen.findByText("请帮我分析智能客服系统的市场机会和竞争格局。")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /市场规模与增长趋势/ })).toBeInTheDocument();
+    expect(screen.getByText("智能客服市场分析报告.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "开始一段新的对话" })).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "会话记录" })).toBeInTheDocument();
   });
 
@@ -96,7 +97,7 @@ describe("CopilotPage", () => {
     expect(screen.getByRole("link", { name: "上传文件" })).toHaveAttribute("href", "/copilot/files");
     expect(screen.getByRole("link", { name: "引用" })).toHaveAttribute("href", "/copilot/files");
     expect(screen.getByRole("link", { name: "记忆" })).toHaveAttribute("href", "/copilot/memories");
-    expect(screen.getByRole("link", { name: /DeepSeek/ })).toHaveAttribute("href", "/copilot/models");
+    expect(screen.getByRole("link", { name: /GPT-4o/ })).toHaveAttribute("href", "/copilot/models");
     expect(screen.getByRole("link", { name: /AI 对比分析/ })).toHaveAttribute("href", "/copilot/compare");
   });
 
@@ -414,10 +415,10 @@ describe("CopilotPage", () => {
   it("limits comparison selection to three models", () => {
     renderPage("compare");
 
-    fireEvent.click(screen.getByRole("button", { name: "选择模型 GPT-4o" }));
-    fireEvent.click(screen.getByRole("button", { name: "选择模型 Claude opus4.8" }));
-
-    expect(screen.getByRole("button", { name: "3 模型" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "3 模型" })).toHaveClass("active");
+    expect(screen.getByRole("button", { name: "取消选择 GPT-4o" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消选择 Claude opus4.8" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消选择 Grok4.3" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "选择模型 Grok4.3" })).not.toBeInTheDocument();
   });
 
