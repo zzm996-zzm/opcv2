@@ -123,7 +123,7 @@ function CommunityOverview({ config }: { config: CommunityConfig | null }) {
             <article className="ref-community-panel">
               <header><h2>社群动态 <small>最新讨论</small></h2><Link to="/community/members">查看全部 ›</Link></header>
               {posts.map(([title, meta, likes, comments], index) => (
-                <div className="ref-community-list-row" key={title}><img alt="" src={`/community/avatar-0${index + 1}.jpg`} /><span><strong>{title}</strong><small>{meta}</small></span><em>♧ {likes}　◯ {comments}</em></div>
+                <div className="ref-community-list-row" key={title}><img alt="" src={`/community/avatar-0${index + 1}.jpg`} /><span><strong>{title}</strong><small>{meta}</small></span><em>♧ {likes} <span>◯ {comments}</span></em></div>
               ))}
               <Link to="/community/members">查看全部讨论 ›</Link>
             </article>
@@ -147,7 +147,7 @@ function CommunityOverview({ config }: { config: CommunityConfig | null }) {
         </main>
 
         <aside className="ref-community-copilot" aria-label="智活 Copilot 社群助手">
-          <header><div><strong><span>✦</span> 智活 <b>Copilot</b></strong><p>你的全能 AI 助手，随时为你提供帮助</p></div><div>⚙　⌃</div></header>
+          <header><div><strong><span>✦</span> 智活 <b>Copilot</b></strong><p>你的全能 AI 助手，随时为你提供帮助</p></div><div className="ref-community-copilot-tools"><span>⚙</span><span>⌃</span></div></header>
           <div className="ref-community-chat">
             <article><span>A</span><p>嗨，张婧！<br />今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</p></article>
             <small>猜你想问</small>

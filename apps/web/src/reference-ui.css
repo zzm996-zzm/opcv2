@@ -363,6 +363,7 @@
 .ref-community-list-row strong,.ref-community-list-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ref-community-list-row strong { color: #31394f; font-size: 12px; }
 .ref-community-list-row small,.ref-community-list-row em { color: #989fac; font-size: 10px; font-style: normal; }
+.ref-community-list-row em span { margin-left: 8px; }
 .ref-community-list-row.event { grid-template-columns: 42px minmax(0,1fr) 48px; }
 .ref-community-list-row.event b { width: fit-content; padding: 2px 6px; color: #2770dc; background: #edf5ff; border-radius: 3px; font-size: 9px; }
 .ref-community-list-row.event button { height: 30px; color: #1760e8; background: #fff; border: 1px solid #d9e5f7; border-radius: 5px; font-size: 10px; }
@@ -390,6 +391,7 @@
 .ref-community-copilot > header strong { color: #10204f; font-size: 22px; }
 .ref-community-copilot > header strong span,.ref-community-copilot > header strong b { color: #1760f5; }
 .ref-community-copilot > header p { margin: 11px 0 0; color: #7783a0; font-size: 13px; }
+.ref-community-copilot-tools { display: flex; gap: 14px; }
 .ref-community-chat { display: grid; gap: 18px; padding: 46px 2px 18px; }
 .ref-community-chat article { display: grid; grid-template-columns: 43px minmax(0,1fr); gap: 14px; align-items: start; }
 .ref-community-chat article > span { display: grid; width: 43px; height: 43px; color: #fff; background: #2c80f0; border-radius: 50%; place-items: center; font-size: 18px; font-weight: 850; }
@@ -414,7 +416,7 @@
 }
 
 /* Signed-in workbench reference */
-.ref-home-layout { display: grid; grid-template-columns: minmax(0,1fr) 445px; gap: 42px; min-width: 0; padding: 98px 30px 48px 86px; background: #f9fbff; }
+.ref-home-layout { display: grid; grid-template-columns: minmax(0,1fr) 445px; gap: 42px; min-width: 0; padding: 98px 0 48px 95px; background: #f9fbff; }
 .ref-home-layout:not(.with-assistant) { grid-template-columns: minmax(0,1fr); padding-right: 70px; }
 .ref-home-dashboard { min-width: 0; }
 .ref-home-welcome { display: grid; grid-template-columns: 390px minmax(0,1fr); min-height: 165px; border-bottom: 1px solid #e7ebf3; }
