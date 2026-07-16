@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
+import ReferenceShell from "../components/ReferenceShell";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { projectsApi, type ProjectCase, type ProjectFavorite, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
@@ -96,12 +97,22 @@ function toHistoryRow(session: ProjectMatchSession): MatchHistoryRow {
 }
 
 function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
+  if (variant === "home") {
+    return (
+      <ReferenceShell className="ref-project-shell" mainClassName="ref-project-page">
+        <div className="ref-project-layout">
+          <main className="ref-project-main"><MarketHome /></main>
+          <ProjectCopilot reference variant={variant} />
+        </div>
+      </ReferenceShell>
+    );
+  }
+
   return (
     <V4PageShell className="project-market-shell" showCopilotMini={false}>
       <section className="project-market-page" aria-label="项目超市">
         <div className="project-market-layout">
           <main className="project-market-main">
-            {variant === "home" && <MarketHome />}
             {variant === "match" && <MatchRequest />}
             {variant === "explore" && <OpportunityExplore />}
             {variant === "cases" && <CaseLibrary />}
@@ -146,21 +157,21 @@ function MarketHome() {
 
   return (
     <>
-      <section className="pm-hero home">
-        <div>
+      <section className="ref-project-hero">
+        <div className="ref-project-hero-copy">
           <h1>项目超市</h1>
           <h2>发现下一个可落地机会</h2>
           <p>从真实案例、赛道数据、失败教训和增长路径中筛出适合你的项目。</p>
-          <div className="pm-search">
+          <div className="ref-project-search">
             <span aria-hidden="true">⌕</span>
             <input aria-label="搜索项目名称、行业、关键词" placeholder="搜索项目名称、行业、关键词" />
             <button type="button" aria-label="搜索">⌕</button>
           </div>
         </div>
-        <AiCubeArt />
+        <img className="ref-project-hero-art" alt="" src="/project-market/home-hero.jpg" />
       </section>
 
-      <section className="pm-badge-strip" aria-label="项目机会标签">
+      <section className="ref-project-badges" aria-label="项目机会标签">
         {opportunityBadges.map(([icon, title, detail]) => (
           <article key={title}>
             <span>{icon}</span>
@@ -170,11 +181,11 @@ function MarketHome() {
         ))}
       </section>
 
-      <section className="pm-core-section">
+      <section className="ref-project-core">
         <h2>核心入口</h2>
-        <div className="pm-core-grid">
+        <div className="ref-project-core-grid">
           {coreEntries.map(([title, detail, href, action, kind]) => (
-            <article className={`pm-core-card ${kind}`} key={title}>
+            <article className={`ref-project-core-card ${kind}`} key={title}>
               <div>
                 <h3>{title}</h3>
                 <p>{detail}</p>
@@ -185,12 +196,12 @@ function MarketHome() {
         </div>
       </section>
 
-      <section className="pm-opportunity-section">
-        <div className="pm-section-head">
+      <section className="ref-project-opportunities">
+        <div className="ref-project-section-head">
           <h2>精选机会</h2>
           <Link to="/projects/results">查看全部</Link>
         </div>
-        <div className="pm-opportunity-grid">
+        <div className="ref-project-opportunity-grid">
           {featuredError ? <p className="form-error" role="alert">{featuredError}</p> : null}
           {!featuredError && featured.length === 0 ? <div className="module-empty-state" role="status">暂无精选机会</div> : null}
           {featured.map((item) => (
@@ -883,10 +894,10 @@ function Considerations() {
   );
 }
 
-function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
+function ProjectCopilot({ reference = false, variant }: { reference?: boolean; variant: ProjectMarketVariant }) {
   const hasRecordContext = variant === "results" || variant === "paywall" || variant === "detail" || variant === "compare" || variant === "export";
   return (
-    <aside className="pm-copilot" aria-label="智活 Copilot">
+    <aside className={reference ? "ref-project-copilot" : "pm-copilot"} aria-label="智活 Copilot">
       <header>
         <span aria-hidden="true">✦</span>
         <div>
@@ -895,12 +906,12 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
         </div>
         <button type="button">⌃</button>
       </header>
-      <div className="pm-chat-bubble">
+      <div className={reference ? "ref-project-chat-note" : "pm-chat-bubble"}>
         {hasRecordContext
           ? "页面中的项目结论只来自当前持久化记录；AI 匹配内容会明确标记为模型推演。"
           : "提交真实需求后，Copilot 会创建可回看的匹配记录；未关联记录时不展示业务推荐。"}
       </div>
-      <article className="pm-copilot-recommend">
+      <article className={reference ? "ref-project-match-card" : "pm-copilot-recommend"}>
         <small>数据透明说明</small>
         <strong>先记录，再分析</strong>
         <p>机会详情使用运营发布内容与案例来源；匹配结果使用对应的 AI 会话记录。</p>
@@ -911,7 +922,7 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
         <Link to="/tools/recommend">推荐工具</Link>
         <Link to="/tasks">制定落地计划</Link>
       </nav>
-      <MiniCopilotForm className="pm-copilot-input" attachIcon="＋" sendIcon="↗" />
+      <MiniCopilotForm className={reference ? "ref-project-copilot-input" : "pm-copilot-input"} attachIcon="＋" sendIcon="↗" />
     </aside>
   );
 }

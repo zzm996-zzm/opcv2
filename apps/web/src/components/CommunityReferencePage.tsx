@@ -5,6 +5,7 @@ import { apiErrorMessage } from "../lib/apiErrors";
 import { authSession } from "../lib/authSession";
 import { contentApi, type CommunityConfig } from "../lib/contentApi";
 import { MiniCopilotForm } from "./MiniCopilot";
+import ReferenceShell from "./ReferenceShell";
 import V4PageShell from "./V4PageShell";
 
 export type CommunityReferenceVariant = "overview" | "members" | "enterprise";
@@ -70,6 +71,97 @@ const memberStats = [
   ["干货分享", "62", "本周新增"],
   ["资源对接", "95", "本周新增"]
 ] as const;
+
+function CommunityOverview({ config }: { config: CommunityConfig | null }) {
+  return (
+    <ReferenceShell className="ref-community-shell" mainClassName="ref-community-page">
+      <section className="ref-community-layout" aria-label="AI社群">
+        <main className="ref-community-main">
+          <header className="ref-community-heading">
+            <span>◉ 连接 · 学习 · 成长</span>
+            <h1 className="ref-community-sr-only">{config?.headline ?? "加入智活社群，与优秀创业者一起增长"}</h1>
+            <p>{config?.description ?? "从免费分析到VIP获客，我们陪伴你每一步成长，助力生意持续增长。"}</p>
+            <aside>
+              <div>{[1, 4, 6].map((item) => <img alt="" key={item} src={`/community/avatar-0${item}.jpg`} />)}</div>
+              <strong>已聚集 1,200+ 创业者一起成长</strong>
+            </aside>
+          </header>
+
+          <section className="ref-community-entries" aria-label="社群入口">
+            <article className="ref-community-card member">
+              <img alt="" src="/community/member-hero.jpg" />
+              <span>免费社群</span>
+              <h1>创业成长互助社区</h1>
+              <p>免费分析用户专属 · 共同学习 · 资源互助</p>
+              <small>适合初创者、正在探索方向的你，获得方法、案例与伙伴支持。</small>
+              <div className="ref-community-features three">
+                {overviewMemberFeatures.map(([title, description], index) => (
+                  <section key={title}><i>{["▣", "♙", "▤"][index]}</i><span><strong>{title}</strong><small>{description}</small></span></section>
+                ))}
+              </div>
+              <Link to="/community/members">♧ 免费加入社群</Link>
+              <footer>已加入 1,204 人 · 本周新增 86 人</footer>
+            </article>
+
+            <article className="ref-community-card enterprise">
+              <img alt="" src="/community/enterprise-hero.jpg" />
+              <span>VIP社群</span>
+              <h1>企业家陪伴成长圈</h1>
+              <p>VIP/企业用户专属 · 深度链接 · 高价值陪伴</p>
+              <small>面向成长型创业者与企业主，链接优质人脉与资源，解决关键增长难题。</small>
+              <div className="ref-community-features">
+                {overviewEnterpriseFeatures.map(([title, description], index) => (
+                  <section key={title}><i>{["▣", "♙", "▤", "⌁"][index]}</i><span><strong>{title}</strong><small>{description}</small></span></section>
+                ))}
+              </div>
+              <Link to="/community/enterprise">♛ 升级VIP加入</Link>
+              <footer>已加入 326 家企业 · 活跃度 78%</footer>
+            </article>
+          </section>
+
+          <section className="ref-community-info">
+            <article className="ref-community-panel">
+              <header><h2>社群动态 <small>最新讨论</small></h2><Link to="/community/members">查看全部 ›</Link></header>
+              {posts.map(([title, meta, likes, comments], index) => (
+                <div className="ref-community-list-row" key={title}><img alt="" src={`/community/avatar-0${index + 1}.jpg`} /><span><strong>{title}</strong><small>{meta}</small></span><em>♧ {likes}　◯ {comments}</em></div>
+              ))}
+              <Link to="/community/members">查看全部讨论 ›</Link>
+            </article>
+            <article className="ref-community-panel">
+              <header><h2>本周活动预告</h2><Link to="/community/members">全部活动 ›</Link></header>
+              {events.map(([tag, title, host, action], index) => (
+                <div className="ref-community-list-row event" key={title}><img alt="" src={`/community/avatar-0${index + 4}.jpg`} /><span><b>{tag}</b><strong>{title}</strong><small>{host}</small></span><button type="button">{action}</button></div>
+              ))}
+            </article>
+            <article className="ref-community-panel ref-community-stats">
+              <header><h2>社群价值数据</h2><strong>社区成长中</strong></header>
+              <div>{[["活跃成员","1,200+"],["本周互动","328"],["干货分享","56"],["资源对接","89"]].map(([label,value]) => <section key={label}><small>{label}</small><b>{value}</b></section>)}</div>
+              <blockquote>在社群里认识了很多同频的创业者，获得了宝贵的建议和资源，少走了很多弯路。<cite>— Lisa · 教育行业创始人</cite></blockquote>
+            </article>
+          </section>
+
+          <section className="ref-community-growth">
+            <header><h2>你的成长路径 <small>（从陌生到信任，从增长到成功）</small></h2></header>
+            <div>{growthSteps.map(([step, title, desc]) => <article key={step}><i>{step}</i><span><strong>{title}</strong><small>{desc}</small></span></article>)}</div>
+          </section>
+        </main>
+
+        <aside className="ref-community-copilot" aria-label="智活 Copilot 社群助手">
+          <header><div><strong><span>✦</span> 智活 <b>Copilot</b></strong><p>你的全能 AI 助手，随时为你提供帮助</p></div><div>⚙　⌃</div></header>
+          <div className="ref-community-chat">
+            <article><span>A</span><p>嗨，张婧！<br />今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</p></article>
+            <small>猜你想问</small>
+            <div className="question">帮我分析一下智能硬件赛道的市场机会</div>
+            <article><span>A</span><p>好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点。</p></article>
+          </div>
+          <section className="ref-community-report"><i>▦</i><span><strong>智能硬件市场机会分析报告</strong><small>PDF · 2.4MB</small></span></section>
+          <nav><Link to="/analysis">▥ 分析项目机会 <span>›</span></Link><Link to="/tools/recommend">▣ 推荐工具 <span>›</span></Link><Link to="/learning/plan">▤ 制定落地计划 <span>›</span></Link></nav>
+          <MiniCopilotForm className="ref-community-input" placeholder="询问任何问题..." sendIcon="↗" />
+        </aside>
+      </section>
+    </ReferenceShell>
+  );
+}
 
 function CommunityCard({ currentVariant, onOpen, overview, type }: {
   currentVariant: CommunityReferenceVariant;
@@ -236,6 +328,8 @@ function CommunityReferencePage({ variant }: CommunityReferencePageProps) {
       setError(apiErrorMessage(caught, "申请提交失败，请稍后再试"));
     }
   }
+
+  if (overview) return <CommunityOverview config={config} />;
 
   return (
     <V4PageShell className="community-ref-shell">
