@@ -1,0 +1,310 @@
+:root {
+  --type-page-title: 30px;
+  --type-page-title-mobile: 26px;
+  --type-section-title: 20px;
+  --type-panel-title: 18px;
+  --type-card-title: 16px;
+  --type-body: 14px;
+  --type-caption: 12px;
+  --type-weight-regular: 400;
+  --type-weight-medium: 500;
+  --type-weight-semibold: 600;
+  --type-weight-bold: 700;
+}
+
+/* Keep the product chrome on one shared scale across every V4 page. */
+.v4-shell,
+.ref-shell {
+  font-size: var(--type-body);
+  line-height: 1.6;
+}
+
+.v4-shell .v4-brand-name,
+.ref-shell .ref-brand strong {
+  font-size: 24px;
+  font-weight: var(--type-weight-bold);
+}
+
+.v4-shell .v4-brand small,
+.ref-shell .ref-brand small {
+  font-size: var(--type-caption);
+  font-weight: var(--type-weight-semibold);
+}
+
+.v4-shell .v4-topnav a,
+.ref-shell .ref-topnav a {
+  font-size: var(--type-card-title);
+  font-weight: var(--type-weight-semibold);
+}
+
+.v4-shell .v4-group-title,
+.v4-shell .v4-side-link,
+.ref-shell .ref-side-title,
+.ref-shell .ref-side-link,
+.ref-shell .ref-collapse {
+  font-size: var(--type-body);
+  font-weight: var(--type-weight-semibold);
+}
+
+.v4-shell .v4-user-copy strong,
+.ref-shell .ref-account strong {
+  font-size: var(--type-body);
+  font-weight: var(--type-weight-semibold);
+}
+
+.v4-shell .v4-user-copy small,
+.ref-shell .ref-account small,
+.v4-shell .account-card-head small {
+  font-size: var(--type-caption);
+}
+
+/* H1 is the page identity. Cards and dialogs use lower-level headings below. */
+.v4-shell .v4-page-main h1 {
+  font-size: var(--type-page-title);
+  line-height: 1.25;
+  font-weight: var(--type-weight-bold);
+  letter-spacing: 0;
+}
+
+.v4-shell .v4-page-main h2 {
+  font-size: var(--type-panel-title) !important;
+  line-height: 1.4;
+  font-weight: var(--type-weight-semibold);
+}
+
+.v4-shell .v4-page-main h3 {
+  font-size: var(--type-card-title) !important;
+  line-height: 1.45;
+  font-weight: var(--type-weight-semibold);
+}
+
+.v4-shell .v4-page-main > h2,
+.v4-shell .landing-ref-main > h2,
+.v4-shell .panel-heading h2,
+.v4-shell .quota-heading h2,
+.v4-shell .module-section-heading h2,
+.v4-shell .er-section-title h2 {
+  font-size: var(--type-section-title) !important;
+  line-height: 1.35;
+  font-weight: var(--type-weight-bold);
+}
+
+.v4-shell .landing-ref-h1,
+.v4-shell .community-ref-hero h1,
+.v4-shell .community-ref-title h1,
+.v4-shell .page-title-row h1,
+.v4-shell .task-create-heading h1,
+.v4-shell .toolhub-title h1,
+.v4-shell .insights-title h1 {
+  font-size: var(--type-page-title);
+  line-height: 1.25;
+  font-weight: var(--type-weight-bold);
+}
+
+.v4-shell .landing-ref-h1.small {
+  font-size: var(--type-section-title);
+}
+
+.v4-shell .data-ref-hero h2,
+.v4-shell .monitoring-ref-hero h2,
+.v4-shell .growth-ref-hero h2,
+.v4-shell .module-hero-card h2,
+.v4-shell .feature-card h2,
+.v4-shell .community-ref-entry h2 {
+  font-size: var(--type-section-title) !important;
+  line-height: 1.35;
+  font-weight: var(--type-weight-bold);
+}
+
+.v4-shell .data-query-card h2,
+.v4-shell .monitoring-launch h2,
+.v4-shell .progress-body > section h2,
+.v4-shell .live-log h2,
+.v4-shell .chart-grid h2,
+.v4-shell .insight-grid h2,
+.v4-shell .audience-grid h2,
+.v4-shell .community-ref-panel h2,
+.v4-shell .copilot-head strong,
+.v4-shell .recommend-card h3 {
+  font-size: var(--type-panel-title);
+  line-height: 1.4;
+  font-weight: var(--type-weight-semibold);
+}
+
+.v4-shell .data-benefits b,
+.v4-shell .monitoring-benefits b,
+.v4-shell .growth-benefits b,
+.v4-shell .growth-steps b,
+.v4-shell .community-ref-features strong {
+  font-size: var(--type-card-title);
+  font-weight: var(--type-weight-semibold);
+}
+
+/* Body copy and controls no longer jump between 10, 11, 12, and 14px. */
+.v4-shell .v4-page-main p,
+.v4-shell .v4-page-main label,
+.v4-shell .v4-page-main li,
+.v4-shell .landing-ref-main button,
+.v4-shell .landing-ref-main input,
+.v4-shell .landing-ref-main textarea,
+.v4-shell .landing-ref-main select,
+.v4-shell .landing-ref-main a.primary,
+.v4-shell .data-query-card a,
+.v4-shell .monitoring-launch footer a,
+.v4-shell .growth-ref-hero footer a {
+  font-size: var(--type-body);
+  line-height: 1.6;
+}
+
+.v4-shell .v4-page-main p {
+  font-size: var(--type-body) !important;
+}
+
+.v4-shell .v4-page-main :is(input, textarea, select, button) {
+  font-size: var(--type-body);
+}
+
+.v4-shell .v4-page-main small,
+.v4-shell .data-query-card footer,
+.v4-shell .data-unlock,
+.v4-shell .hero-pills span,
+.v4-shell .progress-steps article,
+.v4-shell .info-strip,
+.v4-shell .community-ref-hero > span,
+.v4-shell .community-ref-hero aside,
+.v4-shell .community-ref-entry > span,
+.v4-shell .community-ref-entry > small {
+  font-size: var(--type-caption);
+  line-height: 1.6;
+}
+
+.v4-shell .v4-page-main small {
+  font-size: var(--type-caption) !important;
+}
+
+.v4-shell .data-ref-hero p,
+.v4-shell .monitoring-ref-hero p,
+.v4-shell .growth-ref-hero p,
+.v4-shell .data-benefits p,
+.v4-shell .monitoring-benefits p,
+.v4-shell .growth-benefits p,
+.v4-shell .community-ref-hero p,
+.v4-shell .community-ref-title p,
+.v4-shell .community-ref-entry > p,
+.v4-shell .community-ref-panel p,
+.v4-shell .recommend-card p,
+.v4-shell .copilot-head p {
+  font-size: var(--type-body);
+  line-height: 1.65;
+}
+
+.v4-shell :is(
+  .history-table,
+  .monitoring-directory,
+  .monitor-timeline,
+  .growth-history-table,
+  .compare-table,
+  .task-ref-table
+) :is(header, article) {
+  font-size: var(--type-caption);
+  line-height: 1.5;
+}
+
+/* Dialog headings remain subordinate to the page behind them. */
+.v4-shell .v4-page-main :is(
+  .ui-modal-scrim,
+  .task-modal-backdrop,
+  .copilot-modal-backdrop,
+  .pm-modal-scrim,
+  .sandbox-modal-scrim,
+  .board3-modal-backdrop
+) h1 {
+  font-size: 24px;
+}
+
+/* The standalone reference pages use the same hierarchy as V4 pages. */
+.ref-shell .ref-project-hero h1,
+.ref-shell .ref-home-welcome h1 {
+  font-size: var(--type-page-title);
+  line-height: 1.25;
+  font-weight: var(--type-weight-bold);
+}
+
+.ref-shell .ref-page-main h2 {
+  font-size: var(--type-panel-title) !important;
+  line-height: 1.4;
+  font-weight: var(--type-weight-semibold);
+}
+
+.ref-shell .ref-page-main h3 {
+  font-size: var(--type-card-title) !important;
+  line-height: 1.45;
+  font-weight: var(--type-weight-semibold);
+}
+
+.ref-shell .ref-project-hero h2,
+.ref-shell .ref-home-section-head h2,
+.ref-shell .ref-project-core > h2,
+.ref-shell .ref-project-section-head h2 {
+  font-size: var(--type-section-title) !important;
+  line-height: 1.35;
+  font-weight: var(--type-weight-bold);
+}
+
+.ref-shell .ref-home-domain h2,
+.ref-shell .ref-community-card h1,
+.ref-shell .ref-community-panel h2,
+.ref-shell .ref-project-copilot > header strong {
+  font-size: var(--type-panel-title);
+  line-height: 1.4;
+  font-weight: var(--type-weight-semibold);
+}
+
+.ref-shell .ref-project-core-card h3,
+.ref-shell .ref-project-opportunity-grid h3,
+.ref-shell .ref-home-recommend-card h3 {
+  font-size: var(--type-card-title);
+  line-height: 1.45;
+  font-weight: var(--type-weight-semibold);
+}
+
+.ref-shell .ref-page-main p,
+.ref-shell .ref-page-main label,
+.ref-shell .ref-page-main :is(input, textarea, select, button) {
+  font-size: var(--type-body);
+  line-height: 1.65;
+}
+
+.ref-shell .ref-page-main p {
+  font-size: var(--type-body) !important;
+}
+
+.ref-shell .ref-page-main small,
+.ref-shell .ref-project-badges small,
+.ref-shell .ref-community-features small,
+.ref-shell .ref-community-list-row small,
+.ref-shell .ref-community-list-row em,
+.ref-shell .ref-home-recommend-card small {
+  font-size: var(--type-caption) !important;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .v4-shell .v4-page-main h1,
+  .v4-shell .landing-ref-h1,
+  .v4-shell .community-ref-hero h1,
+  .v4-shell .community-ref-title h1,
+  .v4-shell .page-title-row h1,
+  .v4-shell .task-create-heading h1,
+  .v4-shell .toolhub-title h1,
+  .v4-shell .insights-title h1,
+  .ref-shell .ref-project-hero h1,
+  .ref-shell .ref-home-welcome h1 {
+    font-size: var(--type-page-title-mobile);
+  }
+
+  .v4-shell .v4-topnav a,
+  .ref-shell .ref-topnav a {
+    font-size: var(--type-body);
+  }
+}
