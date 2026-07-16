@@ -47679,6 +47679,7 @@ a:active {
 .er-process article:nth-child(2) i { background-image: url("/enterprise-reference/process-plan.jpg"); }
 .er-process article:nth-child(3) i { background-image: url("/enterprise-reference/process-execute.jpg"); }
 .er-process article:nth-child(4) i { background-image: url("/enterprise-reference/process-review.jpg"); }
+.er-process small { font-size: 10px; line-height: 1.4; }
 
 .er-consultant {
   position: sticky;
@@ -48095,4 +48096,251 @@ a:active {
   .er-success-info article { padding:12px 0; border-right:0; border-bottom:1px solid #eceef4; }
   .er-contact-backdrop { top:-69px; left:0; width:100%; }
   .er-contact-modal { width:calc(100vw - 24px); min-height:auto; padding:30px 20px; }
+}
+
+/* Motion refinement for the growth reference suite */
+@keyframes er-copy-reveal {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes er-art-reveal {
+  from { opacity: 0; transform: translate3d(18px, 0, 0) scale(.985); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes er-card-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes er-check-pop {
+  0% { opacity: 0; transform: scale(.72); }
+  62% { opacity: 1; transform: scale(1.045); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes er-modal-scrim {
+  from { opacity: 0; backdrop-filter: blur(0); }
+  to { opacity: 1; backdrop-filter: blur(3px); }
+}
+
+@keyframes er-modal-pop {
+  from { opacity: 0; transform: translateY(12px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes er-focus-ring {
+  from { box-shadow: 0 0 0 0 rgba(68, 55, 237, 0); }
+  to { box-shadow: 0 0 0 4px rgba(68, 55, 237, .10); }
+}
+
+.er-home-hero > div:first-child,
+.er-form-page > header,
+.er-cases-page > header,
+.er-detail-hero > div {
+  animation: er-copy-reveal 520ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.er-home-art,
+.er-detail-hero > i {
+  animation: er-art-reveal 680ms cubic-bezier(.16, 1, .3, 1) 80ms both;
+}
+
+.er-summary-grid article,
+.er-service-grid article,
+.er-mini-cases a,
+.er-process article,
+.er-case-grid > a,
+.er-detail-card,
+.er-result-grid article,
+.er-testimonial,
+.er-success-info,
+.er-success-services article,
+.er-consultant {
+  animation: er-card-reveal 500ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.er-summary-grid article:nth-child(2),
+.er-service-grid article:nth-child(2),
+.er-mini-cases a:nth-child(2),
+.er-process article:nth-child(2),
+.er-case-grid > a:nth-child(2),
+.er-result-grid article:nth-child(2),
+.er-success-services article:nth-child(2) { animation-delay: 60ms; }
+
+.er-summary-grid article:nth-child(3),
+.er-service-grid article:nth-child(3),
+.er-mini-cases a:nth-child(3),
+.er-process article:nth-child(3),
+.er-case-grid > a:nth-child(3),
+.er-result-grid article:nth-child(3),
+.er-success-services article:nth-child(3) { animation-delay: 120ms; }
+
+.er-service-grid article:nth-child(4),
+.er-process article:nth-child(4),
+.er-case-grid > a:nth-child(4),
+.er-result-grid article:nth-child(4) { animation-delay: 180ms; }
+
+.er-case-grid > a:nth-child(n + 5) { animation-delay: 240ms; }
+
+.er-actions button:hover,
+.er-actions a:hover,
+.er-consultant > a:hover,
+.er-consultant > button:hover,
+.er-submit:hover,
+.er-success-page > a:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 34px rgba(74, 61, 231, .24);
+}
+
+.er-summary-grid article:hover,
+.er-service-grid article:hover,
+.er-mini-cases a:hover,
+.er-case-grid > a:hover,
+.er-detail-card:hover,
+.er-result-grid article:hover,
+.er-success-services article:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 34px rgba(44, 53, 133, .11);
+}
+
+.er-mini-cases span,
+.er-case-grid > a > span,
+.er-consultant > img:not(.qr),
+.er-contact-modal img {
+  transition: transform 320ms cubic-bezier(.16, 1, .3, 1), filter 320ms ease;
+}
+
+.er-mini-cases a:hover span,
+.er-case-grid > a:hover > span,
+.er-consultant:hover > img:not(.qr),
+.er-contact-modal img:hover {
+  transform: scale(1.025);
+  filter: saturate(1.05);
+}
+
+.er-process i {
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.er-process article:hover i {
+  transform: translateY(-3px) scale(1.04);
+  box-shadow: 0 12px 24px rgba(73, 67, 215, .18);
+}
+
+.er-form-page input,
+.er-form-page select,
+.er-form-page textarea,
+.er-case-toolbar label {
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.er-form-page input:focus,
+.er-form-page select:focus,
+.er-form-page textarea:focus,
+.er-case-toolbar label:focus-within {
+  border-color: #7265ee;
+  animation: er-focus-ring 180ms ease-out both;
+  outline: none;
+}
+
+.er-upload {
+  transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease;
+}
+
+.er-upload:hover {
+  border-color: #7c72ef;
+  background: #fbfaff;
+  transform: translateY(-2px);
+}
+
+.er-success-icon { animation: er-check-pop 680ms cubic-bezier(.16, 1, .3, 1) both; }
+.er-success-page > h1 { animation: er-copy-reveal 420ms cubic-bezier(.16, 1, .3, 1) 180ms both; }
+.er-success-page > p { animation: er-copy-reveal 420ms cubic-bezier(.16, 1, .3, 1) 240ms both; }
+.er-success-info { animation-delay: 300ms; }
+.er-success-page > h2 { animation: er-copy-reveal 420ms cubic-bezier(.16, 1, .3, 1) 360ms both; }
+.er-success-page > a { animation: er-copy-reveal 420ms cubic-bezier(.16, 1, .3, 1) 480ms both; }
+
+.er-contact-backdrop { animation: er-modal-scrim 220ms ease-out both; }
+.er-contact-modal { animation: er-modal-pop 360ms cubic-bezier(.16, 1, .3, 1) both; }
+
+.board3-hero-copy,
+.board3-art,
+.board3-stats,
+.board3-card-row,
+.board3-grid,
+.board3-source-row,
+.board3-flow {
+  animation: er-copy-reveal 520ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.board3-art { animation-name: er-art-reveal; animation-delay: 80ms; }
+.board3-stats { animation-delay: 120ms; }
+.board3-card-row { animation-delay: 180ms; }
+.board3-grid { animation-delay: 240ms; }
+.board3-source-row { animation-delay: 300ms; }
+.board3-flow { animation-delay: 360ms; }
+
+.board3-hero-actions button:hover,
+.board3-form-card button:hover,
+.board3-section-head button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 34px rgba(77, 54, 255, .28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .er-home-hero > div:first-child,
+  .er-home-art,
+  .er-form-page > header,
+  .er-cases-page > header,
+  .er-detail-hero > div,
+  .er-detail-hero > i,
+  .er-summary-grid article,
+  .er-service-grid article,
+  .er-mini-cases a,
+  .er-process article,
+  .er-case-grid > a,
+  .er-detail-card,
+  .er-result-grid article,
+  .er-testimonial,
+  .er-success-icon,
+  .er-success-page > h1,
+  .er-success-page > p,
+  .er-success-page > h2,
+  .er-success-info,
+  .er-success-services article,
+  .er-success-page > a,
+  .er-consultant,
+  .er-contact-backdrop,
+  .er-contact-modal,
+  .board3-hero-copy,
+  .board3-art,
+  .board3-stats,
+  .board3-card-row,
+  .board3-grid,
+  .board3-source-row,
+  .board3-flow {
+    animation: none !important;
+  }
+
+  .er-actions button:hover,
+  .er-actions a:hover,
+  .er-consultant > a:hover,
+  .er-consultant > button:hover,
+  .er-submit:hover,
+  .er-success-page > a:hover,
+  .er-summary-grid article:hover,
+  .er-service-grid article:hover,
+  .er-mini-cases a:hover,
+  .er-case-grid > a:hover,
+  .er-detail-card:hover,
+  .er-result-grid article:hover,
+  .er-success-services article:hover,
+  .er-process article:hover i,
+  .board3-hero-actions button:hover,
+  .board3-form-card button:hover,
+  .board3-section-head button:hover {
+    transform: none;
+  }
 }
