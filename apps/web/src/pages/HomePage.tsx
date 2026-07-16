@@ -407,7 +407,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   <small>从项目确定到规模增长，智活AI 助你高效决策、快速落地、持续增长。</small>
                 )}
                 {signedIn && accountSummary && (
-                  <div className="home-account-summary" aria-label="账户权益概览">
+                  <div className="ref-home-account-summary" aria-label="账户权益概览">
                     <span>{accountSummary.plan_name}</span>
                     <span>{accountSummary.credit_balance} 积分</span>
                     {accountSummary.quota_warnings.map((warning) => (
@@ -415,9 +415,9 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     ))}
                   </div>
                 )}
-                {signedIn && summaryLoading && <p className="home-summary-status" role="status">正在同步工作台数据...</p>}
+                {signedIn && summaryLoading && <p className="ref-home-summary-status" role="status">正在同步工作台数据...</p>}
                 {signedIn && summaryError && (
-                  <div className="home-summary-error" role="alert">
+                  <div className="ref-home-summary-error" role="alert">
                     <span>{summaryError}</span>
                     <button onClick={loadHomeSummary} type="button">重新加载</button>
                   </div>

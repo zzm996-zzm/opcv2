@@ -83,6 +83,10 @@ function ReferenceShell({ accountSlot, children, className = "", mainClassName =
 
       <div className="ref-workspace">
         <header className="ref-topbar">
+          <Link className="ref-mobile-brand" to="/" aria-label="智活AI 首页">
+            <img alt="" src="/home/logo.png" />
+            <strong>智活AI</strong>
+          </Link>
           <nav className="ref-topnav" aria-label="顶部全局功能区">
             {topNav.map(([label, href]) => (
               <Link className={`${isActive(href) ? "active" : ""} ${href === "/copilot" ? "copilot" : ""}`} key={href} to={href}>
