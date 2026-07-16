@@ -1069,7 +1069,7 @@
   display: grid;
   grid-template-columns: 1.05fr 1fr;
   min-height: 350px;
-  padding: 46px 42px 150px;
+  padding: 44px 42px 64px;
   overflow: hidden;
   color: #fff;
   background: #071854;
@@ -1080,8 +1080,8 @@
 .data-ref-hero p { max-width: 480px; margin: 0; color: #d7defc; font-size: 13px; line-height: 1.7; }
 
 .data-hero-art {
-  min-height: 210px;
-  margin: -28px -20px -30px 0;
+  min-height: 240px;
+  margin: -18px -20px -20px 0;
   background: url("/landing/data-hero.jpg") center / cover no-repeat;
   border-radius: 4px;
 }
@@ -1092,9 +1092,10 @@
 .data-query-card {
   position: relative;
   z-index: 2;
-  margin: -130px 30px 0;
+  margin: -42px 30px 0;
   padding: 20px 24px;
   background: #fff;
+  border: 1px solid rgba(39, 73, 237, 0.08);
   border-radius: 7px;
   box-shadow: 0 14px 28px rgba(19, 39, 103, 0.14);
 }
@@ -1440,9 +1441,9 @@
   .growth-question-card .question-progress,.growth-question-card footer { grid-column:1; }
   .ai-task-summary > div { grid-template-columns:1fr; }
   .ai-task-result > header { align-items:stretch; flex-direction:column; }
-  .data-ref-hero { grid-template-columns:1fr; padding:28px 22px 145px; }
-  .data-hero-art { min-height:190px; margin:10px 0 -40px; }
-  .data-query-card { margin:-125px 10px 0; padding:16px; }
+  .data-ref-hero { grid-template-columns:1fr; padding:28px 22px 56px; }
+  .data-hero-art { min-height:190px; margin:10px 0 -12px; }
+  .data-query-card { margin:-32px 10px 0; padding:16px; }
   .data-query-card > div { grid-template-columns:1fr; }
   .data-query-card input,.data-query-card a { min-height:42px; }
   .data-unlock { margin-inline:10px; }
