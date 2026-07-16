@@ -63,7 +63,11 @@ function DashboardPage() {
 
   if (!canUseWorkflow) {
     if (featureAccess) return <FeatureLockedPanel feature={featureAccess} variant="dashboard" />;
-    return <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>;
+    return (
+      <V4PageShell className="dashboard-shell" showCopilotMini={false}>
+        <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>
+      </V4PageShell>
+    );
   }
 
   return (

@@ -2,12 +2,12 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import FeatureLockedPanel from "../components/FeatureLockedPanel";
+import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { crmApi } from "../lib/crmApi";
 import { leadsApi, type LeadResult, type LeadTask, type LeadTaskDetail } from "../lib/leadsApi";
 import { membershipApi, type FeatureAccess, type MembershipUsageItem } from "../lib/membershipApi";
 import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
-import { CdkTopNav } from "./AnalysisPage";
 
 type LeadCompany = {
   leadResultID?: number;
@@ -193,7 +193,11 @@ function LeadDevelopmentPage() {
 
   if (!canUseWorkflow) {
     if (featureAccess) return <FeatureLockedPanel feature={featureAccess} variant="leads" />;
-    return <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>;
+    return (
+      <V4PageShell className="lead-development-shell" showCopilotMini={false}>
+        <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>
+      </V4PageShell>
+    );
   }
 
   const companies = results.length > 0
@@ -267,10 +271,9 @@ function LeadDevelopmentPage() {
   }
 
   return (
-    <main className="cdk-analysis-page cdk-leads-page">
-      <CdkTopNav active="VIP获客" />
-
-      <section className="cdk-leads-hero" aria-label="AI线索开发">
+    <V4PageShell className="lead-development-shell" showCopilotMini={false}>
+      <main className="cdk-analysis-page cdk-leads-page">
+        <section className="cdk-leads-hero" aria-label="AI线索开发">
         <div className="cdk-crown-art" aria-hidden="true" />
         <div>
           <h1>VIP获客</h1>
@@ -463,8 +466,9 @@ function LeadDevelopmentPage() {
             </article>
           ))}
         </aside>
-      </section>
-    </main>
+        </section>
+      </main>
+    </V4PageShell>
   );
 }
 

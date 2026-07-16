@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import type { FeatureAccess } from "../lib/membershipApi";
+import V4PageShell from "./V4PageShell";
 
 type BoardThreeVariant = "geo" | "leads" | "dashboard" | "crm";
 
@@ -24,15 +25,7 @@ type PreviewTable = {
   rows: string[][];
 };
 
-type NavItem = {
-  label: string;
-  href: string;
-  icon: string;
-  badge?: string;
-};
-
 type BoardThreeConfig = {
-  active: string;
   title: string;
   subtitle: string;
   description: string;
@@ -59,7 +52,6 @@ type BoardThreeConfig = {
 
 const configs: Record<BoardThreeVariant, BoardThreeConfig> = {
   leads: {
-    active: "AI线索开发",
     title: "AI线索开发",
     subtitle: "GEO智能获客引擎",
     description: "用AI帮你锁定最有可能购买的客户，低成本获得高质量线索",
@@ -88,7 +80,6 @@ const configs: Record<BoardThreeVariant, BoardThreeConfig> = {
     copilotActions: [["我卖什么，帮我找客户", "识别目标客群", "✧"], ["帮我拆目标客群", "锁定细分行业", "◇"], ["查看线索池样式", "预览输出字段", "▣"], ["联系升级权限", "开通企业版功能", "○"]]
   },
   crm: {
-    active: "CRM客户管理",
     title: "CRM客户管理",
     subtitle: "",
     description: "AI驱动客户全生命周期管理，让销售跟进更高效、成交更清晰",
@@ -117,7 +108,6 @@ const configs: Record<BoardThreeVariant, BoardThreeConfig> = {
     copilotActions: [["生成今日跟进清单", "AI为你推荐优先跟进客户", "☑"], ["识别高意向客户", "发现潜力成交客户", "◎"], ["联系升级权限", "解锁更多CRM高级能力", "♢"]]
   },
   geo: {
-    active: "GEO获客",
     title: "GEO获客",
     subtitle: "",
     description: "通过 GEO（生成式引擎优化）提升品牌在 AI 搜索与推荐中的可见性，以更低成本获取更精准客户，实现内容驱动的增长。",
@@ -146,7 +136,6 @@ const configs: Record<BoardThreeVariant, BoardThreeConfig> = {
     copilotActions: [["了解 GEO 能力", "查看能力介绍", "□"], ["获取低成本获客方案", "生成开通建议", "▣"], ["联系升级权限", "开通企业版功能", "▤"]]
   },
   dashboard: {
-    active: "仪表盘",
     title: "增长仪表盘",
     subtitle: "功能预览中，当前为示例预览与空态展示",
     description: "全链路增长数据一站式洞察，整合 GEO 曝光、AI 线索、渠道转化、CRM 跟进与 ROI 回报，助力科学决策，驱动高效增长。",
@@ -166,87 +155,15 @@ const configs: Record<BoardThreeVariant, BoardThreeConfig> = {
   }
 };
 
-const topNav: NavItem[] = [
-  { label: "工作台", href: "/", icon: "" },
-  { label: "智活 Copilot", href: "/copilot", icon: "brand" },
-  { label: "工具箱", href: "/tools", icon: "" },
-  { label: "咨询通", href: "/insights", icon: "" },
-  { label: "AI社群", href: "/community", icon: "" },
-  { label: "AI教学", href: "/learning", icon: "" }
-];
-
-const leftSections: Array<[string, NavItem[]]> = [
-  ["项目确定及拆解", [
-    { label: "项目超市", href: "/projects", icon: "▤" },
-    { label: "商业沙盘", href: "/sandbox", icon: "▤" }
-  ]],
-  ["落地执行", [
-    { label: "任务中心", href: "/tasks", icon: "▤" },
-    { label: "竞品全盘数据破解", href: "/competitor-data", icon: "▤" },
-    { label: "竞品动态监测", href: "/competitor-monitoring", icon: "▤" },
-    { label: "增长测算", href: "/growth-calculator", icon: "▤" }
-  ]],
-  ["增长", [
-    { label: "GEO获客", href: "/geo", icon: "⚙" },
-    { label: "AI线索开发", href: "/leads", icon: "◇", badge: "NEW" },
-    { label: "仪表盘", href: "/dashboard", icon: "⌂" },
-    { label: "CRM客户管理", href: "/crm", icon: "♙" },
-    { label: "企业定制化陪跑", href: "/enterprise", icon: "▤" }
-  ]]
-];
-
 function FeatureLockedPanel({ feature, variant }: FeatureLockedPanelProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const config = configs[variant];
   const lockedMessage = feature.message || "该模块当前版本仅开放入口展示，真实工作流暂未对外启用。";
 
   return (
-    <main className={`board3-page board3-${variant}`}>
-      <header className="board3-topbar">
-        <Link className="board3-brand" to="/">
-          <span aria-hidden="true" />
-          <strong>智活AI</strong>
-          <em>OPC V4.0</em>
-        </Link>
-        <nav aria-label="顶部全局功能区">
-          {topNav.map((item) => (
-            <Link className={item.label === "智活 Copilot" ? "active" : ""} key={item.label} to={item.href}>
-              {item.icon === "brand" ? <span aria-hidden="true" /> : null}
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <div className="board3-account">
-          <span aria-hidden="true">♧</span>
-          <i aria-hidden="true">张</i>
-          <div>
-            <strong>张婧 · 智活AI</strong>
-            <small>企业管理员</small>
-          </div>
-          <span aria-hidden="true">⌄</span>
-        </div>
-      </header>
-
-      <aside className="board3-sidebar" aria-label="板块三导航">
-        {leftSections.map(([title, items]) => (
-          <section key={title}>
-            <h2>{title}<span>⌄</span></h2>
-            {items.map((item) => (
-              <Link className={item.label === config.active ? "active" : ""} key={item.label} to={item.href}>
-                <i aria-hidden="true">{item.icon}</i>
-                {item.label}
-                {item.badge ? <b>{item.badge}</b> : null}
-              </Link>
-            ))}
-          </section>
-        ))}
-        <div className="board3-sidebar-bottom">
-          <Link to="/messages">消息中心 <b>3</b></Link>
-          <Link to="/help">帮助与反馈</Link>
-        </div>
-      </aside>
-
-      <section className="board3-main" aria-label={`${feature.label}占位首页`}>
+    <V4PageShell className={`board3-shell board3-${variant}`} showCopilotMini={false}>
+      <main className="board3-page">
+        <section className="board3-main" aria-label={`${feature.label}占位首页`}>
         {config.subtitle && <p className="board3-prebadge">ⓘ {config.subtitle}</p>}
         <section className="board3-hero">
           <div className="board3-hero-copy">
@@ -346,9 +263,9 @@ function FeatureLockedPanel({ feature, variant }: FeatureLockedPanelProps) {
             ))}
           </div>
         </section>
-      </section>
+        </section>
 
-      <aside className="board3-copilot" aria-label="智活 Copilot">
+        <aside className="board3-copilot" aria-label="智活 Copilot">
         <header>
           <h2>✦ 智活 Copilot</h2>
           <span>⚙⌃</span>
@@ -381,12 +298,13 @@ function FeatureLockedPanel({ feature, variant }: FeatureLockedPanelProps) {
           <input disabled placeholder="向智活提问或获取帮助..." />
           <i>➤</i>
         </label>
-      </aside>
+        </aside>
 
-      <button className="board3-float" aria-label="打开智活 Copilot" type="button">A</button>
+        <button className="board3-float" aria-label="打开智活 Copilot" type="button">A</button>
 
-      {modalOpen ? <UpgradeModal feature={feature} onClose={() => setModalOpen(false)} /> : null}
-    </main>
+        {modalOpen ? <UpgradeModal feature={feature} onClose={() => setModalOpen(false)} /> : null}
+      </main>
+    </V4PageShell>
   );
 }
 

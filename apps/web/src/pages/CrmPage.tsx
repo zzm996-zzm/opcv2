@@ -2,10 +2,10 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import FeatureLockedPanel from "../components/FeatureLockedPanel";
+import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { crmApi, type CrmActivity, type CrmCustomer, type CrmFollowUp, type CrmPipelineStats, type CrmStage } from "../lib/crmApi";
 import { membershipApi, type FeatureAccess } from "../lib/membershipApi";
-import { CdkTopNav } from "./AnalysisPage";
 
 type CrmPageProps = {
   variant?: "customers" | "followUps";
@@ -292,7 +292,11 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
 
   if (!canUseWorkflow) {
     if (featureAccess) return <FeatureLockedPanel feature={featureAccess} variant="crm" />;
-    return <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>;
+    return (
+      <V4PageShell className="crm-page-shell" showCopilotMini={false}>
+        <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>
+      </V4PageShell>
+    );
   }
 
   if (variant === "followUps") {
@@ -466,9 +470,9 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   };
 
   return (
-    <main className="cdk-analysis-page cdk-crm-page">
-      <CdkTopNav active="VIP获客" />
-      <section className="cdk-crm-head" aria-label="CRM客户管理">
+    <V4PageShell className="crm-page-shell" showCopilotMini={false}>
+      <main className="cdk-analysis-page cdk-crm-page">
+        <section className="cdk-crm-head" aria-label="CRM客户管理">
         <div>
           <h1>CRM客户管理</h1>
           <p>统一管理线索、客户与跟进流程，提升转化效率</p>
@@ -725,8 +729,9 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
             <p className="module-empty-state" role="status">暂无客户详情</p>
           )}
         </aside>
-      </section>
-    </main>
+        </section>
+      </main>
+    </V4PageShell>
   );
 }
 
@@ -889,9 +894,9 @@ function FollowUpsPage() {
   };
 
   return (
-    <main className="cdk-analysis-page cdk-crm-page cdk-followups-page">
-      <CdkTopNav active="VIP获客" />
-      <section className="cdk-crm-head cdk-followups-head" aria-label="全部跟进">
+    <V4PageShell className="crm-page-shell" showCopilotMini={false}>
+      <main className="cdk-analysis-page cdk-crm-page cdk-followups-page">
+        <section className="cdk-crm-head cdk-followups-head" aria-label="全部跟进">
         <div>
           <Link to="/crm" aria-label="返回CRM">←</Link>
           <h1>全部跟进</h1>
@@ -1064,8 +1069,9 @@ function FollowUpsPage() {
             <Link to="/crm/follow-ups">查看更多记录</Link>
           </section>
         </aside>
-      </section>
-    </main>
+        </section>
+      </main>
+    </V4PageShell>
   );
 }
 

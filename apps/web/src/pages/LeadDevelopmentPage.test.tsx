@@ -385,6 +385,9 @@ describe("LeadDevelopmentPage", () => {
     );
 
     expect(await screen.findByText("当前不会读取业务数据，也不会创建任务、客户或分析请求。")).toBeInTheDocument();
+    expect(screen.getAllByRole("navigation", { name: "顶部全局功能区" })).toHaveLength(1);
+    expect(screen.getByRole("complementary", { name: "产品侧边导航" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "板块三导航" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("描述目标客户画像")).not.toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
