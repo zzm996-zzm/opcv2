@@ -747,7 +747,7 @@ function HistoryPage({ sessions }: { sessions: SandboxSession[] }) {
               <Link to={href}>查看报告</Link>
             </article>
           ))}
-          {visibleRows.length === 0 ? <p className="sandbox-empty-state">暂无推演记录，完成首次配置后会显示在这里。</p> : null}
+          {visibleRows.length === 0 ? <p className="sandbox-empty-state" role="status">暂无推演记录，完成首次配置后会显示在这里。</p> : null}
         </div>
       </section>
     </SandboxWorkLayout>

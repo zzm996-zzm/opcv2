@@ -37568,9 +37568,9 @@ a:active {
 }
 
 .sandbox-work-layout {
-  grid-template-columns: minmax(0, 970px) 300px;
-  gap: 87px;
-  padding-left: 13px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 300px);
+  gap: 24px;
+  padding-left: 0;
 }
 
 .sandbox-home-layout > main,
@@ -38940,6 +38940,11 @@ a:active {
   gap: 18px;
 }
 
+.history-work {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}
+
 .report-work > header p,
 .history-work > header p {
   margin: 0 0 6px;
@@ -39107,13 +39112,15 @@ a:active {
 
 .history-filter-row {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) 140px 140px 160px 100px;
+  grid-template-columns: minmax(220px, 1.6fr) repeat(3, minmax(116px, 0.55fr)) auto;
   gap: 12px;
 }
 
 .history-filter-row input,
 .history-filter-row select,
 .history-filter-row button {
+  width: 100%;
+  min-width: 0;
   min-height: 42px;
   padding: 0 14px;
   background: #ffffff;
@@ -39121,10 +39128,18 @@ a:active {
   border-radius: 8px;
 }
 
+.history-filter-row button {
+  white-space: nowrap;
+}
+
 .history-table {
   display: grid;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   gap: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   background: #ffffff;
   border: 1px solid rgba(92, 103, 190, 0.08);
   border-radius: 12px;
@@ -39133,9 +39148,10 @@ a:active {
 .history-table-head,
 .history-table article {
   display: grid;
-  grid-template-columns: minmax(220px, 1.6fr) minmax(130px, 0.9fr) 150px 76px 88px 78px 80px;
+  grid-template-columns: minmax(200px, 1.6fr) minmax(110px, 0.9fr) 132px 72px 82px 72px 76px;
   gap: 12px;
   align-items: center;
+  min-width: 848px;
   padding: 0 16px;
 }
 
@@ -39202,6 +39218,20 @@ a:active {
   border-radius: 8px;
   font-size: 12px;
   font-weight: 900;
+}
+
+.history-table > .sandbox-empty-state {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 18px 24px;
+  color: #7682aa;
+  border-top: 1px solid rgba(92, 103, 190, 0.07);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .sandbox-modal-scrim {
@@ -43525,7 +43555,7 @@ a:active {
   margin-bottom: 26px;
 }
 
-@media (max-width: 1320px) {
+@media (max-width: 1380px) {
   .sandbox-home-layout,
   .sandbox-work-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -43651,7 +43681,7 @@ a:active {
 
   .history-table-head,
   .history-table article {
-    min-width: 940px;
+    min-width: 848px;
   }
 }
 
