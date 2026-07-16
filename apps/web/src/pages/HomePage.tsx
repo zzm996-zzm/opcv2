@@ -2,49 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
+import ReferenceShell from "../components/ReferenceShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { authApi } from "../lib/authApi";
 import { authSession, useAuthSession } from "../lib/authSession";
 import { homeApi, type HomeSummary } from "../lib/homeApi";
 import { notificationsApi } from "../lib/notificationsApi";
-
-const topNav = [
-  { label: "工作台", href: "/" },
-  { label: "智活 Copilot", href: "/copilot", featured: true },
-  { label: "工具箱", href: "/tools" },
-  { label: "咨询通", href: "/insights" },
-  { label: "AI社群", href: "/community" },
-  { label: "AI教学", href: "/learning" }
-];
-
-const sidebarGroups = [
-  {
-    title: "项目确定及拆解",
-    items: [
-      { label: "项目超市", href: "/projects", icon: "grid" },
-      { label: "商业沙盘", href: "/sandbox", icon: "home" }
-    ]
-  },
-  {
-    title: "落地",
-    items: [
-      { label: "任务中心", href: "/tasks", icon: "check" },
-      { label: "竞品全盘数据破解", href: "/competitor-data", icon: "stack" },
-      { label: "竞品动态监测", href: "/competitor-monitoring", icon: "pulse" },
-      { label: "增长测算", href: "/growth-calculator", icon: "calc" }
-    ]
-  },
-  {
-    title: "增长",
-    items: [
-      { label: "GEO获客", href: "/geo", icon: "target" },
-      { label: "AI线索开发", href: "/leads", icon: "diamond" },
-      { label: "仪表盘", href: "/dashboard", icon: "chart" },
-      { label: "CRM客户管理", href: "/crm", icon: "user" },
-      { label: "企业定制化陪跑", href: "/enterprise", icon: "flag" }
-    ]
-  }
-];
 
 const heroCards = [
   {
@@ -166,7 +129,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   const [summary, setSummary] = useState<HomeSummary | null>(null);
   const [accountOpen, setAccountOpen] = useState(menuState === "account");
   const [noticeOpen, setNoticeOpen] = useState(menuState === "notice");
-  const [assistantOpen, setAssistantOpen] = useState((assistantState === "settings" || assistantState === "files") && Boolean(session.user));
+  const [assistantOpen, setAssistantOpen] = useState(Boolean(session.user) && assistantState !== "collapsed");
   const [assistantMode, setAssistantMode] = useState<"chat" | "settings">(assistantState === "settings" ? "settings" : "chat");
   const [filesOpen, setFilesOpen] = useState(assistantState === "files");
   const [noticeBusy, setNoticeBusy] = useState(false);
@@ -269,8 +232,11 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   }, [signedIn, loadHomeSummary]);
 
   useEffect(() => {
-    if (!assistantState) return;
-    setAssistantOpen((assistantState === "settings" || assistantState === "files") && Boolean(session.user));
+    if (!assistantState) {
+      setAssistantOpen(Boolean(session.user));
+      return;
+    }
+    setAssistantOpen(assistantState !== "collapsed" && Boolean(session.user));
     setAssistantMode(assistantState === "settings" ? "settings" : "chat");
     setFilesOpen(assistantState === "files");
   }, [assistantState, session.user]);
@@ -309,65 +275,14 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
   }
 
   return (
-    <div className="v4-shell">
-      <aside className="v4-sidebar" aria-label="产品侧边导航">
-        <Link className="v4-brand" to="/" aria-label="智活AI OPC V4.0 首页">
-          <span className="v4-logo" aria-hidden="true" />
-          <span className="v4-brand-name">智活AI</span>
-          <small>OPC V4.0</small>
-        </Link>
-
-        <nav className="v4-side-nav" aria-label="三大板块导航">
-          {sidebarGroups.map((group) => (
-            <section key={group.title} className="v4-side-group">
-              <button className="v4-group-title" type="button">
-                <span>{group.title}</span>
-                <span aria-hidden="true">⌄</span>
-              </button>
-              {group.items.map((item) => (
-                <Link key={item.href} className="v4-side-link" to={item.href}>
-                  <span className={`v4-line-icon ${item.icon}`} aria-hidden="true" />
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </section>
-          ))}
-        </nav>
-
-        <div className="v4-sidebar-bottom">
-          <Link className="v4-side-link with-dot" to="/messages">
-            <span className="v4-line-icon chat" aria-hidden="true" />
-            <span>消息中心</span>
-          </Link>
-          <Link className="v4-side-link" to="/help">
-            <span className="v4-line-icon help" aria-hidden="true" />
-            <span>帮助与反馈</span>
-          </Link>
-        </div>
-      </aside>
-
-      <div className="v4-workspace">
-        <header className="v4-topbar">
-          <nav className="v4-topnav" aria-label="顶部全局功能区">
-            {topNav.map((item) => (
-              <Link
-                key={item.href}
-                className={item.href === "/" ? "active" : item.featured ? "featured" : ""}
-                to={item.href}
-              >
-                {item.featured && <span className="mini-logo" aria-hidden="true" />}
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          {signedIn ? (
-            <div className="v4-account-area">
+    <ReferenceShell
+      accountSlot={signedIn ? (
+            <div className="ref-home-account-area">
               <div className="notice-control">
                 <button
                   aria-expanded={noticeOpen}
                   aria-label="通知"
-                  className="bell-button"
+                  className="ref-home-notice"
                   onClick={() => {
                     setNoticeOpen((open) => !open);
                     setAccountOpen(false);
@@ -416,11 +331,11 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   </div>
                 )}
               </div>
-              <div className="v4-account">
+              <div className="ref-home-account-control">
                 <button
                   aria-expanded={accountOpen}
                   aria-label={`${nickname}的账号菜单`}
-                  className="v4-account-trigger"
+                  className="ref-home-account-trigger"
                   onClick={() => {
                     setAccountOpen((open) => !open);
                     setNoticeOpen(false);
@@ -428,15 +343,15 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   }}
                   type="button"
                 >
-                  <span className="v4-avatar" aria-hidden="true">张</span>
-                  <span className="v4-user-copy">
+                  <img alt="" src="/public-components/avatar.jpg" />
+                  <span>
                     <strong>{nickname} · 智活AI</strong>
                     <small>企业管理员</small>
                   </span>
                   <span aria-hidden="true">⌄</span>
                 </button>
                 {accountOpen && (
-                  <div className="v4-account-menu" role="dialog" aria-label="头像下拉框">
+                  <div className="v4-account-menu ref-home-account-menu" role="dialog" aria-label="头像下拉框">
                     <div className="account-card-head">
                       <span className="v4-avatar large" aria-hidden="true">张</span>
                       <div>
@@ -472,16 +387,16 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               </div>
             </div>
           ) : (
-            <div className="v4-guest-actions">
-              <Link className="v4-login-link" to="/login">登录 / 注册</Link>
-              <Link className="v4-trial-link" to="/projects">立即体验</Link>
+            <div className="ref-home-guest-actions">
+              <Link to="/login">登录 / 注册</Link>
+              <Link to="/projects">立即体验</Link>
             </div>
           )}
-        </header>
-
-        <main className={`v4-main ${assistantOpen ? "with-assistant" : ""}`}>
-          <section className="v4-dashboard" aria-label="智活AI 工作台">
-            <div className="welcome-card">
+      className="ref-home-shell"
+      mainClassName={`ref-home-layout ${assistantOpen ? "with-assistant" : ""}`}
+    >
+          <section className="ref-home-dashboard" aria-label="智活AI 工作台">
+            <div className="ref-home-welcome">
               <div>
                 <h1>
                   {signedIn ? `上午好，${nickname}` : "欢迎来到 智活AI"}
@@ -508,32 +423,32 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   </div>
                 )}
               </div>
-              <div className="stat-strip" aria-label="工作台统计">
+              <div className="ref-home-stats" aria-label="工作台统计">
                 {visibleMetrics.map((metric) => (
                   <MetricCard icon={metric.icon || "folder"} key={metric.label} label={metric.label} value={metric.value} />
                 ))}
               </div>
             </div>
 
-            <div className="feature-grid">
+            <div className="ref-home-domains">
               {visibleHeroCards.map((card) => (
-                <Link key={card.title} className="feature-card" to={card.href}>
+                <Link key={card.title} className="ref-home-domain" to={card.href}>
                   <div>
                     <h2>{card.title}</h2>
                     <p>{card.desc}</p>
                   </div>
-                  <span className="round-arrow" aria-hidden="true">→</span>
-                  <span className={`glass-art ${card.art}`} aria-hidden="true" />
+                  <span className="ref-home-domain-arrow" aria-hidden="true">→</span>
+                  <span className={`ref-home-domain-art ${card.art}`} aria-hidden="true" />
                 </Link>
               ))}
             </div>
 
-            <section className="recommend-panel" aria-label="为你推荐">
-              <div className="panel-heading">
+            <section className="ref-home-recommend" aria-label="为你推荐">
+              <div className="ref-home-section-head">
                 <h2>为你推荐</h2>
                 <Link to="/tasks">查看全部 <span aria-hidden="true">›</span></Link>
               </div>
-              <div className="recommend-grid">
+              <div className="ref-home-recommend-grid">
                 {visibleActions.length === 0 ? (
                   <div className="recommend-empty-state" role="status">
                     <span className="recommend-empty-icon" aria-hidden="true" />
@@ -544,7 +459,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     <Link to="/projects">先去项目超市 <span aria-hidden="true">›</span></Link>
                   </div>
                 ) : visibleActions.map((card) => (
-                    <Link key={card.title} className="recommend-card" to={card.href}>
+                    <Link key={card.title} className="ref-home-recommend-card" to={card.href}>
                       <span className={`recommend-icon ${card.accent}`} aria-hidden="true" />
                       <div>
                         {card.priority && <span className={`action-priority ${card.priority}`}>{priorityLabel(card.priority)}</span>}
@@ -559,8 +474,8 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               </div>
             </section>
 
-            <section className="task-panel" aria-label="我的待办和进行中">
-              <div className="panel-heading">
+            <section className="ref-home-tasks" aria-label="我的待办和进行中">
+              <div className="ref-home-section-head">
                 <div className="task-tabs">
                   <h2>我的待办 / 进行中</h2>
                   <button className="active" type="button">待办 {visibleTasks.length}</button>
@@ -600,16 +515,16 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
             </section>
           </section>
 
-          <aside className={`copilot-panel ${assistantOpen ? "open" : "closed"}`} aria-label="智活 Copilot">
+          <aside className={`ref-home-copilot ${assistantOpen ? "open" : "closed"}`} aria-label="智活 Copilot">
             {assistantOpen ? (
               <>
-                <div className="copilot-head">
+                <div className="ref-home-copilot-head">
                   <div>
                     <span className="spark" aria-hidden="true">✦</span>
                     <strong>智活 <b>Copilot</b></strong>
                     <p>你的全球 AI 助手，随时为你提供帮助</p>
                   </div>
-                  <div className="copilot-head-actions">
+                  <div className="ref-home-copilot-head-actions">
                     <button
                       aria-label="打开 Copilot 设置"
                       className={assistantMode === "settings" ? "active" : ""}
@@ -630,12 +545,12 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   </div>
                 </div>
                 {assistantMode === "settings" && (
-                  <div className="copilot-settings">
-                    <div className="settings-title">
+                  <div className="ref-home-copilot-settings">
+                    <div className="ref-home-settings-title">
                       <strong>Copilot 设置</strong>
                       <button aria-label="关闭 Copilot 设置" onClick={() => setAssistantMode("chat")} type="button">×</button>
                     </div>
-                    <div className="model-list" aria-label="模型选择">
+                    <div className="ref-home-model-list" aria-label="模型选择">
                       <span>模型选择</span>
                       {models.map(([model, icon, selected]) => (
                         <button className={selected ? "selected" : ""} key={model} type="button">
@@ -644,7 +559,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                         </button>
                       ))}
                     </div>
-                    <div className="deep-thinking">
+                    <div className="ref-home-deep-thinking">
                       <div>
                         <strong>深度思考 <small>VIP</small></strong>
                         <span>更深入分析，回复更完整</span>
@@ -653,7 +568,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     </div>
                   </div>
                 )}
-                <div className="copilot-thread">
+                <div className="ref-home-copilot-thread">
                   {assistantReplies.map((message, index) => (
                     <article key={`${message.from}-${index}`} className={message.from}>
                       <span className="ai-avatar">A</span>
@@ -664,12 +579,12 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     </article>
                   ))}
                 </div>
-                <div className="copilot-actions">
+                <div className="ref-home-copilot-actions">
                   <Link to="/projects">分析项目机会 <span aria-hidden="true">›</span></Link>
                   <Link to="/tools">推荐工具 <span aria-hidden="true">›</span></Link>
                   <Link to="/tasks">制定落地计划 <span aria-hidden="true">›</span></Link>
                 </div>
-                <div className="copilot-input-stack">
+                <div className="ref-home-copilot-input-stack">
                   {filesOpen && (
                     <div className="attachment-strip">
                       <article>
@@ -688,7 +603,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   )}
                   <MiniCopilotForm
                     attachLabel="添加文件"
-                    className="copilot-input"
+                    className="ref-home-copilot-input"
                     inputAriaLabel="询问智活 Copilot"
                     onAttach={() => setFilesOpen((open) => !open)}
                     sendIcon="↗"
@@ -697,7 +612,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               </>
             ) : (
               <button
-                className="copilot-mini"
+                className="ref-home-copilot-mini"
                 onClick={() => {
                   setAssistantOpen(true);
                   setAssistantMode("chat");
@@ -707,7 +622,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                 <span className="mini-logo" aria-hidden="true" />
                 <strong>智活 Copilot</strong>
                 <span className="mini-caret" aria-hidden="true">⌃</span>
-                <span className="mini-input" aria-hidden="true">
+                <span className="ref-home-mini-input" aria-hidden="true">
                   <i>+</i>
                   <small>输入问题，发送后自动展开回复</small>
                   <b>↗</b>
@@ -717,24 +632,22 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
           </aside>
 
           <button
-            className="floating-orb"
+            className="ref-home-floating-orb"
             onClick={() => {
               setAssistantOpen(true);
             }}
             type="button"
             aria-label="打开智活 Copilot"
           >
-            <span className="v4-logo" aria-hidden="true" />
+            <img alt="" src="/home/logo.png" />
           </button>
-        </main>
-      </div>
-    </div>
+    </ReferenceShell>
   );
 }
 
 function MetricCard({ label, value, icon }: { label: string; value: string; icon: string }) {
   return (
-    <article className="metric-card">
+    <article className="ref-home-metric">
       <span>
         <small>{label}</small>
         <strong>{value}</strong>
