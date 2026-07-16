@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
@@ -31,16 +32,23 @@ const resultCopy: Record<string, string> = {
 };
 
 function LandingReferencePage({ module, view }: LandingReferencePageProps) {
+  const [isCopilotCollapsed, setIsCopilotCollapsed] = useState(false);
+
   return (
     <V4PageShell className={`landing-ref-shell landing-ref-${module}`} showCopilotMini={false}>
-      <div className="landing-ref-layout">
+      <div className={`landing-ref-layout${isCopilotCollapsed ? " copilot-collapsed" : ""}`}>
         <section className="landing-ref-main">
           {module === "tasks" && <TasksReference view={view} />}
           {module === "data" && <DataReference view={view} />}
           {module === "monitoring" && <MonitoringReference view={view} />}
           {module === "growth" && <GrowthReference view={view} />}
         </section>
-        <LandingCopilot module={module} view={view} />
+        <LandingCopilot
+          collapsed={isCopilotCollapsed}
+          module={module}
+          onToggle={() => setIsCopilotCollapsed((collapsed) => !collapsed)}
+          view={view}
+        />
       </div>
     </V4PageShell>
   );
@@ -189,7 +197,7 @@ function GrowthReport() {
 
 function GenericReportTable(){return <section className="generic-report-table">{["获客成本增长过快","转化率不足预期","复购不足","交付与扩配压力"].map((item,index)=><article key={item}><b>{item}</b><em className={`risk${index%3}`}>{index<2?"高":"中"}</em><span>影响范围 8%–25%</span><p>建议优化渠道组合，提升有效流量占比，建立持续监测机制。</p></article>)}</section>}
 
-function LandingCopilot({ module, view }: { module: LandingModule; view: LandingView }) {
+function LandingCopilot({ collapsed, module, onToggle, view }: { collapsed: boolean; module: LandingModule; onToggle: () => void; view: LandingView }) {
   const copy = {
     tasks: ["任务中心", "我可以帮你快速定位任务、安排时间计划，并把目标拆解成可执行任务。"],
     data: ["竞品数据破解", "我可以帮你通过脚本代查，获取竞品核心数据，并输出 AI 洞察与系统化解读。"],
@@ -197,7 +205,20 @@ function LandingCopilot({ module, view }: { module: LandingModule; view: Landing
     growth: ["增长测算", "你的专属 AI 助手，帮助你高效管理历史测算并解读测算结果。"]
   }[module];
   const links = module === "tasks" ? [["拆解任务","/tasks/ai"],["安排时间计划","/tasks/calendar"],["推荐相关工具","/tools"]] : module === "data" ? [["查询竞品账号","/competitor-data"],["对比两个竞品","/competitor-data/results/compare"],["分析增长策略","/competitor-data/results/overview"]] : module === "monitoring" ? [["帮我设置监测","/competitor-monitoring"],["查看监测历史","/competitor-monitoring/history"],["了解监测维度","/competitor-monitoring/analysis"]] : [["补全关键数据","/growth-calculator/questions"],["查看测算历史","/growth-calculator/history"],["生成测算模型","/growth-calculator/report"]];
-  return <aside className="landing-ref-copilot"><header><strong>✦ 智活 Copilot</strong><span>⚙ ⌃</span></header><p>你的全能 AI 助手，随时为你提供帮助</p><article className="mine"><i>我</i><p>{view === "home" ? "请问可以帮我做些什么？" : `请帮我分析当前${copy[0]}页面`}</p></article><article className="bot"><i>✦</i><div><strong>智活 Copilot</strong><p>{copy[1]}</p><ul><li>快速定位关键信息</li><li>发现机会与风险</li><li>生成可执行的操作方案</li></ul></div></article><h3>你可以这样问我：</h3>{links.map(([label,href])=><Link key={label} to={href}>{label}<span>›</span></Link>)}<label><input aria-label="询问落地 Copilot" placeholder="询问任何问题..."/><button>➤</button></label></aside>;
+  return <aside className={`landing-ref-copilot${collapsed ? " is-collapsed" : ""}`} aria-label="智活 Copilot">
+    {!collapsed && <header>
+      <strong><i>✦</i> 智活 Copilot</strong>
+      <button className="copilot-toggle" type="button" aria-expanded="true" aria-label="收起智活 Copilot" title="收起智活 Copilot" onClick={onToggle}>›</button>
+    </header>}
+    {collapsed ? <button className="copilot-rail-trigger" type="button" onClick={onToggle} aria-expanded="false" aria-label="展开智活 Copilot" title="展开智活 Copilot"><i>✦</i><span>Copilot</span><b>‹</b></button> : <div className="copilot-content">
+      <p>你的全能 AI 助手，随时为你提供帮助</p>
+      <article className="mine"><i>我</i><p>{view === "home" ? "请问可以帮我做些什么？" : `请帮我分析当前${copy[0]}页面`}</p></article>
+      <article className="bot"><i>✦</i><div><strong>智活 Copilot</strong><p>{copy[1]}</p><ul><li>快速定位关键信息</li><li>发现机会与风险</li><li>生成可执行的操作方案</li></ul></div></article>
+      <h3>你可以这样问我：</h3>
+      {links.map(([label,href])=><Link key={label} to={href}>{label}<span>›</span></Link>)}
+      <label><input aria-label="询问落地 Copilot" placeholder="询问任何问题..."/><button type="button" aria-label="发送消息">➤</button></label>
+    </div>}
+  </aside>;
 }
 
 export default LandingReferencePage;

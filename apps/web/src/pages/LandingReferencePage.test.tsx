@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
@@ -18,6 +18,18 @@ describe("LandingReferencePage", () => {
 
     expect(screen.getByText("任务中心", { selector: ".landing-ref-h1" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("搜索任务、负责人、进度阶段、标签")).toBeInTheDocument();
+  });
+
+  it("collapses and expands the Copilot panel", () => {
+    const { container } = renderReference("tasks", "list");
+
+    fireEvent.click(screen.getByRole("button", { name: "收起智活 Copilot" }));
+    expect(container.querySelector(".landing-ref-layout")).toHaveClass("copilot-collapsed");
+    expect(screen.queryByPlaceholderText("询问任何问题...")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开智活 Copilot" }));
+    expect(container.querySelector(".landing-ref-layout")).not.toHaveClass("copilot-collapsed");
+    expect(screen.getByPlaceholderText("询问任何问题...")).toBeInTheDocument();
   });
 
   it("renders the task board reference state", () => {
