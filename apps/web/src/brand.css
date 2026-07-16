@@ -1,0 +1,97 @@
+@keyframes brand-logo-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -3px, 0);
+  }
+}
+
+/* All global brand marks use the shared supplied artwork. */
+.v4-logo,
+.mini-logo,
+.brand-mark,
+.cdk-brand-mark {
+  background: url("/home/logo.png") center / contain no-repeat;
+  mix-blend-mode: normal;
+}
+
+.v4-logo::before,
+.v4-logo::after,
+.mini-logo::before,
+.mini-logo::after,
+.brand-mark::before,
+.brand-mark::after,
+.cdk-brand-mark::before,
+.cdk-brand-mark::after {
+  display: none;
+}
+
+.brand-mark,
+.cdk-brand-mark {
+  color: transparent;
+  background-color: transparent;
+  border: 0;
+  box-shadow: none;
+  font-size: 0;
+}
+
+.ref-brand img,
+.ref-mobile-brand img,
+.ref-topnav a.copilot img,
+.ref-login-brand img,
+.ref-home-floating-orb img {
+  object-fit: contain;
+  mix-blend-mode: normal;
+}
+
+/* Animate only prominent brand entry points, not every assistant message icon. */
+.v4-brand .v4-logo,
+.v4-topnav .mini-logo,
+.v4-page-copilot-mini .mini-logo,
+.auth-brand .v4-logo,
+.copilot-brand-mark .v4-logo,
+.ref-brand img,
+.ref-mobile-brand img,
+.ref-topnav a.copilot img,
+.ref-login-brand img,
+.ref-home-copilot-mini .mini-logo,
+.ref-home-floating-orb img,
+.brand .brand-mark,
+.cdk-brand .cdk-brand-mark {
+  animation: brand-logo-float 3.2s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.v4-topnav .mini-logo,
+.ref-topnav a.copilot img,
+.ref-home-copilot-mini .mini-logo {
+  animation-delay: -1.1s;
+}
+
+.v4-page-copilot-mini .mini-logo,
+.ref-home-floating-orb img,
+.copilot-brand-mark .v4-logo {
+  animation-delay: -2.1s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v4-brand .v4-logo,
+  .v4-topnav .mini-logo,
+  .v4-page-copilot-mini .mini-logo,
+  .auth-brand .v4-logo,
+  .copilot-brand-mark .v4-logo,
+  .ref-brand img,
+  .ref-mobile-brand img,
+  .ref-topnav a.copilot img,
+  .ref-login-brand img,
+  .ref-home-copilot-mini .mini-logo,
+  .ref-home-floating-orb img,
+  .brand .brand-mark,
+  .cdk-brand .cdk-brand-mark {
+    animation: none;
+  }
+}

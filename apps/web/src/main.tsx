@@ -6,6 +6,7 @@ import App from "./App";
 import "./styles.css";
 import "./reference-ui.css";
 import "./typography.css";
+import "./brand.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
