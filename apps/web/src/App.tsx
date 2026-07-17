@@ -535,6 +535,14 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <ProjectsPage variant="diagnosis" />
+          </RequireAuth>
+        }
+        path="/projects/opportunities/:opportunitySlug/diagnosis"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <ProjectsPage variant="detail" />
           </RequireAuth>
         }

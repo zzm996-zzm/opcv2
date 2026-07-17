@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import ReferenceShell from "../components/ReferenceShell";
@@ -18,6 +19,7 @@ type ProjectMarketVariant =
   | "history"
   | "paywall"
   | "detail"
+  | "diagnosis"
   | "compare"
   | "export";
 
@@ -55,6 +57,33 @@ const coreEntries = [
   ["AI匹配", "智活 Copilot 根据你的目标、预算、能力与资源推荐项目。", "/projects/match", "去匹配", "robot"],
   ["机会探索", "浏览赛道机会与趋势方向。", "/projects/explore", "查看机会", "lens"],
   ["真实案例库", "看成功/失败案例与拆解。", "/projects/cases", "看案例", "case"]
+] as const;
+
+const projectPageEntries = [
+  ["01", "超市首页", "发现项目与核心能力入口", "/projects"],
+  ["02", "AI匹配", "提交目标、预算与偏好", "/projects/match"],
+  ["03", "AI补充提问", "补齐关键匹配条件", "/projects/questions"],
+  ["04", "匹配结果", "查看项目推荐与依据", "/projects/results"],
+  ["05", "匹配历史", "管理记录与收藏", "/projects/history"],
+  ["06", "付费样板", "预览完整拆解权益", "/projects/results/paywall"],
+  ["07", "机会探索", "浏览全部项目机会", "/projects/explore"],
+  ["08", "真实案例库", "查看成功与失败样板", "/projects/cases"],
+  ["09", "成功路径", "从 0 到 1 的执行路径", "/projects/opportunities/ai-short-video-studio?section=path"],
+  ["10", "当前数据", "查看市场和经营指标", "/projects/opportunities/ai-short-video-studio?section=data"],
+  ["11", "优劣势", "评估机会与风险", "/projects/opportunities/ai-short-video-studio?section=swot"],
+  ["12", "可学经验", "复用方法与行动清单", "/projects/opportunities/ai-short-video-studio?section=learning"],
+  ["13", "要避免的行为", "查看常见误区和风险", "/projects/opportunities/ai-short-video-studio?section=avoid"],
+  ["14", "诊断是否能做", "评估个人适配度", "/projects/opportunities/ai-short-video-studio/diagnosis"],
+  ["15", "项目对比", "横向比较候选项目", "/projects/compare"],
+  ["16", "导出报告", "导出匹配结果快照", "/projects/export"]
+] as const;
+
+const detailTabs = [
+  ["path", "成功路径", "成功路径"],
+  ["data", "当前数据", "当前数据"],
+  ["swot", "优劣势", "优劣势"],
+  ["learning", "可学经验", "可学经验"],
+  ["avoid", "要避免的行为", "要避免的行为"]
 ] as const;
 
 
@@ -126,6 +155,12 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
               </>
             )}
             {variant === "detail" && <ProjectDetail />}
+            {variant === "diagnosis" && (
+              <>
+                <ProjectDetail />
+                <DiagnosisOverlay />
+              </>
+            )}
             {variant === "compare" && <ProjectCompare />}
             {variant === "export" && (
               <>
@@ -214,6 +249,25 @@ function MarketHome() {
               </div>
               <Link to={`/projects/opportunities/${item.slug}`}>查看机会</Link>
             </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="project-page-directory" aria-labelledby="project-page-directory-title">
+        <div className="ref-project-section-head">
+          <div>
+            <h2 id="project-page-directory-title">全部页面</h2>
+            <p>设计稿中的 16 个页面状态均可从这里直接进入。</p>
+          </div>
+          <span>{projectPageEntries.length} 个页面</span>
+        </div>
+        <div className="project-page-directory-grid">
+          {projectPageEntries.map(([number, title, detail, href]) => (
+            <Link key={number} to={href}>
+              <b>{number}</b>
+              <span><strong>{title}</strong><small>{detail}</small></span>
+              <i aria-hidden="true">›</i>
+            </Link>
           ))}
         </div>
       </section>
@@ -698,6 +752,7 @@ function MatchHistory() {
 
 function ProjectDetail() {
   const { matchId, opportunitySlug } = useParams();
+  const [searchParams] = useSearchParams();
   const [session, setSession] = useState<ProjectMatchSession | null>(null);
   const [opportunity, setOpportunity] = useState<ProjectOpportunity | null>(null);
   const [evidence, setEvidence] = useState<ProjectCase[]>([]);
@@ -762,6 +817,13 @@ function ProjectDetail() {
     : project
     ? [`匹配度 ${project.score}分`, `预算 ${project.budget}`, ...project.tags.slice(0, 2)]
     : [];
+  const activeSectionKey = detailTabs.some(([key]) => key === searchParams.get("section"))
+    ? searchParams.get("section") ?? "path"
+    : "path";
+  const activeSectionTitle = detailTabs.find(([key]) => key === activeSectionKey)?.[2] ?? "成功路径";
+  const activeSection = opportunity?.sections?.find((section) => section.title === activeSectionTitle)
+    ?? opportunity?.sections?.[0];
+  const detailBasePath = opportunitySlug ? `/projects/opportunities/${opportunitySlug}` : "/projects/detail";
 
   return (
     <>
@@ -773,20 +835,32 @@ function ProjectDetail() {
           <div className="pm-condition-strip">
             {conditionTags.map((item) => <span key={item}>{item}</span>)}
           </div>
+          {opportunitySlug ? (
+            <div className="pm-detail-actions">
+              <Link to={`${detailBasePath}/diagnosis`}>诊断我能否做</Link>
+              <Link to="/projects/compare">加入对比</Link>
+            </div>
+          ) : null}
         </div>
         <AiCubeArt />
       </section>
       {loading ? <div className="module-empty-state" role="status">正在读取项目详情...</div> : null}
       {error && <p className="form-error" role="alert">{error}</p>}
       {!loading && !error && opportunity ? (
-        <section className="pm-detail-dashboard">
-          {opportunity.sections?.length ? opportunity.sections.map((section) => (
-            <article className="pm-detail-section" key={section.title}>
-              <h2>{section.title}</h2>
-              <p>{section.body}</p>
-              {section.items.length ? <ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul> : null}
+        <>
+          <nav className="pm-detail-tabs" aria-label="项目详情栏目">
+            {detailTabs.map(([key, label]) => (
+              <Link className={activeSectionKey === key ? "active" : ""} key={key} to={`${detailBasePath}?section=${key}`}>{label}</Link>
+            ))}
+          </nav>
+          <section className="pm-detail-dashboard">
+          {activeSection ? (
+            <article className="pm-detail-section pm-detail-active-section">
+              <div className="pm-section-head"><h2>{activeSection.title}</h2><span>数据来自项目目录接口</span></div>
+              <p>{activeSection.body}</p>
+              {activeSection.items.length ? <ul>{activeSection.items.map((item) => <li key={item}>{item}</li>)}</ul> : null}
             </article>
-          )) : <div className="module-empty-state" role="status">暂无项目详情章节</div>}
+          ) : <div className="module-empty-state" role="status">暂无项目详情章节</div>}
           <article className="pm-detail-section pm-case-sample">
             <h2>来源与证据</h2>
             <p>以下内容来自运营发布的案例证据库；项目章节未引用的结论不自动视为已验证事实。</p>
@@ -802,13 +876,49 @@ function ProjectDetail() {
               ))}
             </div>
           </article>
-        </section>
+          </section>
+        </>
       ) : null}
       {!loading && !error && session ? <MatchRecordDetail session={session} /> : null}
       {!loading && !error && !opportunity && !session ? (
         <div className="module-empty-state" role="status">当前地址没有关联项目记录。<Link to="/projects/explore">浏览已发布项目机会</Link></div>
       ) : null}
     </>
+  );
+}
+
+function DiagnosisOverlay() {
+  const { opportunitySlug } = useParams();
+  const closeHref = `/projects/opportunities/${opportunitySlug ?? "ai-short-video-studio"}`;
+  const steps = [
+    ["1", "读取项目要求", "从项目目录读取技能、预算与资源门槛"],
+    ["2", "同步任务与工具", "结合任务记录和常用工具评估执行能力"],
+    ["3", "结合学习记录", "识别已有能力、证书与待补短板"],
+    ["4", "输出适配建议", "生成适配度、能力差距与学习路径"]
+  ] as const;
+
+  return createPortal(
+    <div className="pm-modal-scrim pm-diagnosis-scrim">
+      <section className="pm-diagnosis-modal" role="dialog" aria-modal="true" aria-labelledby="project-diagnosis-title">
+        <Link className="pm-modal-close" aria-label="关闭项目诊断" to={closeHref}>×</Link>
+        <header>
+          <div><h2 id="project-diagnosis-title">诊断我能否做这个项目？</h2><p>系统将结合当前项目要求与您的数据，进行综合评估。</p></div>
+          <AiCubeArt />
+        </header>
+        <div className="pm-diagnosis-steps">
+          {steps.map(([number, title, detail]) => (
+            <article key={number}><b>{number}</b><strong>{title}</strong><small>{detail}</small></article>
+          ))}
+        </div>
+        <div className="pm-diagnosis-meta">
+          <div><strong>数据来源</strong><span>项目超市</span><span>任务中心</span><span>工具箱</span><span>AI教学</span></div>
+          <div><strong>预计完成时间</strong><b>约 2-3 分钟</b><small>根据数据量有所浮动</small></div>
+          <div><strong>你将获得</strong><span>适配度评分</span><span>能力差距</span><span>推荐课程</span><span>学习路径</span></div>
+        </div>
+        <footer><Link to={closeHref}>稍后再说</Link><button type="button">开始诊断</button></footer>
+      </section>
+    </div>,
+    document.body
   );
 }
 
@@ -921,7 +1031,7 @@ function Considerations() {
 
 function ProjectCopilot({ reference = false, variant }: { reference?: boolean; variant: ProjectMarketVariant }) {
   const [collapsed, setCollapsed] = useState(false);
-  const hasRecordContext = variant === "results" || variant === "paywall" || variant === "detail" || variant === "compare" || variant === "export";
+  const hasRecordContext = variant === "results" || variant === "paywall" || variant === "detail" || variant === "diagnosis" || variant === "compare" || variant === "export";
   const copilotClassName = reference ? "ref-project-copilot" : "pm-copilot";
   return (
     <aside className={`${copilotClassName}${collapsed ? " is-collapsed" : ""}`} aria-label="智活 Copilot">

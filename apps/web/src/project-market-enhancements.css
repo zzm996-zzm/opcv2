@@ -1,0 +1,349 @@
+.project-page-directory {
+  margin-top: 30px;
+  padding-bottom: 36px;
+}
+
+.project-page-directory .ref-project-section-head {
+  align-items: end;
+}
+
+.project-page-directory .ref-project-section-head h2 {
+  margin-bottom: 6px;
+}
+
+.project-page-directory .ref-project-section-head p {
+  margin: 0;
+  color: #66789d;
+  font-size: 12px;
+}
+
+.project-page-directory .ref-project-section-head > span {
+  color: #315bdc;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.project-page-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.project-page-directory-grid > a {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  gap: 10px;
+  align-items: center;
+  min-height: 74px;
+  padding: 12px;
+  color: #10275d;
+  background: #fff;
+  border: 1px solid #e2e8f3;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.project-page-directory-grid > a:hover {
+  border-color: #a9bdf2;
+  box-shadow: 0 10px 24px rgba(44, 72, 142, .09);
+  transform: translateY(-2px);
+}
+
+.project-page-directory-grid > a > b {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  color: #315bdc;
+  background: #eef3ff;
+  border-radius: 7px;
+  place-items: center;
+  font-size: 11px;
+}
+
+.project-page-directory-grid > a > span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.project-page-directory-grid strong {
+  font-size: 13px;
+}
+
+.project-page-directory-grid small {
+  overflow: hidden;
+  color: #7382a4;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-page-directory-grid i {
+  color: #5a75c8;
+  font-size: 19px;
+  font-style: normal;
+}
+
+.pm-detail-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pm-detail-actions a {
+  padding: 9px 14px;
+  color: #fff;
+  background: #315bec;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pm-detail-actions a + a {
+  color: #315bec;
+  background: #fff;
+  border: 1px solid #cbd7f5;
+}
+
+.project-market-main .pm-detail-tabs {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.pm-detail-tabs a:first-child:not(.active) {
+  color: #344b90;
+  background: #f7f9ff;
+}
+
+.pm-detail-tabs a.active,
+.pm-detail-tabs a.active:first-child {
+  color: #fff;
+  background: #4b43ef;
+}
+
+.pm-detail-active-section {
+  grid-column: 1 / -1;
+  min-height: 250px;
+}
+
+.pm-detail-active-section ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pm-detail-active-section li {
+  padding: 12px 14px;
+  color: #304778;
+  background: #f6f8ff;
+  border: 1px solid #e6ebf7;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.pm-diagnosis-scrim {
+  z-index: 100;
+}
+
+.pm-diagnosis-modal {
+  position: relative;
+  width: min(920px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  padding: 28px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid rgba(55, 75, 155, .16);
+  border-radius: 8px;
+  box-shadow: 0 30px 90px rgba(15, 31, 83, .28);
+}
+
+.pm-modal-close {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  right: 18px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  color: #657293;
+  border-radius: 6px;
+  place-items: center;
+  font-size: 24px;
+  text-decoration: none;
+}
+
+.pm-diagnosis-modal > header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: center;
+  min-height: 150px;
+}
+
+.pm-diagnosis-modal h2 {
+  margin: 0 0 10px;
+  color: #0b1e58;
+  font-size: 28px;
+}
+
+.pm-diagnosis-modal header p {
+  margin: 0;
+  color: #5e7098;
+  font-size: 14px;
+}
+
+.pm-diagnosis-modal .pm-ai-art {
+  min-height: 150px;
+  transform: scale(.78);
+}
+
+.pm-diagnosis-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pm-diagnosis-steps article {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  min-height: 122px;
+  padding: 14px;
+  background: #f8f9ff;
+  border: 1px solid #e5e9f5;
+  border-radius: 7px;
+}
+
+.pm-diagnosis-steps b {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  color: #fff;
+  background: #5346ed;
+  border-radius: 50%;
+  place-items: center;
+  font-size: 11px;
+}
+
+.pm-diagnosis-steps strong {
+  align-self: center;
+  color: #14265e;
+  font-size: 13px;
+}
+
+.pm-diagnosis-steps small {
+  grid-column: 1 / -1;
+  color: #68789c;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.pm-diagnosis-meta {
+  display: grid;
+  grid-template-columns: 1.5fr .7fr .8fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pm-diagnosis-meta > div {
+  display: flex;
+  gap: 8px;
+  align-content: start;
+  min-height: 100px;
+  padding: 14px;
+  flex-wrap: wrap;
+  background: #f8f9ff;
+  border-radius: 7px;
+}
+
+.pm-diagnosis-meta strong {
+  width: 100%;
+  color: #18316f;
+  font-size: 12px;
+}
+
+.pm-diagnosis-meta span,
+.pm-diagnosis-meta small {
+  color: #5e7097;
+  font-size: 10px;
+}
+
+.pm-diagnosis-meta b {
+  width: 100%;
+  color: #213e91;
+  font-size: 20px;
+}
+
+.pm-diagnosis-modal > footer {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.pm-diagnosis-modal > footer a,
+.pm-diagnosis-modal > footer button {
+  display: grid;
+  width: 190px;
+  min-height: 42px;
+  color: #2c4382;
+  background: #fff;
+  border: 1px solid #dce3f3;
+  border-radius: 7px;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.pm-diagnosis-modal > footer button {
+  color: #fff;
+  background: #315bec;
+  border-color: #315bec;
+}
+
+@media (max-width: 1050px) {
+  .project-page-directory-grid,
+  .pm-diagnosis-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .project-page-directory-grid,
+  .pm-detail-active-section ul,
+  .pm-diagnosis-modal > header,
+  .pm-diagnosis-steps,
+  .pm-diagnosis-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .pm-detail-actions,
+  .pm-diagnosis-modal > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pm-diagnosis-modal {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+    padding: 20px;
+  }
+
+  .pm-diagnosis-modal .pm-ai-art {
+    display: none;
+  }
+
+  .pm-diagnosis-modal > footer a,
+  .pm-diagnosis-modal > footer button {
+    width: 100%;
+  }
+
+  .project-market-main .pm-detail-tabs {
+    display: flex;
+  }
+}

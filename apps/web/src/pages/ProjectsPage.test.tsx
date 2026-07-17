@@ -43,6 +43,10 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("link", { name: "去匹配" })).toHaveAttribute("href", "/projects/match");
     expect(screen.getByRole("heading", { name: "精选机会" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "智活 Copilot" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "全部页面" })).toBeInTheDocument();
+    expect(screen.getByText("16 个页面")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /诊断是否能做/ })).toHaveAttribute("href", "/projects/opportunities/ai-short-video-studio/diagnosis");
+    expect(screen.getByRole("link", { name: /导出报告/ })).toHaveAttribute("href", "/projects/export");
   });
 
   it("collapses and expands the project Copilot panel", () => {
@@ -325,6 +329,53 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "验证路径" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "来源与证据" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "企业公开复盘" })).toHaveAttribute("href", "https://example.com/case");
+  });
+
+  it("opens a directly addressable detail tab backed by API sections", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/projects/opportunities/ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({
+        id: 42,
+        slug: "ai-short-video-studio",
+        title: "AI短视频脚本工作室",
+        summary: "短视频脚本服务",
+        industry: "内容服务",
+        tags: ["轻资产"],
+        budget_band: "0.8-3万元",
+        difficulty: "中等",
+        resource_requirements: [],
+        sections: [
+          { title: "成功路径", body: "先完成首个付费验证", items: ["选择一个细分行业"] },
+          { title: "优劣势", body: "启动成本低，但需要建立差异化。", items: ["优势：交付快", "短板：同质化竞争"] }
+        ]
+      }), { status: 200 }));
+      if (String(input) === "/api/v1/projects/cases") return Promise.resolve(new Response(JSON.stringify({ cases: [] }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${String(input)}`));
+    });
+
+    renderProjectRoute("/projects/opportunities/ai-short-video-studio?section=swot");
+
+    expect(await screen.findByRole("heading", { name: "AI短视频脚本工作室" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "优劣势" })).toHaveClass("active");
+    expect(screen.getByText("启动成本低，但需要建立差异化。")).toBeInTheDocument();
+    expect(screen.queryByText("先完成首个付费验证")).not.toBeInTheDocument();
+  });
+
+  it("renders the project diagnosis as a closeable route state", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/projects/opportunities/ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({
+        id: 42, slug: "ai-short-video-studio", title: "AI短视频脚本工作室", summary: "短视频脚本服务",
+        industry: "内容服务", tags: [], budget_band: "0.8-3万元", difficulty: "中等", resource_requirements: [], sections: []
+      }), { status: 200 }));
+      if (String(input) === "/api/v1/projects/cases") return Promise.resolve(new Response(JSON.stringify({ cases: [] }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${String(input)}`));
+    });
+
+    renderProjectRoute("/projects/opportunities/ai-short-video-studio/diagnosis");
+
+    expect(screen.getByRole("dialog", { name: "诊断我能否做这个项目？" })).toBeInTheDocument();
+    expect(screen.getByText("约 2-3 分钟")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "关闭项目诊断" })).toHaveAttribute("href", "/projects/opportunities/ai-short-video-studio");
+    expect(screen.getByRole("button", { name: "开始诊断" })).toBeInTheDocument();
   });
 
   it("creates a persisted project comparison", async () => {
