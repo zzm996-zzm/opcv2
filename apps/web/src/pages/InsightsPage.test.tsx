@@ -37,8 +37,38 @@ describe("InsightsPage", () => {
     expect(screen.getByText("今日关注")).toBeInTheDocument();
     expect(await screen.findByText("企业智能客服落地实践：从成本中心到增长引擎")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "查看详情" })).toHaveLength(6);
-    expect(screen.getByRole("button", { name: "20" })).toBeInTheDocument();
+    expect(screen.getByText("共 6 条")).toBeInTheDocument();
+    expect(screen.getByText("第 1 / 1 页")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "下一页" })).not.toBeInTheDocument();
     expect(screen.getByText("嗨，张婧！", { exact: false })).toBeInTheDocument();
+  });
+
+  it("opens settings and collapses the Copilot panel", () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ articles: [] }), { status: 200 })
+    );
+    renderPage();
+
+    const copilot = screen.getByRole("complementary", { name: "智活 Copilot 咨询助手" });
+    const body = document.getElementById("insights-copilot-body");
+
+    fireEvent.click(screen.getByRole("button", { name: "打开 Copilot 设置" }));
+
+    expect(screen.getByRole("dialog", { name: "Copilot 设置" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /更多偏好设置/ })).toHaveAttribute("href", "/profile/preferences");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "显示快捷建议" }));
+    expect(screen.queryByRole("navigation", { name: "咨询助手快捷入口" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "收起 Copilot" }));
+
+    expect(copilot).toHaveClass("is-collapsed");
+    expect(body).toHaveAttribute("hidden");
+    expect(screen.queryByRole("dialog", { name: "Copilot 设置" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "展开 Copilot" }));
+    expect(copilot).not.toHaveClass("is-collapsed");
+    expect(body).not.toHaveAttribute("hidden");
   });
 
   it("renders the reference detail when the content API is unavailable", async () => {

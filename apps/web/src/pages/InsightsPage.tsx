@@ -249,12 +249,12 @@ function InsightList() {
         ))}
       </section>
 
-      <nav className="insights-pagination" aria-label="资讯分页">
-        <button aria-label="上一页" type="button">‹</button>
-        {[1, 2, 3, 4, 5].map((page) => <button className={page === 1 ? "active" : ""} key={page} type="button">{page}</button>)}
-        <span>…</span><button type="button">20</button><button aria-label="下一页" type="button">›</button>
-        <small>每页显示&nbsp;&nbsp; 12 &nbsp;条⌄</small>
-      </nav>
+      {visibleArticles.length > 0 && (
+        <footer className="insights-pagination" aria-label="资讯分页">
+          <span>共 {visibleArticles.length} 条</span>
+          <strong>第 1 / 1 页</strong>
+        </footer>
+      )}
     </>
   );
 }
@@ -359,19 +359,64 @@ function InsightDetail() {
 function InsightsCopilot({ variant }: { variant: NonNullable<InsightsPageProps["variant"]> }) {
   const isDetail = variant === "detail";
   const isFileAnalysis = variant === "fileAnalysis";
+  const [collapsed, setCollapsed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(true);
+
+  function toggleCollapsed() {
+    setCollapsed((current) => !current);
+    setSettingsOpen(false);
+  }
+
   return (
-    <aside className={`insights-copilot ${isFileAnalysis ? "analysis-open" : ""}`} aria-label="智活 Copilot 咨询助手">
+    <aside className={`insights-copilot${isFileAnalysis ? " analysis-open" : ""}${collapsed ? " is-collapsed" : ""}`} aria-label="智活 Copilot 咨询助手">
       <header className="insights-ai-head">
         <div><strong><span aria-hidden="true">✦</span> 智活 Copilot</strong><p>你的全球 AI 助手，随时为你提供帮助</p></div>
-        <div className="insights-ai-tools"><button aria-label="设置" type="button">⚙</button><button aria-label="收起" type="button">⌄</button></div>
+        <div className="insights-ai-tools">
+          {!collapsed && (
+            <button
+              aria-controls="insights-copilot-settings"
+              aria-expanded={settingsOpen}
+              aria-label={settingsOpen ? "关闭 Copilot 设置" : "打开 Copilot 设置"}
+              className="insights-ai-settings-trigger"
+              onClick={() => setSettingsOpen((current) => !current)}
+              title="Copilot 设置"
+              type="button"
+            >
+              ⚙
+            </button>
+          )}
+          <button
+            aria-controls="insights-copilot-body"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? "展开 Copilot" : "收起 Copilot"}
+            onClick={toggleCollapsed}
+            title={collapsed ? "展开 Copilot" : "收起 Copilot"}
+            type="button"
+          >
+            {collapsed ? "⌄" : "⌃"}
+          </button>
+          {settingsOpen && (
+            <div className="insights-copilot-settings" id="insights-copilot-settings" role="dialog" aria-label="Copilot 设置">
+              <strong>对话设置</strong>
+              <label>
+                <input checked={showQuickActions} onChange={(event) => setShowQuickActions(event.target.checked)} type="checkbox" />
+                <span>显示快捷建议</span>
+              </label>
+              <Link to="/profile/preferences">更多偏好设置 <span aria-hidden="true">›</span></Link>
+            </div>
+          )}
+        </div>
       </header>
-      {isFileAnalysis ? <FileAnalysisChat /> : isDetail ? <DetailCopilot /> : <ListCopilot />}
-      {!isFileAnalysis && (
-        <nav className="insights-copilot-actions" aria-label="咨询助手快捷入口">
-          {(isDetail ? ["总结这篇资讯要点", "提炼行业启示", "推荐相关工具/报告"] : ["追踪 AI 客服行业资讯", "总结今天的重点动态", "推荐相关报告与工具"]).map((item) => <Link key={item} to="/insights/file-analysis"><span aria-hidden="true">▣</span>{item}<b aria-hidden="true">›</b></Link>)}
-        </nav>
-      )}
-      {!isFileAnalysis && <form className="insights-chat-composer" onSubmit={(event) => event.preventDefault()}><button aria-label="添加附件" type="button">＋</button><input aria-label="咨询通提问" placeholder="询问任何问题..." /><button aria-label="发送问题" type="submit">➤</button></form>}
+      <div className="insights-copilot-body" id="insights-copilot-body" hidden={collapsed}>
+        {isFileAnalysis ? <FileAnalysisChat /> : isDetail ? <DetailCopilot /> : <ListCopilot />}
+        {!isFileAnalysis && showQuickActions && (
+          <nav className="insights-copilot-actions" aria-label="咨询助手快捷入口">
+            {(isDetail ? ["总结这篇资讯要点", "提炼行业启示", "推荐相关工具/报告"] : ["追踪 AI 客服行业资讯", "总结今天的重点动态", "推荐相关报告与工具"]).map((item) => <Link key={item} to="/insights/file-analysis"><span aria-hidden="true">▣</span>{item}<b aria-hidden="true">›</b></Link>)}
+          </nav>
+        )}
+        {!isFileAnalysis && <form className="insights-chat-composer" onSubmit={(event) => event.preventDefault()}><button aria-label="添加附件" type="button">＋</button><input aria-label="咨询通提问" placeholder="询问任何问题..." /><button aria-label="发送问题" type="submit">➤</button></form>}
+      </div>
     </aside>
   );
 }
