@@ -316,22 +316,27 @@
 .ref-project-opportunity-grid h3 { margin: 14px 0 6px; color: var(--ref-ink); font-size: 16px; font-weight: 600; }
 .ref-project-opportunity-grid p { margin: 0; color: var(--ref-muted); font-size: 12px; line-height: 1.6; }
 
-.ref-project-copilot { position: sticky; top: 96px; display: flex; height: calc(100vh - 116px); min-height: 620px; margin-top: 38px; padding: 24px 22px 18px; flex-direction: column; background: #fff; border: 1px solid var(--ref-line); border-radius: 12px; box-shadow: var(--ref-shadow); }
+.ref-project-copilot { position: sticky; top: 96px; display: flex; height: calc(100vh - 116px); min-height: 0; margin-top: 38px; padding: 24px 22px 18px; overflow: hidden; flex-direction: column; background: #fff; border: 1px solid var(--ref-line); border-radius: 12px; box-shadow: var(--ref-shadow); }
 .ref-project-copilot > header { display: grid; grid-template-columns: 38px minmax(0,1fr) 24px; gap: 12px; align-items: start; padding-bottom: 24px; border-bottom: 1px solid #e8ecf4; }
 .ref-project-copilot > header > span { color: #2f72ff; font-size: 28px; animation: ref-soft-pulse 3.2s ease-in-out infinite; }
 .ref-project-copilot > header div { display: grid; gap: 6px; }
 .ref-project-copilot > header strong { color: #14235a; font-size: 20px; }
 .ref-project-copilot > header small { color: #7382a4; font-size: 13px; }
-.ref-project-copilot > header button { color: #1760f5; background: none; border: 0; font-size: 20px; }
+.ref-project-copilot > header button { display: grid; width: 40px; height: 40px; margin: -8px; padding: 0; color: #1760f5; background: none; border: 0; border-radius: 10px; cursor: pointer; place-items: center; font-size: 20px; }
+.ref-project-copilot > header button:hover { background: #eef4ff; }
+.ref-project-copilot.is-collapsed { height: auto; min-height: 0; align-self: start; }
+.ref-project-copilot.is-collapsed > header { padding-bottom: 0; border-bottom: 0; }
+.project-copilot-body { display: flex; min-height: 0; padding-right: 4px; overflow-y: auto; flex: 1; flex-direction: column; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.project-copilot-body[hidden] { display: none; }
 .ref-project-chat-note { margin: 44px 0 18px; padding: 18px; color: var(--ref-ink-soft); background: #f5f7fb; border-radius: 8px; font-size: 12px; line-height: 1.75; font-weight: 500; }
 .ref-project-match-card { padding: 32px 24px 26px; border: 1px solid var(--ref-line); border-radius: 12px; text-align: center; }
 .ref-project-match-card small { color: #788ab5; font-size: 14px; font-weight: 600; }
 .ref-project-match-card strong { display: block; margin: 20px 0 24px; color: #14235a; font-size: 19px; }
 .ref-project-match-card p { min-height: 90px; margin: 0; color: #324270; font-size: 14px; line-height: 1.6; text-align: left; }
 .ref-project-match-card a { display: flex; height: 60px; margin-top: 18px; align-items: center; justify-content: center; color: #fff; background: linear-gradient(90deg,#4d3cf4,#2764f7); border-radius: 14px; font-size: 18px; font-weight: 700; text-decoration: none; }
-.ref-project-copilot > nav { display: grid; margin-top: 16px; }
-.ref-project-copilot > nav a { display: flex; height: 70px; align-items: center; padding: 0 18px; color: #24427d; border: 1px solid #e7ebf3; border-radius: 12px; font-size: 15px; font-weight: 600; text-decoration: none; }
-.ref-project-copilot > nav a + a { margin-top: 10px; }
+.ref-project-copilot nav { display: grid; margin-top: 16px; }
+.ref-project-copilot nav a { display: flex; height: 70px; align-items: center; padding: 0 18px; color: #24427d; border: 1px solid #e7ebf3; border-radius: 12px; font-size: 15px; font-weight: 600; text-decoration: none; }
+.ref-project-copilot nav a + a { margin-top: 10px; }
 .ref-project-copilot-input { margin-top: auto; }
 
 /* AI community reference */

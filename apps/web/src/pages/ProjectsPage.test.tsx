@@ -45,6 +45,28 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("complementary", { name: "智活 Copilot" })).toBeInTheDocument();
   });
 
+  it("collapses and expands the project Copilot panel", () => {
+    renderProjectRoute("/projects");
+
+    const copilot = screen.getByRole("complementary", { name: "智活 Copilot" });
+    const collapseButton = screen.getByRole("button", { name: "收起项目超市 Copilot" });
+    const body = document.getElementById("project-copilot-body");
+
+    expect(collapseButton).toHaveAttribute("aria-expanded", "true");
+    expect(body).not.toHaveAttribute("hidden");
+
+    fireEvent.click(collapseButton);
+
+    expect(copilot).toHaveClass("is-collapsed");
+    expect(screen.getByRole("button", { name: "展开项目超市 Copilot" })).toHaveAttribute("aria-expanded", "false");
+    expect(body).toHaveAttribute("hidden");
+
+    fireEvent.click(screen.getByRole("button", { name: "展开项目超市 Copilot" }));
+
+    expect(copilot).not.toHaveClass("is-collapsed");
+    expect(body).not.toHaveAttribute("hidden");
+  });
+
   it("renders the AI matching request page", () => {
     renderProjectRoute("/projects/match");
 

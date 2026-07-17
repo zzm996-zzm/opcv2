@@ -18366,9 +18366,11 @@ a:active {
   top: 86px;
   display: grid;
   gap: 12px;
-  min-height: 710px;
+  height: calc(100vh - 126px);
+  min-height: 0;
   margin-top: 44px;
   padding: 16px;
+  overflow: hidden;
   background: rgba(255, 255, 255, 0.92);
   border-radius: 14px;
   box-shadow: 0 18px 44px rgba(40, 55, 130, 0.075);
@@ -18409,6 +18411,29 @@ a:active {
   color: #1557ff;
   background: transparent;
   border: 0;
+}
+
+.pm-copilot header > button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  margin: -9px;
+  padding: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  place-items: center;
+}
+
+.pm-copilot header > button:hover {
+  background: #eef3ff;
+}
+
+.pm-copilot.is-collapsed {
+  min-height: 0;
+}
+
+.pm-copilot .project-copilot-body {
+  gap: 12px;
 }
 
 .pm-chat-bubble,
@@ -19318,6 +19343,7 @@ a:active {
 
   .pm-copilot {
     position: static;
+    height: auto;
     grid-template-columns: minmax(0, 1fr) minmax(240px, 0.55fr);
     align-items: start;
   }

@@ -895,34 +895,47 @@ function Considerations() {
 }
 
 function ProjectCopilot({ reference = false, variant }: { reference?: boolean; variant: ProjectMarketVariant }) {
+  const [collapsed, setCollapsed] = useState(false);
   const hasRecordContext = variant === "results" || variant === "paywall" || variant === "detail" || variant === "compare" || variant === "export";
+  const copilotClassName = reference ? "ref-project-copilot" : "pm-copilot";
   return (
-    <aside className={reference ? "ref-project-copilot" : "pm-copilot"} aria-label="智活 Copilot">
+    <aside className={`${copilotClassName}${collapsed ? " is-collapsed" : ""}`} aria-label="智活 Copilot">
       <header>
         <span aria-hidden="true">✦</span>
         <div>
           <strong aria-label="项目超市 Copilot">项目超市 Copilot</strong>
           <small>你的全球 AI 助手，随时为你提供帮助</small>
         </div>
-        <button type="button">⌃</button>
+        <button
+          type="button"
+          aria-controls="project-copilot-body"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? "展开项目超市 Copilot" : "收起项目超市 Copilot"}
+          title={collapsed ? "展开 Copilot" : "收起 Copilot"}
+          onClick={() => setCollapsed((current) => !current)}
+        >
+          {collapsed ? "⌄" : "⌃"}
+        </button>
       </header>
-      <div className={reference ? "ref-project-chat-note" : "pm-chat-bubble"}>
-        {hasRecordContext
-          ? "页面中的项目结论只来自当前持久化记录；AI 匹配内容会明确标记为模型推演。"
-          : "提交真实需求后，Copilot 会创建可回看的匹配记录；未关联记录时不展示业务推荐。"}
+      <div className="project-copilot-body" id="project-copilot-body" hidden={collapsed}>
+        <div className={reference ? "ref-project-chat-note" : "pm-chat-bubble"}>
+          {hasRecordContext
+            ? "页面中的项目结论只来自当前持久化记录；AI 匹配内容会明确标记为模型推演。"
+            : "提交真实需求后，Copilot 会创建可回看的匹配记录；未关联记录时不展示业务推荐。"}
+        </div>
+        <article className={reference ? "ref-project-match-card" : "pm-copilot-recommend"}>
+          <small>数据透明说明</small>
+          <strong>先记录，再分析</strong>
+          <p>机会详情使用运营发布内容与案例来源；匹配结果使用对应的 AI 会话记录。</p>
+          <Link to={hasRecordContext ? "/projects/history" : "/projects/match"}>{hasRecordContext ? "查看匹配记录" : "开始 AI 匹配"}</Link>
+        </article>
+        <nav>
+          <Link to="/projects/results">分析市场机会</Link>
+          <Link to="/tools/recommend">推荐工具</Link>
+          <Link to="/tasks">制定落地计划</Link>
+        </nav>
+        <MiniCopilotForm className={reference ? "ref-project-copilot-input" : "pm-copilot-input"} attachIcon="＋" sendIcon="↗" />
       </div>
-      <article className={reference ? "ref-project-match-card" : "pm-copilot-recommend"}>
-        <small>数据透明说明</small>
-        <strong>先记录，再分析</strong>
-        <p>机会详情使用运营发布内容与案例来源；匹配结果使用对应的 AI 会话记录。</p>
-        <Link to={hasRecordContext ? "/projects/history" : "/projects/match"}>{hasRecordContext ? "查看匹配记录" : "开始 AI 匹配"}</Link>
-      </article>
-      <nav>
-        <Link to="/projects/results">分析市场机会</Link>
-        <Link to="/tools/recommend">推荐工具</Link>
-        <Link to="/tasks">制定落地计划</Link>
-      </nav>
-      <MiniCopilotForm className={reference ? "ref-project-copilot-input" : "pm-copilot-input"} attachIcon="＋" sendIcon="↗" />
     </aside>
   );
 }
