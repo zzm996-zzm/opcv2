@@ -45589,9 +45589,8 @@ a:active {
   margin-bottom: 18px;
 }
 
-.board3-grid .board3-preview-card:only-child,
-.board3-preview-card {
-  grid-column: auto;
+.board3-grid .board3-preview-card:only-child {
+  grid-column: 1 / -1;
 }
 
 .board3-form-card,
