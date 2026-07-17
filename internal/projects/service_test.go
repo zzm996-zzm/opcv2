@@ -290,7 +290,7 @@ func TestServiceCreatesRankedProjectMatchesThroughAI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateMatch() error = %v", err)
 	}
-	if generator.request.Feature != "projects.match" || generator.request.PromptVersion != "project_match_v1" {
+	if generator.request.Feature != "projects.match" || generator.request.PromptVersion != "project_match_v2" {
 		t.Fatalf("AI request = %+v", generator.request)
 	}
 	if result.Status != StatusCompleted || len(result.Projects) != 1 || result.Projects[0].Title != "AI短视频脚本工作室" {
@@ -298,6 +298,34 @@ func TestServiceCreatesRankedProjectMatchesThroughAI(t *testing.T) {
 	}
 	if repository.sessions[0].Result.Projects[0].Score != 94 {
 		t.Fatalf("stored session = %+v", repository.sessions[0])
+	}
+}
+
+func TestServiceBindsMatchResultToPublishedOpportunity(t *testing.T) {
+	payload := MatchResult{Status: StatusCompleted, Projects: []ProjectMatch{{
+		Rank: 1, Title: "AI短视频脚本工作室", Score: 94, Tags: []string{"内容创作"},
+		Budget: "1-3万", Reasons: []string{"能力匹配"}, Risk: "需验证获客",
+	}}}
+	content, _ := json.Marshal(payload)
+	repository := &memoryRepository{opportunities: []Opportunity{{
+		ID: 1, Slug: "ai-short-video-studio", Title: "AI短视频脚本工作室", Status: OpportunityStatusPublished,
+	}}}
+	generator := &fakeJSONGenerator{result: ai.GenerateJSONResult{Content: content}}
+	service := NewService(repository, generator)
+
+	result, err := service.CreateMatch(context.Background(), MatchInput{
+		UserID: 42,
+		Intent: "我擅长内容创作，预算3万以内，每周能投入20小时，希望做线上轻资产项目",
+	})
+
+	if err != nil {
+		t.Fatalf("CreateMatch() error = %v", err)
+	}
+	if result.Projects[0].OpportunitySlug != "ai-short-video-studio" {
+		t.Fatalf("project = %+v", result.Projects[0])
+	}
+	if !strings.Contains(generator.request.UserPrompt, "ai-short-video-studio") {
+		t.Fatalf("catalog missing from prompt: %s", generator.request.UserPrompt)
 	}
 }
 

@@ -8,6 +8,7 @@ export type ProjectQuestion = {
 
 export type ProjectMatch = {
   rank: number;
+  opportunity_slug?: string;
   title: string;
   score: number;
   tags: string[];

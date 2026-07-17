@@ -1,12 +1,13 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import ReferenceShell from "../components/ReferenceShell";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { projectsApi, type ProjectCase, type ProjectFavorite, type ProjectMatch, type ProjectMatchResult, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
+import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
+import { projectsApi, type ProjectCase, type ProjectFavorite, type ProjectMatch, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
@@ -29,6 +30,7 @@ type ProjectsPageProps = {
 
 type DisplayProject = {
   rank: string;
+  opportunitySlug?: string;
   title: string;
   score: string;
   tags: readonly string[];
@@ -59,25 +61,6 @@ const coreEntries = [
   ["真实案例库", "看成功/失败案例与拆解。", "/projects/cases", "看案例", "case"]
 ] as const;
 
-const projectPageEntries = [
-  ["01", "超市首页", "发现项目与核心能力入口", "/projects"],
-  ["02", "AI匹配", "提交目标、预算与偏好", "/projects/match"],
-  ["03", "AI补充提问", "补齐关键匹配条件", "/projects/questions"],
-  ["04", "匹配结果", "查看项目推荐与依据", "/projects/results"],
-  ["05", "匹配历史", "管理记录与收藏", "/projects/history"],
-  ["06", "付费样板", "预览完整拆解权益", "/projects/results/paywall"],
-  ["07", "机会探索", "浏览全部项目机会", "/projects/explore"],
-  ["08", "真实案例库", "查看成功与失败样板", "/projects/cases"],
-  ["09", "成功路径", "从 0 到 1 的执行路径", "/projects/opportunities/ai-short-video-studio?section=path"],
-  ["10", "当前数据", "查看市场和经营指标", "/projects/opportunities/ai-short-video-studio?section=data"],
-  ["11", "优劣势", "评估机会与风险", "/projects/opportunities/ai-short-video-studio?section=swot"],
-  ["12", "可学经验", "复用方法与行动清单", "/projects/opportunities/ai-short-video-studio?section=learning"],
-  ["13", "要避免的行为", "查看常见误区和风险", "/projects/opportunities/ai-short-video-studio?section=avoid"],
-  ["14", "诊断是否能做", "评估个人适配度", "/projects/opportunities/ai-short-video-studio/diagnosis"],
-  ["15", "项目对比", "横向比较候选项目", "/projects/compare"],
-  ["16", "导出报告", "导出匹配结果快照", "/projects/export"]
-] as const;
-
 const detailTabs = [
   ["path", "成功路径", "成功路径"],
   ["data", "当前数据", "当前数据"],
@@ -87,24 +70,10 @@ const detailTabs = [
 ] as const;
 
 
-const matchFactors = [
-  ["预算有限", "预算范围 ≤ 3万"],
-  ["内容方向", "未明确"],
-  ["可投入时间", "未明确"],
-  ["偏好标签", "未明确"]
-] as const;
-
-
-const questionRows = [
-  ["01", "你更偏好服务型还是产品型？", "这将影响项目类别与盈利模式的匹配", ["服务型", "产品型", "都可以"]],
-  ["02", "你希望多久看到第一笔收入？", "不同的变现周期，对应不同的项目类型", ["1个月内", "1-3个月", "3个月以上"]],
-  ["03", "你是否接受出镜或打造个人IP？", "这将影响内容类项目的推荐方向", ["可以", "尽量不出镜", "无所谓"]],
-  ["04", "更偏好线上项目还是本地项目？", "项目交付与获客方式会有所不同", ["纯线上", "本地服务", "都可以"]]
-] as const;
-
 function toDisplayProject(project: ProjectMatch): DisplayProject {
   return {
     rank: String(project.rank),
+    opportunitySlug: project.opportunity_slug,
     title: project.title,
     score: `${project.score}分`,
     tags: project.tags,
@@ -121,7 +90,7 @@ function toHistoryRow(session: ProjectMatchSession): MatchHistoryRow {
     title: firstProject?.title ?? session.intent,
     count: `${projects.length || 0} 个匹配机会`,
     detail: session.intent || session.status,
-    href: `/projects/matches/${session.id}`
+    href: session.status === "needs_input" ? `/projects/matches/${session.id}/questions` : `/projects/matches/${session.id}/results`
   };
 }
 
@@ -164,7 +133,7 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
             {variant === "compare" && <ProjectCompare />}
             {variant === "export" && (
               <>
-                <ProjectCompare />
+                <MatchResults />
                 <ExportOverlay />
               </>
             )}
@@ -234,7 +203,7 @@ function MarketHome() {
       <section className="ref-project-opportunities">
         <div className="ref-project-section-head">
           <h2>精选机会</h2>
-          <Link to="/projects/results">查看全部</Link>
+          <Link to="/projects/explore">查看全部</Link>
         </div>
         <div className="ref-project-opportunity-grid">
           {featuredError ? <p className="form-error" role="alert">{featuredError}</p> : null}
@@ -253,34 +222,15 @@ function MarketHome() {
         </div>
       </section>
 
-      <section className="project-page-directory" aria-labelledby="project-page-directory-title">
-        <div className="ref-project-section-head">
-          <div>
-            <h2 id="project-page-directory-title">全部页面</h2>
-            <p>设计稿中的 16 个页面状态均可从这里直接进入。</p>
-          </div>
-          <span>{projectPageEntries.length} 个页面</span>
-        </div>
-        <div className="project-page-directory-grid">
-          {projectPageEntries.map(([number, title, detail, href]) => (
-            <Link key={number} to={href}>
-              <b>{number}</b>
-              <span><strong>{title}</strong><small>{detail}</small></span>
-              <i aria-hidden="true">›</i>
-            </Link>
-          ))}
-        </div>
-      </section>
     </>
   );
 }
 
 function MatchRequest() {
   const [intent, setIntent] = useState("");
-  const [result, setResult] = useState<ProjectMatchResult | null>(null);
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState("");
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const navigate = useNavigate();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -289,7 +239,9 @@ function MatchRequest() {
     setError("");
     try {
       const next = await projectsApi.createMatch({ intent });
-      setResult(next);
+      navigate(next.status === "needs_input"
+        ? `/projects/matches/${next.session_id}/questions`
+        : `/projects/matches/${next.session_id}/results`);
     } catch (error) {
       setError(apiErrorMessage(error, "暂时无法生成项目匹配，请稍后重试"));
     } finally {
@@ -297,15 +249,12 @@ function MatchRequest() {
     }
   }
 
-  const matchedProjects = result?.projects?.map(toDisplayProject) ?? [];
-
-  async function submitAnswers() {
-    if (!result || result.status !== "needs_input" || status === "submitting") return;
-    const payload = (result.questions ?? []).map((question) => ({ key:question.key, value:answers[question.key] ?? "" }));
-    if (payload.some((answer) => !answer.value)) { setError("请回答全部补充问题"); return; }
-    setStatus("submitting"); setError("");
-    try { setResult(await projectsApi.answerMatch(result.session_id, payload)); } catch (submitError) { setError(apiErrorMessage(submitError, "暂时无法生成匹配结果")); } finally { setStatus("idle"); }
-  }
+  const recognizedFactors = [
+    ["需求描述", intent.trim() ? `已输入 ${intent.trim().length} 字` : "待填写"],
+    ["预算信息", /预算|资金|本金|\d+\s*万/.test(intent) ? "已包含" : "待补充"],
+    ["投入时间", /小时|全职|兼职|每周|每天/.test(intent) ? "已包含" : "待补充"],
+    ["项目偏好", /线上|本地|服务|产品|一人公司|轻资产/.test(intent) ? "已包含" : "待补充"]
+  ] as const;
 
   return (
     <>
@@ -323,16 +272,16 @@ function MatchRequest() {
           <span>参考案例</span>
           <span>上传资料</span>
           <span>语音输入</span>
-          <Link to="/projects/questions">→</Link>
+          <button aria-label="提交匹配需求" disabled={!intent.trim() || status === "submitting"} type="submit">→</button>
         </div>
         </section>
         <section className="pm-panel pm-recognized">
           <div className="pm-section-head">
-            <h2>已识别的信息（示例）</h2>
+            <h2>已识别的信息</h2>
             <button onClick={() => setIntent("")} type="button">清空重填</button>
           </div>
           <div className="pm-factor-grid">
-            {matchFactors.map(([title, detail]) => (
+            {recognizedFactors.map(([title, detail]) => (
               <article key={title}>
                 <span aria-hidden="true" />
                 <strong>{title}</strong>
@@ -346,27 +295,6 @@ function MatchRequest() {
           {error && <p className="form-error" role="alert">{error}</p>}
         </section>
       </form>
-      {result?.status === "needs_input" && (
-        <section className="pm-panel pm-question-panel">
-          <h2>Copilot 还想确认以下问题</h2>
-          {result.questions?.map((question, index) => (
-            <article key={question.key}>
-              <b>{String(index + 1).padStart(2, "0")}</b>
-              <span>
-                <strong>{question.text}</strong>
-                <small>补充后可以提升项目匹配准确度</small>
-              </span>
-              <div>
-                {question.options.map((option) => <button className={answers[question.key] === option ? "active" : ""} key={option} onClick={() => setAnswers((current) => ({ ...current, [question.key]:option }))} type="button">{option}</button>)}
-              </div>
-            </article>
-          ))}
-          <button className="pm-primary-button" disabled={status === "submitting"} onClick={() => void submitAnswers()} type="button">{status === "submitting" ? "生成中..." : "生成匹配结果"}</button>
-        </section>
-      )}
-      {result?.status === "completed" && matchedProjects.length > 0 && (
-        <MatchResults projects={matchedProjects} sessionId={result.session_id} />
-      )}
       <Considerations />
     </>
   );
@@ -488,9 +416,56 @@ function CaseLibrary() {
 }
 
 function MatchQuestions() {
+  const { matchId } = useParams();
+  const navigate = useNavigate();
+  const [session, setSession] = useState<ProjectMatchSession | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
-  const completedCount = questionRows.filter(([number]) => Boolean(selectedAnswers[number])).length;
-  const allAnswered = completedCount === questionRows.length;
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const questions = session?.questions ?? [];
+  const completedCount = questions.filter((question) => Boolean(selectedAnswers[question.key])).length;
+  const allAnswered = questions.length > 0 && completedCount === questions.length;
+
+  useEffect(() => {
+    const id = Number(matchId);
+    if (!Number.isFinite(id) || id <= 0) {
+      setError("匹配记录不存在");
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    projectsApi.getMatch(id).then((payload) => {
+      if (!active) return;
+      if (payload.status === "completed") {
+        navigate(`/projects/matches/${id}/results`, { replace:true });
+        return;
+      }
+      setSession(payload);
+      setError("");
+    }).catch((loadError) => {
+      if (active) setError(apiErrorMessage(loadError, "暂时无法读取补充问题"));
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [matchId, navigate]);
+
+  async function submitAnswers() {
+    if (!session || !allAnswered || submitting) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const next = await projectsApi.answerMatch(session.id, questions.map((question) => ({ key:question.key, value:selectedAnswers[question.key] })));
+      navigate(next.status === "completed"
+        ? `/projects/matches/${session.id}/results`
+        : `/projects/matches/${session.id}/questions`);
+    } catch (submitError) {
+      setError(apiErrorMessage(submitError, "暂时无法生成匹配结果"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <>
@@ -503,25 +478,35 @@ function MatchQuestions() {
           </article>
         ))}
       </section>
+      {session ? (
+        <section className="pm-panel pm-session-summary">
+          <div><small>已识别的基础需求</small><strong>{session.intent}</strong></div>
+          <span>{questions.length} 项待确认</span>
+        </section>
+      ) : null}
+      {loading ? <div className="module-empty-state" role="status">正在读取补充问题...</div> : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {!loading && !error && questions.length === 0 ? <div className="module-empty-state" role="status">当前记录没有待回答的问题。</div> : null}
+      {questions.length > 0 ? (
       <section className="pm-panel pm-question-panel">
         <header className="pm-question-heading">
           <h2>Copilot 还想确认以下问题</h2>
-          <span aria-live="polite">已完成 {completedCount}/{questionRows.length}</span>
+          <span aria-live="polite">已完成 {completedCount}/{questions.length}</span>
         </header>
-        {questionRows.map(([number, title, detail, answers]) => (
-          <article key={number}>
-            <b>{number}</b>
+        {questions.map((question, index) => (
+          <article key={question.key}>
+            <b>{String(index + 1).padStart(2, "0")}</b>
             <span>
-              <strong>{title}</strong>
-              <small>{detail}</small>
+              <strong>{question.text}</strong>
+              <small>补充后可以提升项目匹配准确度</small>
             </span>
             <div>
-              {answers.map((answer) => (
+              {question.options.map((answer) => (
                 <button
-                  className={selectedAnswers[number] === answer ? "active" : ""}
-                  aria-pressed={selectedAnswers[number] === answer}
+                  className={selectedAnswers[question.key] === answer ? "active" : ""}
+                  aria-pressed={selectedAnswers[question.key] === answer}
                   key={answer}
-                  onClick={() => setSelectedAnswers((current) => ({ ...current, [number]: answer }))}
+                  onClick={() => setSelectedAnswers((current) => ({ ...current, [question.key]: answer }))}
                   type="button"
                 >
                   {answer}
@@ -534,27 +519,27 @@ function MatchQuestions() {
           <Link className="pm-question-back" to="/projects/match"><span aria-hidden="true">←</span><span>返回修改基础需求</span></Link>
           <div className="pm-question-action-buttons">
             <Link className="pm-question-defer" to="/projects">稍后继续</Link>
-            {allAnswered ? (
-              <Link className="pm-primary-button" to="/projects/results">生成匹配结果</Link>
-            ) : (
-              <button className="pm-primary-button" disabled title="请先完成全部问题" type="button">生成匹配结果</button>
-            )}
+            <button className="pm-primary-button" disabled={!allAnswered || submitting} onClick={() => void submitAnswers()} title={allAnswered ? undefined : "请先完成全部问题"} type="button">{submitting ? "生成中..." : "生成匹配结果"}</button>
           </div>
         </div>
       </section>
+      ) : null}
     </>
   );
 }
 
 function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProject[]; sessionId?: number }) {
+  const { matchId } = useParams();
+  const navigate = useNavigate();
   const [loadedSession, setLoadedSession] = useState<ProjectMatchSession | null>(null);
   const [loading, setLoading] = useState(projects === undefined);
   const [loadError, setLoadError] = useState("");
   const [favorited, setFavorited] = useState(false);
   const [favoritePending, setFavoritePending] = useState(false);
   const persistedProjects = projects ?? loadedSession?.result?.projects?.map(toDisplayProject) ?? [];
-  const persistedSessionId = sessionId ?? loadedSession?.id;
-  const detailHref = persistedSessionId ? `/projects/matches/${persistedSessionId}` : "/projects/history";
+  const routeSessionId = Number(matchId);
+  const requestedSessionId = Number.isFinite(routeSessionId) && routeSessionId > 0 ? routeSessionId : undefined;
+  const persistedSessionId = sessionId ?? loadedSession?.id ?? requestedSessionId;
   const [taskMessage, setTaskMessage] = useState("");
   const [taskError, setTaskError] = useState("");
 
@@ -562,10 +547,16 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
     if (projects !== undefined) return;
     let active = true;
     setLoading(true);
-    projectsApi.listMatches().then((payload) => {
+    const request = requestedSessionId
+      ? projectsApi.getMatch(requestedSessionId)
+      : projectsApi.listMatches().then((payload) => (payload.matches ?? []).find((item) => item.status === "completed" && (item.result?.projects?.length ?? 0) > 0) ?? null);
+    request.then((latest) => {
       if (!active) return;
-      const latest = payload.matches.find((item) => item.status === "completed" && (item.result?.projects?.length ?? 0) > 0) ?? null;
-      setLoadedSession(latest);
+      if (requestedSessionId && latest?.status === "needs_input") {
+        navigate(`/projects/matches/${requestedSessionId}/questions`, { replace:true });
+        return;
+      }
+      setLoadedSession(latest && latest.status === "completed" ? latest : null);
       setLoadError("");
     }).catch((error) => {
       if (active) setLoadError(apiErrorMessage(error, "暂时无法读取匹配结果"));
@@ -573,13 +564,13 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [projects]);
+  }, [navigate, projects, requestedSessionId]);
 
   useEffect(() => {
     if (!persistedSessionId) return;
     let active = true;
     projectsApi.listFavorites().then((payload) => {
-      if (active) setFavorited(payload.favorites.some((item) => item.session_id === persistedSessionId));
+      if (active) setFavorited((payload.favorites ?? []).some((item) => item.session_id === persistedSessionId));
     }).catch(() => {
       if (active) setFavorited(false);
     });
@@ -622,8 +613,8 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
           <button disabled={!persistedSessionId || favoritePending} onClick={() => void toggleFavorite()} type="button">
             {favoritePending ? "处理中..." : favorited ? "取消收藏" : "收藏结果"}
           </button>
-          <Link to="/projects/export">导出报告</Link>
-          <Link to="/projects/compare">加入对比</Link>
+          <Link to={persistedSessionId ? `/projects/matches/${persistedSessionId}/export` : "/projects/export"}>导出报告</Link>
+          <Link to={`/projects/compare${persistedProjects.some((item) => item.opportunitySlug) ? `?items=${persistedProjects.map((item) => item.opportunitySlug).filter(Boolean).join(",")}` : ""}`}>加入对比</Link>
           <button disabled={!persistedSessionId} onClick={() => void generateTasks()} type="button">生成落地任务</button>
         </div>
       </div>
@@ -638,7 +629,7 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
       {persistedProjects.length > 0 ? <section className="pm-results-layout">
         <div className="pm-result-list">
           {persistedProjects.map((project) => (
-            <article key={project.title} className="pm-result-card">
+            <article key={project.title} className={`pm-result-card${project.opportunitySlug ? ` pm-project-${project.opportunitySlug}` : ""}`}>
               <b>{project.rank}</b>
               <div className="pm-result-image" />
               <div>
@@ -653,8 +644,8 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
                 {project.reasons.map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
               <div className="pm-result-actions">
-                <Link to={detailHref}>查看拆解</Link>
-                <button aria-label={`加入对比 ${project.title}`} type="button">加入对比</button>
+                <Link to={project.opportunitySlug ? `/projects/opportunities/${project.opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看拆解</Link>
+                <Link aria-label={`加入对比 ${project.title}`} to={project.opportunitySlug ? `/projects/compare?items=${project.opportunitySlug}` : "/projects/compare"}>加入对比</Link>
                 <button disabled={!persistedSessionId || favoritePending} onClick={() => void toggleFavorite()} type="button">{favorited ? "取消收藏" : "收藏"}</button>
               </div>
               <p>风险提示：{project.risk}</p>
@@ -666,7 +657,7 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
           <p>以上匹配度、推荐理由和风险提示来自该次 AI 匹配记录，不代表已验证的市场事实。</p>
           <article>来源：匹配记录 #{persistedSessionId}</article>
           <article>口径：模型推演，需结合已发布项目资料与外部证据验证</article>
-          <Link to={detailHref}>查看项目完整拆解</Link>
+          <Link to={persistedProjects[0]?.opportunitySlug ? `/projects/opportunities/${persistedProjects[0].opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看项目完整拆解</Link>
         </aside>
       </section> : null}
     </>
@@ -684,8 +675,8 @@ function MatchHistory() {
     Promise.all([projectsApi.listMatches(), projectsApi.listFavorites()])
       .then(([matchesPayload, favoritesPayload]) => {
         if (active) {
-          setSessions(matchesPayload.matches);
-          setFavorites(favoritesPayload.favorites);
+          setSessions(matchesPayload.matches ?? []);
+          setFavorites(favoritesPayload.favorites ?? []);
           setError("");
         }
       })
@@ -739,7 +730,7 @@ function MatchHistory() {
                 <div className="pm-thumb" />
                 <h3>{favorite.session.result?.projects?.[0]?.title ?? favorite.session.intent}</h3>
                 <p>{favorite.session.intent}</p>
-                <Link to={`/projects/matches/${favorite.session_id}`}>查看结果</Link>
+                <Link to={`/projects/matches/${favorite.session_id}/results`}>查看结果</Link>
                 <button onClick={() => void removeFavorite(favorite.session_id)} type="button">取消收藏</button>
               </article>
             ) : null)}
@@ -838,11 +829,11 @@ function ProjectDetail() {
           {opportunitySlug ? (
             <div className="pm-detail-actions">
               <Link to={`${detailBasePath}/diagnosis`}>诊断我能否做</Link>
-              <Link to="/projects/compare">加入对比</Link>
+              <Link to={`/projects/compare?items=${opportunitySlug}`}>加入对比</Link>
             </div>
           ) : null}
         </div>
-        <AiCubeArt />
+        <div className={`pm-detail-art pm-detail-art-${opportunitySlug ?? "default"}`} aria-hidden="true" />
       </section>
       {loading ? <div className="module-empty-state" role="status">正在读取项目详情...</div> : null}
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -947,8 +938,9 @@ function MatchRecordDetail({ session }: { session: ProjectMatchSession }) {
 }
 
 function ProjectCompare() {
+  const [searchParams] = useSearchParams();
   const [options, setOptions] = useState<ProjectOpportunity[]>([]);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(() => (searchParams.get("items") ?? "").split(",").filter(Boolean).slice(0, 4));
   const [comparison, setComparison] = useState<ProjectOpportunity[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -957,7 +949,25 @@ function ProjectCompare() {
       .catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取项目目录")); });
     return () => { active = false; };
   }, []);
-  function toggle(slug: string) { setSelected((current) => current.includes(slug) ? current.filter((item) => item !== slug) : current.length < 4 ? [...current, slug] : current); }
+  useEffect(() => {
+    if (selected.length < 2 || comparison.length > 0) return;
+    let active = true;
+    projectsApi.createComparison(selected)
+      .then((result) => {
+        if (active) {
+          setComparison(result.items);
+          setError("");
+        }
+      })
+      .catch((createError) => {
+        if (active) setError(apiErrorMessage(createError, "暂时无法创建项目对比"));
+      });
+    return () => { active = false; };
+  }, [comparison.length, selected]);
+  function toggle(slug: string) {
+    setComparison([]);
+    setSelected((current) => current.includes(slug) ? current.filter((item) => item !== slug) : current.length < 4 ? [...current, slug] : current);
+  }
   async function createComparison() { try { const result = await projectsApi.createComparison(selected); setComparison(result.items); setError(""); } catch (createError) { setError(apiErrorMessage(createError, "暂时无法创建项目对比")); } }
   return (
     <>
@@ -973,7 +983,7 @@ function ProjectCompare() {
       {comparison.length === 0 ? <section className="pm-panel"><h2>选择 2-4 个项目</h2>{options.map((item) => <label key={item.id}><input aria-label={item.title} checked={selected.includes(item.slug)} onChange={() => toggle(item.slug)} type="checkbox" />{item.title}</label>)}</section> : null}
       <section className="pm-compare-grid">
         {comparison.map((project) => (
-          <article key={project.id}>
+          <article className={`pm-project-${project.slug}`} key={project.id}>
             <div className="pm-result-image" />
             <h2>{project.title}</h2>
             <strong>{project.budget_band || "预算待补充"}</strong>
@@ -1065,7 +1075,7 @@ function ProjectCopilot({ reference = false, variant }: { reference?: boolean; v
           <Link to={hasRecordContext ? "/projects/history" : "/projects/match"}>{hasRecordContext ? "查看匹配记录" : "开始 AI 匹配"}</Link>
         </article>
         <nav>
-          <Link to="/projects/results">分析市场机会</Link>
+          <Link to="/projects/explore">分析市场机会</Link>
           <Link to="/tools/recommend">推荐工具</Link>
           <Link to="/tasks">制定落地计划</Link>
         </nav>
@@ -1076,40 +1086,73 @@ function ProjectCopilot({ reference = false, variant }: { reference?: boolean; v
 }
 
 function PaywallOverlay() {
-  return (
+  const { matchId } = useParams();
+  const closeHref = matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
+  const [plan, setPlan] = useState<MembershipPlanOption | null>(null);
+  useEffect(() => {
+    let active = true;
+    membershipApi.listPlans().then((payload) => {
+      if (active) setPlan(payload.plans.find((item) => item.recommended) ?? payload.plans.find((item) => item.code !== "free") ?? null);
+    }).catch(() => {
+      if (active) setPlan(null);
+    });
+    return () => { active = false; };
+  }, []);
+  return createPortal(
     <div className="pm-modal-scrim">
-      <section className="pm-paywall-modal" role="dialog" aria-label="解锁完整拆解">
-        <div>
-          <h2>解锁完整拆解</h2>
-          <p>查看项目完整路径、当前数据、真实案例、优劣势和避坑清单。</p>
+      <section className="pm-paywall-modal" role="dialog" aria-label="解锁完整拆解" aria-modal="true">
+        <Link className="pm-modal-close" aria-label="关闭解锁弹层" to={closeHref}>×</Link>
+        <header>
+          <div><h2>解锁完整拆解</h2><p>查看完整项目路径、真实案例、数据依据和进阶分析。</p></div>
+          <img alt="" src="/project-market/match-hero.jpg" />
+        </header>
+        <div className="pm-paywall-content">
+          <section className="pm-plan-comparison" aria-label="会员权益对比">
+            <div className="pm-plan-comparison-head"><strong>功能权益</strong><strong>免费版</strong><strong>{plan?.name ?? "会员版"}</strong></div>
+            {(plan?.features ?? []).slice(0, 6).map((feature, index) => (
+              <div key={feature}><span>{feature}</span><small>{index === 0 ? "仅摘要" : "未开放"}</small><b>完整开放</b></div>
+            ))}
+            {!plan ? <div className="module-empty-state" role="status">正在读取会员方案...</div> : null}
+          </section>
+          <aside>
+            <strong>{plan?.name ?? "智活AI会员"}</strong>
+            <small>解锁全部高级内容</small>
+            <b>{plan ? `¥${(plan.price_cents / 100).toLocaleString("zh-CN")}` : "--"}</b>
+            <span>{plan ? (plan.billing_cycle === "year" ? "每年" : "每月") : "读取方案中"}</span>
+            <p>完整拆解 · 持续更新 · 支持导出</p>
+            <Link className="pm-primary-button" to="/membership/upgrade">立即解锁</Link>
+            <Link to="/membership">先查看会员权益</Link>
+          </aside>
         </div>
-        <aside>
-          <strong>智活AI会员</strong>
-          <b>¥199</b>
-          <small>完整解锁项目拆解样板</small>
-          <button type="button">立即解锁</button>
-          <button type="button">会员权益</button>
-        </aside>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 function ExportOverlay() {
+  const { matchId } = useParams();
+  const closeHref = matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
   const [sourceID, setSourceID] = useState<number | null>(null);
   const [downloadURL, setDownloadURL] = useState("");
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
   useEffect(() => {
+    const routeID = Number(matchId);
+    if (Number.isFinite(routeID) && routeID > 0) {
+      setSourceID(routeID);
+      setError("");
+      return;
+    }
     let active = true;
     projectsApi.listMatches().then((payload) => {
       if (!active) return;
-      const latest = payload.matches.find((item) => item.status === "completed");
+      const latest = (payload.matches ?? []).find((item) => item.status === "completed");
       setSourceID(latest?.id ?? null);
       if (!latest) setError("暂无可导出的已完成匹配记录");
     }).catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取匹配记录")); });
     return () => { active = false; };
-  }, []);
+  }, [matchId]);
   async function createExport() {
     if (!sourceID || exporting) return;
     setExporting(true); setError("");
@@ -1117,23 +1160,38 @@ function ExportOverlay() {
     catch (createError) { setError(apiErrorMessage(createError, "暂时无法导出报告")); }
     finally { setExporting(false); }
   }
-  return (
+  return createPortal(
     <div className="pm-modal-scrim">
-      <section className="pm-export-modal" role="dialog" aria-label="导出匹配报告">
-        <h2>导出匹配报告</h2>
-        <div><button className="active" type="button">JSON 数据快照</button></div>
-        <article>
-          <strong>报告内容</strong>
-          <small>匹配需求、补充问题、推荐项目与风险提示的服务端快照</small>
-        </article>
+      <section className="pm-export-modal" role="dialog" aria-label="导出匹配报告" aria-modal="true">
+        <Link className="pm-modal-close" aria-label="关闭导出弹层" to={closeHref}>×</Link>
+        <header><span aria-hidden="true">⇧</span><div><h2>导出匹配报告</h2><p>选择实际支持的格式与报告内容，生成当前匹配会话的服务端快照。</p></div></header>
+        <div className="pm-export-layout">
+          <section>
+            <h3>1. 选择导出格式</h3>
+            <button className="active" type="button"><b>JSON</b><span>数据快照</span><small>结构化保存完整匹配记录</small></button>
+          </section>
+          <section>
+            <h3>2. 报告内容</h3>
+            {["用户需求摘要", "匹配结果排名", "项目对比信息", "风险提示", "后续行动建议"].map((item) => (
+              <label key={item}><input checked readOnly type="checkbox" /><span>{item}</span></label>
+            ))}
+          </section>
+          <article className="pm-export-preview">
+            <h3>3. 报告预览</h3>
+            <div><strong>智活AI 匹配报告</strong><small>项目匹配分析报告</small><i /></div>
+            <p>当前会话 #{sourceID ?? "--"}</p>
+            <span>需求 · 推荐 · 风险 · 行动</span>
+          </article>
+        </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        {downloadURL ? <a href={downloadURL}>下载 JSON 报告</a> : null}
+        {downloadURL ? <a className="pm-export-download" href={downloadURL}>下载已生成的 JSON 报告</a> : null}
         <footer>
-          <button type="button">取消</button>
+          <Link to={closeHref}>取消</Link>
           <button disabled={!sourceID || exporting} onClick={() => void createExport()} type="button">{exporting ? "导出中..." : "确认导出"}</button>
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 

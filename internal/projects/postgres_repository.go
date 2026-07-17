@@ -37,7 +37,7 @@ func (r *PostgresRepository) ListOpportunities(ctx context.Context, filters Oppo
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Opportunity
+	items := make([]Opportunity, 0)
 	for rows.Next() {
 		item, err := scanOpportunity(rows)
 		if err != nil {
@@ -69,7 +69,7 @@ func (r *PostgresRepository) ListCases(ctx context.Context, filters CaseFilters)
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CaseStudy
+	items := make([]CaseStudy, 0)
 	for rows.Next() {
 		item, err := scanCase(rows)
 		if err != nil {
@@ -165,7 +165,7 @@ func (r *PostgresRepository) ListSessions(ctx context.Context, userID int64, lim
 	}
 	defer rows.Close()
 
-	var sessions []MatchSession
+	sessions := make([]MatchSession, 0)
 	for rows.Next() {
 		session, err := scanSession(rows)
 		if err != nil {

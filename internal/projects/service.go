@@ -311,12 +311,18 @@ func (s *Service) generateMatch(ctx context.Context, input MatchInput) (MatchRes
 	if err != nil {
 		return MatchResult{}, err
 	}
+	catalog, err := s.repository.ListOpportunities(ctx, OpportunityFilters{Limit: 100})
+	if err != nil {
+		return MatchResult{}, err
+	}
+	userPrompt := appendPromptSection(matchUserPrompt(input), profilePrompt)
+	userPrompt = appendPromptSection(userPrompt, matchCatalogPrompt(catalog))
 	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID:         input.UserID,
 		Feature:        "projects.match",
-		PromptVersion:  "project_match_v1",
-		SystemPrompt:   "你是项目超市 AI 匹配助手。必须只返回 JSON，字段严格匹配 project_match_result。",
-		UserPrompt:     appendPromptSection(matchUserPrompt(input), profilePrompt),
+		PromptVersion:  "project_match_v2",
+		SystemPrompt:   "你是项目超市 AI 匹配助手。必须只从提供的已发布项目目录中推荐，返回 opportunity_slug，并且只返回字段严格匹配 project_match_result 的 JSON。",
+		UserPrompt:     userPrompt,
 		SchemaName:     "project_match_result",
 		Validate:       validateMatchResultJSON,
 		RepairAttempts: 1,
@@ -331,8 +337,63 @@ func (s *Service) generateMatch(ctx context.Context, input MatchInput) (MatchRes
 	if err := validateMatchResult(result); err != nil {
 		return MatchResult{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
 	}
+	if err := bindCatalogMatches(&result, catalog); err != nil {
+		return MatchResult{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
+	}
 	result.Status = StatusCompleted
 	return result, nil
+}
+
+func matchCatalogPrompt(catalog []Opportunity) string {
+	if len(catalog) == 0 {
+		return ""
+	}
+	type catalogItem struct {
+		Slug                 string   `json:"opportunity_slug"`
+		Title                string   `json:"title"`
+		Industry             string   `json:"industry"`
+		Tags                 []string `json:"tags"`
+		BudgetBand           string   `json:"budget_band"`
+		Difficulty           string   `json:"difficulty"`
+		ResourceRequirements []string `json:"resource_requirements"`
+	}
+	items := make([]catalogItem, 0, len(catalog))
+	for _, item := range catalog {
+		items = append(items, catalogItem{
+			Slug: item.Slug, Title: item.Title, Industry: item.Industry, Tags: item.Tags,
+			BudgetBand: item.BudgetBand, Difficulty: item.Difficulty, ResourceRequirements: item.ResourceRequirements,
+		})
+	}
+	data, err := json.Marshal(items)
+	if err != nil {
+		return ""
+	}
+	return "已发布项目目录（只能从中选择，opportunity_slug 必须原样返回）：\n" + string(data)
+}
+
+func bindCatalogMatches(result *MatchResult, catalog []Opportunity) error {
+	if len(catalog) == 0 {
+		return nil
+	}
+	bySlug := make(map[string]Opportunity, len(catalog))
+	byTitle := make(map[string]Opportunity, len(catalog))
+	for _, item := range catalog {
+		bySlug[item.Slug] = item
+		byTitle[item.Title] = item
+	}
+	for index := range result.Projects {
+		project := &result.Projects[index]
+		item, ok := bySlug[strings.TrimSpace(project.OpportunitySlug)]
+		if !ok {
+			item, ok = byTitle[strings.TrimSpace(project.Title)]
+		}
+		if !ok {
+			return fmt.Errorf("project %q is not in the published catalog", project.Title)
+		}
+		project.OpportunitySlug = item.Slug
+		project.Title = item.Title
+	}
+	return nil
 }
 
 func (s *Service) profilePrompt(ctx context.Context, userID int64) (string, error) {

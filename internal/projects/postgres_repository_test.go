@@ -94,6 +94,38 @@ func TestPostgresRepositoryListsMatchSessionsForUser(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryReturnsEmptyMatchSessionList(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, intent, status, questions, result, created_at, updated_at
+		FROM project_match_sessions
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2
+	`)).
+		WithArgs(int64(42), 20).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "intent", "status", "questions", "result", "created_at", "updated_at",
+		}))
+
+	repository := NewPostgresRepository(db)
+	sessions, err := repository.ListSessions(context.Background(), 42, 20)
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if sessions == nil || len(sessions) != 0 {
+		t.Fatalf("sessions = %#v, want non-nil empty slice", sessions)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryGetsMatchSessionForUser(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

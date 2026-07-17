@@ -139,13 +139,14 @@ type MatchResult struct {
 }
 
 type ProjectMatch struct {
-	Rank    int      `json:"rank"`
-	Title   string   `json:"title"`
-	Score   int      `json:"score"`
-	Tags    []string `json:"tags"`
-	Budget  string   `json:"budget"`
-	Reasons []string `json:"reasons"`
-	Risk    string   `json:"risk"`
+	Rank            int      `json:"rank"`
+	OpportunitySlug string   `json:"opportunity_slug,omitempty"`
+	Title           string   `json:"title"`
+	Score           int      `json:"score"`
+	Tags            []string `json:"tags"`
+	Budget          string   `json:"budget"`
+	Reasons         []string `json:"reasons"`
+	Risk            string   `json:"risk"`
 }
 
 type MatchSession struct {

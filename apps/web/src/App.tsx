@@ -495,10 +495,18 @@ function App() {
       <Route
         element={
           <RequireAuth>
-            <ProjectsPage variant="questions" />
+            <Navigate replace to="/projects/match" />
           </RequireAuth>
         }
         path="/projects/questions"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="questions" />
+          </RequireAuth>
+        }
+        path="/projects/matches/:matchId/questions"
       />
       <Route
         element={
@@ -511,10 +519,26 @@ function App() {
       <Route
         element={
           <RequireAuth>
+            <ProjectsPage variant="results" />
+          </RequireAuth>
+        }
+        path="/projects/matches/:matchId/results"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <ProjectsPage variant="paywall" />
           </RequireAuth>
         }
         path="/projects/results/paywall"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="paywall" />
+          </RequireAuth>
+        }
+        path="/projects/matches/:matchId/results/paywall"
       />
       <Route
         element={
@@ -571,6 +595,14 @@ function App() {
           </RequireAuth>
         }
         path="/projects/export"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="export" />
+          </RequireAuth>
+        }
+        path="/projects/matches/:matchId/export"
       />
       <Route
         element={
