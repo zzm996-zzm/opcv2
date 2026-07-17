@@ -172,13 +172,23 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "案例共性" })).toBeInTheDocument();
   });
 
-  it("renders the AI follow-up questions page", () => {
+  it("answers the AI follow-up questions and enables result generation", () => {
     renderProjectRoute("/projects/questions");
 
     expect(screen.getByRole("heading", { name: "AI补充提问" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Copilot 还想确认以下问题" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "生成匹配结果" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "服务型" })).toBeInTheDocument();
+    expect(screen.getByText("已完成 0/4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "生成匹配结果" })).toBeDisabled();
+
+    ["服务型", "1个月内", "可以", "纯线上"].forEach((answer) => {
+      fireEvent.click(screen.getByRole("button", { name: answer }));
+      expect(screen.getByRole("button", { name: answer })).toHaveAttribute("aria-pressed", "true");
+    });
+
+    expect(screen.getByText("已完成 4/4")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "生成匹配结果" })).toHaveAttribute("href", "/projects/results");
+    expect(screen.getByRole("link", { name: "返回修改基础需求" })).toHaveAttribute("href", "/projects/match");
+    expect(screen.getByRole("link", { name: "稍后继续" })).toHaveAttribute("href", "/projects");
   });
 
   it("renders the latest persisted matching result without a static fallback", async () => {

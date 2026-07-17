@@ -434,6 +434,10 @@ function CaseLibrary() {
 }
 
 function MatchQuestions() {
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
+  const completedCount = questionRows.filter(([number]) => Boolean(selectedAnswers[number])).length;
+  const allAnswered = completedCount === questionRows.length;
+
   return (
     <>
       <ProjectHero title="AI补充提问" subtitle="为了更精准地匹配适合你的项目，Copilot 需要再确认几个关键信息" action="匹配历史" href="/projects/history" />
@@ -446,7 +450,10 @@ function MatchQuestions() {
         ))}
       </section>
       <section className="pm-panel pm-question-panel">
-        <h2>Copilot 还想确认以下问题</h2>
+        <header className="pm-question-heading">
+          <h2>Copilot 还想确认以下问题</h2>
+          <span aria-live="polite">已完成 {completedCount}/{questionRows.length}</span>
+        </header>
         {questionRows.map(([number, title, detail, answers]) => (
           <article key={number}>
             <b>{number}</b>
@@ -455,14 +462,30 @@ function MatchQuestions() {
               <small>{detail}</small>
             </span>
             <div>
-              {answers.map((answer) => <button key={answer} type="button">{answer}</button>)}
+              {answers.map((answer) => (
+                <button
+                  className={selectedAnswers[number] === answer ? "active" : ""}
+                  aria-pressed={selectedAnswers[number] === answer}
+                  key={answer}
+                  onClick={() => setSelectedAnswers((current) => ({ ...current, [number]: answer }))}
+                  type="button"
+                >
+                  {answer}
+                </button>
+              ))}
             </div>
           </article>
         ))}
         <div className="pm-question-actions">
-          <button className="pm-primary-button" type="button">生成匹配结果</button>
-          <Link className="pm-secondary-button" to="/projects/match">返回修改基础需求</Link>
-          <button type="button">稍后继续</button>
+          <Link className="pm-question-back" to="/projects/match"><span aria-hidden="true">←</span><span>返回修改基础需求</span></Link>
+          <div className="pm-question-action-buttons">
+            <Link className="pm-question-defer" to="/projects">稍后继续</Link>
+            {allAnswered ? (
+              <Link className="pm-primary-button" to="/projects/results">生成匹配结果</Link>
+            ) : (
+              <button className="pm-primary-button" disabled title="请先完成全部问题" type="button">生成匹配结果</button>
+            )}
+          </div>
         </div>
       </section>
     </>
@@ -857,13 +880,15 @@ function ProjectCompare() {
 }
 
 function ProjectHero({ title, subtitle, action, href }: { title: string; subtitle: string; action: string; href: string }) {
-  const heroKind = title === "机会探索"
-    ? "explore"
-    : title === "真实案例库"
-      ? "cases"
-      : title === "匹配历史与收藏"
-        ? "history"
-        : "match";
+  const heroKind = title === "AI补充提问"
+    ? "questions"
+    : title === "机会探索"
+      ? "explore"
+      : title === "真实案例库"
+        ? "cases"
+        : title === "匹配历史与收藏"
+          ? "history"
+          : "match";
 
   return (
     <section className={`pm-hero compact ${heroKind}`}>
