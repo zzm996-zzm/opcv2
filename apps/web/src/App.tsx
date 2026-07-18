@@ -90,7 +90,7 @@ function App() {
   }, []);
 
   return (
-    <div className="route-motion-frame" key={location.pathname + location.search}>
+    <div className="route-motion-frame" key={location.pathname}>
       <Routes location={location}>
       <Route element={<HomePage />} path="/" />
       <Route
@@ -567,7 +567,7 @@ function App() {
       <Route
         element={
           <RequireAuth>
-            <ProjectsPage variant="detail" />
+            <Navigate replace to="/projects/explore" />
           </RequireAuth>
         }
         path="/projects/detail"

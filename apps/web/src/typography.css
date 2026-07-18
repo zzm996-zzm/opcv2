@@ -59,20 +59,20 @@
 }
 
 /* H1 is the page identity. Cards and dialogs use lower-level headings below. */
-.v4-shell .v4-page-main h1 {
+.v4-shell:not(.project-market-shell) .v4-page-main h1 {
   font-size: var(--type-page-title);
   line-height: 1.25;
   font-weight: var(--type-weight-bold);
   letter-spacing: 0;
 }
 
-.v4-shell .v4-page-main h2 {
+.v4-shell:not(.project-market-shell) .v4-page-main h2 {
   font-size: var(--type-panel-title) !important;
   line-height: 1.4;
   font-weight: var(--type-weight-semibold);
 }
 
-.v4-shell .v4-page-main h3 {
+.v4-shell:not(.project-market-shell) .v4-page-main h3 {
   font-size: var(--type-card-title) !important;
   line-height: 1.45;
   font-weight: var(--type-weight-semibold);
@@ -141,9 +141,9 @@
 }
 
 /* Body copy and controls no longer jump between 10, 11, 12, and 14px. */
-.v4-shell .v4-page-main p,
-.v4-shell .v4-page-main label,
-.v4-shell .v4-page-main li,
+.v4-shell:not(.project-market-shell) .v4-page-main p,
+.v4-shell:not(.project-market-shell) .v4-page-main label,
+.v4-shell:not(.project-market-shell) .v4-page-main li,
 .v4-shell .landing-ref-main button,
 .v4-shell .landing-ref-main input,
 .v4-shell .landing-ref-main textarea,
@@ -156,15 +156,15 @@
   line-height: 1.6;
 }
 
-.v4-shell .v4-page-main p {
+.v4-shell:not(.project-market-shell) .v4-page-main p {
   font-size: var(--type-body) !important;
 }
 
-.v4-shell .v4-page-main :is(input, textarea, select, button) {
+.v4-shell:not(.project-market-shell) .v4-page-main :is(input, textarea, select, button) {
   font-size: var(--type-body);
 }
 
-.v4-shell .v4-page-main small,
+.v4-shell:not(.project-market-shell) .v4-page-main small,
 .v4-shell .data-query-card footer,
 .v4-shell .data-unlock,
 .v4-shell .hero-pills span,
@@ -178,7 +178,7 @@
   line-height: 1.6;
 }
 
-.v4-shell .v4-page-main small {
+.v4-shell:not(.project-market-shell) .v4-page-main small {
   font-size: var(--type-caption) !important;
 }
 

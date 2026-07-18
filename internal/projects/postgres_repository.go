@@ -64,7 +64,24 @@ func (r *PostgresRepository) GetOpportunity(ctx context.Context, slug string) (O
 }
 
 func (r *PostgresRepository) ListCases(ctx context.Context, filters CaseFilters) ([]CaseStudy, error) {
-	rows, err := r.db.Query(ctx, `SELECT id, slug, opportunity_id, title, summary, case_type, outcome, key_actions, lessons, pitfalls, source_title, source_url, captured_at, status, published_at, updated_at FROM project_cases WHERE status = 'published' AND ($1 = '' OR case_type = $1) ORDER BY published_at DESC, id ASC LIMIT $2`, filters.CaseType, filters.Limit)
+	rows, err := r.db.Query(ctx, `
+		SELECT c.id, c.slug, c.opportunity_id,
+		       COALESCE(o.slug, ''), COALESCE(o.title, ''), COALESCE(o.industry, ''),
+		       c.title, c.summary, c.case_type, c.outcome, c.key_actions, c.lessons, c.pitfalls,
+		       c.source_title, c.source_url, c.captured_at, c.status, c.published_at, c.updated_at
+		FROM project_cases c
+		LEFT JOIN project_opportunities o ON o.id = c.opportunity_id
+		WHERE c.status = 'published'
+		  AND ($1 = '' OR c.case_type = $1)
+		  AND ($2 = '' OR c.opportunity_id = (
+			  SELECT id
+			  FROM project_opportunities
+			  WHERE slug = $2 AND status = 'published'
+		  ))
+		  AND ($3 = '' OR o.industry = $3)
+		ORDER BY c.published_at DESC, c.id ASC
+		LIMIT $4
+	`, filters.CaseType, filters.OpportunitySlug, filters.Industry, filters.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +101,15 @@ func (r *PostgresRepository) ListCases(ctx context.Context, filters CaseFilters)
 }
 
 func (r *PostgresRepository) GetCase(ctx context.Context, slug string) (CaseStudy, error) {
-	item, err := scanCase(r.db.QueryRow(ctx, `SELECT id, slug, opportunity_id, title, summary, case_type, outcome, key_actions, lessons, pitfalls, source_title, source_url, captured_at, status, published_at, updated_at FROM project_cases WHERE slug = $1 AND status = 'published'`, slug))
+	item, err := scanCase(r.db.QueryRow(ctx, `
+		SELECT c.id, c.slug, c.opportunity_id,
+		       COALESCE(o.slug, ''), COALESCE(o.title, ''), COALESCE(o.industry, ''),
+		       c.title, c.summary, c.case_type, c.outcome, c.key_actions, c.lessons, c.pitfalls,
+		       c.source_title, c.source_url, c.captured_at, c.status, c.published_at, c.updated_at
+		FROM project_cases c
+		LEFT JOIN project_opportunities o ON o.id = c.opportunity_id
+		WHERE c.slug = $1 AND c.status = 'published'
+	`, slug))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return CaseStudy{}, ErrCaseNotFound
 	}
@@ -129,6 +154,14 @@ func (r *PostgresRepository) GetExport(ctx context.Context, userID, id int64) (E
 }
 
 func (r *PostgresRepository) CreateSession(ctx context.Context, session MatchSession) (MatchSession, error) {
+	answersToStore := session.Answers
+	if answersToStore == nil {
+		answersToStore = []Answer{}
+	}
+	answers, err := json.Marshal(answersToStore)
+	if err != nil {
+		return MatchSession{}, err
+	}
 	questions, err := json.Marshal(session.Questions)
 	if err != nil {
 		return MatchSession{}, err
@@ -138,12 +171,13 @@ func (r *PostgresRepository) CreateSession(ctx context.Context, session MatchSes
 		return MatchSession{}, err
 	}
 	err = r.db.QueryRow(ctx, `
-		INSERT INTO project_match_sessions (user_id, intent, status, questions, result, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $6)
+		INSERT INTO project_match_sessions (user_id, intent, answers, status, questions, result, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
 		RETURNING id
 	`,
 		session.UserID,
 		session.Intent,
+		answers,
 		session.Status,
 		questions,
 		result,
@@ -154,7 +188,7 @@ func (r *PostgresRepository) CreateSession(ctx context.Context, session MatchSes
 
 func (r *PostgresRepository) ListSessions(ctx context.Context, userID int64, limit int) ([]MatchSession, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, intent, status, questions, result, created_at, updated_at
+		SELECT id, user_id, intent, answers, status, questions, result, created_at, updated_at
 		FROM project_match_sessions
 		WHERE user_id = $1
 		ORDER BY created_at DESC
@@ -181,7 +215,7 @@ func (r *PostgresRepository) ListSessions(ctx context.Context, userID int64, lim
 
 func (r *PostgresRepository) GetSession(ctx context.Context, userID, id int64) (MatchSession, error) {
 	session, err := scanSession(r.db.QueryRow(ctx, `
-		SELECT id, user_id, intent, status, questions, result, created_at, updated_at
+		SELECT id, user_id, intent, answers, status, questions, result, created_at, updated_at
 		FROM project_match_sessions
 		WHERE user_id = $1 AND id = $2
 	`, userID, id))
@@ -192,6 +226,14 @@ func (r *PostgresRepository) GetSession(ctx context.Context, userID, id int64) (
 }
 
 func (r *PostgresRepository) UpdateSession(ctx context.Context, session MatchSession) (MatchSession, error) {
+	answersToStore := session.Answers
+	if answersToStore == nil {
+		answersToStore = []Answer{}
+	}
+	answers, err := json.Marshal(answersToStore)
+	if err != nil {
+		return MatchSession{}, err
+	}
 	questions, err := json.Marshal(session.Questions)
 	if err != nil {
 		return MatchSession{}, err
@@ -200,7 +242,7 @@ func (r *PostgresRepository) UpdateSession(ctx context.Context, session MatchSes
 	if err != nil {
 		return MatchSession{}, err
 	}
-	err = r.db.QueryRow(ctx, `UPDATE project_match_sessions SET status = $3, questions = $4, result = $5, updated_at = $6 WHERE user_id = $1 AND id = $2 RETURNING id`, session.UserID, session.ID, session.Status, questions, result, session.UpdatedAt).Scan(&session.ID)
+	err = r.db.QueryRow(ctx, `UPDATE project_match_sessions SET answers = $3, status = $4, questions = $5, result = $6, updated_at = $7 WHERE user_id = $1 AND id = $2 RETURNING id`, session.UserID, session.ID, answers, session.Status, questions, result, session.UpdatedAt).Scan(&session.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MatchSession{}, ErrSessionNotFound
 	}
@@ -290,7 +332,14 @@ func scanOpportunity(scanner sessionScanner) (Opportunity, error) {
 func scanCase(scanner sessionScanner) (CaseStudy, error) {
 	var item CaseStudy
 	var actions, lessons, pitfalls []byte
-	if err := scanner.Scan(&item.ID, &item.Slug, &item.OpportunityID, &item.Title, &item.Summary, &item.CaseType, &item.Outcome, &actions, &lessons, &pitfalls, &item.SourceTitle, &item.SourceURL, &item.CapturedAt, &item.Status, &item.PublishedAt, &item.UpdatedAt); err != nil {
+	if err := scanner.Scan(
+		&item.ID, &item.Slug, &item.OpportunityID,
+		&item.OpportunitySlug, &item.OpportunityTitle, &item.Industry,
+		&item.Title, &item.Summary, &item.CaseType, &item.Outcome,
+		&actions, &lessons, &pitfalls,
+		&item.SourceTitle, &item.SourceURL, &item.CapturedAt,
+		&item.Status, &item.PublishedAt, &item.UpdatedAt,
+	); err != nil {
 		return CaseStudy{}, err
 	}
 	if err := json.Unmarshal(actions, &item.KeyActions); err != nil {
@@ -307,18 +356,23 @@ func scanCase(scanner sessionScanner) (CaseStudy, error) {
 
 func scanSession(scanner sessionScanner) (MatchSession, error) {
 	var session MatchSession
+	var answers []byte
 	var questions []byte
 	var result []byte
 	if err := scanner.Scan(
 		&session.ID,
 		&session.UserID,
 		&session.Intent,
+		&answers,
 		&session.Status,
 		&questions,
 		&result,
 		&session.CreatedAt,
 		&session.UpdatedAt,
 	); err != nil {
+		return MatchSession{}, err
+	}
+	if err := json.Unmarshal(answers, &session.Answers); err != nil {
 		return MatchSession{}, err
 	}
 	if err := json.Unmarshal(questions, &session.Questions); err != nil {

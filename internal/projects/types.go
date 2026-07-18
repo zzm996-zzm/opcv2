@@ -63,27 +63,32 @@ type AnswerMatchInput struct {
 }
 
 type CaseFilters struct {
-	CaseType string
-	Limit    int
+	CaseType        string
+	OpportunitySlug string
+	Industry        string
+	Limit           int
 }
 
 type CaseStudy struct {
-	ID            int64      `json:"id"`
-	Slug          string     `json:"slug"`
-	OpportunityID *int64     `json:"opportunity_id,omitempty"`
-	Title         string     `json:"title"`
-	Summary       string     `json:"summary"`
-	CaseType      string     `json:"case_type"`
-	Outcome       string     `json:"outcome"`
-	KeyActions    []string   `json:"key_actions"`
-	Lessons       []string   `json:"lessons"`
-	Pitfalls      []string   `json:"pitfalls"`
-	SourceTitle   string     `json:"source_title"`
-	SourceURL     string     `json:"source_url"`
-	CapturedAt    time.Time  `json:"captured_at"`
-	Status        string     `json:"-"`
-	PublishedAt   *time.Time `json:"published_at,omitempty"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ID               int64      `json:"id"`
+	Slug             string     `json:"slug"`
+	OpportunityID    *int64     `json:"opportunity_id,omitempty"`
+	OpportunitySlug  string     `json:"opportunity_slug,omitempty"`
+	OpportunityTitle string     `json:"opportunity_title,omitempty"`
+	Industry         string     `json:"industry,omitempty"`
+	Title            string     `json:"title"`
+	Summary          string     `json:"summary"`
+	CaseType         string     `json:"case_type"`
+	Outcome          string     `json:"outcome"`
+	KeyActions       []string   `json:"key_actions"`
+	Lessons          []string   `json:"lessons"`
+	Pitfalls         []string   `json:"pitfalls"`
+	SourceTitle      string     `json:"source_title"`
+	SourceURL        string     `json:"source_url"`
+	CapturedAt       time.Time  `json:"captured_at"`
+	Status           string     `json:"-"`
+	PublishedAt      *time.Time `json:"published_at,omitempty"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
 type OpportunityFilters struct {
@@ -92,10 +97,31 @@ type OpportunityFilters struct {
 	Limit    int
 }
 
+type OpportunitySectionItem struct {
+	Title    string   `json:"title,omitempty"`
+	Value    string   `json:"value,omitempty"`
+	Detail   string   `json:"detail,omitempty"`
+	Meta     string   `json:"meta,omitempty"`
+	Tone     string   `json:"tone,omitempty"`
+	Progress float64  `json:"progress,omitempty"`
+	Tags     []string `json:"tags,omitempty"`
+}
+
+type OpportunitySectionBlock struct {
+	Type     string                   `json:"type,omitempty"`
+	Title    string                   `json:"title,omitempty"`
+	Subtitle string                   `json:"subtitle,omitempty"`
+	Columns  int                      `json:"columns,omitempty"`
+	Items    []OpportunitySectionItem `json:"items,omitempty"`
+	Series   []OpportunitySectionItem `json:"series,omitempty"`
+}
+
 type OpportunitySection struct {
-	Title string   `json:"title"`
-	Body  string   `json:"body"`
-	Items []string `json:"items"`
+	Key    string                    `json:"key,omitempty"`
+	Title  string                    `json:"title"`
+	Body   string                    `json:"body"`
+	Items  []string                  `json:"items"`
+	Blocks []OpportunitySectionBlock `json:"blocks,omitempty"`
 }
 
 type Opportunity struct {
@@ -153,6 +179,7 @@ type MatchSession struct {
 	ID        int64       `json:"id"`
 	UserID    int64       `json:"user_id"`
 	Intent    string      `json:"intent"`
+	Answers   []Answer    `json:"answers,omitempty"`
 	Status    string      `json:"status"`
 	Questions []Question  `json:"questions,omitempty"`
 	Result    MatchResult `json:"result,omitempty"`

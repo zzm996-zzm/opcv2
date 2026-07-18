@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
@@ -131,7 +132,12 @@ func (h *HTTPHandler) answerMatch(c *gin.Context) {
 }
 
 func (h *HTTPHandler) listCases(c *gin.Context) {
-	items, err := h.app.ListCases(c.Request.Context(), CaseFilters{CaseType: c.Query("type"), Limit: 20})
+	items, err := h.app.ListCases(c.Request.Context(), CaseFilters{
+		CaseType:        c.Query("type"),
+		OpportunitySlug: strings.TrimSpace(c.Query("opportunity_slug")),
+		Industry:        strings.TrimSpace(c.Query("industry")),
+		Limit:           20,
+	})
 	if err != nil {
 		writeError(c, err)
 		return

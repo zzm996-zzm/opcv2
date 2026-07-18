@@ -123,6 +123,7 @@ func (s *Service) AnswerMatch(ctx context.Context, input AnswerMatchInput) (Matc
 	}
 	result.SessionID = session.ID
 	session.Status = StatusCompleted
+	session.Answers = append([]Answer(nil), input.Answers...)
 	session.Questions = []Question{}
 	session.Result = result
 	session.UpdatedAt = s.now()
@@ -256,6 +257,11 @@ func (s *Service) CreateMatch(ctx context.Context, input MatchInput) (MatchResul
 		return MatchResult{}, err
 	}
 	result.SessionID = session.ID
+	session.Result = result
+	session.UpdatedAt = s.now()
+	if _, err := s.repository.UpdateSession(ctx, session); err != nil {
+		return MatchResult{}, err
+	}
 	return result, nil
 }
 
@@ -484,28 +490,28 @@ func missingQuestions(input MatchInput) []Question {
 		questions = append(questions, Question{
 			Key:     "background",
 			Text:    "你现在最明确的能力、经验或资源是什么？",
-			Options: []string{"内容创作", "客户资源", "行业经验", "技术能力"},
+			Options: []string{"内容创作", "客户或行业资源", "技术能力"},
 		})
 	}
 	if !containsAny(intent, "万", "预算", "资金", "本金") {
 		questions = append(questions, Question{
 			Key:     "budget",
 			Text:    "你计划投入多少启动预算？",
-			Options: []string{"1万以内", "1-3万", "3-10万", "10万以上"},
+			Options: []string{"1万以内", "1-3万", "3万以上"},
 		})
 	}
 	if !containsAny(intent, "小时", "全职", "兼职", "每周", "每天") {
 		questions = append(questions, Question{
 			Key:     "time",
 			Text:    "你每周可以投入多少时间？",
-			Options: []string{"5小时以内", "5-20小时", "20小时以上", "全职"},
+			Options: []string{"5小时以内", "5-20小时", "20小时以上"},
 		})
 	}
 	if !containsAny(intent, "线上", "本地", "服务", "产品", "一人公司", "轻资产") {
 		questions = append(questions, Question{
 			Key:     "preference",
 			Text:    "你更偏好哪类项目形态？",
-			Options: []string{"线上轻资产", "本地服务", "产品工具", "都可以"},
+			Options: []string{"线上轻资产", "本地服务", "都可以"},
 		})
 	}
 	if len(questions) > 4 {

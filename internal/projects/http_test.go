@@ -26,9 +26,11 @@ type fakeApplication struct {
 	filters       OpportunityFilters
 	cases         []CaseStudy
 	caseStudy     CaseStudy
+	caseFilters   CaseFilters
 }
 
-func (a *fakeApplication) ListCases(_ context.Context, _ CaseFilters) ([]CaseStudy, error) {
+func (a *fakeApplication) ListCases(_ context.Context, filters CaseFilters) ([]CaseStudy, error) {
+	a.caseFilters = filters
 	return a.cases, a.err
 }
 func (a *fakeApplication) GetCase(_ context.Context, _ string) (CaseStudy, error) {
@@ -136,7 +138,16 @@ func TestCreateMatchEndpointUsesAuthenticatedUser(t *testing.T) {
 func TestOpportunityEndpointsReturnPublishedCatalog(t *testing.T) {
 	app := &fakeApplication{
 		opportunities: []Opportunity{{ID: 42, Slug: "ai-sales", Title: "AI销售顾问"}},
-		opportunity:   Opportunity{ID: 42, Slug: "ai-sales", Title: "AI销售顾问"},
+		opportunity: Opportunity{
+			ID: 42, Slug: "ai-sales", Title: "AI销售顾问",
+			Sections: []OpportunitySection{{
+				Key: "data", Title: "当前数据", Body: "接口结构化数据", Items: []string{"预算区间"},
+				Blocks: []OpportunitySectionBlock{{
+					Type: "metrics", Title: "关键指标", Columns: 2,
+					Items: []OpportunitySectionItem{{Title: "启动预算", Value: "1万元", Tone: "positive", Progress: 72, Tags: []string{"接口数据"}}},
+				}},
+			}},
+		},
 	}
 	router := projectTestRouter(app)
 	recorder := httptest.NewRecorder()
@@ -152,6 +163,38 @@ func TestOpportunityEndpointsReturnPublishedCatalog(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/projects/opportunities/ai-sales", nil))
 	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"title":"AI销售顾问"`) {
 		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"key":"data"`) ||
+		!strings.Contains(recorder.Body.String(), `"type":"metrics"`) ||
+		!strings.Contains(recorder.Body.String(), `"progress":72`) {
+		t.Fatalf("structured blocks missing from body = %s", recorder.Body.String())
+	}
+}
+
+func TestListCasesEndpointFiltersByOpportunitySlug(t *testing.T) {
+	app := &fakeApplication{cases: []CaseStudy{{
+		ID: 81, Slug: "short-video-first-client", OpportunitySlug: "ai-short-video-studio",
+		OpportunityTitle: "AI短视频脚本工作室", Industry: "内容服务", Title: "首个客户", CaseType: "success",
+	}}}
+	router := projectTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/projects/cases?type=success&opportunity_slug=%20ai-short-video-studio%20&industry=%20%E5%86%85%E5%AE%B9%E6%9C%8D%E5%8A%A1%20",
+		nil,
+	))
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.caseFilters.CaseType != "success" || app.caseFilters.OpportunitySlug != "ai-short-video-studio" || app.caseFilters.Industry != "内容服务" || app.caseFilters.Limit != 20 {
+		t.Fatalf("filters = %+v", app.caseFilters)
+	}
+	if !strings.Contains(recorder.Body.String(), `"slug":"short-video-first-client"`) ||
+		!strings.Contains(recorder.Body.String(), `"opportunity_title":"AI短视频脚本工作室"`) ||
+		!strings.Contains(recorder.Body.String(), `"industry":"内容服务"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }
 

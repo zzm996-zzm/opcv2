@@ -203,6 +203,11 @@ func TestServiceAsksFollowUpForThinMatchRequest(t *testing.T) {
 	if len(result.Questions) == 0 || len(result.Questions) > 4 {
 		t.Fatalf("questions = %+v", result.Questions)
 	}
+	for _, question := range result.Questions {
+		if len(question.Options) != 3 {
+			t.Fatalf("question %q options = %+v, want three choices", question.Key, question.Options)
+		}
+	}
 	if repository.sessions[0].UserID != 42 || repository.sessions[0].Status != StatusNeedsInput {
 		t.Fatalf("stored session = %+v", repository.sessions[0])
 	}
@@ -215,7 +220,7 @@ func TestServiceAnswersFollowUpAndCompletesExistingSession(t *testing.T) {
 	service := NewService(repository, &fakeJSONGenerator{result: ai.GenerateJSONResult{Content: content}})
 
 	result, err := service.AnswerMatch(context.Background(), AnswerMatchInput{UserID: 42, SessionID: 99, Answers: []Answer{{Key: "background", Value: "销售经验"}}})
-	if err != nil || result.SessionID != 99 || repository.sessions[0].Status != StatusCompleted || len(repository.sessions[0].Result.Projects) != 1 {
+	if err != nil || result.SessionID != 99 || repository.sessions[0].Status != StatusCompleted || len(repository.sessions[0].Answers) != 1 || repository.sessions[0].Answers[0].Value != "销售经验" || len(repository.sessions[0].Result.Projects) != 1 {
 		t.Fatalf("result/session = %+v/%+v err=%v", result, repository.sessions[0], err)
 	}
 }

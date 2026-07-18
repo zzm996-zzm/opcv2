@@ -98,6 +98,29 @@ describe("projectsApi", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/exports", expect.objectContaining({ method:"POST", body:JSON.stringify({ source_type:"match", source_id:99 }) }));
   });
 
+  it("downloads a project export with bearer authentication", async () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-06-24T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "", status: "active" }
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ source_type: "match", source_id: 99 }), { status: 200, headers: { "Content-Type": "application/json" } })
+    );
+
+    const blob = await projectsApi.downloadExport(71);
+
+    expect(await blob.text()).toContain('"source_id":99');
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/exports/71/download",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ Authorization: "Bearer access-token" })
+      })
+    );
+  });
+
   it("lists, favorites, and unfavorites project matches", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ favorites: [] }), { status: 200 }))

@@ -1,13 +1,15 @@
-import { useState, type MouseEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState, type MouseEvent } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import LearningFlowSteps from "../components/LearningFlowSteps";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi } from "../lib/learningApi";
+import { projectsApi } from "../lib/projectsApi";
 
 const focusTags = ["提升专业能力", "优化工作效率", "拓展业务视野", "职业发展提升"];
 const timeTags = ["1-2 小时", "3-5 小时", "5-8 小时", "8 小时以上"];
+const defaultProject = "";
 
 const analysisItems = [
   ["AI基础理解", "评估你对AI概念、原理和应用场景的理解程度", "ai"],
@@ -20,13 +22,48 @@ const analysisItems = [
 
 function LearningDiagnosisPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [goal, setGoal] = useState(focusTags[0]);
-  const [project, setProject] = useState("智能客服与市场分析");
+  const [project, setProject] = useState(defaultProject);
   const [focusAbility, setFocusAbility] = useState("");
   const [weeklyTime, setWeeklyTime] = useState(timeTags[1]);
   const [bottleneck, setBottleneck] = useState("");
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState("");
+  const [projectUpdatedAt, setProjectUpdatedAt] = useState("");
+  const [projectSourceState, setProjectSourceState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [projectRefreshKey, setProjectRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const opportunitySlug = searchParams.get("project")?.trim();
+    if (!opportunitySlug) {
+      setProjectSourceState("idle");
+      setProjectUpdatedAt("");
+      return;
+    }
+
+    let active = true;
+    setProjectSourceState("loading");
+    projectsApi.getOpportunity(opportunitySlug)
+      .then((opportunity) => {
+        if (active) {
+          setProject(opportunity.title);
+          setProjectUpdatedAt(opportunity.updated_at ?? "");
+          setProjectSourceState("loaded");
+        }
+      })
+      .catch(() => {
+        if (active) setProjectSourceState("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [projectRefreshKey, searchParams]);
+
+  const projectSourceTime = projectUpdatedAt
+    ? new Date(projectUpdatedAt).toLocaleString("zh-CN", { hour12: false })
+    : "接口未提供更新时间";
 
   async function startDiagnosis(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
@@ -79,23 +116,23 @@ function LearningDiagnosisPage() {
 
           <section className="diagnosis-card data-source-card" aria-label="已接入分析的数据源">
             <div className="diagnosis-section-head">
-              <h2>已接入分析的数据源</h2><button type="button">↻ 更新数据源</button>
+              <h2>本次评估使用的数据</h2><button disabled={!searchParams.get("project") || projectSourceState === "loading"} onClick={() => setProjectRefreshKey((value) => value + 1)} type="button">↻ 重新读取项目</button>
             </div>
             <div className="data-source-grid">
               <article>
                 <i className="source-icon cube" aria-hidden="true" />
                 <div>
-                  <h3>项目超市</h3><p>已识别当前项目</p><strong>智能客服与市场分析</strong><small>更新时间：2024-05-20 10:30</small>
+                  <h3>项目超市</h3><p>{projectSourceState === "loaded" ? "已从项目接口读取" : projectSourceState === "loading" ? "正在读取项目接口" : projectSourceState === "error" ? "项目接口读取失败" : "尚未关联项目"}</p><strong>{project || "请填写目标项目"}</strong><small>{projectSourceState === "loaded" ? `更新时间：${projectSourceTime}` : "仅在关联项目后接入"}</small>
                 </div>
               </article>
               <article>
                 <i className="source-icon profile" aria-hidden="true" />
                 <div>
-                  <h3>任务中心</h3><p>已读取最近任务</p><strong>5 条</strong><small>更新时间：2024-05-20 10:30</small>
+                  <h3>本次填写</h3><p>使用页面中的真实选择</p><strong>{goal}</strong><small>每周可投入：{weeklyTime}</small>
                 </div>
               </article>
-              <article><i className="source-icon cube" aria-hidden="true" /><div><h3>工具箱</h3><p>已分析常用工具</p><strong>8 个</strong><small>更新时间：2024-05-20 10:30</small></div></article>
-              <article><i className="source-icon profile" aria-hidden="true" /><div><h3>用户画像</h3><p>已同步目标与偏好</p><strong>时间投入偏好</strong><small>更新时间：2024-05-20 10:30</small></div></article>
+              <article><i className="source-icon cube" aria-hidden="true" /><div><h3>能力问答</h3><p>提交后生成诊断依据</p><strong>尚未开始</strong><small>不会预填虚构答题结果</small></div></article>
+              <article><i className="source-icon profile" aria-hidden="true" /><div><h3>外部画像</h3><p>本次评估未接入</p><strong>不参与计算</strong><small>结果只使用明确列出的输入</small></div></article>
             </div>
           </section>
 

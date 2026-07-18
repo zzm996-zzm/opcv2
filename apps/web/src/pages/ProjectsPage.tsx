@@ -1,13 +1,12 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
-import ReferenceShell from "../components/ReferenceShell";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
-import { projectsApi, type ProjectCase, type ProjectFavorite, type ProjectMatch, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
+import { projectsApi, type ProjectCase, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
@@ -40,11 +39,24 @@ type DisplayProject = {
 };
 
 type MatchHistoryRow = {
+  id: number;
+  date: string;
+  time: string;
   title: string;
   count: string;
   detail: string;
+  tags: string[];
   href: string;
 };
+
+type IntentFact = {
+  key: string;
+  label: string;
+  value: string;
+  icon: string;
+};
+
+type OpportunitySection = NonNullable<ProjectOpportunity["sections"]>[number];
 
 const opportunityBadges = [
   ["🚀", "高潜力机会", "优质赛道机会"],
@@ -69,6 +81,15 @@ const detailTabs = [
   ["avoid", "要避免的行为", "要避免的行为"]
 ] as const;
 
+function saveProjectExport(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 
 function toDisplayProject(project: ProjectMatch): DisplayProject {
   return {
@@ -86,31 +107,62 @@ function toDisplayProject(project: ProjectMatch): DisplayProject {
 function toHistoryRow(session: ProjectMatchSession): MatchHistoryRow {
   const projects = session.result?.projects ?? [];
   const firstProject = projects[0];
+  const createdAt = new Date(session.created_at);
   return {
+    id: session.id,
+    date: Number.isNaN(createdAt.getTime()) ? "--" : createdAt.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).replaceAll("/", "-"),
+    time: Number.isNaN(createdAt.getTime()) ? "--:--" : createdAt.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }),
     title: firstProject?.title ?? session.intent,
-    count: `${projects.length || 0} 个匹配机会`,
-    detail: session.intent || session.status,
+    count: `${projects.length || 0} 个项目`,
+    detail: [session.intent, ...(session.answers ?? []).map((answer) => answer.value)].filter(Boolean).join(" · ") || session.status,
+    tags: firstProject?.tags?.slice(0, 3) ?? [],
     href: session.status === "needs_input" ? `/projects/matches/${session.id}/questions` : `/projects/matches/${session.id}/results`
   };
 }
 
-function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
-  if (variant === "home") {
-    return (
-      <ReferenceShell className="ref-project-shell" mainClassName="ref-project-page">
-        <div className="ref-project-layout">
-          <main className="ref-project-main"><MarketHome /></main>
-          <ProjectCopilot reference variant={variant} />
-        </div>
-      </ReferenceShell>
-    );
-  }
+function intentFacts(intent: string): IntentFact[] {
+  const normalized = intent.trim();
+  const budget = normalized.match(/(?:预算|资金|本金)[^，。；;]{0,12}/)?.[0]
+    ?? normalized.match(/\d+(?:\.\d+)?\s*(?:万|元)/)?.[0]
+    ?? "待补充";
+  const time = normalized.match(/(?:每天|每周|每日|每月)?\s*\d+(?:-\d+)?\s*(?:小时|天|周|个月)/)?.[0]
+    ?? (/全职/.test(normalized) ? "全职投入" : /兼职/.test(normalized) ? "兼职投入" : "待补充");
+  const scale = /一人公司|一个人|个人/.test(normalized)
+    ? "一人公司"
+    : /团队|合伙/.test(normalized)
+      ? "小团队"
+      : "待补充";
+  const direction = /内容|短视频|写作|课程/.test(normalized)
+    ? "内容创作"
+    : /销售|获客|客户/.test(normalized)
+      ? "销售获客"
+      : /数据|报表|自动化/.test(normalized)
+        ? "数据提效"
+        : "待补充";
+  const model = /线上/.test(normalized)
+    ? "线上优先"
+    : /本地|线下/.test(normalized)
+      ? "本地服务"
+      : /轻资产/.test(normalized)
+        ? "轻资产"
+        : "待补充";
 
+  return [
+    { key: "budget", label: "预算信息", value: budget, icon: "wallet" },
+    { key: "scale", label: "团队规模", value: scale, icon: "person" },
+    { key: "direction", label: "能力方向", value: direction, icon: "pen" },
+    { key: "model", label: "项目偏好", value: model, icon: "cube" },
+    { key: "time", label: "投入时间", value: time, icon: "clock" }
+  ];
+}
+
+function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
   return (
     <V4PageShell className="project-market-shell" showCopilotMini={false}>
       <section className="project-market-page" aria-label="项目超市">
-        <div className="project-market-layout">
+        <div className={`project-market-layout pm-layout-${variant}`}>
           <main className="project-market-main">
+            {variant === "home" && <MarketHome />}
             {variant === "match" && <MatchRequest />}
             {variant === "explore" && <OpportunityExplore />}
             {variant === "cases" && <CaseLibrary />}
@@ -148,6 +200,8 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
 function MarketHome() {
   const [featured, setFeatured] = useState<ProjectOpportunity[]>([]);
   const [featuredError, setFeaturedError] = useState("");
+  const [query, setQuery] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     let active = true;
@@ -166,19 +220,19 @@ function MarketHome() {
           <h1>项目超市</h1>
           <h2>发现下一个可落地机会</h2>
           <p>从真实案例、赛道数据、失败教训和增长路径中筛出适合你的项目。</p>
-          <div className="ref-project-search">
+          <form className="ref-project-search" onSubmit={(event) => { event.preventDefault(); navigate(`/projects/explore${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`); }}>
             <span aria-hidden="true">⌕</span>
-            <input aria-label="搜索项目名称、行业、关键词" placeholder="搜索项目名称、行业、关键词" />
-            <button type="button" aria-label="搜索">⌕</button>
-          </div>
+            <input aria-label="搜索项目名称、行业、关键词" onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目名称、行业、关键词" value={query} />
+            <button type="submit" aria-label="搜索">⌕</button>
+          </form>
         </div>
         <img className="ref-project-hero-art" alt="" src="/project-market/home-hero.jpg" />
       </section>
 
       <section className="ref-project-badges" aria-label="项目机会标签">
-        {opportunityBadges.map(([icon, title, detail]) => (
+        {opportunityBadges.map(([, title, detail], index) => (
           <article key={title}>
-            <span>{icon}</span>
+            <span className={`pm-home-badge-icon badge-${index + 1}`} aria-hidden="true" />
             <strong>{title}</strong>
             <small>{detail}</small>
           </article>
@@ -209,7 +263,7 @@ function MarketHome() {
           {featuredError ? <p className="form-error" role="alert">{featuredError}</p> : null}
           {!featuredError && featured.length === 0 ? <div className="module-empty-state" role="status">暂无精选机会</div> : null}
           {featured.map((item) => (
-            <article key={item.id}>
+            <article className={`pm-project-${item.slug}`} key={item.id}>
               <div className="pm-thumb" />
               <h3>{item.title}</h3>
               <p>{item.summary}</p>
@@ -227,6 +281,7 @@ function MarketHome() {
 }
 
 function MatchRequest() {
+  const exampleIntent = "我想找适合一个人做的线上项目，预算3万以内，每天投入1-2小时，希望尽快看到第一笔收入。";
   const [intent, setIntent] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
   const [error, setError] = useState("");
@@ -250,48 +305,56 @@ function MatchRequest() {
   }
 
   const recognizedFactors = [
-    ["需求描述", intent.trim() ? `已输入 ${intent.trim().length} 字` : "待填写"],
-    ["预算信息", /预算|资金|本金|\d+\s*万/.test(intent) ? "已包含" : "待补充"],
-    ["投入时间", /小时|全职|兼职|每周|每天/.test(intent) ? "已包含" : "待补充"],
-    ["项目偏好", /线上|本地|服务|产品|一人公司|轻资产/.test(intent) ? "已包含" : "待补充"]
+    { title: "需求描述", detail: intent.trim() ? `已输入 ${intent.trim().length} 字` : "待填写", icon: "description" },
+    { title: "预算信息", detail: /预算|资金|本金|\d+\s*万/.test(intent) ? "已包含" : "待补充", icon: "budget" },
+    { title: "投入时间", detail: /小时|全职|兼职|每周|每天/.test(intent) ? "已包含" : "待补充", icon: "time" },
+    { title: "项目偏好", detail: /线上|本地|服务|产品|一人公司|轻资产/.test(intent) ? "已包含" : "待补充", icon: "preference" }
   ] as const;
 
   return (
     <>
-      <ProjectHero title="AI匹配" subtitle="让智活 Copilot 根据你的目标、资源与偏好，帮你筛出最适合的项目机会" action="匹配历史" href="/projects/history" />
+      <ProjectHero
+        variant="match"
+        breadcrumb={["项目超市", "AI匹配"]}
+        title="AI匹配"
+        subtitle="让智活 Copilot 根据你的目标、资源与偏好，帮你筛出最适合的项目机会"
+        action="匹配历史"
+        href="/projects/history"
+      />
       <form onSubmit={submit}>
         <section className="pm-panel pm-input-panel">
-        <h2>告诉我你的目标、资源与偏好</h2>
-        <textarea
-          aria-label="项目匹配需求"
-          onChange={(event) => setIntent(event.target.value)}
-          placeholder="例如：我想找适合一个人做的线上项目，预算3万以内，有1-2小时/天时间，希望尽快见到收入..."
-          value={intent}
-        />
-        <div className="pm-input-tools">
-          <span>参考案例</span>
-          <span>上传资料</span>
-          <span>语音输入</span>
-          <button aria-label="提交匹配需求" disabled={!intent.trim() || status === "submitting"} type="submit">→</button>
-        </div>
+          <h2>告诉我你的目标、资源与偏好</h2>
+          <textarea
+            aria-label="项目匹配需求"
+            onChange={(event) => setIntent(event.target.value)}
+            placeholder="例如：我想找适合一个人做的线上项目，预算3万以内，有1-2小时/天时间，希望尽快见到收入..."
+            value={intent}
+          />
+          <div className="pm-input-tools">
+            <button className="pm-input-tool example" onClick={() => setIntent(exampleIntent)} type="button">参考案例</button>
+            <button className="pm-input-tool upload" disabled title="上传资料暂未开放" type="button">上传资料</button>
+            <button className="pm-input-tool voice" disabled title="语音输入暂未开放" type="button">语音输入</button>
+            <button aria-label="提交匹配需求" disabled={!intent.trim() || status === "submitting"} type="submit">→</button>
+          </div>
         </section>
         <section className="pm-panel pm-recognized">
           <div className="pm-section-head">
-            <h2>已识别的信息</h2>
+            <h2>已识别的信息 <small>（实时）</small></h2>
             <button onClick={() => setIntent("")} type="button">清空重填</button>
           </div>
           <div className="pm-factor-grid">
-            {recognizedFactors.map(([title, detail]) => (
-              <article key={title}>
-                <span aria-hidden="true" />
-                <strong>{title}</strong>
-                <small>{detail}</small>
+            {recognizedFactors.map((factor) => (
+              <article key={factor.title}>
+                <span className={factor.icon} aria-hidden="true" />
+                <strong>{factor.title}</strong>
+                <small>{factor.detail}</small>
               </article>
             ))}
           </div>
           <button className="pm-primary-button" disabled={!intent.trim() || status === "submitting"} type="submit">
-            {status === "submitting" ? "匹配中..." : "提交给 AI 分析"}
+            <span aria-hidden="true">✦</span>{status === "submitting" ? "匹配中..." : "提交给 AI 分析"}
           </button>
+          <small className="pm-analysis-estimate">约 20-30 秒生成结果</small>
           {error && <p className="form-error" role="alert">{error}</p>}
         </section>
       </form>
@@ -301,9 +364,17 @@ function MatchRequest() {
 }
 
 function OpportunityExplore() {
+  const [searchParams] = useSearchParams();
   const [items, setItems] = useState<ProjectOpportunity[]>([]);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [industry, setIndustry] = useState("");
+  const [budget, setBudget] = useState("");
+  const [difficulty, setDifficulty] = useState("");
+  const [resource, setResource] = useState("");
+  const [sortMode, setSortMode] = useState<"recommend" | "latest" | "match">("recommend");
+  const [activeDirection, setActiveDirection] = useState("全部机会");
+  const [page, setPage] = useState(1);
 
   async function loadOpportunities(search = "") {
     try {
@@ -317,50 +388,130 @@ function OpportunityExplore() {
   }
 
   useEffect(() => {
-    void loadOpportunities();
-  }, []);
+    void loadOpportunities(searchParams.get("q") ?? "");
+  }, [searchParams]);
+
+  const filterOptions = useMemo(() => ({
+    industries: [...new Set(items.map((item) => item.industry).filter(Boolean))],
+    budgets: [...new Set(items.map((item) => item.budget_band).filter(Boolean))],
+    difficulties: [...new Set(items.map((item) => item.difficulty).filter(Boolean))],
+    resources: [...new Set(items.flatMap((item) => item.resource_requirements).filter(Boolean))]
+  }), [items]);
+
+  const visibleItems = useMemo(() => {
+    const filtered = items.filter((item) => {
+      const matchesDirection = activeDirection === "全部机会"
+        || (activeDirection === "低竞争蓝海" && /较低|低/.test(item.difficulty))
+        || (activeDirection === "小成本启动" && (item.tags.includes("低成本启动") || /^0[.-]/.test(item.budget_band)))
+        || (activeDirection === "最新收录" && Boolean(item.published_at))
+        || (activeDirection === "一人公司" && item.tags.includes("一人公司"))
+        || (activeDirection === "可复制案例" && item.tags.some((tag) => /可复制|可复用/.test(tag)));
+      return matchesDirection
+      && (
+      (!industry || item.industry === industry)
+      && (!budget || item.budget_band === budget)
+      && (!difficulty || item.difficulty === difficulty)
+      && (!resource || item.resource_requirements.includes(resource))
+      );
+    });
+    if (sortMode === "latest") {
+      return [...filtered].sort((left, right) => Date.parse(right.published_at ?? "") - Date.parse(left.published_at ?? ""));
+    }
+    if (sortMode === "match") {
+      const difficultyRank = (value: string) => /较低|低/.test(value) ? 0 : /较高|高/.test(value) ? 2 : 1;
+      return [...filtered].sort((left, right) => difficultyRank(left.difficulty) - difficultyRank(right.difficulty));
+    }
+    return filtered;
+  }, [activeDirection, budget, difficulty, industry, items, resource, sortMode]);
+
+  const directions = ["全部机会", "低竞争蓝海", "小成本启动", "最新收录", "一人公司", "可复制案例"];
+  const pageSize = 8;
+  const pageCount = Math.max(1, Math.ceil(visibleItems.length / pageSize));
+  const pagedItems = visibleItems.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeDirection, budget, difficulty, industry, query, resource, sortMode]);
 
   return (
     <>
-      <ProjectHero title="机会探索" subtitle="按赛道热度、启动门槛、投入周期和个人适配度筛选项目机会" action="AI匹配" href="/projects/match" />
-      <section className="pm-panel pm-explore-controls">
-        <div className="pm-search wide">
-          <span aria-hidden="true">⌕</span>
-          <input aria-label="搜索机会赛道" onChange={(event) => setQuery(event.target.value)} placeholder="搜索行业、项目、关键词" value={query} />
-          <button type="button" aria-label="搜索机会" onClick={() => void loadOpportunities(query)}>⌕</button>
+      <section className="pm-catalog-hero explore">
+        <div className="pm-catalog-hero-copy">
+          <h1>机会探索</h1>
+          <p>浏览真实案例、赛道数据和增长路径，发现最适合你的项目机会</p>
+          <div className="pm-catalog-search">
+            <span aria-hidden="true">⌕</span>
+            <input aria-label="搜索机会赛道" onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void loadOpportunities(query); }} placeholder="搜索项目名称、行业、关键词或痛点" value={query} />
+            <button type="button" aria-label="搜索机会" onClick={() => void loadOpportunities(query)}>⌕</button>
+          </div>
+          <small>AI 智能推荐词</small>
+          <div className="pm-hero-chip-row" aria-label="AI 智能推荐词">
+            {["一人公司", "低成本启动", "可复制项目", "副业变现", "AI应用", "出海机会"].map((item) => <button key={item} onClick={() => setQuery(item)} type="button">{item}</button>)}
+          </div>
         </div>
-        <div className="pm-explore-tabs" aria-label="机会筛选">
-          {["全部机会", "高潜力机会", "低竞争蓝海", "小成本启动", "近期爆发", "一人公司"].map((item, index) => (
-            <button className={index === 0 ? "active" : ""} key={item} type="button">{item}</button>
-          ))}
-        </div>
-      </section>
-      <section className="pm-explore-layout">
-        <div className="pm-explore-grid">
-          {error ? <p className="form-error" role="alert">{error}</p> : null}
-          {!error && items.length === 0 ? <div className="module-empty-state" role="status">暂无已发布项目机会</div> : null}
-          {items.map((item, index) => (
-            <article className="pm-explore-card" key={item.id}>
-              <div className="pm-thumb" />
-              <span>#{index + 1}</span>
-              <h2>{item.title}</h2>
-              <p>{item.summary}</p>
-              <div className="pm-mini-tags">
-                {[item.industry, item.difficulty, ...item.tags].filter(Boolean).map((tag) => <span key={tag}>{tag}</span>)}
-              </div>
-              <footer>
-                <small>{item.budget_band ? `适合预算 ${item.budget_band}` : "预算待运营补充"}</small>
-                <Link to={`/projects/opportunities/${item.slug}`}>查看机会</Link>
-              </footer>
-            </article>
-          ))}
-        </div>
-        <aside className="pm-insight-panel">
-          <h2>机会雷达</h2>
-          <p>基于当前已发布项目目录筛选，不展示无来源热度数据。</p>
-          <div className="module-empty-state">暂无机会洞察</div>
+        <div className="pm-catalog-hero-art" aria-hidden="true" />
+        <aside className="pm-hero-advice" aria-label="AI 智能筛选建议">
+          <strong><span aria-hidden="true">✦</span> AI 智能筛选建议</strong>
+          <small>根据当前目录推荐</small>
+          <ul>
+            <li>偏好：{items.filter((item) => item.tags.includes("一人公司")).length} 个一人公司方向</li>
+            <li>优势：{items.filter((item) => /较低|低/.test(item.difficulty)).length} 个低门槛项目</li>
+            <li>关注：{items.filter((item) => item.tags.some((tag) => /可复制|可复用/.test(tag))).length} 个可复制方向</li>
+          </ul>
+          <Link to="/projects/match">查看完整画像分析 →</Link>
         </aside>
       </section>
+
+      <section className="pm-catalog-filter" aria-label="项目机会筛选">
+        <label><span>行业</span><select aria-label="按行业筛选" onChange={(event) => setIndustry(event.target.value)} value={industry}><option value="">全部行业</option>{filterOptions.industries.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>预算区间</span><select aria-label="按预算筛选" onChange={(event) => setBudget(event.target.value)} value={budget}><option value="">全部预算</option>{filterOptions.budgets.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>难度</span><select aria-label="按难度筛选" onChange={(event) => setDifficulty(event.target.value)} value={difficulty}><option value="">全部难度</option>{filterOptions.difficulties.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>资源要求</span><select aria-label="按资源要求筛选" onChange={(event) => setResource(event.target.value)} value={resource}><option value="">全部资源</option>{filterOptions.resources.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <div className="pm-sort-control" aria-label="项目排序">
+          <span>排序</span>
+          <div>
+            {(["recommend", "latest", "match"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ recommend: "默认", latest: "最新", match: "难度" }[mode]}</button>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="pm-direction-strip">
+        <header><h2>热门探索方向</h2><button onClick={() => setActiveDirection("全部机会")} type="button">查看全部方向 →</button></header>
+        <div>
+          {directions.map((item, index) => (
+            <button aria-label={item} className={activeDirection === item ? "active" : ""} key={item} onClick={() => setActiveDirection(item)} type="button">
+              <i aria-hidden="true">{["↗", "≈", "¥", "ϟ", "◉", "▣"][index]}</i>
+              <span><strong>{item}</strong><small>{["查看全部已发布项目", "避开红海竞争", "低成本低风险", "近期发布项目", "轻量高效模式", "验证可复制性"][index]}</small></span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="pm-explore-grid" aria-label="项目机会列表">
+        {error ? <p className="form-error" role="alert">{error}</p> : null}
+        {!error && visibleItems.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布项目机会</div> : null}
+        {pagedItems.map((item) => (
+          <article className={`pm-explore-card pm-project-${item.slug}`} key={item.id}>
+            <div className="pm-thumb" />
+            <h2>{item.title}</h2>
+            <p>{item.summary}</p>
+            <footer>
+              <strong>{item.budget_band || "预算待补充"}</strong>
+              <small>{item.difficulty || "难度待补充"}</small>
+              <div className="pm-mini-tags">{item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div>
+              <Link aria-label="查看机会" to={`/projects/opportunities/${item.slug}`}>查看拆解 →</Link>
+            </footer>
+          </article>
+        ))}
+      </section>
+
+      <nav className="pm-pagination" aria-label="项目机会分页">
+        <button aria-label="上一页" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} type="button">‹</button>
+        {Array.from({ length: Math.min(pageCount, 5) }, (_, index) => index + 1).map((item) => <button aria-current={page === item ? "page" : undefined} className={page === item ? "active" : ""} key={item} onClick={() => setPage(item)} type="button">{item}</button>)}
+        {pageCount > 5 ? <span>… {pageCount}</span> : null}
+        <button aria-label="下一页" disabled={page === pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} type="button">›</button>
+        <small>共 {visibleItems.length} 个已发布项目</small>
+      </nav>
     </>
   );
 }
@@ -368,48 +519,139 @@ function OpportunityExplore() {
 function CaseLibrary() {
   const [cases, setCases] = useState<ProjectCase[]>([]);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [caseType, setCaseType] = useState("");
+  const [sortMode, setSortMode] = useState<"latest" | "popular" | "saved">("latest");
+  const [caseIndustry, setCaseIndustry] = useState("");
+  const [caseSource, setCaseSource] = useState("");
+  const [caseOutcome, setCaseOutcome] = useState("");
+  const [caseAction, setCaseAction] = useState("");
+
+  async function loadCases(nextType = caseType) {
+    try {
+      const payload = await projectsApi.listCases({ caseType: nextType === "success" || nextType === "failure" ? nextType : undefined });
+      setCases(payload.cases);
+      setError("");
+    } catch (loadError) {
+      setCases([]);
+      setError(apiErrorMessage(loadError, "暂时无法读取项目案例"));
+    }
+  }
+
   useEffect(() => {
     let active = true;
     projectsApi.listCases().then((payload) => { if (active) { setCases(payload.cases); setError(""); } })
       .catch((loadError) => { if (active) { setCases([]); setError(apiErrorMessage(loadError, "暂时无法读取项目案例")); } });
     return () => { active = false; };
   }, []);
+
+  const visibleCases = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase("zh-CN");
+    const typed = caseType === "track" ? cases.filter((item) => Boolean(item.opportunity_slug)) : cases;
+    const searched = normalized
+      ? typed.filter((item) => `${item.title}${item.summary}${item.outcome}`.toLocaleLowerCase("zh-CN").includes(normalized))
+      : typed;
+    const filtered = searched.filter((item) => (
+      (!caseIndustry || item.industry === caseIndustry)
+      && (!caseSource || item.source_title === caseSource)
+      && (!caseOutcome || item.outcome === caseOutcome)
+      && (!caseAction || (item.key_actions ?? []).includes(caseAction))
+    ));
+    if (sortMode === "latest") return [...filtered].sort((left, right) => Date.parse(right.captured_at) - Date.parse(left.captured_at));
+    if (sortMode === "popular") return [...filtered].sort((left, right) => (right.key_actions ?? []).length - (left.key_actions ?? []).length);
+    return [...filtered].sort((left, right) => (right.lessons ?? []).length - (left.lessons ?? []).length);
+  }, [caseAction, caseIndustry, caseOutcome, caseSource, caseType, cases, query, sortMode]);
+
+  const lessons = cases.flatMap((item) => (item.lessons ?? []).map((lesson) => ({ lesson, source: item.source_title }))).slice(0, 4);
+  const pitfalls = cases.flatMap((item) => (item.pitfalls ?? []).map((pitfall) => ({ pitfall, source: item.source_title }))).slice(0, 3);
+  const caseIndustries = [...new Set(cases.map((item) => item.industry).filter(Boolean))] as string[];
+  const caseSources = [...new Set(cases.map((item) => item.source_title).filter(Boolean))];
+  const caseOutcomes = [...new Set(cases.map((item) => item.outcome).filter(Boolean))];
+  const caseActions = [...new Set(cases.flatMap((item) => item.key_actions ?? []).filter(Boolean))];
+
+  async function selectCaseType(nextType: string) {
+    setCaseType(nextType);
+    await loadCases(nextType);
+  }
+
   return (
     <>
-      <ProjectHero title="真实案例库" subtitle="用真实创业样板、失败复盘和可复制经验反推你的启动路径" action="机会探索" href="/projects/explore" />
-      <section className="pm-panel pm-case-filter">
-        <div className="pm-explore-tabs" aria-label="案例分类">
-          {["全部案例", "成功样板", "失败教训", "低成本启动", "可复制模型", "近期更新"].map((item, index) => (
-            <button className={index === 0 ? "active" : ""} key={item} type="button">{item}</button>
-          ))}
+      <section className="pm-catalog-hero cases">
+        <div className="pm-catalog-hero-copy">
+          <p>项目超市&nbsp;&nbsp;/&nbsp;&nbsp;真实案例库</p>
+          <h1>真实案例库</h1>
+          <strong>浏览成功与失败案例，学习可复制的方法，也避开常见陷阱</strong>
+          <div className="pm-case-hero-controls">
+            <div className="pm-catalog-search compact">
+              <span aria-hidden="true">⌕</span>
+              <input aria-label="搜索真实案例" onChange={(event) => setQuery(event.target.value)} placeholder="搜索案例名称、行业、关键词" value={query} />
+              <button aria-label="搜索案例" onClick={() => void loadCases()} type="button">⌕</button>
+            </div>
+            <div className="pm-case-tabs" aria-label="案例分类">
+              {[
+                ["全部", ""],
+                ["成功案例", "success"],
+                ["失败案例", "failure"],
+                ["赛道样本", "track"]
+              ].map(([label, value]) => <button className={caseType === value ? "active" : ""} key={label} onClick={() => void selectCaseType(value)} type="button">{label}</button>)}
+            </div>
+          </div>
+        </div>
+        <div className="pm-catalog-hero-art" aria-hidden="true" />
+        <aside className="pm-hero-assurance" aria-label="案例来源保障">
+          <strong><span aria-hidden="true">◆</span> 全部案例均标注来源，可追溯</strong>
+          <ul><li>来源清晰可靠</li><li>数据真实可查</li><li>方法可复现</li></ul>
+          <small>已收录案例 <b>{cases.length.toLocaleString("zh-CN")}</b> 个</small>
+        </aside>
+      </section>
+
+      <section className="pm-catalog-filter cases" aria-label="真实案例筛选">
+        <label><span>行业</span><select aria-label="案例行业" onChange={(event) => setCaseIndustry(event.target.value)} value={caseIndustry}><option value="">全部行业</option>{caseIndustries.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>来源</span><select aria-label="案例来源" onChange={(event) => setCaseSource(event.target.value)} value={caseSource}><option value="">全部来源</option>{caseSources.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>结果</span><select aria-label="案例结果" onChange={(event) => setCaseOutcome(event.target.value)} value={caseOutcome}><option value="">全部结果</option>{caseOutcomes.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>关键动作</span><select aria-label="案例关键动作" onChange={(event) => setCaseAction(event.target.value)} value={caseAction}><option value="">全部动作</option>{caseActions.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <div className="pm-sort-control" aria-label="案例排序">
+          <span>排序</span>
+          <div>
+            {(["latest", "popular", "saved"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ latest: "最新发布", popular: "动作丰富", saved: "经验最多" }[mode]}</button>)}
+          </div>
         </div>
       </section>
-      <section className="pm-case-layout">
+
+      <section className="pm-case-featured">
+        <header><h2>精选案例</h2><span>全部案例均带来源记录</span></header>
         <div className="pm-case-grid">
           {error ? <p className="form-error" role="alert">{error}</p> : null}
-          {!error && cases.length === 0 ? <div className="module-empty-state" role="status">暂无已发布案例</div> : null}
-          {cases.map((item) => (
-            <article className="pm-case-card" key={item.id}>
+          {!error && visibleCases.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布案例</div> : null}
+          {visibleCases.slice(0, 4).map((item) => (
+            <article className={`pm-case-card pm-case-${item.slug}`} key={item.id}>
               <div className="pm-thumb" />
+              <span className="pm-case-save" aria-hidden="true">☆</span>
               <div>
-                <small>{item.case_type === "success" ? "成功样板" : "失败复盘"}</small>
                 <h2>{item.title}</h2>
                 <strong>{item.outcome}</strong>
+                <div className="pm-mini-tags"><span>{item.case_type === "success" ? "成功案例" : "失败复盘"}</span><span>{(item.key_actions ?? []).length} 个关键动作</span></div>
                 <p>{item.summary}</p>
               </div>
               <footer>
-                <span>关键动作 {item.key_actions.length} 个</span>
-                <span>踩坑提醒 {item.pitfalls.length} 条</span>
+                <a href={item.source_url} rel="noreferrer" target="_blank">查看案例</a>
+                <Link to={item.opportunity_slug ? `/projects/opportunities/${item.opportunity_slug}` : "/projects/explore"}>查看拆解</Link>
                 <a href={item.source_url} rel="noreferrer" target="_blank">{item.source_title}</a>
               </footer>
             </article>
           ))}
         </div>
-        <aside className="pm-insight-panel">
-          <h2>案例共性</h2>
-          <p>共性结论需要基于已发布案例证据生成。</p>
-          <div className="module-empty-state">暂无案例共性结论</div>
-        </aside>
+      </section>
+
+      <section className="pm-case-learning-grid">
+        <article>
+          <header><h2 aria-label="案例共性">可学要点</h2><span>查看全部 →</span></header>
+          {lessons.length === 0 ? <div className="module-empty-state">暂无已发布经验</div> : lessons.map((item, index) => <div key={`${item.lesson}-${index}`}><b aria-hidden="true">{index + 1}</b><span><strong>{item.lesson}</strong><small>来源：{item.source}</small></span></div>)}
+        </article>
+        <article className="failure">
+          <header><h2>失败教训</h2><span>查看全部 →</span></header>
+          {pitfalls.length === 0 ? <div className="module-empty-state">暂无失败教训</div> : pitfalls.map((item, index) => <div key={`${item.pitfall}-${index}`}><b aria-hidden="true">!</b><span><strong>{item.pitfall}</strong><small>来源：{item.source}</small></span></div>)}
+        </article>
       </section>
     </>
   );
@@ -426,6 +668,7 @@ function MatchQuestions() {
   const questions = session?.questions ?? [];
   const completedCount = questions.filter((question) => Boolean(selectedAnswers[question.key])).length;
   const allAnswered = questions.length > 0 && completedCount === questions.length;
+  const baseFacts = session ? intentFacts(session.intent) : [];
 
   useEffect(() => {
     const id = Number(matchId);
@@ -469,19 +712,37 @@ function MatchQuestions() {
 
   return (
     <>
-      <ProjectHero title="AI补充提问" subtitle="为了更精准地匹配适合你的项目，Copilot 需要再确认几个关键信息" action="匹配历史" href="/projects/history" />
+      <ProjectHero
+        variant="questions"
+        breadcrumb={["项目超市", "AI匹配", "AI补充提问"]}
+        title="AI补充提问"
+        subtitle="为了更精准地匹配适合你的项目，Copilot 需要再确认几个关键信息"
+        action="匹配历史"
+        href="/projects/history"
+      />
       <section className="pm-step-card">
-        {["提交需求 已完成", "AI补充提问 进行中", "匹配结果 待生成"].map((step, index) => (
-          <article className={index === 1 ? "active" : ""} key={step}>
-            <b>{index + 1}</b>
-            <span>{step}</span>
+        {[
+          ["提交需求", "已完成"],
+          ["AI补充提问", "进行中"],
+          ["匹配结果", "待生成"]
+        ].map(([title, state], index) => (
+          <article className={index === 0 ? "complete" : index === 1 ? "active" : ""} key={title}>
+            <b>{index === 0 ? "✓" : index + 1}</b>
+            <span><strong>{title}</strong><small>{state}</small></span>
           </article>
         ))}
       </section>
       {session ? (
-        <section className="pm-panel pm-session-summary">
-          <div><small>已识别的基础需求</small><strong>{session.intent}</strong></div>
-          <span>{questions.length} 项待确认</span>
+        <section className="pm-panel pm-session-summary" aria-label="已识别的基础需求">
+          <h2>已识别你的基础需求</h2>
+          <div className="pm-session-facts">
+            {baseFacts.map((fact) => (
+              <article key={fact.key}>
+                <i className={fact.icon} aria-hidden="true" />
+                <span><strong>{fact.value}</strong><small>{fact.label}</small></span>
+              </article>
+            ))}
+          </div>
         </section>
       ) : null}
       {loading ? <div className="module-empty-state" role="status">正在读取补充问题...</div> : null}
@@ -516,12 +777,11 @@ function MatchQuestions() {
           </article>
         ))}
         <div className="pm-question-actions">
+          <button className="pm-primary-button" disabled={!allAnswered || submitting} onClick={() => void submitAnswers()} title={allAnswered ? undefined : "请先完成全部问题"} type="button"><span aria-hidden="true">✦</span>{submitting ? "生成中..." : "生成匹配结果"}</button>
           <Link className="pm-question-back" to="/projects/match"><span aria-hidden="true">←</span><span>返回修改基础需求</span></Link>
-          <div className="pm-question-action-buttons">
-            <Link className="pm-question-defer" to="/projects">稍后继续</Link>
-            <button className="pm-primary-button" disabled={!allAnswered || submitting} onClick={() => void submitAnswers()} title={allAnswered ? undefined : "请先完成全部问题"} type="button">{submitting ? "生成中..." : "生成匹配结果"}</button>
-          </div>
+          <Link className="pm-question-defer" to="/projects">稍后继续</Link>
         </div>
+        <small className="pm-question-privacy">你的选择将帮助 AI 更精准推荐，信息仅用于匹配分析</small>
       </section>
       ) : null}
     </>
@@ -542,6 +802,9 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
   const persistedSessionId = sessionId ?? loadedSession?.id ?? requestedSessionId;
   const [taskMessage, setTaskMessage] = useState("");
   const [taskError, setTaskError] = useState("");
+  const matchFacts = loadedSession?.intent
+    ? intentFacts([loadedSession.intent, ...(loadedSession.answers ?? []).map((answer) => answer.value)].join(" "))
+    : [];
 
   useEffect(() => {
     if (projects !== undefined) return;
@@ -609,13 +872,12 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
           <small>基于你的能力、预算、时间与目标，智活 Copilot 已完成项目适配分析</small>
         </div>
         <div>
-          <Link to="/projects/match">重新匹配</Link>
+          <Link className="rematch" to="/projects/match">重新匹配</Link>
           <button disabled={!persistedSessionId || favoritePending} onClick={() => void toggleFavorite()} type="button">
             {favoritePending ? "处理中..." : favorited ? "取消收藏" : "收藏结果"}
           </button>
           <Link to={persistedSessionId ? `/projects/matches/${persistedSessionId}/export` : "/projects/export"}>导出报告</Link>
           <Link to={`/projects/compare${persistedProjects.some((item) => item.opportunitySlug) ? `?items=${persistedProjects.map((item) => item.opportunitySlug).filter(Boolean).join(",")}` : ""}`}>加入对比</Link>
-          <button disabled={!persistedSessionId} onClick={() => void generateTasks()} type="button">生成落地任务</button>
         </div>
       </div>
       {loading ? <div className="module-empty-state" role="status">正在读取最近一次匹配结果...</div> : null}
@@ -625,7 +887,11 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
       ) : null}
       {taskMessage ? <p className="form-success" role="status">{taskMessage}</p> : null}
       {taskError ? <p className="form-error" role="alert">{taskError}</p> : null}
-      {loadedSession?.intent ? <div className="pm-condition-strip"><span>匹配需求：{loadedSession.intent}</span></div> : null}
+      {matchFacts.length > 0 ? (
+        <section className="pm-result-condition-strip" aria-label="本次匹配条件">
+          {matchFacts.map((fact) => <article key={fact.key}><i className={fact.icon} aria-hidden="true" /><span><small>{fact.label}</small><strong>{fact.value}</strong></span></article>)}
+        </section>
+      ) : null}
       {persistedProjects.length > 0 ? <section className="pm-results-layout">
         <div className="pm-result-list">
           {persistedProjects.map((project) => (
@@ -646,7 +912,7 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
               <div className="pm-result-actions">
                 <Link to={project.opportunitySlug ? `/projects/opportunities/${project.opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看拆解</Link>
                 <Link aria-label={`加入对比 ${project.title}`} to={project.opportunitySlug ? `/projects/compare?items=${project.opportunitySlug}` : "/projects/compare"}>加入对比</Link>
-                <button disabled={!persistedSessionId || favoritePending} onClick={() => void toggleFavorite()} type="button">{favorited ? "取消收藏" : "收藏"}</button>
+                <button disabled={!persistedSessionId || favoritePending} onClick={() => void toggleFavorite()} type="button">{favorited ? "取消收藏" : "收藏结果"}</button>
               </div>
               <p>风险提示：{project.risk}</p>
             </article>
@@ -654,10 +920,16 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
         </div>
         <aside className="pm-reason-card">
           <h2>推荐依据说明</h2>
-          <p>以上匹配度、推荐理由和风险提示来自该次 AI 匹配记录，不代表已验证的市场事实。</p>
-          <article>来源：匹配记录 #{persistedSessionId}</article>
-          <article>口径：模型推演，需结合已发布项目资料与外部证据验证</article>
+          <p>以下内容直接来自当前匹配记录，最终仍需结合项目来源逐项验证。</p>
+          <div className="pm-reason-evidence">
+            {(persistedProjects[0]?.reasons ?? []).map((reason, index) => (
+              <article key={reason}><b>{index + 1}</b><span>{reason}</span></article>
+            ))}
+          </div>
+          <small>来源：匹配记录 #{persistedSessionId} · 模型推演内容需结合已发布项目资料验证</small>
           <Link to={persistedProjects[0]?.opportunitySlug ? `/projects/opportunities/${persistedProjects[0].opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看项目完整拆解</Link>
+          <Link className="pm-unlock-report" to={persistedSessionId ? `/projects/matches/${persistedSessionId}/results/paywall` : "/projects/results/paywall"}>解锁完整报告</Link>
+          <button disabled={!persistedSessionId} onClick={() => void generateTasks()} type="button">生成落地任务</button>
         </aside>
       </section> : null}
     </>
@@ -669,14 +941,17 @@ function MatchHistory() {
   const [favorites, setFavorites] = useState<ProjectFavorite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [timeFilter, setTimeFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("");
+  const [historySort, setHistorySort] = useState<"latest" | "oldest">("latest");
+  const [showAllHistory, setShowAllHistory] = useState(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all([projectsApi.listMatches(), projectsApi.listFavorites()])
-      .then(([matchesPayload, favoritesPayload]) => {
+    projectsApi.listMatches()
+      .then((matchesPayload) => {
         if (active) {
           setSessions(matchesPayload.matches ?? []);
-          setFavorites(favoritesPayload.favorites ?? []);
           setError("");
         }
       })
@@ -686,12 +961,29 @@ function MatchHistory() {
       .finally(() => {
         if (active) setLoading(false);
       });
+    projectsApi.listFavorites()
+      .then((favoritesPayload) => {
+        if (active) setFavorites(favoritesPayload.favorites ?? []);
+      })
+      .catch(() => {
+        if (active) setFavorites([]);
+      });
     return () => {
       active = false;
     };
   }, []);
 
-  const rows = sessions.map(toHistoryRow);
+  const allRows = sessions.map(toHistoryRow);
+  const historyTags = [...new Set(allRows.flatMap((row) => row.tags))];
+  const rows = allRows
+    .filter((row) => !tagFilter || row.tags.includes(tagFilter))
+    .filter((row) => {
+      if (timeFilter === "all") return true;
+      const createdAt = new Date(sessions.find((session) => session.id === row.id)?.created_at ?? "").getTime();
+      const days = Number(timeFilter);
+      return Number.isFinite(createdAt) && Date.now() - createdAt <= days * 24 * 60 * 60 * 1000;
+    })
+    .sort((left, right) => historySort === "latest" ? right.id - left.id : left.id - right.id);
 
   async function removeFavorite(sessionId: number) {
     try {
@@ -705,36 +997,63 @@ function MatchHistory() {
 
   return (
     <>
-      <ProjectHero title="匹配历史与收藏" subtitle="查看过往 AI 匹配记录、收藏项目和最近浏览的项目机会" action="重新匹配" href="/projects/match" />
-      <section className="pm-history-layout">
-        <div className="pm-panel">
-          <h2>历史匹配</h2>
-          {error && <p className="form-error" role="alert">{error}</p>}
-          {loading ? <div className="module-empty-state" role="status">正在读取匹配历史...</div> : null}
-          {!loading && !error && rows.length === 0 ? <div className="module-empty-state" role="status">暂无匹配历史</div> : null}
-          {rows.map(({ title, count, detail, href }) => (
-            <article className="pm-history-row" key={href}>
-              <strong>{title}</strong>
-              <span>{count}</span>
-              <small>{detail}</small>
-              <Link to={href}>查看结果</Link>
-            </article>
-          ))}
+      <section className="pm-history-hero">
+        <div className="pm-history-hero-copy">
+          <p>项目超市&nbsp;&nbsp;/&nbsp;&nbsp;AI匹配&nbsp;&nbsp;/&nbsp;&nbsp;匹配记录</p>
+          <h1>匹配历史与收藏</h1>
+          <strong>回看过往匹配结果，管理你保存的项目与导出记录</strong>
+          <nav aria-label="匹配记录栏目">
+            <a className="active" href="#pm-history-list">匹配历史</a>
+            <a href="#pm-saved-projects">收藏结果</a>
+            <Link to="/projects/export">导出报告</Link>
+          </nav>
         </div>
-        <div className="pm-panel">
-          <h2>收藏项目</h2>
-          <div className="pm-opportunity-grid saved">
-            {!loading && !error && favorites.length === 0 ? <div className="module-empty-state" role="status">暂无收藏项目</div> : null}
-            {favorites.map((favorite) => favorite.session ? (
-              <article key={favorite.id}>
-                <div className="pm-thumb" />
-                <h3>{favorite.session.result?.projects?.[0]?.title ?? favorite.session.intent}</h3>
-                <p>{favorite.session.intent}</p>
-                <Link to={`/projects/matches/${favorite.session_id}/results`}>查看结果</Link>
-                <button onClick={() => void removeFavorite(favorite.session_id)} type="button">取消收藏</button>
-              </article>
-            ) : null)}
-          </div>
+        <div className="pm-history-hero-art" aria-hidden="true" />
+      </section>
+
+      <section className="pm-history-filter" aria-label="匹配历史筛选">
+        <label><span>时间</span><select aria-label="按时间筛选匹配历史" onChange={(event) => setTimeFilter(event.target.value)} value={timeFilter}><option value="all">全部时间</option><option value="7">近 7 天</option><option value="30">近 30 天</option><option value="90">近 90 天</option></select></label>
+        <label><span>标签</span><select aria-label="按标签筛选匹配历史" onChange={(event) => setTagFilter(event.target.value)} value={tagFilter}><option value="">全部标签</option>{historyTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}</select></label>
+        <label><span>排序</span><select aria-label="匹配历史排序" onChange={(event) => setHistorySort(event.target.value as "latest" | "oldest")} value={historySort}><option value="latest">匹配时间（最新）</option><option value="oldest">匹配时间（最早）</option></select></label>
+        <button onClick={() => { setTimeFilter("all"); setTagFilter(""); setHistorySort("latest"); }} type="button">↻ 刷新</button>
+      </section>
+
+      <section className="pm-history-table" id="pm-history-list">
+        <h2 className="pm-visually-hidden">历史匹配</h2>
+        <header aria-hidden="true"><span>时间</span><span>我的条件</span><span>匹配数量</span><span>最佳推荐</span><span>操作</span></header>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        {loading ? <div className="module-empty-state" role="status">正在读取匹配历史...</div> : null}
+        {!loading && !error && rows.length === 0 ? <div className="module-empty-state" role="status">暂无匹配历史</div> : null}
+        {rows.slice(0, showAllHistory ? rows.length : 3).map((row) => (
+          <article className="pm-history-row" key={row.href}>
+            <div className="pm-history-date"><i aria-hidden="true">▦</i><span><strong>{row.date}</strong><small>{row.time}</small></span></div>
+            <div><strong>我的条件</strong><small>{row.detail}</small><div className="pm-mini-tags">{row.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></div>
+            <div className="pm-history-count"><strong>{row.count.split(" ")[0]}</strong><span>个项目</span></div>
+            <div><strong>{row.title}</strong><div className="pm-mini-tags">{row.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></div>
+            <div className="pm-history-actions">
+              <Link aria-label="查看结果" to={row.href}>再次查看</Link>
+              <Link to="/projects/match">重新匹配</Link>
+              <Link to={`/projects/matches/${row.id}/export`}>导出</Link>
+            </div>
+          </article>
+        ))}
+        {rows.length > 3 ? <button className="pm-history-more" onClick={() => setShowAllHistory((current) => !current)} type="button">{showAllHistory ? "收起匹配历史" : "查看更多匹配历史"} <span aria-hidden="true">⌄</span></button> : null}
+      </section>
+
+      <section className="pm-saved-section" id="pm-saved-projects">
+        <header><h2>收藏结果</h2><span>你收藏的匹配记录，方便随时查看与决策</span><a href="#pm-saved-projects">查看全部收藏 →</a></header>
+        <div className="pm-opportunity-grid saved">
+          {!loading && !error && favorites.length === 0 ? <div className="module-empty-state" role="status">暂无收藏结果</div> : null}
+          {favorites.slice(0, 5).map((favorite) => favorite.session ? (
+            <article className={`pm-project-${favorite.session.result?.projects?.[0]?.opportunity_slug ?? "default"}`} key={favorite.id}>
+              <div className="pm-thumb" />
+              <h3>{favorite.session.result?.projects?.[0]?.title ?? favorite.session.intent}</h3>
+              <div className="pm-mini-tags">{favorite.session.result?.projects?.[0]?.tags?.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div>
+              <small>收藏于 {favorite.created_at ? new Date(favorite.created_at).toLocaleDateString("zh-CN") : "匹配记录"}</small>
+              <Link to={`/projects/matches/${favorite.session_id}/results`}>查看结果</Link>
+              <button aria-label="取消收藏" onClick={() => void removeFavorite(favorite.session_id)} type="button">☆</button>
+            </article>
+          ) : null)}
         </div>
       </section>
     </>
@@ -754,16 +1073,21 @@ function ProjectDetail() {
     if (opportunitySlug) {
       let active = true;
       setLoading(true);
-      Promise.all([projectsApi.getOpportunity(opportunitySlug), projectsApi.listCases()]).then(([payload, casesPayload]) => {
+      setError("");
+      projectsApi.getOpportunity(opportunitySlug).then((payload) => {
         if (active) {
           setOpportunity(payload);
-          setEvidence(casesPayload.cases);
           setError("");
         }
       }).catch((loadError) => {
         if (active) setError(apiErrorMessage(loadError, "暂时无法读取项目详情"));
       }).finally(() => {
         if (active) setLoading(false);
+      });
+      projectsApi.listCases({ opportunitySlug }).then((casesPayload) => {
+        if (active) setEvidence(casesPayload.cases ?? []);
+      }).catch(() => {
+        if (active) setEvidence([]);
       });
       return () => { active = false; };
     }
@@ -803,37 +1127,58 @@ function ProjectDetail() {
   const subtitle = opportunity?.summary ?? (project
     ? `来自匹配需求：${session?.intent ?? "项目匹配"}`
     : "请选择一条已发布项目机会或已保存的匹配记录");
-  const conditionTags = opportunity
-    ? [opportunity.industry, opportunity.budget_band, opportunity.difficulty, ...opportunity.tags].filter(Boolean)
+  const profileItems = opportunity?.sections?.flatMap((section) => section.blocks ?? []).find((block) => block.type === "profile")?.items ?? [];
+  const profileMetrics: [string, string, string][] = profileItems.slice(0, 4).map((item, index) => [
+    item.title || "项目指标",
+    item.value || "待补充",
+    ["wallet", "level", "resource", "people"][index] ?? "resource"
+  ]);
+  const detailMetrics = opportunity
+    ? profileMetrics.length > 0 ? profileMetrics : [
+        ["启动预算", opportunity.budget_band || "待补充", "wallet"],
+        ["项目难度", opportunity.difficulty || "待补充", "level"],
+        ["资源要求", `${opportunity.resource_requirements.length} 项`, "resource"],
+        ["适合方向", opportunity.tags.slice(0, 2).join(" / ") || opportunity.industry || "待补充", "people"]
+      ] as [string, string, string][]
     : project
-    ? [`匹配度 ${project.score}分`, `预算 ${project.budget}`, ...project.tags.slice(0, 2)]
-    : [];
+      ? [
+          ["匹配度", `${project.score}分`, "score"],
+          ["启动预算", project.budget, "wallet"],
+          ["项目标签", `${project.tags.length} 项`, "resource"],
+          ["风险提示", project.risk, "people"]
+        ]
+      : [];
   const activeSectionKey = detailTabs.some(([key]) => key === searchParams.get("section"))
     ? searchParams.get("section") ?? "path"
     : "path";
   const activeSectionTitle = detailTabs.find(([key]) => key === activeSectionKey)?.[2] ?? "成功路径";
-  const activeSection = opportunity?.sections?.find((section) => section.title === activeSectionTitle)
-    ?? opportunity?.sections?.[0];
+  const activeSection = opportunity?.sections?.find((section) => section.key === activeSectionKey || section.title === activeSectionTitle)
+    ?? (activeSectionKey === "path" ? opportunity?.sections?.[0] : undefined);
   const detailBasePath = opportunitySlug ? `/projects/opportunities/${opportunitySlug}` : "/projects/detail";
 
   return (
     <>
       <section className="pm-detail-hero">
-        <div>
-          <p>项目超市 / 匹配结果 / 项目详情</p>
-          <h1>{title}</h1>
+        <div className="pm-detail-copy">
+          <p>⌂&nbsp;&nbsp;项目超市&nbsp;&nbsp;/&nbsp;&nbsp;机会探索&nbsp;&nbsp;/&nbsp;&nbsp;项目详情</p>
+          <h1>{title} <span aria-hidden="true">☆</span></h1>
           <small>{subtitle}</small>
-          <div className="pm-condition-strip">
-            {conditionTags.map((item) => <span key={item}>{item}</span>)}
-          </div>
+          {opportunity ? <div className="pm-mini-tags">{[opportunity.industry, ...opportunity.tags].filter(Boolean).slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}
           {opportunitySlug ? (
             <div className="pm-detail-actions">
-              <Link to={`${detailBasePath}/diagnosis`}>诊断我能否做</Link>
+              <Link to="/projects/history#pm-saved-projects">查看收藏结果</Link>
               <Link to={`/projects/compare?items=${opportunitySlug}`}>加入对比</Link>
+              <Link to={`${detailBasePath}/diagnosis`}>诊断我能否做</Link>
+              <Link className="primary" to="/projects/match">AI 匹配类似项目</Link>
             </div>
           ) : null}
         </div>
         <div className={`pm-detail-art pm-detail-art-${opportunitySlug ?? "default"}`} aria-hidden="true" />
+        {detailMetrics.length > 0 ? (
+          <div className="pm-detail-metric-strip">
+            {detailMetrics.map(([label, value, icon]) => <article key={label}><i className={icon} aria-hidden="true" /><span><small>{label}</small><strong>{value}</strong></span>{project ? <span className="pm-visually-hidden">{label === "启动预算" ? `预算 ${value}` : `${label} ${value}`}</span> : null}</article>)}
+          </div>
+        ) : null}
       </section>
       {loading ? <div className="module-empty-state" role="status">正在读取项目详情...</div> : null}
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -844,30 +1189,7 @@ function ProjectDetail() {
               <Link className={activeSectionKey === key ? "active" : ""} key={key} to={`${detailBasePath}?section=${key}`}>{label}</Link>
             ))}
           </nav>
-          <section className="pm-detail-dashboard">
-          {activeSection ? (
-            <article className="pm-detail-section pm-detail-active-section">
-              <div className="pm-section-head"><h2>{activeSection.title}</h2><span>数据来自项目目录接口</span></div>
-              <p>{activeSection.body}</p>
-              {activeSection.items.length ? <ul>{activeSection.items.map((item) => <li key={item}>{item}</li>)}</ul> : null}
-            </article>
-          ) : <div className="module-empty-state" role="status">暂无项目详情章节</div>}
-          <article className="pm-detail-section pm-case-sample">
-            <h2>来源与证据</h2>
-            <p>以下内容来自运营发布的案例证据库；项目章节未引用的结论不自动视为已验证事实。</p>
-            {evidence.length === 0 ? <div className="module-empty-state" role="status">暂无可追溯案例来源</div> : null}
-            <div className="pm-case-mini-grid">
-              {evidence.map((item) => (
-                <article key={item.id}>
-                  <strong>{item.title}</strong>
-                  <span>{item.outcome}</span>
-                  <small>{item.summary}</small>
-                  {item.source_url ? <a href={item.source_url} rel="noreferrer" target="_blank">{item.source_title || "查看来源"}</a> : <small>来源链接待补充</small>}
-                </article>
-              ))}
-            </div>
-          </article>
-          </section>
+          {activeSection ? <ProjectDetailSection activeKey={activeSectionKey} evidence={evidence} opportunity={opportunity} section={activeSection} /> : <div className="module-empty-state" role="status">暂无项目详情章节</div>}
         </>
       ) : null}
       {!loading && !error && session ? <MatchRecordDetail session={session} /> : null}
@@ -878,14 +1200,169 @@ function ProjectDetail() {
   );
 }
 
+function ProjectEvidenceCards({ evidence }: { evidence: ProjectCase[] }) {
+  if (evidence.length === 0) return <div className="module-empty-state" role="status">暂无可追溯案例来源</div>;
+  return (
+    <div className="pm-case-mini-grid">
+      {evidence.slice(0, 4).map((item) => (
+        <article className={`pm-case-${item.slug}`} key={item.id}>
+          <div className="pm-thumb" aria-hidden="true" />
+          <span>{item.case_type === "success" ? "成功案例" : "失败教训"}</span>
+          <strong>{item.title}</strong>
+          <small>{item.summary}</small>
+          <b>{item.outcome}</b>
+          {item.source_url ? <a href={item.source_url} rel="noreferrer" target="_blank">{item.source_title || "查看来源"}</a> : <small>来源链接待补充</small>}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function contentBlockIcon(block: ProjectContentBlock, index: number) {
+  const itemTitle = block.items?.[index]?.title ?? "";
+  const iconNames: Record<string, string> = {
+    "核心价值": "content-value", "主要变现": "growth-stage", "交付周期": "delivery-period",
+    "企业品牌方": "brand-power", "个体 IP": "audience", "本地商家": "solo-business", "MCN / 代运营": "customer-access",
+    "常见报价区间": "pricing", "平均交付周期": "delivery-period", "平均修改次数": "revision-count", "平均毛利率": "gross-margin",
+    "小红书": "content-value", "抖音": "content-efficiency", "视频号": "delivery-efficiency", "私域转介绍": "customer-access",
+    "咨询人数": "traffic-funnel", "脚本下单数": "service-package", "复购客户数": "customer-trust",
+    "订单数": "service-package", "询盘转化率": "traffic-funnel", "复购率": "customer-trust", "客户满意度": "customer-feedback", "平均客单价": "pricing",
+    "交付快": "fast-delivery", "低启动成本": "low-cost", "适合轻资产创业": "solo-business", "可标准化服务": "standard-service", "内容生产效率高": "content-efficiency", "易做案例积累": "easy-replication",
+    "审美与表达门槛": "trust-gap", "客户信任建立慢": "customer-trust", "前期获客不稳定": "market-volatility", "同质化竞争": "homogeneous-competition", "修改返工风险": "customer-churn", "规模化管理要求": "process-awareness",
+    "适合的人": "content-skill", "不适合的人": "difficulty", "机会区": "growth-stage", "警惕区": "failure-warning", "优化区": "process-awareness", "风险区": "business-risk", "总体判断": "content-value", "关键门槛能力": "content-skill",
+    "先做小而明确的场景": "positioning", "用样稿降低成交门槛": "case-growth", "用复盘沉淀模板": "template", "通过反馈优化沟通": "customer-feedback", "建立内容素材库": "asset-library",
+    "个人 IP 拍摄": "audience", "产品测评单": "success-case", "知识付费类": "content-value", "企业知识 IP": "brand-power", "短视频代运营": "delivery-efficiency", "脚本咨询": "service-package", "内容策划服务": "content-skill",
+    "高频踩坑": "high-frequency-risk", "业务风险": "business-risk", "影响严重": "severity", "可控可防": "preventable",
+    "一开始什么都接": "demand-loss", "只拼低价": "low-cost", "没有标准交付流程": "process-awareness", "忽视客户反馈": "customer-feedback", "过度承诺效果": "severity", "案例和定位不清晰": "trust-gap",
+    "返工过多": "rework", "需求失控": "demand-loss", "获客渠道单一": "traffic-funnel", "沟通能力": "customer-feedback", "项目管理": "process-awareness", "内容审核": "content-skill", "基础数据复盘": "action-checklist"
+  };
+  const fallbackByType: Record<string, string[]> = {
+    overview: ["content-value", "growth-stage", "delivery-period", "audience"],
+    metrics: ["brand-power", "pricing", "delivery-period", "gross-margin"],
+    channels: ["content-value", "content-efficiency", "delivery-efficiency", "customer-access"],
+    funnel: ["traffic-funnel", "service-package", "customer-trust"],
+    matrix: ["growth-stage", "failure-warning", "process-awareness", "business-risk"],
+    cards: ["positioning", "service-package", "case-growth", "delivery-efficiency"]
+  };
+  const fallback = fallbackByType[block.type] ?? ["content-value"];
+  return `/project-market/detail-icons/${iconNames[itemTitle] ?? fallback[index % fallback.length]}.png`;
+}
+
+function ProjectContentBlockView({ block, evidence }: { block: ProjectContentBlock; evidence: ProjectCase[] }) {
+  const items = block.items ?? [];
+  const series = block.series ?? [];
+  const columns = Math.max(1, Math.min(block.columns ?? (items.length > 0 ? items.length : 1), 6));
+
+  if (block.type === "chart") {
+    const chartPoints = series.map((item, index) => ({
+      x: series.length <= 1 ? 500 : 20 + (index / (series.length - 1)) * 960,
+      y: 92 - Math.max(6, Math.min(Number(item.progress) || 0, 100)) * 0.8
+    }));
+    const lastSeriesItem = series[series.length - 1];
+    return (
+      <article className="pm-structured-block type-chart">
+        {block.title ? <h2>{block.title}</h2> : null}
+        {block.subtitle ? <p>{block.subtitle}</p> : null}
+        <div className="pm-structured-chart" aria-label={block.title ?? "数据趋势"}>
+          <svg aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 1000 100">
+            <defs><linearGradient id="pm-chart-line" x1="0" x2="1"><stop offset="0" stopColor="#7560f5" /><stop offset="1" stopColor="#2d75e9" /></linearGradient></defs>
+            <polyline points={chartPoints.map((point) => `${point.x},${point.y}`).join(" ")} />
+            {chartPoints.map((point, index) => <circle cx={point.x} cy={point.y} key={`${series[index]?.title}-${index}`} r="4" />)}
+          </svg>
+          <div className="pm-structured-chart-labels" style={{ "--pm-chart-points": Math.max(series.length, 1) } as CSSProperties}>
+            {series.map((item, index) => <small key={`${item.title}-${index}`}>{item.title}</small>)}
+          </div>
+          {lastSeriesItem ? <output>{lastSeriesItem.meta || lastSeriesItem.value}</output> : null}
+        </div>
+      </article>
+    );
+  }
+
+  if (block.type === "sources" && evidence.length > 0) {
+    return (
+      <article className="pm-structured-block type-sources">
+        {block.title ? <h2 aria-label="来源与证据">{block.title}</h2> : null}
+        <div className="pm-structured-grid" style={{ "--pm-columns": columns } as CSSProperties}>
+          {evidence.filter((item) => item.source_url).slice(0, columns).map((item) => <a href={item.source_url} key={item.id} rel="noreferrer" target="_blank"><strong>{item.source_title}</strong><small>{item.title}</small><span>查看出处 →</span></a>)}
+        </div>
+      </article>
+    );
+  }
+
+  if (/真实案例/.test(block.title ?? "") && evidence.length > 0) {
+    return (
+      <article className="pm-structured-block type-evidence">
+        {block.title ? <h2>{block.title}</h2> : null}
+        {block.subtitle ? <p>{block.subtitle}</p> : null}
+        <ProjectEvidenceCards evidence={evidence.slice(0, columns)} />
+      </article>
+    );
+  }
+
+  return (
+    <article className={`pm-structured-block type-${block.type || "cards"}`}>
+      {block.title ? <h2>{block.title}</h2> : null}
+      {block.subtitle ? <p>{block.subtitle}</p> : null}
+      <div className="pm-structured-grid" style={{ "--pm-columns": columns } as CSSProperties}>
+        {items.map((item, index) => {
+          const tone = ["primary", "positive", "warning", "danger", "neutral"].includes(item.tone ?? "") ? item.tone : "neutral";
+          const progress = Math.max(0, Math.min(Number(item.progress) || 0, 100));
+          const source = /真实案例/.test(block.title ?? "") ? evidence[index] : undefined;
+          return (
+            <section className={`tone-${tone}`} key={`${item.title}-${item.value}-${index}`}>
+              {block.type === "checklist" ? <input aria-label={`已具备 ${item.title ?? `第 ${index + 1} 项`}`} type="checkbox" /> : block.type === "steps" || block.type === "actions" ? <i aria-hidden="true">{block.type === "steps" ? index + 1 : item.meta ?? index + 1}</i> : <i aria-hidden="true" className="pm-structured-icon" style={{ backgroundImage: `url("${contentBlockIcon(block, index)}")` }} />}
+              <div>
+                {item.title ? <strong>{item.title}</strong> : null}
+                {item.value ? <b>{item.value}</b> : null}
+                {item.detail ? <p>{item.detail}</p> : null}
+                {item.meta && block.type !== "actions" ? <small>{item.meta}</small> : null}
+                {progress > 0 ? <span className="pm-structured-progress"><em style={{ width: `${progress}%` }} /></span> : null}
+                {(item.tags ?? []).length > 0 ? <span className="pm-structured-tags">{item.tags?.map((tag) => <small key={tag}>{tag}</small>)}</span> : null}
+                {source?.source_url ? <a href={source.source_url} rel="noreferrer" target="_blank">{source.source_title || "查看来源"} →</a> : null}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+function ProjectDetailSection({ activeKey, evidence, opportunity, section }: {
+  activeKey: string;
+  evidence: ProjectCase[];
+  opportunity: ProjectOpportunity;
+  section: OpportunitySection;
+}) {
+  const items = section.items ?? [];
+  const structuredBlocks = (section.blocks ?? []).filter((block) => block.type !== "profile");
+
+  if (structuredBlocks.length > 0) {
+    return <section className={`pm-detail-content pm-structured-content ${activeKey}`}>{structuredBlocks.map((block, index) => <ProjectContentBlockView block={block} evidence={evidence} key={`${block.type}-${block.title}-${index}`} />)}</section>;
+  }
+
+  return (
+    <section className={`pm-detail-content pm-detail-legacy ${activeKey}`}>
+      <article className="pm-detail-block">
+        <h2>{section.title}</h2>
+        <p>{section.body}</p>
+        {items.length > 0 ? <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul> : <div className="module-empty-state">该章节暂无结构化内容</div>}
+        <div className="pm-mini-tags">{[opportunity.industry, ...opportunity.tags].filter(Boolean).slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div>
+      </article>
+      {evidence.some((item) => item.source_url) ? <article className="pm-detail-block"><h2>来源与证据</h2><ProjectEvidenceCards evidence={evidence} /></article> : null}
+    </section>
+  );
+}
+
 function DiagnosisOverlay() {
   const { opportunitySlug } = useParams();
+  const navigate = useNavigate();
   const closeHref = `/projects/opportunities/${opportunitySlug ?? "ai-short-video-studio"}`;
   const steps = [
     ["1", "读取项目要求", "从项目目录读取技能、预算与资源门槛"],
-    ["2", "同步任务与工具", "结合任务记录和常用工具评估执行能力"],
-    ["3", "结合学习记录", "识别已有能力、证书与待补短板"],
-    ["4", "输出适配建议", "生成适配度、能力差距与学习路径"]
+    ["2", "补充诊断目标", "由你填写可投入时间、能力方向与当前卡点"],
+    ["3", "完成能力问答", "使用本次真实回答形成评估依据"],
+    ["4", "输出模型建议", "列明适配度、关键假设与后续学习方向"]
   ] as const;
 
   return createPortal(
@@ -894,7 +1371,7 @@ function DiagnosisOverlay() {
         <Link className="pm-modal-close" aria-label="关闭项目诊断" to={closeHref}>×</Link>
         <header>
           <div><h2 id="project-diagnosis-title">诊断我能否做这个项目？</h2><p>系统将结合当前项目要求与您的数据，进行综合评估。</p></div>
-          <AiCubeArt />
+          <div className="pm-diagnosis-hero-art" aria-hidden="true" />
         </header>
         <div className="pm-diagnosis-steps">
           {steps.map(([number, title, detail]) => (
@@ -902,11 +1379,12 @@ function DiagnosisOverlay() {
           ))}
         </div>
         <div className="pm-diagnosis-meta">
-          <div><strong>数据来源</strong><span>项目超市</span><span>任务中心</span><span>工具箱</span><span>AI教学</span></div>
-          <div><strong>预计完成时间</strong><b>约 2-3 分钟</b><small>根据数据量有所浮动</small></div>
-          <div><strong>你将获得</strong><span>适配度评分</span><span>能力差距</span><span>推荐课程</span><span>学习路径</span></div>
+          <div className="pm-diagnosis-sources"><strong>本次评估的可用依据</strong><span><i aria-hidden="true">▦</i><b>项目超市</b><small>项目要求</small></span><span><i aria-hidden="true">✓</i><b>本次填写</b><small>目标与时间</small></span><span><i aria-hidden="true">⌘</i><b>能力问答</b><small>真实回答</small></span><span><i aria-hidden="true">A</i><b>模型输出</b><small>假设与建议</small></span></div>
+          <div><strong>完成方式</strong><b>按实际填写进度</b><small>不会读取未接入的模块数据</small></div>
+          <div><strong>你将获得</strong><span>□ 模型适配度</span><span>□ 关键能力差距</span><span>□ 评估依据</span><span>□ 学习建议</span></div>
         </div>
-        <footer><Link to={closeHref}>稍后再说</Link><button type="button">开始诊断</button></footer>
+        <footer><Link to={closeHref}>稍后再说</Link><button aria-label="开始诊断" onClick={() => navigate(`/learning/diagnosis?project=${encodeURIComponent(opportunitySlug ?? "")}`)} type="button">✦ 开始诊断</button></footer>
+        <small className="pm-modal-privacy">所有数据仅用于能力评估与学习建议，严格保护你的隐私安全</small>
       </section>
     </div>,
     document.body
@@ -938,10 +1416,14 @@ function MatchRecordDetail({ session }: { session: ProjectMatchSession }) {
 }
 
 function ProjectCompare() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [options, setOptions] = useState<ProjectOpportunity[]>([]);
   const [selected, setSelected] = useState<string[]>(() => (searchParams.get("items") ?? "").split(",").filter(Boolean).slice(0, 4));
   const [comparison, setComparison] = useState<ProjectOpportunity[]>([]);
+  const [comparisonId, setComparisonId] = useState<number | null>(null);
+  const [comparisonExportId, setComparisonExportId] = useState<number | null>(null);
+  const [creatingComparison, setCreatingComparison] = useState(false);
+  const [downloadingComparison, setDownloadingComparison] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
@@ -949,108 +1431,239 @@ function ProjectCompare() {
       .catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取项目目录")); });
     return () => { active = false; };
   }, []);
-  useEffect(() => {
-    if (selected.length < 2 || comparison.length > 0) return;
-    let active = true;
-    projectsApi.createComparison(selected)
-      .then((result) => {
-        if (active) {
-          setComparison(result.items);
-          setError("");
-        }
-      })
-      .catch((createError) => {
-        if (active) setError(apiErrorMessage(createError, "暂时无法创建项目对比"));
-      });
-    return () => { active = false; };
-  }, [comparison.length, selected]);
   function toggle(slug: string) {
     setComparison([]);
-    setSelected((current) => current.includes(slug) ? current.filter((item) => item !== slug) : current.length < 4 ? [...current, slug] : current);
+    setComparisonId(null);
+    setComparisonExportId(null);
+    const next = selected.includes(slug) ? selected.filter((item) => item !== slug) : selected.length < 4 ? [...selected, slug] : selected;
+    setSelected(next);
+    setSearchParams(next.length > 0 ? { items: next.join(",") } : {}, { replace: true });
   }
-  async function createComparison() { try { const result = await projectsApi.createComparison(selected); setComparison(result.items); setError(""); } catch (createError) { setError(apiErrorMessage(createError, "暂时无法创建项目对比")); } }
+  async function createComparison() {
+    if (selected.length < 2 || creatingComparison) return;
+    setCreatingComparison(true);
+    try {
+      const result = await projectsApi.createComparison(selected);
+      setComparison(result.items);
+      setComparisonId(result.id);
+      setError("");
+    } catch (createError) {
+      setError(apiErrorMessage(createError, "暂时无法创建项目对比"));
+    } finally {
+      setCreatingComparison(false);
+    }
+  }
+  async function exportComparison() {
+    if (!comparisonId) return;
+    try {
+      const result = await projectsApi.createExport("comparison", comparisonId);
+      setComparisonExportId(result.id);
+      setError("");
+    } catch (exportError) {
+      setError(apiErrorMessage(exportError, "暂时无法导出项目对比"));
+    }
+  }
+  async function downloadComparison() {
+    if (!comparisonExportId || downloadingComparison) return;
+    setDownloadingComparison(true);
+    try {
+      const blob = await projectsApi.downloadExport(comparisonExportId);
+      saveProjectExport(blob, `project-comparison-${comparisonId ?? comparisonExportId}.json`);
+      setError("");
+    } catch (downloadError) {
+      setError(apiErrorMessage(downloadError, "暂时无法下载项目对比"));
+    } finally {
+      setDownloadingComparison(false);
+    }
+  }
+  const compareRows = [
+    ["启动预算", (item: ProjectOpportunity) => item.budget_band || "待补充"],
+    ["验证周期", () => "需通过真实订单验证"],
+    ["难度", (item: ProjectOpportunity) => item.difficulty || "待补充"],
+    ["资源要求", (item: ProjectOpportunity) => item.resource_requirements.join("、") || "待补充"],
+    ["可复制性", (item: ProjectOpportunity) => item.tags.includes("可复制") || item.tags.includes("可复用交付") ? "目录标记为可复制" : "需通过案例验证"],
+    ["增长潜力", (item: ProjectOpportunity) => item.summary],
+    ["风险提示", (item: ProjectOpportunity) => item.sections?.find((section) => section.title === "要避免的行为")?.body || "需查看案例与来源"],
+    ["适合人群", (item: ProjectOpportunity) => [item.industry, ...item.tags].filter(Boolean).slice(0, 3).join("、")],
+    ["能力工具", (item: ProjectOpportunity) => item.resource_requirements.slice(0, 3).join("、") || "待补充"]
+  ] as const;
+  const primaryComparison = comparison[0];
   return (
     <>
       <div className="pm-result-head">
         <div>
           <p>项目超市 / 项目对比</p>
           <h1>项目对比</h1>
-          <small>从预算、能力、增长潜力和风险维度横向比较候选项目。</small>
+          <small>并排比较多个项目的预算、门槛、风险与增长潜力，帮助你更快做决策</small>
         </div>
-        <button disabled={selected.length < 2} onClick={() => void createComparison()} type="button">开始对比</button>
+        <div>
+          <button disabled={selected.length === 0} onClick={() => { setSelected([]); setSearchParams({}, { replace: true }); setComparison([]); setComparisonId(null); setComparisonExportId(null); }} type="button">移除项目</button>
+          <Link to={comparison[0] ? `/projects/opportunities/${comparison[0].slug}` : "/projects/explore"}>查看拆解</Link>
+          <Link to="/projects/history#pm-saved-projects">查看收藏记录</Link>
+          <button disabled={creatingComparison || (comparisonId ? false : selected.length < 2)} onClick={() => void (comparisonId ? exportComparison() : createComparison())} type="button">{creatingComparison ? "对比中..." : comparisonId ? "导出对比" : "开始对比"}</button>
+        </div>
       </div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      {comparison.length === 0 ? <section className="pm-panel"><h2>选择 2-4 个项目</h2>{options.map((item) => <label key={item.id}><input aria-label={item.title} checked={selected.includes(item.slug)} onChange={() => toggle(item.slug)} type="checkbox" />{item.title}</label>)}</section> : null}
-      <section className="pm-compare-grid">
-        {comparison.map((project) => (
-          <article className={`pm-project-${project.slug}`} key={project.id}>
-            <div className="pm-result-image" />
-            <h2>{project.title}</h2>
-            <strong>{project.budget_band || "预算待补充"}</strong>
-            <p>{project.summary}</p>
-            <ul>
-              {[project.industry, project.difficulty, ...project.resource_requirements].filter(Boolean).map((reason) => <li key={reason}>{reason}</li>)}
-            </ul>
-          </article>
-        ))}
-      </section>
-      {comparison.length > 0 ? <section className="pm-panel pm-compare-summary"><h2>对比说明</h2><p>以上内容来自已发布项目目录快照，不包含未经验证的收益预测。</p></section> : null}
+      {comparisonExportId ? <button className="pm-compare-download" disabled={downloadingComparison} onClick={() => void downloadComparison()} type="button">{downloadingComparison ? "下载中..." : "下载对比报告"}</button> : null}
+      {comparison.length === 0 ? (
+        <section className="pm-panel pm-compare-picker">
+          <h2>选择 2-4 个项目</h2>
+          <div>{options.map((item) => <label key={item.id}><input aria-label={item.title} checked={selected.includes(item.slug)} onChange={() => toggle(item.slug)} type="checkbox" /><span><strong>{item.title}</strong><small>{item.industry} · {item.budget_band}</small></span></label>)}</div>
+        </section>
+      ) : (
+        <>
+          <section className="pm-compare-portrait">
+            <strong>当前参考画像：</strong>
+            <span>已选 {comparison.length} 个项目</span>
+            <span>{[...new Set(comparison.map((item) => item.industry))].join(" / ")}</span>
+            <span>{[...new Set(comparison.flatMap((item) => item.tags))].slice(0, 3).join(" / ")}</span>
+            <Link to="/projects/match">修改画像</Link>
+          </section>
+          <section className="pm-compare-table" style={{ "--pm-compare-count": comparison.length } as CSSProperties}>
+            <header>
+              <strong>项目名称</strong>
+              {comparison.map((project) => <article className={`pm-project-${project.slug}`} key={project.id}><button aria-label={`移除 ${project.title}`} onClick={() => toggle(project.slug)} type="button">×</button><h2>{project.title}</h2><div className="pm-result-image" /></article>)}
+            </header>
+            {compareRows.map(([label, getValue]) => (
+              <div className="pm-compare-row" key={label}>
+                <strong>{label}</strong>
+                {comparison.map((project) => <span key={project.id}>{getValue(project)}</span>)}
+              </div>
+            ))}
+          </section>
+          <section className="pm-compare-summary">
+            <div className="pm-compare-trophy" aria-hidden="true" />
+            <div><small>优先核对 · 按已选项目顺序</small><strong className="pm-compare-recommend-title">{primaryComparison?.title}</strong><p>先核对预算、资源与风险项，再进入完整拆解验证项目是否适合当前条件。</p></div>
+            <ul>{primaryComparison ? [primaryComparison.budget_band, primaryComparison.difficulty, ...primaryComparison.resource_requirements.slice(0, 2)].filter(Boolean).map((item) => <li key={item}>{item}</li>) : null}</ul>
+            <Link to={primaryComparison ? `/projects/opportunities/${primaryComparison.slug}` : "/projects/explore"}>查看完整项目拆解 →</Link>
+          </section>
+        </>
+      )}
     </>
   );
 }
 
-function ProjectHero({ title, subtitle, action, href }: { title: string; subtitle: string; action: string; href: string }) {
-  const heroKind = title === "AI补充提问"
-    ? "questions"
-    : title === "机会探索"
-      ? "explore"
-      : title === "真实案例库"
-        ? "cases"
-        : title === "匹配历史与收藏"
-          ? "history"
-          : "match";
-
+function ProjectHero({ variant, breadcrumb, title, subtitle, action, href }: {
+  variant: "match" | "questions";
+  breadcrumb: string[];
+  title: string;
+  subtitle: string;
+  action: string;
+  href: string;
+}) {
   return (
-    <section className={`pm-hero compact ${heroKind}`}>
-      <div>
-        <p>项目超市 / {title}</p>
+    <section className={`pm-flow-hero ${variant}`}>
+      <div className="pm-flow-hero-copy">
+        <p>{breadcrumb.map((item, index) => <span key={item}>{index > 0 ? " / " : ""}{item}</span>)}</p>
         <h1>{title}</h1>
         <small>{subtitle}</small>
       </div>
-      <AiCubeArt />
-      <Link to={href}>{action}</Link>
+      <div className="pm-flow-hero-art" aria-hidden="true" />
+      <Link className="pm-flow-hero-action" to={href}><span aria-hidden="true">◷</span>{action}</Link>
     </section>
   );
 }
 
 function Considerations() {
+  const considerations = [
+    ["ability", "能力适配", "基于你的技能与经验评估项目匹配度"],
+    ["budget", "预算门槛", "核对启动与运营成本是否落在预算范围"],
+    ["resource", "资源要求", "评估人力、工具、渠道等资源可获得性"],
+    ["growth", "增长路径", "分析市场需求、变现方式与长期增长潜力"]
+  ] as const;
   return (
-    <section className="pm-panel">
+    <section className="pm-panel pm-considerations">
       <h2>匹配逻辑会考虑</h2>
       <div className="pm-factor-grid">
-        {["能力适配", "预算门槛", "资源要求", "增长路径"].map((item) => (
-          <article key={item}>
-            <strong>{item}</strong>
-            <small>用于评估项目可做度与启动风险</small>
+        {considerations.map(([icon, title, detail]) => (
+          <article key={title}>
+            <i className={icon} aria-hidden="true" />
+            <span><strong>{title}</strong><small>{detail}</small></span>
           </article>
         ))}
       </div>
+      <small className="pm-data-safety">智活AI 严格保护你的隐私，匹配过程不会被用于任何其他用途</small>
     </section>
   );
 }
 
-function ProjectCopilot({ reference = false, variant }: { reference?: boolean; variant: ProjectMarketVariant }) {
+function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   const [collapsed, setCollapsed] = useState(false);
-  const hasRecordContext = variant === "results" || variant === "paywall" || variant === "detail" || variant === "diagnosis" || variant === "compare" || variant === "export";
-  const copilotClassName = reference ? "ref-project-copilot" : "pm-copilot";
+  const { matchId, opportunitySlug } = useParams();
+  const [searchParams] = useSearchParams();
+  const [opportunities, setOpportunities] = useState<ProjectOpportunity[]>([]);
+  const [cases, setCases] = useState<ProjectCase[]>([]);
+  const [sessions, setSessions] = useState<ProjectMatchSession[]>([]);
+  const [currentSession, setCurrentSession] = useState<ProjectMatchSession | null>(null);
+  const [contextOpportunity, setContextOpportunity] = useState<ProjectOpportunity | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (["home", "explore", "compare"].includes(variant)) {
+      projectsApi.listOpportunities().then((payload) => { if (active) setOpportunities(payload.opportunities ?? []); }).catch(() => { if (active) setOpportunities([]); });
+    }
+    if (variant === "cases") {
+      projectsApi.listCases().then((payload) => { if (active) setCases(payload.cases ?? []); }).catch(() => { if (active) setCases([]); });
+    }
+    if (["match", "questions", "history", "results", "paywall", "export"].includes(variant)) {
+      const routeSessionId = Number(matchId);
+      if (Number.isFinite(routeSessionId) && routeSessionId > 0) {
+        projectsApi.getMatch(routeSessionId).then((payload) => { if (active) setCurrentSession(payload); }).catch(() => { if (active) setCurrentSession(null); });
+      } else {
+        projectsApi.listMatches().then((payload) => { if (active) setSessions(payload.matches ?? []); }).catch(() => { if (active) setSessions([]); });
+      }
+    }
+    if (opportunitySlug && ["detail", "diagnosis"].includes(variant)) {
+      projectsApi.getOpportunity(opportunitySlug).then((payload) => { if (active) setContextOpportunity(payload); }).catch(() => { if (active) setContextOpportunity(null); });
+    }
+    return () => { active = false; };
+  }, [matchId, opportunitySlug, variant]);
+
+  const selectedSlugs = (searchParams.get("items") ?? "").split(",").filter(Boolean);
+  const comparedOpportunities = opportunities.filter((item) => selectedSlugs.includes(item.slug));
+  const latestSession = currentSession ?? sessions.find((item) => item.status === "completed" && (item.result?.projects?.length ?? 0) > 0) ?? sessions[0];
+  const latestProject = latestSession?.result?.projects?.[0];
+  const activeDetailKey = detailTabs.some(([key]) => key === searchParams.get("section")) ? searchParams.get("section") ?? "path" : "path";
+  const activeDetailTitle = detailTabs.find(([key]) => key === activeDetailKey)?.[2];
+  const activeDetailSection = contextOpportunity?.sections?.find((section) => section.key === activeDetailKey || section.title === activeDetailTitle)
+    ?? (activeDetailKey === "path" ? contextOpportunity?.sections?.[0] : undefined);
+  const detailItems = (activeDetailSection?.items?.length
+    ? activeDetailSection.items
+    : activeDetailSection?.blocks?.flatMap((block) => block.items?.map((item) => item.title || item.value || "").filter(Boolean) ?? []) ?? []).slice(0, 4);
+  const caseLessons = cases.flatMap((item) => item.lessons ?? []).slice(0, 3);
+
+  let conversation: React.ReactNode;
+  if (variant === "match" || variant === "questions") {
+    const steps = variant === "match" ? ["提交需求，AI 开始分析", "确认关键信息", "生成匹配结果与建议"] : ["补齐预算、时间与项目偏好", "提交当前问题的真实选择", "按回答生成匹配结果"];
+    conversation = <>{latestSession ? <div className="pm-copilot-bubble user"><b>我</b><p>{latestSession.intent}</p></div> : null}<div className="pm-copilot-bubble assistant"><b>AI</b><p>{variant === "match" ? "填写需求后，我会识别目标、预算、时间与资源，再决定是否需要补充问题。" : "当前补充问题来自这条匹配记录，完成选择后即可继续生成结果。"}</p></div><div className="pm-copilot-summary"><strong>{variant === "match" ? "接下来会发生" : "本次补充流程"}</strong>{steps.map((item, index) => <span key={item}><b>{index + 1}</b> {item}</span>)}</div></>;
+  } else if (variant === "home") {
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>当前已从项目目录接口读取 {opportunities.length} 个已发布项目。</p></div><div className="pm-copilot-projects">{opportunities.slice(0, 3).map((item) => <Link key={item.id} to={`/projects/opportunities/${item.slug}`}><i className={`pm-project-thumb pm-project-${item.slug}`} /><span><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ")}</small></span></Link>)}</div><Link className="pm-copilot-cta" to="/projects/match">按我的条件匹配 →</Link></>;
+  } else if (variant === "explore") {
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下项目来自当前已发布目录，可继续查看预算、难度和完整拆解。</p></div><ul className="pm-copilot-compact-list">{opportunities.slice(0, 4).map((item) => <li key={item.id}><Link to={`/projects/opportunities/${item.slug}`}>{item.title}</Link><small>{item.budget_band} · {item.difficulty}</small></li>)}</ul><p className="pm-copilot-question">需要结合你的真实条件做进一步筛选吗？</p><Link className="pm-copilot-cta" to="/projects/match">去 AI 匹配 →</Link></>;
+  } else if (variant === "cases") {
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下案例来自服务端案例库，并保留各自的来源链接。</p></div><div className="pm-copilot-projects cases">{cases.slice(0, 3).map((item) => <a href={item.source_url} key={item.id} rel="noreferrer" target="_blank"><i className={`pm-case-thumb pm-case-${item.slug}`} /><span><strong>{item.title}</strong><small>{item.case_type === "success" ? "成功案例" : "失败复盘"}</small></span></a>)}</div><div className="pm-copilot-summary"><strong>案例库中的可学要点</strong>{caseLessons.length > 0 ? caseLessons.map((item) => <span key={item}>✓ {item}</span>) : <span>当前接口没有已发布经验</span>}</div></>;
+  } else if (variant === "history") {
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>当前接口返回 {sessions.length} 条匹配记录。</p></div><div className="pm-copilot-summary">{latestProject ? <><span>✓ 最近完成记录的首项：{latestProject.title}</span><span>✓ 可重新打开并核对原始匹配条件</span><span>✓ 可导出已保存的服务端记录</span></> : <span>完成首次匹配后，这里会显示历史记录摘要。</span>}</div></>;
+  } else if (variant === "results") {
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>{latestProject ? `根据当前匹配记录，优先验证 ${latestProject.title}。` : "匹配结果正在从会话接口读取。"}</p></div>{latestProject ? <div className="pm-copilot-result"><small>TOP 1 推荐</small><strong>{latestProject.title}</strong><b>匹配度 {latestProject.score} 分</b><p>这是最适合当前条件的项目：</p>{latestProject.reasons.map((item) => <span key={item}>✓ {item}</span>)}<Link to={latestProject.opportunity_slug ? `/projects/opportunities/${latestProject.opportunity_slug}` : "/projects/history"}>查看项目完整拆解 →</Link></div> : null}</>;
+  } else if (variant === "detail" || variant === "diagnosis") {
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>{contextOpportunity ? `已读取 ${contextOpportunity.title} 的“${activeDetailSection?.title ?? "项目详情"}”接口内容。` : "正在读取当前项目上下文。"}</p></div><div className="pm-copilot-summary"><strong>{activeDetailSection?.title ?? "当前章节"}</strong>{detailItems.length > 0 ? detailItems.map((item) => <span key={item}>• {item}</span>) : <span>当前章节暂无结构化数据</span>}</div>{contextOpportunity ? <Link className="pm-copilot-cta" to={`/tasks?project=${encodeURIComponent(contextOpportunity.slug)}`}>生成落地计划表</Link> : null}</>;
+  } else if (variant === "compare") {
+    const firstSelected = comparedOpportunities[0];
+    conversation = <>{firstSelected ? <div className="pm-copilot-result"><small>已选项目摘要</small><strong>{firstSelected.title}</strong><p>以下内容来自项目目录：</p><span>✓ 启动预算：{firstSelected.budget_band}</span><span>✓ 项目难度：{firstSelected.difficulty}</span><span>✓ 资源：{firstSelected.resource_requirements.slice(0, 2).join("、") || "待补充"}</span><Link to={`/projects/opportunities/${firstSelected.slug}`}>查看项目拆解详情 →</Link></div> : <div className="pm-copilot-bubble assistant"><b>AI</b><p>选择至少两个项目后，这里会展示接口中的项目条件摘要。</p></div>}</>;
+  } else {
+    conversation = <div className="pm-copilot-bubble assistant"><b>AI</b><p>{variant === "paywall" ? "解锁前请先核对权益、价格和可导出内容。" : "导出文件将按当前匹配会话的服务端记录生成。"}</p></div>;
+  }
+
   return (
-    <aside className={`${copilotClassName}${collapsed ? " is-collapsed" : ""}`} aria-label="智活 Copilot">
+    <aside className={`pm-copilot pm-copilot-${variant}${collapsed ? " is-collapsed" : ""}`} aria-label="智活 Copilot">
       <header>
         <span aria-hidden="true">✦</span>
         <div>
-          <strong aria-label="项目超市 Copilot">项目超市 Copilot</strong>
+          <strong aria-label="智活 Copilot">智活 Copilot</strong>
           <small>你的全球 AI 助手，随时为你提供帮助</small>
         </div>
+        <Link className="pm-copilot-settings" aria-label="项目超市 Copilot 设置" title="Copilot 设置" to="/assistant/settings">⚙</Link>
         <button
           type="button"
           aria-controls="project-copilot-body"
@@ -1063,23 +1676,13 @@ function ProjectCopilot({ reference = false, variant }: { reference?: boolean; v
         </button>
       </header>
       <div className="project-copilot-body" id="project-copilot-body" hidden={collapsed}>
-        <div className={reference ? "ref-project-chat-note" : "pm-chat-bubble"}>
-          {hasRecordContext
-            ? "页面中的项目结论只来自当前持久化记录；AI 匹配内容会明确标记为模型推演。"
-            : "提交真实需求后，Copilot 会创建可回看的匹配记录；未关联记录时不展示业务推荐。"}
-        </div>
-        <article className={reference ? "ref-project-match-card" : "pm-copilot-recommend"}>
-          <small>数据透明说明</small>
-          <strong>先记录，再分析</strong>
-          <p>机会详情使用运营发布内容与案例来源；匹配结果使用对应的 AI 会话记录。</p>
-          <Link to={hasRecordContext ? "/projects/history" : "/projects/match"}>{hasRecordContext ? "查看匹配记录" : "开始 AI 匹配"}</Link>
-        </article>
+        <div className="pm-copilot-conversation">{conversation}</div>
         <nav>
           <Link to="/projects/explore">分析市场机会</Link>
           <Link to="/tools/recommend">推荐工具</Link>
           <Link to="/tasks">制定落地计划</Link>
         </nav>
-        <MiniCopilotForm className={reference ? "ref-project-copilot-input" : "pm-copilot-input"} attachIcon="＋" sendIcon="↗" />
+        <MiniCopilotForm className="pm-copilot-input" attachIcon="＋" sendIcon="↗" />
       </div>
     </aside>
   );
@@ -1089,12 +1692,19 @@ function PaywallOverlay() {
   const { matchId } = useParams();
   const closeHref = matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
   const [plan, setPlan] = useState<MembershipPlanOption | null>(null);
+  const [planStatus, setPlanStatus] = useState<"loading" | "ready" | "error">("loading");
   useEffect(() => {
     let active = true;
     membershipApi.listPlans().then((payload) => {
-      if (active) setPlan(payload.plans.find((item) => item.recommended) ?? payload.plans.find((item) => item.code !== "free") ?? null);
+      if (!active) return;
+      const nextPlan = payload.plans.find((item) => item.recommended) ?? payload.plans.find((item) => item.code !== "free") ?? null;
+      setPlan(nextPlan);
+      setPlanStatus(nextPlan ? "ready" : "error");
     }).catch(() => {
-      if (active) setPlan(null);
+      if (active) {
+        setPlan(null);
+        setPlanStatus("error");
+      }
     });
     return () => { active = false; };
   }, []);
@@ -1103,25 +1713,25 @@ function PaywallOverlay() {
       <section className="pm-paywall-modal" role="dialog" aria-label="解锁完整拆解" aria-modal="true">
         <Link className="pm-modal-close" aria-label="关闭解锁弹层" to={closeHref}>×</Link>
         <header>
-          <div><h2>解锁完整拆解</h2><p>查看完整项目路径、真实案例、数据依据和进阶分析。</p></div>
-          <img alt="" src="/project-market/match-hero.jpg" />
+          <div><h2>解锁完整拆解</h2><small>unlock the full project path, real cases, and advanced analysis</small><p>查看完整项目路径、真实案例、数据依据和进阶分析。</p></div>
+          <div className="pm-paywall-hero-art" aria-hidden="true" />
         </header>
         <div className="pm-paywall-content">
           <section className="pm-plan-comparison" aria-label="会员权益对比">
-            <div className="pm-plan-comparison-head"><strong>功能权益</strong><strong>免费版</strong><strong>{plan?.name ?? "会员版"}</strong></div>
-            {(plan?.features ?? []).slice(0, 6).map((feature, index) => (
-              <div key={feature}><span>{feature}</span><small>{index === 0 ? "仅摘要" : "未开放"}</small><b>完整开放</b></div>
+            <div className="pm-plan-comparison-head"><strong>功能权益</strong><strong>当前账号</strong><strong>{plan?.name ?? "会员版"}</strong></div>
+            {(plan?.features ?? []).slice(0, 6).map((feature) => (
+              <div key={feature}><span>{feature}</span><small>以账号权限为准</small><b>方案包含</b></div>
             ))}
-            {!plan ? <div className="module-empty-state" role="status">正在读取会员方案...</div> : null}
+            {planStatus === "loading" ? <div className="module-empty-state" role="status">正在读取会员方案...</div> : null}
+            {planStatus === "error" ? <div className="module-empty-state" role="alert">会员方案暂不可用，请稍后重试</div> : null}
           </section>
           <aside>
-            <strong>{plan?.name ?? "智活AI会员"}</strong>
-            <small>解锁全部高级内容</small>
-            <b>{plan ? `¥${(plan.price_cents / 100).toLocaleString("zh-CN")}` : "--"}</b>
-            <span>{plan ? (plan.billing_cycle === "year" ? "每年" : "每月") : "读取方案中"}</span>
-            <p>完整拆解 · 持续更新 · 支持导出</p>
-            <Link className="pm-primary-button" to="/membership/upgrade">立即解锁</Link>
-            <Link to="/membership">先查看会员权益</Link>
+            <header><strong>{plan?.name ?? "智活AI会员"}</strong><small>解锁全部高级内容</small></header>
+            <p>海量高质量项目 · 深度拆解 · 持续更新</p>
+            <div className="pm-paywall-price"><b>{plan ? `¥${(plan.price_cents / 100).toLocaleString("zh-CN")}` : "--"}</b><span>/{plan ? (plan.billing_cycle === "year" ? "年" : "月") : "读取中"}</span></div>
+            <small className="pm-cancel-note">随时可取消 · 未消费额度按方案规则处理</small>
+            {plan ? <Link className="pm-primary-button" to="/membership/upgrade">立即解锁 <span aria-hidden="true">→</span></Link> : <button className="pm-primary-button" disabled type="button">方案暂不可用</button>}
+            <Link to="/membership">先看摘要</Link>
           </aside>
         </div>
       </section>
@@ -1134,14 +1744,31 @@ function ExportOverlay() {
   const { matchId } = useParams();
   const closeHref = matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
   const [sourceID, setSourceID] = useState<number | null>(null);
-  const [downloadURL, setDownloadURL] = useState("");
+  const [exportID, setExportID] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   useEffect(() => {
     const routeID = Number(matchId);
     if (Number.isFinite(routeID) && routeID > 0) {
-      setSourceID(routeID);
-      setError("");
+      let active = true;
+      setSourceID(null);
+      projectsApi.getMatch(routeID).then((session) => {
+        if (!active) return;
+        if (session.status !== "completed") {
+          setError("该匹配记录尚未完成，暂时不能导出");
+          return;
+        }
+        setSourceID(session.id);
+        setError("");
+      }).catch((loadError) => {
+        if (active) setError(apiErrorMessage(loadError, "暂时无法读取匹配记录"));
+      });
+      return () => { active = false; };
+    }
+    if (matchId) {
+      setSourceID(null);
+      setError("匹配记录不存在");
       return;
     }
     let active = true;
@@ -1156,9 +1783,21 @@ function ExportOverlay() {
   async function createExport() {
     if (!sourceID || exporting) return;
     setExporting(true); setError("");
-    try { const item = await projectsApi.createExport("match", sourceID); setDownloadURL(item.download_url); }
+    try { const item = await projectsApi.createExport("match", sourceID); setExportID(item.id); }
     catch (createError) { setError(apiErrorMessage(createError, "暂时无法导出报告")); }
     finally { setExporting(false); }
+  }
+  async function downloadExport() {
+    if (!exportID || downloading) return;
+    setDownloading(true); setError("");
+    try {
+      const blob = await projectsApi.downloadExport(exportID);
+      saveProjectExport(blob, `project-match-${sourceID ?? exportID}.json`);
+    } catch (downloadError) {
+      setError(apiErrorMessage(downloadError, "暂时无法下载报告"));
+    } finally {
+      setDownloading(false);
+    }
   }
   return createPortal(
     <div className="pm-modal-scrim">
@@ -1166,45 +1805,37 @@ function ExportOverlay() {
         <Link className="pm-modal-close" aria-label="关闭导出弹层" to={closeHref}>×</Link>
         <header><span aria-hidden="true">⇧</span><div><h2>导出匹配报告</h2><p>选择实际支持的格式与报告内容，生成当前匹配会话的服务端快照。</p></div></header>
         <div className="pm-export-layout">
-          <section>
+          <section className="pm-export-formats">
             <h3>1. 选择导出格式</h3>
-            <button className="active" type="button"><b>JSON</b><span>数据快照</span><small>结构化保存完整匹配记录</small></button>
+            <button className="active" type="button"><i aria-hidden="true">{"{}"}</i><b>JSON 数据</b><span>服务端快照</span><small>结构化保存完整匹配记录</small></button>
+            <button disabled type="button"><i aria-hidden="true">X</i><b>Excel 表格</b><span>即将开放</span><small>适合详细数据与二次分析</small></button>
+            <button disabled type="button"><i aria-hidden="true">↗</i><b>在线分享链接</b><span>即将开放</span><small>生成加密链接，便于在线分享</small></button>
           </section>
-          <section>
-            <h3>2. 报告内容</h3>
-            {["用户需求摘要", "匹配结果排名", "项目对比信息", "风险提示", "后续行动建议"].map((item) => (
-              <label key={item}><input checked readOnly type="checkbox" /><span>{item}</span></label>
+          <section className="pm-export-content-options">
+            <h3>2. 服务端报告内容 <small>（固定快照）</small></h3>
+            {["匹配需求", "项目结果排名", "项目标签与预算", "模型推荐理由", "风险提示", "会话时间"].map((item, index) => (
+              <label key={item}><input checked disabled readOnly type="checkbox" /><i aria-hidden="true">{["◎", "▥", "▦", "✓", "!", "◷"][index]}</i><span><strong>{item}</strong><small>来自当前匹配会话的服务端记录</small></span></label>
             ))}
+            <Link to="/membership">会员专享 · 高级导出选项 →</Link>
           </section>
           <article className="pm-export-preview">
             <h3>3. 报告预览</h3>
-            <div><strong>智活AI 匹配报告</strong><small>项目匹配分析报告</small><i /></div>
+            <div><strong>智活AI 匹配报告</strong><small>项目匹配分析报告</small><div className="pm-export-preview-art" aria-hidden="true" /></div>
             <p>当前会话 #{sourceID ?? "--"}</p>
-            <span>需求 · 推荐 · 风险 · 行动</span>
+            <div className="pm-export-preview-metrics"><span>需求摘要</span><span>匹配排名</span><span>风险提示</span><span>后续行动</span></div>
+            <small>页面 preview · 实际导出内容将按服务端记录生成</small>
           </article>
         </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        {downloadURL ? <a className="pm-export-download" href={downloadURL}>下载已生成的 JSON 报告</a> : null}
+        {exportID ? <button className="pm-export-download" disabled={downloading} onClick={() => void downloadExport()} type="button">{downloading ? "下载中..." : "下载已生成的 JSON 报告"}</button> : null}
         <footer>
+          <small>付费用户可导出无水印或详细报告，解锁更多专业内容与数据详情。</small>
           <Link to={closeHref}>取消</Link>
           <button disabled={!sourceID || exporting} onClick={() => void createExport()} type="button">{exporting ? "导出中..." : "确认导出"}</button>
         </footer>
       </section>
     </div>,
     document.body
-  );
-}
-
-function AiCubeArt() {
-  return (
-    <div className="pm-ai-art" aria-hidden="true">
-      <span className="pm-orbit one" />
-      <span className="pm-orbit two" />
-      <strong>AI</strong>
-      <i className="cube one" />
-      <i className="cube two" />
-      <i className="cube three" />
-    </div>
   );
 }
 

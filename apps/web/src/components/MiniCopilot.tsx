@@ -87,7 +87,7 @@ export function MiniCopilotForm({
   return (
     <>
       <form className={className} onSubmit={submit}>
-        <button aria-label={attachLabel} onClick={onAttach} type="button">{attachIcon}</button>
+        <button aria-label={attachLabel} disabled={!onAttach} onClick={onAttach} title={onAttach ? attachLabel : `${attachLabel}（暂未开放）`} type="button">{attachIcon}</button>
         <input
           aria-label={inputAriaLabel}
           onChange={(event) => setDraft(event.target.value)}

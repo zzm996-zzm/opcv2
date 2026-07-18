@@ -4,11 +4,24 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 import { authSession } from "../lib/authSession";
+import { projectsApi, type ProjectOpportunity } from "../lib/projectsApi";
 import LearningDiagnosisPage from "./LearningDiagnosisPage";
 
 function signIn() {
   authSession.set({ access_token: "token", access_token_expires_at: "2026-07-14T00:00:00Z", is_new_user: false, user: { id: 7, nickname: "张晨", phone: "", status: "active" } });
 }
+
+const projectOpportunity: ProjectOpportunity = {
+  id: 19,
+  slug: "ai-short-video-studio",
+  title: "AI短视频脚本工作室",
+  summary: "面向企业与个人IP的短视频脚本服务",
+  industry: "内容创作",
+  tags: ["一人公司"],
+  budget_band: "1-3万",
+  difficulty: "中等",
+  resource_requirements: ["内容能力"]
+};
 
 describe("LearningDiagnosisPage", () => {
   afterEach(() => { authSession.clear(); vi.restoreAllMocks(); });
@@ -17,9 +30,32 @@ describe("LearningDiagnosisPage", () => {
     signIn();
     render(<MemoryRouter><LearningDiagnosisPage /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "能力诊断" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "已接入分析的数据源" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "本次评估使用的数据" })).toBeInTheDocument();
     expect(screen.getByLabelText("目标项目或应用场景")).toBeInTheDocument();
     expect(screen.getByText(/不会声称读取未接入的数据/)).toBeInTheDocument();
+  });
+
+  it("prefills the target project and project source from URL context", async () => {
+    signIn();
+    const getOpportunity = vi.spyOn(projectsApi, "getOpportunity").mockResolvedValue(projectOpportunity);
+
+    render(<MemoryRouter initialEntries={["/learning/diagnosis?project=ai-short-video-studio"]}><LearningDiagnosisPage /></MemoryRouter>);
+
+    await waitFor(() => expect(getOpportunity).toHaveBeenCalledWith("ai-short-video-studio"));
+    await waitFor(() => expect(screen.getByLabelText("目标项目或应用场景")).toHaveValue("AI短视频脚本工作室"));
+    expect(screen.getByText("AI短视频脚本工作室")).toBeInTheDocument();
+  });
+
+  it("shows a truthful error state when URL context cannot be loaded", async () => {
+    signIn();
+    const getOpportunity = vi.spyOn(projectsApi, "getOpportunity").mockRejectedValue(new Error("not found"));
+
+    render(<MemoryRouter initialEntries={["/learning/diagnosis?project=missing-project"]}><LearningDiagnosisPage /></MemoryRouter>);
+
+    await waitFor(() => expect(getOpportunity).toHaveBeenCalledWith("missing-project"));
+    expect(screen.getByLabelText("目标项目或应用场景")).toHaveValue("");
+    expect(screen.getByText("项目接口读取失败")).toBeInTheDocument();
+    expect(screen.getByText("请填写目标项目")).toBeInTheDocument();
   });
 
   it("submits an assessment and routes with the persisted result", async () => {
