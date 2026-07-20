@@ -18,6 +18,8 @@ import (
 type Repository interface {
 	CreateSession(ctx context.Context, session Session) (Session, error)
 	UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error)
+	UpdateSessionIntake(ctx context.Context, userID, id int64, intake Intake) (Session, error)
+	UpdateSessionSettings(ctx context.Context, userID, id int64, settings RunSettings) (Session, error)
 	PrepareSessionRun(ctx context.Context, userID, id int64) (Session, error)
 	UpdateSessionProgress(ctx context.Context, userID, id int64, attempt int, status string, progress int, step, errorMessage string) (Session, error)
 	CancelSession(ctx context.Context, userID, id int64) (Session, error)
@@ -32,8 +34,21 @@ type roleAnswer struct {
 	Answer string `json:"answer"`
 }
 
+type intakeGeneration struct {
+	Goal             string            `json:"goal"`
+	TargetUsers      string            `json:"target_users"`
+	Product          string            `json:"product"`
+	RecognizedFields []RecognizedField `json:"recognized_fields"`
+	Questions        []IntakeQuestion  `json:"questions"`
+}
+
 func (s *Service) ListRoles() []Role {
-	return DefaultRoles()
+	roles := append([]Role{}, DefaultRoles()...)
+	return append(roles, DefaultSystemPerspectives()...)
+}
+
+func (s *Service) Options() Options {
+	return DefaultOptions()
 }
 
 type JSONGenerator interface {
@@ -94,6 +109,7 @@ func (s *Service) CreateSession(ctx context.Context, input CreateInput) (Session
 	if s.repository == nil {
 		return Session{}, ErrServiceNotReady
 	}
+	now := s.now()
 	session := Session{
 		UserID:      input.UserID,
 		Goal:        strings.TrimSpace(input.Goal),
@@ -102,9 +118,145 @@ func (s *Service) CreateSession(ctx context.Context, input CreateInput) (Session
 		Roles:       normalizeRoles(input.Roles),
 		Status:      StatusDraft,
 		CurrentStep: StatusDraft,
-		CreatedAt:   s.now(),
+		Intake:      DefaultReadyIntake(),
+		Settings:    DefaultRunSettings(),
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 	return s.repository.CreateSession(ctx, session)
+}
+
+func (s *Service) CreateIntake(ctx context.Context, input IntakeCreateInput) (Session, error) {
+	if s.repository == nil || s.generator == nil {
+		return Session{}, ErrServiceNotReady
+	}
+	input.InitialIdea = strings.TrimSpace(input.InitialIdea)
+	if input.UserID <= 0 || input.InitialIdea == "" || len([]rune(input.InitialIdea)) > 5000 {
+		return Session{}, ErrInvalidIntake
+	}
+	result, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
+		UserID:         input.UserID,
+		Feature:        "sandbox.intake",
+		PromptVersion:  "sandbox_intake_v1",
+		SystemPrompt:   "你是商业沙盘信息整理助手。只返回 JSON，提取目标、用户、产品，并生成结构化追问。不得编造用户未提供的事实；未知字段用空字符串表示。",
+		UserPrompt:     "请根据以下项目描述生成商业沙盘初始信息和追问：\n" + input.InitialIdea,
+		SchemaName:     "sandbox_intake",
+		Validate:       validateIntakeJSON,
+		RepairAttempts: 1,
+	})
+	if err != nil {
+		return Session{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
+	}
+	var generated intakeGeneration
+	if err := json.Unmarshal(result.Content, &generated); err != nil {
+		return Session{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
+	}
+	generated.Goal = strings.TrimSpace(generated.Goal)
+	generated.TargetUsers = strings.TrimSpace(generated.TargetUsers)
+	generated.Product = strings.TrimSpace(generated.Product)
+	if generated.Goal == "" || generated.TargetUsers == "" || generated.Product == "" || len(generated.Questions) == 0 {
+		return Session{}, ErrInvalidAIResult
+	}
+	questions := normalizeIntakeQuestions(generated.Questions)
+	if len(questions) == 0 {
+		return Session{}, ErrInvalidAIResult
+	}
+	intake := Intake{
+		Status:           IntakeStatusQuestions,
+		InitialIdea:      input.InitialIdea,
+		RecognizedFields: normalizeRecognizedFields(generated.RecognizedFields),
+		Questions:        questions,
+		TotalQuestions:   len(questions),
+	}
+	now := s.now()
+	return s.repository.CreateSession(ctx, Session{
+		UserID:      input.UserID,
+		Goal:        generated.Goal,
+		TargetUsers: generated.TargetUsers,
+		Product:     generated.Product,
+		Status:      StatusDraft,
+		CurrentStep: IntakeStatusQuestions,
+		Intake:      intake,
+		Settings:    DefaultRunSettings(),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+}
+
+func (s *Service) AnswerIntake(ctx context.Context, input IntakeAnswerInput) (Session, error) {
+	if s.repository == nil {
+		return Session{}, ErrServiceNotReady
+	}
+	input.QuestionKey = strings.TrimSpace(input.QuestionKey)
+	input.Answer = strings.TrimSpace(input.Answer)
+	if input.UserID <= 0 || input.SessionID <= 0 || input.QuestionKey == "" || (input.Answer == "" && !input.Skipped) {
+		return Session{}, ErrInvalidIntake
+	}
+	session, err := s.repository.GetSession(ctx, input.UserID, input.SessionID)
+	if err != nil {
+		return Session{}, err
+	}
+	if session.Status != StatusDraft || session.Intake.Status == IntakeStatusReady {
+		return Session{}, ErrInvalidIntake
+	}
+	intake := normalizeIntake(session.Intake)
+	questionIndex := -1
+	for index := range intake.Questions {
+		if intake.Questions[index].Key == input.QuestionKey {
+			questionIndex = index
+			break
+		}
+	}
+	if questionIndex < 0 {
+		return Session{}, ErrInvalidIntake
+	}
+	question := &intake.Questions[questionIndex]
+	if question.MaxLength > 0 && len([]rune(input.Answer)) > question.MaxLength {
+		return Session{}, ErrInvalidIntake
+	}
+	question.Answer = input.Answer
+	question.Skipped = input.Skipped
+	if question.Answer != "" {
+		question.Skipped = false
+	}
+	intake.AnsweredCount = countCompletedQuestions(intake.Questions)
+	return s.repository.UpdateSessionIntake(ctx, input.UserID, input.SessionID, intake)
+}
+
+func (s *Service) CompleteIntake(ctx context.Context, userID, id int64) (Session, error) {
+	if s.repository == nil {
+		return Session{}, ErrServiceNotReady
+	}
+	session, err := s.repository.GetSession(ctx, userID, id)
+	if err != nil {
+		return Session{}, err
+	}
+	if session.Status != StatusDraft {
+		return Session{}, ErrInvalidIntake
+	}
+	intake := normalizeIntake(session.Intake)
+	if len(intake.Questions) == 0 {
+		return Session{}, ErrIntakeIncomplete
+	}
+	for _, question := range intake.Questions {
+		if strings.TrimSpace(question.Answer) == "" && !question.Skipped {
+			return Session{}, ErrIntakeIncomplete
+		}
+	}
+	intake.Status = IntakeStatusReady
+	intake.AnsweredCount = countCompletedQuestions(intake.Questions)
+	return s.repository.UpdateSessionIntake(ctx, userID, id, intake)
+}
+
+func (s *Service) UpdateSessionSettings(ctx context.Context, userID, id int64, settings RunSettings) (Session, error) {
+	if s.repository == nil {
+		return Session{}, ErrServiceNotReady
+	}
+	settings, err := normalizeRunSettings(settings)
+	if err != nil {
+		return Session{}, err
+	}
+	return s.repository.UpdateSessionSettings(ctx, userID, id, settings)
 }
 
 func (s *Service) UpdateSessionDraft(ctx context.Context, userID, id int64, update DraftUpdate) (Session, error) {
@@ -118,6 +270,7 @@ func (s *Service) UpdateSessionDraft(ctx context.Context, userID, id int64, upda
 	if session.Status != StatusDraft {
 		return Session{}, ErrInvalidSession
 	}
+	hasDraftFields := update.Goal != nil || update.TargetUsers != nil || update.Product != nil || update.Roles != nil
 	goal, targetUsers, product, roles := session.Goal, session.TargetUsers, session.Product, session.Roles
 	if update.Goal != nil {
 		goal = strings.TrimSpace(*update.Goal)
@@ -131,11 +284,25 @@ func (s *Service) UpdateSessionDraft(ctx context.Context, userID, id int64, upda
 	if update.Roles != nil {
 		roles = normalizeRoles(*update.Roles)
 	}
-	if goal == "" || targetUsers == "" || product == "" {
+	if hasDraftFields && (goal == "" || targetUsers == "" || product == "") {
 		return Session{}, ErrInvalidSession
 	}
+	var settings *RunSettings
+	if update.Settings != nil {
+		normalized, err := normalizeRunSettings(*update.Settings)
+		if err != nil {
+			return Session{}, err
+		}
+		settings = &normalized
+	}
+	if !hasDraftFields {
+		if settings == nil {
+			return Session{}, ErrInvalidSession
+		}
+		return s.repository.UpdateSessionSettings(ctx, userID, id, *settings)
+	}
 	return s.repository.UpdateSessionDraft(ctx, userID, id, DraftUpdate{
-		Goal: &goal, TargetUsers: &targetUsers, Product: &product, Roles: &roles,
+		Goal: &goal, TargetUsers: &targetUsers, Product: &product, Roles: &roles, Settings: settings,
 	})
 }
 
@@ -147,7 +314,8 @@ func (s *Service) RunSession(ctx context.Context, userID, id int64) (Session, er
 	if err != nil {
 		return Session{}, err
 	}
-	if (session.Status != StatusDraft && session.Status != StatusFailed && session.Status != StatusCanceled) || session.Goal == "" || session.TargetUsers == "" || session.Product == "" || len(session.Roles) == 0 {
+	intakeIncomplete := len(session.Intake.Questions) > 0 && session.Intake.Status != IntakeStatusReady
+	if (session.Status != StatusDraft && session.Status != StatusFailed && session.Status != StatusCanceled) || session.Goal == "" || session.TargetUsers == "" || session.Product == "" || len(session.Roles) == 0 || intakeIncomplete {
 		return Session{}, ErrInvalidSession
 	}
 	queued, err := s.repository.PrepareSessionRun(ctx, userID, id)
@@ -359,6 +527,7 @@ func (s *Service) generateReport(ctx context.Context, session Session) (Report, 
 	if err := json.Unmarshal(aiResult.Content, &report); err != nil {
 		return Report{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
 	}
+	report = normalizeReportContent(report)
 	report = labelModelReport(report, session)
 	if err := validateReport(report); err != nil {
 		return Report{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
@@ -392,13 +561,34 @@ func (s *Service) profilePrompt(ctx context.Context, userID int64) (string, erro
 }
 
 func sandboxUserPrompt(session Session) string {
-	return fmt.Sprintf(
+	prompt := fmt.Sprintf(
 		"目标：%s\n目标用户：%s\n产品/方案：%s\n推演角色：%s",
 		session.Goal,
 		session.TargetUsers,
 		session.Product,
 		strings.Join(session.Roles, "、"),
 	)
+	settings, err := normalizeRunSettings(session.Settings)
+	if err != nil {
+		settings = DefaultRunSettings()
+	}
+	prompt += fmt.Sprintf("\n推演深度：%s\n输出风格：%s\n生成大纲：%t", settings.Depth, settings.OutputStyle, settings.GenerateOutline)
+	if len(settings.Variables) > 0 {
+		keys := make([]string, 0, len(settings.Variables))
+		for key := range settings.Variables {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			prompt += fmt.Sprintf("\n高级变量[%s]：%s", key, settings.Variables[key])
+		}
+	}
+	for _, question := range session.Intake.Questions {
+		if strings.TrimSpace(question.Answer) != "" {
+			prompt += fmt.Sprintf("\n补充回答[%s]：%s", question.Title, question.Answer)
+		}
+	}
+	return prompt
 }
 
 func appendPromptSection(base string, section string) string {
@@ -443,6 +633,7 @@ func validateReportJSON(data []byte) error {
 	if err := json.Unmarshal(data, &report); err != nil {
 		return err
 	}
+	report = normalizeReportContent(report)
 	return validateReportContent(report)
 }
 
@@ -476,6 +667,165 @@ func validateReportContent(report Report) error {
 		}
 	}
 	return nil
+}
+
+func validateIntakeJSON(data []byte) error {
+	var generated intakeGeneration
+	if err := json.Unmarshal(data, &generated); err != nil {
+		return err
+	}
+	if strings.TrimSpace(generated.Goal) == "" || strings.TrimSpace(generated.TargetUsers) == "" || strings.TrimSpace(generated.Product) == "" {
+		return errors.New("sandbox intake is missing core fields")
+	}
+	if len(normalizeIntakeQuestions(generated.Questions)) == 0 {
+		return errors.New("sandbox intake has no questions")
+	}
+	return nil
+}
+
+func normalizeIntakeQuestions(questions []IntakeQuestion) []IntakeQuestion {
+	normalized := make([]IntakeQuestion, 0, len(questions))
+	seen := make(map[string]struct{}, len(questions))
+	for _, question := range questions {
+		question.Key = strings.TrimSpace(question.Key)
+		question.Title = strings.TrimSpace(question.Title)
+		question.Hint = strings.TrimSpace(question.Hint)
+		question.Placeholder = strings.TrimSpace(question.Placeholder)
+		if question.Key == "" || question.Title == "" {
+			continue
+		}
+		if _, exists := seen[question.Key]; exists {
+			continue
+		}
+		seen[question.Key] = struct{}{}
+		if question.MaxLength <= 0 || question.MaxLength > 2000 {
+			question.MaxLength = 1000
+		}
+		question.Position = len(normalized) + 1
+		question.Answer = strings.TrimSpace(question.Answer)
+		question.Skipped = question.Skipped && question.Answer == ""
+		normalized = append(normalized, question)
+	}
+	return normalized
+}
+
+func normalizeRecognizedFields(fields []RecognizedField) []RecognizedField {
+	normalized := make([]RecognizedField, 0, len(fields))
+	seen := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		field.Key = strings.TrimSpace(field.Key)
+		field.Label = strings.TrimSpace(field.Label)
+		field.Value = strings.TrimSpace(field.Value)
+		if field.Key == "" || field.Label == "" || field.Value == "" {
+			continue
+		}
+		if _, exists := seen[field.Key]; exists {
+			continue
+		}
+		seen[field.Key] = struct{}{}
+		normalized = append(normalized, field)
+	}
+	return normalized
+}
+
+func normalizeIntake(intake Intake) Intake {
+	intake.InitialIdea = strings.TrimSpace(intake.InitialIdea)
+	intake.RecognizedFields = normalizeRecognizedFields(intake.RecognizedFields)
+	intake.Questions = normalizeIntakeQuestions(intake.Questions)
+	intake.TotalQuestions = len(intake.Questions)
+	intake.AnsweredCount = countCompletedQuestions(intake.Questions)
+	return intake
+}
+
+func countCompletedQuestions(questions []IntakeQuestion) int {
+	count := 0
+	for _, question := range questions {
+		if strings.TrimSpace(question.Answer) != "" || question.Skipped {
+			count++
+		}
+	}
+	return count
+}
+
+func normalizeRunSettings(settings RunSettings) (RunSettings, error) {
+	defaults := DefaultRunSettings()
+	if settings.Depth == "" {
+		settings.Depth = defaults.Depth
+	}
+	if settings.OutputStyle == "" {
+		settings.OutputStyle = defaults.OutputStyle
+	}
+	if settings.Depth != RunDepthStandard && settings.Depth != RunDepthDeep {
+		return RunSettings{}, ErrInvalidSession
+	}
+	if settings.OutputStyle != OutputStyleStructured && settings.OutputStyle != OutputStyleConcise {
+		return RunSettings{}, ErrInvalidSession
+	}
+	if settings.Variables == nil {
+		settings.Variables = map[string]string{}
+	}
+	if len(settings.Variables) > 50 {
+		return RunSettings{}, ErrInvalidSession
+	}
+	variables := make(map[string]string, len(settings.Variables))
+	for key, value := range settings.Variables {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || len([]rune(key)) > 100 || len([]rune(value)) > 1000 {
+			return RunSettings{}, ErrInvalidSession
+		}
+		variables[key] = value
+	}
+	settings.Variables = variables
+	return settings, nil
+}
+
+func normalizeReportContent(report Report) Report {
+	if report.Score == 0 && report.ConsumerProbability > 0 {
+		report.Score = report.ConsumerProbability
+	}
+	if strings.TrimSpace(report.Summary) == "" && len(report.CoreConclusions) > 0 {
+		report.Summary = strings.TrimSpace(report.CoreConclusions[0])
+	}
+	if len(report.Metrics) == 0 && len(report.ValidationMetrics) > 0 {
+		report.Metrics = make([]Metric, 0, len(report.ValidationMetrics))
+		for _, metric := range report.ValidationMetrics {
+			value := strings.TrimSpace(metric.Target)
+			if value == "" {
+				value = strings.TrimSpace(metric.Current)
+			}
+			report.Metrics = append(report.Metrics, Metric{Label: strings.TrimSpace(metric.Label), Value: value})
+		}
+	}
+	if len(report.RoleSummaries) == 0 {
+		for _, insight := range report.OpportunityAnalysis {
+			if strings.TrimSpace(insight.Detail) == "" {
+				continue
+			}
+			report.RoleSummaries = append(report.RoleSummaries, RoleSummary{Role: "综合分析", View: strings.TrimSpace(insight.Detail)})
+			break
+		}
+	}
+	if len(report.Risks) == 0 {
+		for _, insight := range report.RiskAnalysis {
+			if strings.TrimSpace(insight.Detail) != "" {
+				report.Risks = append(report.Risks, strings.TrimSpace(insight.Detail))
+			}
+		}
+	}
+	if len(report.NextActions) == 0 {
+		for _, action := range report.ActionPlan {
+			if strings.TrimSpace(action.Title) == "" && strings.TrimSpace(action.Detail) == "" {
+				continue
+			}
+			title := strings.TrimSpace(action.Title)
+			if title == "" {
+				title = strings.TrimSpace(action.Detail)
+			}
+			report.NextActions = append(report.NextActions, title)
+		}
+	}
+	return report
 }
 
 func normalizeRoles(roles []string) []string {

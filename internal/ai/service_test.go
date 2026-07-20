@@ -419,9 +419,13 @@ func TestDevelopmentProviderReturnsFeatureSpecificSandboxJSON(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 	var payload struct {
-		Score   int    `json:"score"`
-		Summary string `json:"summary"`
-		Metrics []struct {
+		ReportVersion       string `json:"report_version"`
+		Score               int    `json:"score"`
+		Summary             string `json:"summary"`
+		ConsumerProbability int    `json:"consumer_probability"`
+		RiskLevel           string `json:"risk_level"`
+		RecommendationGrade string `json:"recommendation_grade"`
+		Metrics             []struct {
 			Label string `json:"label"`
 			Value string `json:"value"`
 		} `json:"metrics"`
@@ -429,13 +433,110 @@ func TestDevelopmentProviderReturnsFeatureSpecificSandboxJSON(t *testing.T) {
 			Role string `json:"role"`
 			View string `json:"view"`
 		} `json:"role_summaries"`
-		Risks       []string `json:"risks"`
-		NextActions []string `json:"next_actions"`
+		Risks               []string `json:"risks"`
+		NextActions         []string `json:"next_actions"`
+		CoreConclusions     []string `json:"core_conclusions"`
+		OpportunityAnalysis []struct {
+			Title  string   `json:"title"`
+			Detail string   `json:"detail"`
+			Tags   []string `json:"tags"`
+		} `json:"opportunity_analysis"`
+		RiskAnalysis []struct {
+			Title  string   `json:"title"`
+			Detail string   `json:"detail"`
+			Tags   []string `json:"tags"`
+		} `json:"risk_analysis"`
+		ActionPlan []struct {
+			Order    int    `json:"order"`
+			Title    string `json:"title"`
+			Detail   string `json:"detail"`
+			Duration string `json:"duration"`
+		} `json:"action_plan"`
+		GrowthPath []struct {
+			Stage  int    `json:"stage"`
+			Title  string `json:"title"`
+			Detail string `json:"detail"`
+		} `json:"growth_path"`
+		ValidationMetrics []struct {
+			Label             string `json:"label"`
+			Current           string `json:"current"`
+			Target            string `json:"target"`
+			ConfidencePercent int    `json:"confidence_percent"`
+		} `json:"validation_metrics"`
+		Timeline []struct {
+			Title  string `json:"title"`
+			Period string `json:"period"`
+		} `json:"timeline"`
 	}
 	if err := json.Unmarshal(response.Content, &payload); err != nil {
 		t.Fatalf("sandbox response is not JSON: %v", err)
 	}
-	if payload.Score == 0 || payload.Summary == "" || len(payload.Metrics) == 0 || len(payload.RoleSummaries) == 0 || len(payload.Risks) == 0 || len(payload.NextActions) == 0 {
+	if payload.ReportVersion == "" || payload.Score == 0 || payload.Summary == "" || payload.ConsumerProbability == 0 || payload.RiskLevel == "" || payload.RecommendationGrade == "" ||
+		len(payload.Metrics) == 0 || len(payload.RoleSummaries) == 0 || len(payload.Risks) == 0 || len(payload.NextActions) == 0 ||
+		len(payload.CoreConclusions) == 0 || len(payload.OpportunityAnalysis) == 0 || len(payload.RiskAnalysis) == 0 || len(payload.ActionPlan) == 0 ||
+		len(payload.GrowthPath) == 0 || len(payload.ValidationMetrics) == 0 || len(payload.Timeline) == 0 {
+		t.Fatalf("payload = %+v", payload)
+	}
+}
+
+func TestDevelopmentProviderReturnsFeatureSpecificSandboxIntakeJSON(t *testing.T) {
+	provider := NewDevelopmentProvider()
+
+	response, err := provider.Generate(context.Background(), ProviderRequest{Feature: "sandbox.intake"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	var payload struct {
+		Goal             string `json:"goal"`
+		TargetUsers      string `json:"target_users"`
+		Product          string `json:"product"`
+		RecognizedFields []struct {
+			Key   string `json:"key"`
+			Label string `json:"label"`
+			Value string `json:"value"`
+		} `json:"recognized_fields"`
+		Questions []struct {
+			Key         string `json:"key"`
+			Title       string `json:"title"`
+			Hint        string `json:"hint"`
+			Placeholder string `json:"placeholder"`
+			Required    bool   `json:"required"`
+			MaxLength   int    `json:"max_length"`
+			Position    int    `json:"position"`
+		} `json:"questions"`
+	}
+	if err := json.Unmarshal(response.Content, &payload); err != nil {
+		t.Fatalf("sandbox intake response is not JSON: %v", err)
+	}
+	if payload.Goal == "" || payload.TargetUsers == "" || payload.Product == "" || len(payload.RecognizedFields) != 3 || len(payload.Questions) != 5 {
+		t.Fatalf("payload = %+v", payload)
+	}
+	seen := make(map[string]struct{}, len(payload.Questions))
+	for _, question := range payload.Questions {
+		if question.Key == "" || question.Title == "" || question.Hint == "" || question.Placeholder == "" || question.MaxLength < 1 || question.MaxLength > 2000 || question.Position < 1 {
+			t.Fatalf("invalid question = %+v", question)
+		}
+		if _, exists := seen[question.Key]; exists {
+			t.Fatalf("duplicate question key = %q", question.Key)
+		}
+		seen[question.Key] = struct{}{}
+	}
+}
+
+func TestDevelopmentProviderReturnsFeatureSpecificSandboxFollowUpJSON(t *testing.T) {
+	provider := NewDevelopmentProvider()
+
+	response, err := provider.Generate(context.Background(), ProviderRequest{Feature: "sandbox.follow_up"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	var payload struct {
+		Answer string `json:"answer"`
+	}
+	if err := json.Unmarshal(response.Content, &payload); err != nil {
+		t.Fatalf("sandbox follow-up response is not JSON: %v", err)
+	}
+	if payload.Answer == "" {
 		t.Fatalf("payload = %+v", payload)
 	}
 }

@@ -44,6 +44,75 @@ be treated as available until the matching backend handlers and tests land.
 
 All sandbox endpoints are protected.
 
+### Sandbox Options
+
+`GET /api/v1/sandbox/options`
+
+Returns the server-owned role catalog, system perspectives, run-depth options,
+output styles, and default settings used by the setup flow. Clients must use
+the returned values rather than duplicating option labels in the UI.
+
+### Create Intake Draft
+
+`POST /api/v1/sandbox/sessions/intake`
+
+Request:
+
+```json
+{
+  "initial_idea": "想验证一个面向本地门店的 AI 运营助手"
+}
+```
+
+The server asks the configured JSON AI provider to extract the goal, target
+users, product, recognized fields, and follow-up questions, then persists a
+draft session with `intake.status = "questions"`. The legacy
+`POST /api/v1/sandbox/sessions` endpoint remains available for clients that
+already provide the three core fields directly.
+
+### Answer and Complete Intake
+
+`PUT /api/v1/sandbox/sessions/{id}/intake/questions/{key}`
+
+Request:
+
+```json
+{
+  "answer": "当前主要靠人工回复，旺季经常漏掉高意向客户。",
+  "skipped": false
+}
+```
+
+Answers are validated against the server-provided question length and required
+flags, and the updated session is returned. Optional questions may be skipped;
+required questions cannot be skipped.
+
+`POST /api/v1/sandbox/sessions/{id}/intake/complete`
+
+Marks the intake ready after every question has an answer or an explicit skip.
+An incomplete intake returns `400 {"error":"intake_incomplete"}`. A ready
+intake is required before a newly created AI intake draft can be run.
+
+### Update Run Settings
+
+`PATCH /api/v1/sandbox/sessions/{id}/draft`
+
+The existing draft endpoint also accepts a settings-only body or settings next
+to core draft fields:
+
+```json
+{
+  "settings": {
+    "depth": "deep",
+    "output_style": "structured_report",
+    "generate_outline": true,
+    "variables": {"budget": "3万以内"}
+  }
+}
+```
+
+Depth, output style, and advanced-variable limits are validated server-side.
+
 ### List Simulation Roles
 
 `GET /api/v1/sandbox/roles`

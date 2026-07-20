@@ -70,10 +70,36 @@ func (p *DevelopmentProvider) responseFor(feature string) []byte {
 				}
 			]
 		}`)
+	case "sandbox.intake":
+		return []byte(`{
+			"goal":"验证面向本地教培机构的 AI 客服与企微转化助手是否值得投入开发和推广",
+			"target_users":"拥有 30-200 人团队、存在高频招生咨询与私域转化需求的本地教培机构",
+			"product":"接入企业微信的 AI 客服与线索转化助手，为教培机构提供自动答疑、意向识别和销售跟进建议",
+			"recognized_fields":[
+				{"key":"goal","label":"推演目标","value":"验证面向本地教培机构的 AI 客服与企微转化助手是否值得投入开发和推广"},
+				{"key":"target_users","label":"目标用户","value":"拥有 30-200 人团队、存在高频招生咨询与私域转化需求的本地教培机构"},
+				{"key":"product","label":"产品方案","value":"接入企业微信的 AI 客服与线索转化助手，为教培机构提供自动答疑、意向识别和销售跟进建议"}
+			],
+			"questions":[
+				{"key":"customer_pain","title":"目标客户目前最急需解决的问题是什么？","hint":"描述最常出现、影响成交或交付的具体问题。","placeholder":"例如：招生旺季咨询量大，销售无法及时跟进高意向家长。","required":true,"max_length":1000,"position":1},
+				{"key":"current_solution","title":"客户现在如何解决这个问题？","hint":"说明现有流程、工具或人工方式，以及主要不足。","placeholder":"例如：由课程顾问轮班回复企微，靠表格记录意向。","required":true,"max_length":1000,"position":2},
+				{"key":"value_proposition","title":"你的方案能为客户带来什么可衡量的价值？","hint":"优先填写效率、收入、成本或体验方面的指标。","placeholder":"例如：首次响应时间降到 1 分钟内，销售有效跟进率提升 30%。","required":true,"max_length":1200,"position":3},
+				{"key":"business_model","title":"你准备如何收费并获得第一批客户？","hint":"描述价格、销售渠道和首批验证范围。","placeholder":"例如：按门店收取月费，通过已有教培客户资源完成 3 家试点。","required":false,"max_length":1200,"position":4},
+				{"key":"success_criteria","title":"这次推演最希望验证哪些关键结果？","hint":"列出决定继续、调整或停止项目的判断标准。","placeholder":"例如：客户愿意付费、数据合规可控、单店交付成本在预算内。","required":true,"max_length":1500,"position":5}
+			]
+		}`)
+	case "sandbox.follow_up":
+		return []byte(`{
+			"answer":"从当前推演结果看，我会优先关注付费客户留存、单店交付成本和获客回收周期。建议先用 3 家教培机构做 4 周试点，并用真实的响应时长、有效线索率和续费意愿决定是否扩大投入。"
+		}`)
 	case "sandbox.run":
 		return []byte(`{
+			"report_version":"sandbox_report_v3",
 			"score":83,
 			"summary":"建议先做小范围客户验证。当前方案具备明确场景和可解释价值，但需要优先验证付费意愿、数据安全顾虑和交付成本。",
+			"consumer_probability":72,
+			"risk_level":"medium",
+			"recommendation_grade":"A-",
 			"assumptions":["目标客户存在高频咨询场景","客户愿意为效率提升付费","试点期间可以合规使用必要数据"],
 			"metrics":[
 				{"label":"市场吸引力","value":"8.4"},
@@ -86,7 +112,40 @@ func (p *DevelopmentProvider) responseFor(feature string) []byte {
 				{"role":"增长顾问","view":"建议用教培机构的高频咨询场景切入，先做一个可复制样板。"}
 			],
 			"risks":["客户教育成本偏高","敏感数据合规要求高","早期交付容易被定制需求拖慢"],
-			"next_actions":["访谈10个目标客户，确认高频咨询问题","做出一个教培场景演示样板","定义首月试点价格和成功指标"]
+			"next_actions":["访谈10个目标客户，确认高频咨询问题","做出一个教培场景演示样板","定义首月试点价格和成功指标"],
+			"core_conclusions":[
+				"教培机构高频咨询与企微跟进是一个适合小范围验证的明确切入场景。",
+				"产品价值必须通过响应效率、有效线索率和续费意愿三类真实指标验证。",
+				"在合规和交付标准化尚未验证前，不建议直接扩大获客投入。"
+			],
+			"opportunity_analysis":[
+				{"title":"旺季咨询自动分流","detail":"招生旺季咨询集中，自动答疑和意向识别可以缩短首次响应时间并减少销售漏跟。","tags":["高频场景","效率提升"]},
+				{"title":"企微跟进标准化","detail":"将咨询摘要和下一步建议直接同步给课程顾问，有机会形成可复制的门店交付流程。","tags":["私域转化","标准化"]}
+			],
+			"risk_analysis":[
+				{"title":"数据合规风险","detail":"家长和学生信息属于敏感业务数据，试点前必须明确最小采集范围、授权方式和留存规则。","tags":["合规","数据安全"]},
+				{"title":"定制交付风险","detail":"不同机构的话术和流程差异可能抬高实施成本，需要限制首期能力边界。","tags":["交付成本","范围控制"]}
+			],
+			"action_plan":[
+				{"order":1,"title":"完成需求访谈","detail":"访谈 10 家目标机构，确认高频问题、现有处理方式和付费意愿。","duration":"1 周"},
+				{"order":2,"title":"交付试点样板","detail":"选择 3 家机构接入最小可用版本，并建立统一配置和验收清单。","duration":"2 周"},
+				{"order":3,"title":"复盘试点指标","detail":"对比响应时长、有效线索率、人工投入和续费意愿，决定继续、调整或停止。","duration":"1 周"}
+			],
+			"growth_path":[
+				{"stage":1,"title":"单场景验证","detail":"聚焦招生咨询和企微跟进，跑通 3 家付费试点。"},
+				{"stage":2,"title":"门店复制","detail":"沉淀行业知识库、配置模板和交付手册，验证跨门店复制效率。"},
+				{"stage":3,"title":"区域扩张","detail":"通过渠道合作拓展同类机构，并根据真实留存数据控制获客投入。"}
+			],
+			"validation_metrics":[
+				{"label":"首次响应时间","current":"约 15 分钟","target":"1 分钟内","confidence_percent":78},
+				{"label":"有效线索跟进率","current":"约 55%","target":"80% 以上","confidence_percent":68},
+				{"label":"试点续费意愿","current":"尚未验证","target":"3 家中至少 2 家愿意续费","confidence_percent":55}
+			],
+			"timeline":[
+				{"title":"客户访谈与需求确认","period":"第 1 周"},
+				{"title":"最小版本配置与试点运行","period":"第 2-3 周"},
+				{"title":"数据复盘与投入决策","period":"第 4 周"}
+			]
 		}`)
 	case "learning.diagnosis":
 		return []byte(`{

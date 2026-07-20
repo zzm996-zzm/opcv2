@@ -26,6 +26,14 @@ type Application interface {
 	GetSession(ctx context.Context, userID, id int64) (Session, error)
 }
 
+type FlowApplication interface {
+	Options() Options
+	CreateIntake(ctx context.Context, input IntakeCreateInput) (Session, error)
+	AnswerIntake(ctx context.Context, input IntakeAnswerInput) (Session, error)
+	CompleteIntake(ctx context.Context, userID, id int64) (Session, error)
+	UpdateSessionSettings(ctx context.Context, userID, id int64, settings RunSettings) (Session, error)
+}
+
 type HTTPHandler struct {
 	app Application
 }
@@ -35,9 +43,16 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 }
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
+	router.GET("/sandbox/options", h.options)
 	router.GET("/sandbox/roles", h.listRoles)
+	router.POST("/sandbox/sessions/intake", h.createIntake)
+	router.POST("/sandbox/intake", h.createIntake)
 	router.POST("/sandbox/sessions", h.createSession)
 	router.PATCH("/sandbox/sessions/:id/draft", h.updateSessionDraft)
+	router.PATCH("/sandbox/sessions/:id/settings", h.updateSessionSettings)
+	router.PUT("/sandbox/sessions/:id/intake/questions/:key", h.answerIntake)
+	router.PUT("/sandbox/sessions/:id/intake/answers/:key", h.answerIntake)
+	router.POST("/sandbox/sessions/:id/intake/complete", h.completeIntake)
 	router.POST("/sandbox/sessions/:id/run", h.runSession)
 	router.POST("/sandbox/sessions/:id/retry", h.retrySession)
 	router.POST("/sandbox/sessions/:id/cancel", h.cancelSession)
@@ -46,6 +61,79 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/sandbox/sessions/:id/messages", h.askRole)
 	router.GET("/sandbox/sessions", h.listSessions)
 	router.GET("/sandbox/sessions/:id", h.getSession)
+}
+
+func (h *HTTPHandler) options(c *gin.Context) {
+	app, ok := h.flowApplication(c)
+	if !ok {
+		return
+	}
+	c.JSON(http.StatusOK, app.Options())
+}
+
+func (h *HTTPHandler) createIntake(c *gin.Context) {
+	var request IntakeCreateInput
+	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.InitialIdea) == "" || len([]rune(strings.TrimSpace(request.InitialIdea))) > 5000 {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	app, ok := h.flowApplication(c)
+	if !ok {
+		return
+	}
+	session, err := app.CreateIntake(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, session)
+}
+
+func (h *HTTPHandler) answerIntake(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request IntakeAnswerInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.SessionID = id
+	request.QuestionKey = strings.TrimSpace(c.Param("key"))
+	if request.QuestionKey == "" || (strings.TrimSpace(request.Answer) == "" && !request.Skipped) {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	app, ok := h.flowApplication(c)
+	if !ok {
+		return
+	}
+	session, err := app.AnswerIntake(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, session)
+}
+
+func (h *HTTPHandler) completeIntake(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.flowApplication(c)
+	if !ok {
+		return
+	}
+	session, err := app.CompleteIntake(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, session)
 }
 
 func (h *HTTPHandler) listMessages(c *gin.Context) {
@@ -142,11 +230,33 @@ func (h *HTTPHandler) updateSessionDraft(c *gin.Context) {
 		return
 	}
 	var request DraftUpdate
-	if err := c.ShouldBindJSON(&request); err != nil || (request.Goal == nil && request.TargetUsers == nil && request.Product == nil && request.Roles == nil) {
+	if err := c.ShouldBindJSON(&request); err != nil || (request.Goal == nil && request.TargetUsers == nil && request.Product == nil && request.Roles == nil && request.Settings == nil) {
 		httpapi.BadRequest(c, "invalid_request")
 		return
 	}
 	session, err := h.app.UpdateSessionDraft(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, session)
+}
+
+func (h *HTTPHandler) updateSessionSettings(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request RunSettings
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	app, ok := h.flowApplication(c)
+	if !ok {
+		return
+	}
+	session, err := app.UpdateSessionSettings(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, request)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -202,6 +312,15 @@ func sessionID(c *gin.Context) (int64, bool) {
 	return id, true
 }
 
+func (h *HTTPHandler) flowApplication(c *gin.Context) (FlowApplication, bool) {
+	app, ok := h.app.(FlowApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return nil, false
+	}
+	return app, true
+}
+
 func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrSessionNotFound):
@@ -212,6 +331,10 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusInternalServerError, "invalid_ai_result")
 	case errors.Is(err, ErrInvalidSession):
 		httpapi.BadRequest(c, "invalid_session")
+	case errors.Is(err, ErrInvalidIntake):
+		httpapi.BadRequest(c, "invalid_intake")
+	case errors.Is(err, ErrIntakeIncomplete):
+		httpapi.BadRequest(c, "intake_incomplete")
 	case errors.Is(err, ErrStaleRun):
 		httpapi.Error(c, http.StatusConflict, "stale_run")
 	case errors.Is(err, membership.ErrQuotaExceeded):

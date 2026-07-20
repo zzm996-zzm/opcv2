@@ -12,18 +12,43 @@ import (
 )
 
 type fakeApplication struct {
-	input     CreateInput
-	userID    int64
-	sessionID int64
-	limit     int
-	session   Session
-	sessions  []Session
-	err       error
-	messages  []Message
-	askInput  AskRoleInput
+	input       CreateInput
+	intakeInput IntakeCreateInput
+	answerInput IntakeAnswerInput
+	userID      int64
+	sessionID   int64
+	limit       int
+	session     Session
+	sessions    []Session
+	err         error
+	messages    []Message
+	askInput    AskRoleInput
 }
 
 func (a *fakeApplication) ListRoles() []Role { return DefaultRoles() }
+func (a *fakeApplication) Options() Options  { return DefaultOptions() }
+func (a *fakeApplication) CreateIntake(_ context.Context, input IntakeCreateInput) (Session, error) {
+	a.intakeInput = input
+	a.userID = input.UserID
+	return a.session, a.err
+}
+func (a *fakeApplication) AnswerIntake(_ context.Context, input IntakeAnswerInput) (Session, error) {
+	a.answerInput = input
+	a.userID = input.UserID
+	a.sessionID = input.SessionID
+	return a.session, a.err
+}
+func (a *fakeApplication) CompleteIntake(_ context.Context, userID, id int64) (Session, error) {
+	a.userID = userID
+	a.sessionID = id
+	return a.session, a.err
+}
+func (a *fakeApplication) UpdateSessionSettings(_ context.Context, userID, id int64, settings RunSettings) (Session, error) {
+	a.userID = userID
+	a.sessionID = id
+	a.session.Settings = settings
+	return a.session, a.err
+}
 func (a *fakeApplication) UpdateSessionDraft(_ context.Context, userID, id int64, update DraftUpdate) (Session, error) {
 	a.userID = userID
 	a.sessionID = id
@@ -263,5 +288,54 @@ func TestSandboxRoleMessageEndpointsUseAuthenticatedUser(t *testing.T) {
 	router.ServeHTTP(createRecorder, request)
 	if createRecorder.Code != http.StatusOK || app.askInput.UserID != 42 || app.askInput.SessionID != 99 || app.askInput.Role != "投资人视角" {
 		t.Fatalf("create status/input/body = %d/%+v/%s", createRecorder.Code, app.askInput, createRecorder.Body.String())
+	}
+}
+
+func TestSandboxIntakeAndOptionsEndpoints(t *testing.T) {
+	app := &fakeApplication{session: Session{ID: 99, UserID: 42, Status: StatusDraft, Intake: Intake{Status: IntakeStatusQuestions}}}
+	router := sandboxTestRouter(app)
+
+	optionsRecorder := httptest.NewRecorder()
+	router.ServeHTTP(optionsRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/sandbox/options", nil))
+	if optionsRecorder.Code != http.StatusOK || !strings.Contains(optionsRecorder.Body.String(), `"system_perspectives"`) || !strings.Contains(optionsRecorder.Body.String(), `"output_styles"`) {
+		t.Fatalf("options status/body = %d/%s", optionsRecorder.Code, optionsRecorder.Body.String())
+	}
+
+	createRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/sandbox/sessions/intake", strings.NewReader(`{"initial_idea":"验证门店 AI 运营助手"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(createRecorder, request)
+	if createRecorder.Code != http.StatusOK || app.intakeInput.UserID != 42 || app.intakeInput.InitialIdea == "" {
+		t.Fatalf("create status/input/body = %d/%+v/%s", createRecorder.Code, app.intakeInput, createRecorder.Body.String())
+	}
+
+	answerRecorder := httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPut, "/api/v1/sandbox/sessions/99/intake/questions/customer_pain", strings.NewReader(`{"answer":"咨询回复太慢"}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(answerRecorder, request)
+	if answerRecorder.Code != http.StatusOK || app.answerInput.UserID != 42 || app.answerInput.SessionID != 99 || app.answerInput.QuestionKey != "customer_pain" {
+		t.Fatalf("answer status/input/body = %d/%+v/%s", answerRecorder.Code, app.answerInput, answerRecorder.Body.String())
+	}
+
+	completeRecorder := httptest.NewRecorder()
+	router.ServeHTTP(completeRecorder, httptest.NewRequest(http.MethodPost, "/api/v1/sandbox/sessions/99/intake/complete", nil))
+	if completeRecorder.Code != http.StatusOK || app.userID != 42 || app.sessionID != 99 {
+		t.Fatalf("complete status/app/body = %d/%+v/%s", completeRecorder.Code, app, completeRecorder.Body.String())
+	}
+}
+
+func TestDraftEndpointAcceptsSettingsOnly(t *testing.T) {
+	app := &fakeApplication{session: Session{ID: 99, UserID: 42, Status: StatusDraft}}
+	router := sandboxTestRouter(app)
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/sandbox/sessions/99/draft", strings.NewReader(`{
+		"settings":{"depth":"deep","output_style":"concise_report","generate_outline":false,"variables":{"budget":"3万以内"}}
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.userID != 42 || app.sessionID != 99 {
+		t.Fatalf("status/app/body = %d/%+v/%s", recorder.Code, app, recorder.Body.String())
 	}
 }

@@ -97,6 +97,32 @@ func (r *fakeRepository) UpdateSessionDraft(_ context.Context, userID, id int64,
 	if update.Roles != nil {
 		r.session.Roles = *update.Roles
 	}
+	if update.Settings != nil {
+		r.session.Settings = *update.Settings
+	}
+	return r.session, nil
+}
+
+func (r *fakeRepository) UpdateSessionIntake(_ context.Context, userID, id int64, intake Intake) (Session, error) {
+	if r.err != nil {
+		return Session{}, r.err
+	}
+	if r.session.UserID != userID || r.session.ID != id || r.session.Status != StatusDraft {
+		return Session{}, ErrSessionNotFound
+	}
+	r.session.Intake = intake
+	r.session.CurrentStep = intake.Status
+	return r.session, nil
+}
+
+func (r *fakeRepository) UpdateSessionSettings(_ context.Context, userID, id int64, settings RunSettings) (Session, error) {
+	if r.err != nil {
+		return Session{}, r.err
+	}
+	if r.session.UserID != userID || r.session.ID != id || r.session.Status != StatusDraft {
+		return Session{}, ErrSessionNotFound
+	}
+	r.session.Settings = settings
 	return r.session, nil
 }
 
@@ -483,5 +509,115 @@ func TestServiceAsksSelectedSandboxRoleAndPersistsAnswer(t *testing.T) {
 	}
 	if generator.request.Feature != "sandbox.follow_up" || !strings.Contains(generator.request.UserPrompt, "投资人视角") {
 		t.Fatalf("request = %+v", generator.request)
+	}
+}
+
+func TestServiceCreatesIntakeDraftFromAI(t *testing.T) {
+	repository := &fakeRepository{}
+	generator := &fakeGenerator{content: []byte(`{
+		"goal":"验证项目是否值得投入",
+		"target_users":"本地门店老板",
+		"product":"AI运营助手",
+		"recognized_fields":[{"key":"industry","label":"行业","value":"零售"}],
+		"questions":[
+			{"key":"pain","title":"最急需解决什么问题？","hint":"描述问题","placeholder":"请输入","required":true,"max_length":1000,"position":1},
+			{"key":"model","title":"如何收费？","hint":"描述模式","placeholder":"请输入","required":false,"max_length":1000,"position":2}
+		]
+	}`)}
+	service := NewService(repository, generator)
+
+	session, err := service.CreateIntake(context.Background(), IntakeCreateInput{UserID: 42, InitialIdea: "想做一个门店运营助手"})
+	if err != nil {
+		t.Fatalf("CreateIntake() error = %v", err)
+	}
+	if session.Status != StatusDraft || session.CurrentStep != IntakeStatusQuestions || session.Intake.Status != IntakeStatusQuestions || session.Intake.TotalQuestions != 2 {
+		t.Fatalf("session = %+v", session)
+	}
+	if session.Goal != "验证项目是否值得投入" || generator.request.Feature != "sandbox.intake" || generator.request.SchemaName != "sandbox_intake" {
+		t.Fatalf("session/request = %+v/%+v", session, generator.request)
+	}
+}
+
+func TestServiceAnswersAndCompletesIntake(t *testing.T) {
+	repository := &fakeRepository{session: Session{
+		ID: 99, UserID: 42, Status: StatusDraft,
+		Intake: Intake{Status: IntakeStatusQuestions, Questions: []IntakeQuestion{
+			{Key: "pain", Title: "痛点", Required: true, MaxLength: 20},
+			{Key: "model", Title: "收费", Required: false, MaxLength: 20},
+		}},
+	}}
+	service := NewService(repository, nil)
+
+	if _, err := service.AnswerIntake(context.Background(), IntakeAnswerInput{UserID: 42, SessionID: 99, QuestionKey: "pain", Answer: "回复太慢"}); err != nil {
+		t.Fatalf("required answer error = %v", err)
+	}
+	if _, err := service.AnswerIntake(context.Background(), IntakeAnswerInput{UserID: 42, SessionID: 99, QuestionKey: "model", Skipped: true}); err != nil {
+		t.Fatalf("optional skip error = %v", err)
+	}
+	session, err := service.CompleteIntake(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("CompleteIntake() error = %v", err)
+	}
+	if session.Intake.Status != IntakeStatusReady || session.Intake.AnsweredCount != 2 || session.CurrentStep != IntakeStatusReady {
+		t.Fatalf("session = %+v", session)
+	}
+}
+
+func TestServiceAllowsExplicitlySkippingRequiredIntakeQuestion(t *testing.T) {
+	repository := &fakeRepository{session: Session{
+		ID: 99, UserID: 42, Status: StatusDraft,
+		Intake: Intake{Status: IntakeStatusQuestions, Questions: []IntakeQuestion{
+			{Key: "pain", Title: "痛点", Required: true, MaxLength: 20},
+		}},
+	}}
+	service := NewService(repository, nil)
+
+	if _, err := service.AnswerIntake(context.Background(), IntakeAnswerInput{UserID: 42, SessionID: 99, QuestionKey: "pain", Skipped: true}); err != nil {
+		t.Fatalf("required question explicit skip error = %v", err)
+	}
+	completed, err := service.CompleteIntake(context.Background(), 42, 99)
+	if err != nil || completed.Intake.Status != IntakeStatusReady {
+		t.Fatalf("completed = %+v err=%v", completed, err)
+	}
+}
+
+func TestServiceRejectsIncompleteIntakeAndInvalidSettings(t *testing.T) {
+	repository := &fakeRepository{session: Session{ID: 99, UserID: 42, Status: StatusDraft, Intake: Intake{
+		Status:    IntakeStatusQuestions,
+		Questions: []IntakeQuestion{{Key: "pain", Title: "痛点", Required: true}},
+	}}}
+	service := NewService(repository, nil)
+	if _, err := service.CompleteIntake(context.Background(), 42, 99); !errors.Is(err, ErrIntakeIncomplete) {
+		t.Fatalf("CompleteIntake() error = %v, want incomplete", err)
+	}
+	if _, err := service.UpdateSessionSettings(context.Background(), 42, 99, RunSettings{Depth: "invalid"}); !errors.Is(err, ErrInvalidSession) {
+		t.Fatalf("UpdateSessionSettings() error = %v, want invalid session", err)
+	}
+}
+
+func TestServiceAcceptsRichReportAndBackfillsLegacyFields(t *testing.T) {
+	repository := &fakeRepository{session: Session{
+		ID: 99, UserID: 42, Status: StatusDraft, Goal: "验证项目", TargetUsers: "门店", Product: "助手", Roles: []string{"用户"},
+	}}
+	generator := &fakeGenerator{content: []byte(`{
+		"report_version":"sandbox_report_v3",
+		"consumer_probability":77,
+		"core_conclusions":["先做三家试点"],
+		"opportunity_analysis":[{"title":"高频场景","detail":"咨询量大","tags":["效率"]}],
+		"risk_analysis":[{"title":"合规","detail":"需要授权","tags":["风险"]}],
+		"action_plan":[{"order":1,"title":"客户访谈","detail":"访谈十家","duration":"一周"}],
+		"validation_metrics":[{"label":"响应时间","current":"15分钟","target":"1分钟内","confidence_percent":70}]
+	}`)}
+	service := NewService(repository, generator, WithQueue(&fakeQueue{}))
+	queued, err := service.RunSession(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("RunSession() error = %v", err)
+	}
+	if err := service.ProcessSession(context.Background(), 42, 99, queued.RunAttempt); err != nil {
+		t.Fatalf("ProcessSession() error = %v", err)
+	}
+	report := repository.session.Report
+	if report.Score != 77 || report.Summary != "先做三家试点" || len(report.Metrics) != 1 || len(report.RoleSummaries) != 1 || len(report.Risks) != 1 || len(report.NextActions) != 1 {
+		t.Fatalf("report = %+v", report)
 	}
 }
