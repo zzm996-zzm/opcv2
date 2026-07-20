@@ -30,9 +30,11 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
   const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const rawSessionID = params.sessionId ?? query.get("session");
   const sessionID = rawSessionID && Number.isFinite(Number(rawSessionID)) ? Number(rawSessionID) : null;
+  const exampleKey = query.get("example");
   const routedSession = useMemo(() => (location.state as { sandboxSession?: SandboxSession } | null)?.sandboxSession ?? null, [location.state]);
   const [session, setSession] = useState<SandboxSession | null>(routedSession);
   const [sessions, setSessions] = useState<SandboxSession[]>([]);
+  const [examples, setExamples] = useState<SandboxSession[]>([]);
   const [options, setOptions] = useState<SandboxOptions | null>(null);
   const [usage, setUsage] = useState<MembershipUsageItem[]>([]);
   const [messages, setMessages] = useState<SandboxMessage[]>([]);
@@ -75,12 +77,29 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
     if (variant !== "history") return;
     let active = true;
     setLoadingList(true);
-    void sandboxApi.listSessions(100)
-      .then((payload) => { if (active) setSessions(payload.sessions ?? []); })
+    void Promise.all([sandboxApi.listSessions(100), sandboxApi.listExamples()])
+      .then(([payload, examplePayload]) => { if (active) { setSessions(payload.sessions ?? []); setExamples(examplePayload.sessions ?? []); } })
       .catch((requestError) => { if (active) setError(apiErrorMessage(requestError, "历史推演加载失败，请稍后重试。")); })
       .finally(() => { if (active) setLoadingList(false); });
     return () => { active = false; };
   }, [variant]);
+
+  useEffect(() => {
+    if (variant !== "report" || !exampleKey) return;
+    let active = true;
+    setLoadingSession(true);
+    void sandboxApi.listExamples()
+      .then((payload) => {
+        if (!active) return;
+        const selected = (payload.sessions ?? []).find((item) => item.example_key === exampleKey);
+        setExamples(payload.sessions ?? []);
+        if (selected) acceptSession(selected);
+        else setError("没有找到这条示例推演报告。");
+      })
+      .catch((requestError) => { if (active) setError(apiErrorMessage(requestError, "示例报告加载失败，请稍后重试。")); })
+      .finally(() => { if (active) setLoadingSession(false); });
+    return () => { active = false; };
+  }, [acceptSession, exampleKey, variant]);
 
   useEffect(() => {
     if (variant !== "start" && variant !== "quota") return;
@@ -164,9 +183,10 @@ function SandboxPage({ variant = "home" }: SandboxPageProps) {
   }
 
   if (variant === "home") return <SandboxHomeView onCreate={createIntake} />;
-  if (variant === "history") return <><SandboxHistoryView loading={loadingList} sessions={sessions} />{error ? <GlobalError message={error} /> : null}</>;
+  if (variant === "history") return <><SandboxHistoryView examples={examples} loading={loadingList} sessions={sessions} />{error ? <GlobalError message={error} /> : null}</>;
   if (variant === "quota") return <><SandboxHomeView onCreate={createIntake} /><SandboxQuotaDialog limit={sandboxUsage?.limit ?? 1} onClose={() => navigate("/sandbox")} used={sandboxUsage?.used ?? sandboxUsage?.limit ?? 1} /></>;
 
+  if (variant === "report" && exampleKey) return <SandboxReportView loading={loadingSession} session={session?.example_key === exampleKey ? session : null} />;
   if (!sessionID) return <MissingSession />;
   if (loadingSession && !session) return <LoadingSession />;
   if (!session || session.id !== sessionID) return <MissingSession message={error || "没有找到当前沙盘会话。"} />;

@@ -25,8 +25,9 @@ type fakeApplication struct {
 	askInput    AskRoleInput
 }
 
-func (a *fakeApplication) ListRoles() []Role { return DefaultRoles() }
-func (a *fakeApplication) Options() Options  { return DefaultOptions() }
+func (a *fakeApplication) ListRoles() []Role       { return DefaultRoles() }
+func (a *fakeApplication) Options() Options        { return DefaultOptions() }
+func (a *fakeApplication) ListExamples() []Session { return ExampleSessions() }
 func (a *fakeApplication) CreateIntake(_ context.Context, input IntakeCreateInput) (Session, error) {
 	a.intakeInput = input
 	a.userID = input.UserID
@@ -321,6 +322,17 @@ func TestSandboxIntakeAndOptionsEndpoints(t *testing.T) {
 	router.ServeHTTP(completeRecorder, httptest.NewRequest(http.MethodPost, "/api/v1/sandbox/sessions/99/intake/complete", nil))
 	if completeRecorder.Code != http.StatusOK || app.userID != 42 || app.sessionID != 99 {
 		t.Fatalf("complete status/app/body = %d/%+v/%s", completeRecorder.Code, app, completeRecorder.Body.String())
+	}
+}
+
+func TestSandboxExamplesEndpointReturnsClearlyMarkedDemoRecords(t *testing.T) {
+	router := sandboxTestRouter(&fakeApplication{})
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/sandbox/examples", nil))
+
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"is_example":true`) || !strings.Contains(recorder.Body.String(), `"example_key":"ai-customer-service"`) {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }
 

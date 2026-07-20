@@ -28,6 +28,7 @@ type Application interface {
 
 type FlowApplication interface {
 	Options() Options
+	ListExamples() []Session
 	CreateIntake(ctx context.Context, input IntakeCreateInput) (Session, error)
 	AnswerIntake(ctx context.Context, input IntakeAnswerInput) (Session, error)
 	CompleteIntake(ctx context.Context, userID, id int64) (Session, error)
@@ -44,6 +45,7 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/sandbox/options", h.options)
+	router.GET("/sandbox/examples", h.listExamples)
 	router.GET("/sandbox/roles", h.listRoles)
 	router.POST("/sandbox/sessions/intake", h.createIntake)
 	router.POST("/sandbox/intake", h.createIntake)
@@ -61,6 +63,14 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/sandbox/sessions/:id/messages", h.askRole)
 	router.GET("/sandbox/sessions", h.listSessions)
 	router.GET("/sandbox/sessions/:id", h.getSession)
+}
+
+func (h *HTTPHandler) listExamples(c *gin.Context) {
+	app, ok := h.flowApplication(c)
+	if !ok {
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"sessions": httpapi.EnsureSlice(app.ListExamples())})
 }
 
 func (h *HTTPHandler) options(c *gin.Context) {

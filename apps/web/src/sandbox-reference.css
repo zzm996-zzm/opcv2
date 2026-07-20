@@ -1889,6 +1889,7 @@ button.sb-role-card {
 
 .sb-breadcrumb a,
 .sb-breadcrumb strong { color: #4d45b8; font-weight: 700; }
+.sb-breadcrumb em { padding: 3px 7px; color: #7b5b22; background: #fff3d9; border-radius: 999px; font-size: 8px; font-style: normal; font-weight: 700; }
 
 .sb-report-heading p {
   margin: 0;
@@ -2136,6 +2137,54 @@ button.sb-role-card {
 .sb-history-notice strong { color: #292e72; font-size: 12px; }
 .sb-history-notice p { margin: 4px 0 0; color: #858baa; font-size: 9px; }
 .sb-history-notice > a { display: inline-flex; min-height: 34px; align-items: center; gap: 6px; padding: 0 13px; color: #5946d6; background: #fff; border: 1px solid var(--sb-line); border-radius: 6px; font-size: 9px; font-weight: 700; }
+
+.sb-history-source {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.sb-history-source button {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 13px;
+  color: #666d93;
+  background: white;
+  border: 1px solid var(--sb-line);
+  border-radius: 5px;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sb-history-source button.is-active {
+  color: white;
+  background: #5944dc;
+  border-color: #5944dc;
+}
+
+.sb-history-source button span {
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  color: inherit;
+  background: rgba(126, 120, 171, 0.1);
+  border-radius: 999px;
+  place-items: center;
+  font-size: 7px;
+}
+
+.sb-history-source p {
+  margin: 0 0 0 6px;
+  color: #8a90ab;
+  font-size: 8px;
+}
 
 .sb-history-filters {
   display: grid;
@@ -2564,6 +2613,8 @@ button.sb-role-card {
   .sb-run-side-panel { grid-template-columns: 1fr; }
   .sb-history-notice { grid-template-columns: 34px minmax(0, 1fr); }
   .sb-history-notice > a { grid-column: 1 / -1; }
+  .sb-history-source { align-items: flex-start; flex-wrap: wrap; }
+  .sb-history-source p { width: 100%; margin-left: 0; }
   .sb-history-filters { grid-template-columns: 1fr; }
   .sb-quota-dialog { padding: 30px 18px 22px; }
   .sb-quota-compare { grid-template-columns: 1fr; }

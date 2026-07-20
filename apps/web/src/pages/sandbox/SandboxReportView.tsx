@@ -41,7 +41,7 @@ function SandboxReportView({ loading = false, session }: SandboxReportViewProps)
   return (
     <SandboxFrame copilotMode="report" copilotProject={session.intake?.initial_idea || session.goal}>
       <header className="sb-report-heading">
-        <div><div className="sb-breadcrumb"><Link to="/sandbox/history">商业沙盘</Link><span>/</span><strong>推演报告</strong></div><h1>{session.product || session.goal}</h1><p>推演时间：{formatDate(session.updated_at)} <span>·</span> 参与角色数：{session.roles.length} <span>·</span> 报告版本：{report.report_version || "V1.0"}</p></div>
+        <div><div className="sb-breadcrumb"><Link to="/sandbox/history">商业沙盘</Link><span>/</span><strong>推演报告</strong>{session.is_example ? <em>示例数据</em> : null}</div><h1>{session.product || session.goal}</h1><p>推演时间：{formatDate(session.updated_at)} <span>·</span> 参与角色数：{session.roles.length} <span>·</span> 报告版本：{report.report_version || "V1.0"}</p></div>
         <button className="sb-export-button" onClick={exportReport} type="button"><Download size={16} />导出报告</button>
       </header>
       <section className="sb-report-metrics">

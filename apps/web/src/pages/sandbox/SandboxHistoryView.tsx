@@ -1,25 +1,28 @@
 import { ArrowLeft, ArrowRight, CalendarDays, Crown, FileText, History, RotateCcw, Search, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import SandboxFrame from "../../components/sandbox/SandboxFrame";
 import type { SandboxSession } from "../../lib/sandboxApi";
 
 type SandboxHistoryViewProps = {
+  examples: SandboxSession[];
   loading?: boolean;
   sessions: SandboxSession[];
 };
 
 const pageSize = 7;
 
-function SandboxHistoryView({ loading = false, sessions }: SandboxHistoryViewProps) {
+function SandboxHistoryView({ examples, loading = false, sessions }: SandboxHistoryViewProps) {
+  const [source, setSource] = useState<"mine" | "examples">("mine");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [role, setRole] = useState("all");
   const [dateRange, setDateRange] = useState("all");
   const [page, setPage] = useState(1);
-  const roleOptions = useMemo(() => Array.from(new Set(sessions.flatMap((session) => session.roles))).sort(), [sessions]);
-  const filtered = useMemo(() => sessions.filter((session) => {
+  const activeSessions = source === "examples" ? examples : sessions;
+  const roleOptions = useMemo(() => Array.from(new Set(activeSessions.flatMap((session) => session.roles))).sort(), [activeSessions]);
+  const filtered = useMemo(() => activeSessions.filter((session) => {
     const text = `${session.product} ${session.goal} ${session.target_users}`.toLowerCase();
     if (query.trim() && !text.includes(query.trim().toLowerCase())) return false;
     if (status !== "all" && session.status !== status) return false;
@@ -32,10 +35,23 @@ function SandboxHistoryView({ loading = false, sessions }: SandboxHistoryViewPro
       if (dateRange === "90" && days > 90) return false;
     }
     return true;
-  }), [dateRange, query, role, sessions, status]);
+  }), [activeSessions, dateRange, query, role, status]);
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const rows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    if (!loading && sessions.length === 0 && examples.length > 0) setSource("examples");
+  }, [examples.length, loading, sessions.length]);
+
+  function changeSource(next: "mine" | "examples") {
+    setSource(next);
+    setPage(1);
+    setQuery("");
+    setStatus("all");
+    setRole("all");
+    setDateRange("all");
+  }
 
   function reset() {
     setQuery("");
@@ -53,6 +69,11 @@ function SandboxHistoryView({ loading = false, sessions }: SandboxHistoryViewPro
         <div><strong>历史记录管理说明</strong><p>推演记录来自你的真实沙盘会话。可按项目、状态、角色和创建时间筛选。</p></div>
         <Link to="/membership/upgrade"><Crown size={16} />升级会员，保留更多记录</Link>
       </section>
+      <div className="sb-history-source" role="tablist" aria-label="记录来源">
+        <button aria-selected={source === "mine"} className={source === "mine" ? "is-active" : ""} onClick={() => changeSource("mine")} role="tab" type="button">我的记录 <span>{sessions.length}</span></button>
+        <button aria-selected={source === "examples"} className={source === "examples" ? "is-active" : ""} onClick={() => changeSource("examples")} role="tab" type="button">示例记录 <span>{examples.length}</span></button>
+        {source === "examples" ? <p>以下内容由沙盘示例接口返回，仅用于体验页面和报告结构。</p> : null}
+      </div>
       <section className="sb-history-filters" aria-label="历史推演筛选">
         <label className="sb-search-field"><Search size={16} /><input aria-label="搜索项目名称或关键词" onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="搜索项目名称 / 关键词" value={query} /></label>
         <label><span>状态</span><select aria-label="全部状态" onChange={(event) => { setStatus(event.target.value); setPage(1); }} value={status}><option value="all">全部状态</option><option value="completed">已完成</option><option value="running">进行中</option><option value="queued">等待执行</option><option value="draft">草稿</option><option value="failed">失败</option><option value="canceled">已取消</option></select></label>
@@ -81,6 +102,7 @@ function HistoryRow({ session }: { session: SandboxSession }) {
 }
 
 function sessionHref(session: SandboxSession) {
+  if (session.is_example && session.example_key) return `/sandbox/report?example=${encodeURIComponent(session.example_key)}`;
   if (session.status === "completed") return `/sandbox/sessions/${session.id}/report`;
   if (session.status === "queued" || session.status === "running" || session.status === "failed" || session.status === "canceled") return `/sandbox/run?session=${session.id}`;
   if (session.intake?.status === "questions") return `/sandbox/questions?session=${session.id}`;
@@ -94,4 +116,3 @@ function statusLabel(value: SandboxSession["status"]) { return ({ draft: "草稿
 function riskLabel(value?: string) { return value === "high" ? "较高" : value === "low" ? "较低" : value === "medium" ? "中等" : "待评估"; }
 
 export default SandboxHistoryView;
-

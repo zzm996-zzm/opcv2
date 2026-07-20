@@ -137,6 +137,8 @@ export type SandboxSession = {
   report?: SandboxReport;
   created_at: string;
   updated_at: string;
+  is_example?: boolean;
+  example_key?: string;
 };
 
 export type SandboxRole = {
@@ -245,6 +247,10 @@ export const sandboxApi = {
     return apiRequest<{ sessions: SandboxSession[] }>(`/api/v1/sandbox/sessions?limit=${limit}`, {
       method: "GET"
     });
+  },
+
+  listExamples() {
+    return apiRequest<{ sessions: SandboxSession[] }>("/api/v1/sandbox/examples", { method: "GET" });
   },
 
   getSession(id: number) {

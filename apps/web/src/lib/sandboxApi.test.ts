@@ -124,4 +124,14 @@ describe("sandboxApi", () => {
       body: JSON.stringify({ role: "投资人视角", question: "最关注什么？" })
     }));
   });
+
+  it("loads API-backed example sessions", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ sessions: [{ id: 900001, is_example: true, example_key: "ai-customer-service" }] }), { status: 200 })
+    );
+
+    await sandboxApi.listExamples();
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox/examples", expect.objectContaining({ method: "GET" }));
+  });
 });

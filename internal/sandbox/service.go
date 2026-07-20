@@ -51,6 +51,10 @@ func (s *Service) Options() Options {
 	return DefaultOptions()
 }
 
+func (s *Service) ListExamples() []Session {
+	return ExampleSessions()
+}
+
 type JSONGenerator interface {
 	GenerateJSON(ctx context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error)
 }

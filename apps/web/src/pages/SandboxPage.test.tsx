@@ -264,7 +264,11 @@ describe("SandboxPage production flow", () => {
   it("loads API history and applies keyword and status filters", async () => {
     signIn();
     const sessions = [completedFixture(), fixture({ id: 43, product: "餐饮门店助手", goal: "验证餐饮获客工具", created_at: "2026-07-19T08:00:00Z" })];
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => String(input) === "/api/v1/sandbox/sessions?limit=100" ? response({ sessions }) : Promise.reject(new Error(`unexpected request: ${String(input)}`)));
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/sandbox/sessions?limit=100") return response({ sessions });
+      if (String(input) === "/api/v1/sandbox/examples") return response({ sessions: [] });
+      return Promise.reject(new Error(`unexpected request: ${String(input)}`));
+    });
 
     render(<MemoryRouter initialEntries={["/sandbox/history"]}><App /></MemoryRouter>);
     expect(await screen.findByText("企业 AI 运营平台")).toBeInTheDocument();
@@ -275,6 +279,25 @@ describe("SandboxPage production flow", () => {
     expect(screen.getByText("餐饮门店助手")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("全部状态"), { target: { value: "completed" } });
     expect(screen.getByText("没有符合条件的推演记录")).toBeInTheDocument();
+  });
+
+  it("shows clearly marked API examples for an empty account and opens an example report", async () => {
+    signIn();
+    const example = completedFixture({ id: 900001, product: "AI智能客服SaaS平台", is_example: true, example_key: "ai-customer-service" });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/sandbox/sessions?limit=100") return response({ sessions: [] });
+      if (String(input) === "/api/v1/sandbox/examples") return response({ sessions: [example] });
+      return Promise.reject(new Error(`unexpected request: ${String(input)}`));
+    });
+
+    render(<MemoryRouter initialEntries={["/sandbox/history"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("AI智能客服SaaS平台")).toBeInTheDocument();
+    expect(screen.getByText(/仅用于体验页面和报告结构/)).toBeInTheDocument();
+    const reportLink = screen.getByRole("link", { name: "查看报告" });
+    expect(reportLink).toHaveAttribute("href", "/sandbox/report?example=ai-customer-service");
+    fireEvent.click(reportLink);
+    expect(await screen.findByRole("heading", { name: "AI智能客服SaaS平台" })).toBeInTheDocument();
+    expect(screen.getByText("示例数据")).toBeInTheDocument();
   });
 
   it("posts a role follow-up and displays the persisted answer", async () => {

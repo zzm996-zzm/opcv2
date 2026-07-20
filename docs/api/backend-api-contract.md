@@ -42,6 +42,8 @@ be treated as available until the matching backend handlers and tests land.
 
 ## Sandbox
 
+`GET /api/v1/sandbox/examples` returns clearly marked `is_example=true` demo sessions and reports for empty-account product review. Demo records are read-only and are never inserted into user history.
+
 All sandbox endpoints are protected.
 
 ### Sandbox Options

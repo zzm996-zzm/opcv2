@@ -202,6 +202,8 @@ type Session struct {
 	Report          Report      `json:"report,omitempty"`
 	CreatedAt       time.Time   `json:"created_at"`
 	UpdatedAt       time.Time   `json:"updated_at"`
+	IsExample       bool        `json:"is_example,omitempty"`
+	ExampleKey      string      `json:"example_key,omitempty"`
 }
 
 type Report struct {
