@@ -1,4 +1,22 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  Bookmark,
+  Box,
+  ChevronDown,
+  ChevronRight,
+  CircleDollarSign,
+  Crown,
+  ExternalLink,
+  FileText,
+  Lightbulb,
+  Link2,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Users,
+  Workflow
+} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
@@ -56,6 +74,56 @@ const planSteps = [
   { title: "营销文案与投放优化", tools: ["Jasper", "Gamma"], accents: ["jasper", "gamma"], why: "快速生成营销文案与广告创意，形成可直接投放的完整素材。", output: "广告文案、投放素材文档、A/B测试版本及优化建议。" }
 ] as const;
 
+const midjourneyReferenceDetail: ContentTool = {
+  id: -1,
+  slug: "midjourney",
+  name: "Midjourney",
+  description: "专业 AI 图像生成工具",
+  url: "https://www.midjourney.com/",
+  status: "published",
+  category: "绘图",
+  tags: ["绘图", "设计", "创意"],
+  provider_name: "Midjourney",
+  price_label: "基础计划 $10/月起，专业计划 $30/月起，企业计划 $60/月起",
+  platforms: ["Discord", "Web"],
+  features: ["图像质量高", "风格多样", "生成速度快", "创意表现力强", "持续迭代更新"],
+  use_cases: ["创意构思", "概念设计", "插画制作", "品牌视觉", "游戏影视设定", "营销素材"],
+  limitations: ["需要学习提示词写法以获得更理想的效果", "部分复杂场景可能需要多次迭代优化"],
+  sort_weight: 100,
+  created_at: "",
+  updated_at: ""
+};
+
+function referenceDetailForSlug(slug: string) {
+  const normalized = (slug || "midjourney").toLowerCase();
+  if (normalized.includes("midjourney")) return midjourneyReferenceDetail;
+
+  const reference = referenceTools.find((tool) => {
+    const toolSlug = tool.slug?.toLowerCase() || "";
+    return normalized === toolSlug || normalized.includes(toolSlug) || toolSlug.includes(normalized);
+  });
+  if (!reference) return null;
+
+  return {
+    id: -1,
+    slug: reference.slug || normalized,
+    name: reference.name,
+    description: reference.desc,
+    url: reference.url,
+    status: "published",
+    category: reference.category,
+    tags: [...reference.tags],
+    price_label: reference.price,
+    platforms: reference.platform.split(" / "),
+    features: [],
+    use_cases: [...reference.tags],
+    limitations: [],
+    sort_weight: 0,
+    created_at: "",
+    updated_at: ""
+  } satisfies ContentTool;
+}
+
 function toDisplayTool(tool: ContentTool): DisplayTool {
   return {
     slug: tool.slug,
@@ -90,6 +158,9 @@ function ToolsPage({ variant = "library" }: ToolsPageProps) {
         </div>
         {withCopilot && <ToolsCopilot variant={variant} />}
       </section>
+      <Link className="toolhub-floating-copilot" to={variant === "all" ? "/tools" : "/copilot"} aria-label="打开智活 Copilot">
+        <span className="v4-logo" aria-hidden="true" />
+      </Link>
     </V4PageShell>
   );
 }
@@ -146,7 +217,7 @@ function ToolLibrary({ full }: { full: boolean }) {
             ))}
           </div>
           <div className="toolhub-selects" aria-label="筛选条件">
-            {["场景", "价格", "平台", "按热度排序"].slice(0, full ? 4 : 2).map((label) => <button key={label} type="button">{label}<span aria-hidden="true">⌄</span></button>)}
+            {["场景", "价格", "平台", "按热度排序"].slice(0, full ? 4 : 2).map((label) => <button key={label} type="button">{label}<ChevronDown aria-hidden="true" size={14} /></button>)}
           </div>
         </div>
       </section>
@@ -243,15 +314,15 @@ function ToolRecommendation() {
   }
 
   return (
-    <form className="toolhub-recommend" onSubmit={submit}>
+    <form className="toolhub-recommend" id="tool-recommend-form" onSubmit={submit}>
       <header className="toolhub-title">
         <h1>工具推荐结果</h1>
         <p>根据你的问题与画像，为你匹配适合的 AI 工具</p>
       </header>
       <section className="toolhub-summary">
         <strong><span aria-hidden="true">▣</span> 需求摘要</strong>
-        <label>目标：<input aria-label="工具匹配目标" onChange={(event) => setGoal(event.target.value)} value={goal} /></label>
-        <label>场景：<input aria-label="工具使用场景" onChange={(event) => setScenario(event.target.value)} value={scenario} /></label>
+        <label className="toolhub-summary-goal"><span>目标：</span><input aria-label="工具匹配目标" onChange={(event) => setGoal(event.target.value)} value={goal} /><span>；{scenario}</span></label>
+        <label className="toolhub-sr-only">场景：<input aria-label="工具使用场景" onChange={(event) => setScenario(event.target.value)} value={scenario} /></label>
       </section>
       <section className="toolhub-recommend-results">
         <h2>为你推荐的 AI 工具 <span>（{tools.length}）</span></h2>
@@ -268,9 +339,8 @@ function ToolRecommendation() {
       </section>
       {error && <p className="toolhub-sync-note" role="status">{error}</p>}
       <div className="toolhub-bottom-actions">
-        <Link className="primary" to="/tools/recommendation-plan"><span aria-hidden="true">✦</span> 生成整套方案</Link>
-        <button type="button"><span aria-hidden="true">♡</span> 存为收藏</button>
-        <button className="toolhub-refresh" disabled={pending} type="submit">{pending ? "匹配中..." : "换一换"}</button>
+        <Link className="primary" to="/tools/recommendation-plan"><Sparkles aria-hidden="true" size={16} /> 生成整套方案</Link>
+        <button type="button"><Bookmark aria-hidden="true" size={16} /> 存为收藏</button>
       </div>
     </form>
   );
@@ -292,7 +362,7 @@ function ToolPlan() {
   return (
     <>
       <nav className="toolhub-breadcrumb" aria-label="工具方案路径"><Link to="/tools">工具箱</Link><span>/</span><Link to="/tools/recommend">AI找工具</Link><span>/</span><b>整套工具方案</b></nav>
-      <header className="toolhub-title compact"><h1>整套工具方案 <span>组合能力</span></h1><p>基于您的需求，智能匹配并串联最优工具组合，助力高效完成目标</p></header>
+      <header className="toolhub-title compact"><h1>整套工具方案 <span><Crown aria-hidden="true" size={13} />组合能力</span></h1><p>基于您的需求，智能匹配并串联最优工具组合，助力高效完成目标</p></header>
       <section className="toolhub-plan-summary">
         <article><strong><span aria-hidden="true">ϟ</span> 您的原始需求</strong><p>为一款智能手机新品制定从市场调研到视频内容生产，再到营销文案与投放优化的完整方案。</p></article>
         <article><strong><span aria-hidden="true">◎</span> 我们的目标</strong><p>用最合适的AI工具组合，完成从洞察 → 内容 → 制作 → 投放优化的全流程，提升效率并降低成本。</p></article>
@@ -303,8 +373,8 @@ function ToolPlan() {
           <div>{planSteps.map((step, index) => <PlanStep index={index} key={step.title} step={step} />)}</div>
         </section>
         <aside className="toolhub-plan-aside">
-          <section><h2><span aria-hidden="true">▤</span> 方案概览</h2><strong>适用对象</strong><p>消费电子 / 智能科技品牌<br />市场部 / 内容团队 / 运营团队</p><strong>预算友好度</strong><div className="budget-meter">{[0, 1, 2, 3, 4].map((item) => <span className={item > 2 ? "muted" : ""} key={item}>$</span>)}</div><strong>上手难度</strong><div className="difficulty-stars">★★★<span>★★</span></div><strong>预计周期</strong><p>3 - 5 个工作日</p></section>
-          <section><h2><span aria-hidden="true">ϟ</span> 下一步操作</h2><button type="button">▮ 保存方案</button><button type="button">▣ 导出PDF</button><small>方案将保存在「任务中心」中，请排期、共建协作使用。</small></section>
+          <section><h2><FileText aria-hidden="true" size={15} /> 方案概览</h2><strong>适用对象</strong><p>消费电子 / 智能科技品牌<br />市场部 / 内容团队 / 运营团队</p><strong>预算友好度</strong><div className="budget-meter">{[0, 1, 2, 3, 4].map((item) => <span className={item > 2 ? "muted" : ""} key={item}>$</span>)}</div><strong>上手难度</strong><div className="difficulty-stars">★★★<span>★★</span></div><strong>预计周期</strong><p>3 - 5 个工作日</p></section>
+          <section><h2><Workflow aria-hidden="true" size={15} /> 下一步操作</h2><button type="button"><Bookmark aria-hidden="true" size={14} /> 保存方案</button><button type="button"><FileText aria-hidden="true" size={14} /> 导出PDF</button><small>方案将保存在「任务中心」中，请排期、共建协作使用。</small></section>
         </aside>
       </div>
       <section className="toolhub-execution">
@@ -341,27 +411,35 @@ function ToolDetail() {
     let active = true;
     contentApi.getTool(toolSlug).then((payload) => { if (active) setTool(payload); }).catch((caught) => {
       if (!active) return;
-      setTool(null); setError(apiErrorMessage(caught, "暂时无法读取最新详情，当前展示示例内容"));
+      setTool(null);
+      setError(referenceDetailForSlug(toolSlug) ? "" : apiErrorMessage(caught, "暂时无法读取最新详情，当前展示示例内容"));
     });
     return () => { active = false; };
   }, [toolSlug]);
 
-  const display = tool || {
-    name: toolSlug && toolSlug !== "midjourney" ? "工具详情" : "Midjourney",
-    description: toolSlug && toolSlug !== "midjourney" ? "该工具详情暂未同步。" : "专业 AI 图像生成工具",
-    category: "绘图",
-    tags: ["绘图", "设计", "创意"],
-    url: "https://www.midjourney.com/",
-    use_cases: ["创意构思", "概念设计", "插画制作", "品牌视觉", "游戏影视设定", "营销素材"],
-    features: ["图像质量高", "风格多样", "生成速度快", "创意表现力强", "持续迭代更新"],
-    limitations: ["需要学习提示词写法以获得更理想的效果", "部分复杂场景可能需要多次迭代优化"],
-    platforms: ["Discord", "Web"],
-    price_label: "基础计划 $10/月起，专业计划 $30/月起，企业计划 $60/月起"
-  } as ContentTool;
+  const referenceDetail = referenceDetailForSlug(toolSlug);
+  const display = tool ? {
+    ...referenceDetail,
+    ...tool,
+    tags: tool.tags?.length ? tool.tags : referenceDetail?.tags || [],
+    features: tool.features?.length ? tool.features : referenceDetail?.features || [],
+    use_cases: tool.use_cases?.length ? tool.use_cases : referenceDetail?.use_cases || [],
+    limitations: tool.limitations?.length ? tool.limitations : referenceDetail?.limitations || [],
+    platforms: tool.platforms?.length ? tool.platforms : referenceDetail?.platforms || []
+  } : referenceDetail || {
+    ...midjourneyReferenceDetail,
+    slug: toolSlug,
+    name: "工具详情",
+    description: "该工具详情暂未同步。"
+  };
   const title = display.name;
   const description = display.description || "暂无工具说明";
   const category = display.category || "未分类";
   const website = display.url || "";
+  const isMidjourney = accentForTool(display) === "midjourney";
+  const introduction = isMidjourney
+    ? "Midjourney 是一款通过自然语言描述生成高质量图像的 AI 工具，擅长艺术创作、概念设计、插画与视觉探索。"
+    : `${title} 已收录到智活 AI 工具目录，可用于${display.use_cases?.slice(0, 3).join("、") || "提升业务效率"}。`;
 
   return (
     <>
@@ -371,15 +449,15 @@ function ToolDetail() {
         <div className="toolhub-detail-copy">
           <span className={`toolhub-logo ${accentForTool(display)} large`} aria-hidden="true" />
           <div><h1>{title}</h1><p>{description}</p><div className="toolhub-tag-row">{(display.tags?.length ? display.tags : [category]).slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div></div>
-          <div className="toolhub-detail-actions">{website ? <a href={website} rel="noreferrer" target="_blank"><span aria-hidden="true">↗</span> 访问官网</a> : <span>暂无官网</span>}<button type="button"><span aria-hidden="true">☆</span> 收藏工具</button><Link to="/tools/recommend"><span aria-hidden="true">⌾</span> 让智活 Copilot 评估是否适合我 <span aria-hidden="true">›</span></Link></div>
+          <div className="toolhub-detail-actions">{website ? <a href={website} rel="noreferrer" target="_blank"><ExternalLink aria-hidden="true" size={15} /> 访问官网</a> : <span>暂无官网</span>}<button type="button"><Star aria-hidden="true" size={15} /> 收藏工具</button><Link to="/tools/recommend"><ShieldCheck aria-hidden="true" size={15} /> 让智活 Copilot 评估是否适合我 <ChevronRight aria-hidden="true" size={14} /></Link></div>
         </div>
         <figure className="toolhub-detail-visual" aria-label={`${title} 工具能力预览`}><span /><span /><span /><span /></figure>
       </section>
       <section className="toolhub-detail-panel">
         <h2>工具介绍</h2>
         <div className="toolhub-detail-grid">
-          <article><h3>▣ 功能简介</h3><p>{description}。Midjourney 是一款通过自然语言描述生成高质量图像的 AI 工具，擅长艺术创作、概念设计、插画与视觉探索。</p><h3>▧ 适用场景</h3><p>{display.use_cases?.length ? display.use_cases.join("、") : "暂无适用场景说明"}</p><h3>☆ 优点</h3><p>{display.features?.length ? display.features.join("、") : "暂无功能说明"}</p><h3>♢ 注意点</h3><p>{display.limitations?.length ? display.limitations.join("；") : "暂无注意事项"}</p></article>
-          <article><h3>⌂ 使用步骤</h3><p>注册/登录 → 加入 Discord → 输入提示词 → 生成图像 → 优化迭代或下载</p><h3>⌁ 入口链接</h3><p>{website ? <a href={website}>{website}</a> : "暂无入口链接"}</p><h3>♢ 价格信息</h3><p>{display.price_label || "暂无价格信息"}</p><h3>♙ 适合人群</h3><p>设计师、插画师、内容创作者、市场营销人员、产品经理、学生等。</p></article>
+          <article><h3><Box aria-hidden="true" size={15} /> 功能简介</h3><p>{introduction}</p><h3><Lightbulb aria-hidden="true" size={15} /> 适用场景</h3><p>{display.use_cases?.length ? display.use_cases.join("、") : "暂无适用场景说明"}</p><h3><Star aria-hidden="true" size={15} /> 优点</h3><p>{display.features?.length ? display.features.join("、") : "暂无功能说明"}</p><h3><ShieldCheck aria-hidden="true" size={15} /> 注意点</h3><p>{display.limitations?.length ? display.limitations.join("；") : "暂无注意事项"}</p></article>
+          <article><h3><Workflow aria-hidden="true" size={15} /> 使用步骤</h3><p>注册/登录 → 加入 Discord → 输入提示词 → 生成图像 → 优化迭代或下载</p><h3><Link2 aria-hidden="true" size={15} /> 入口链接</h3><p>{website ? <a href={website}>{website}</a> : "暂无入口链接"}</p><h3><CircleDollarSign aria-hidden="true" size={15} /> 价格信息</h3><p>{display.price_label || "暂无价格信息"}</p><h3><Users aria-hidden="true" size={15} /> 适合人群</h3><p>设计师、插画师、内容创作者、市场营销人员、产品经理、学生等。</p></article>
         </div>
       </section>
       <section className="toolhub-solve">
@@ -391,12 +469,20 @@ function ToolDetail() {
 }
 
 function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["variant"]> }) {
-  const content = variant === "recommend" ? "收到！基于你的需求，我为你推荐了 3 款最合适的 AI 工具。" : variant === "plan" ? "好的，我已为你生成从市场调研到视频推广的整套工具方案。" : "嗨，张博！今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。";
+  const isRecommendation = variant === "recommend";
+  const isPlan = variant === "plan";
+  const content = isRecommendation ? "收到！基于你的需求，我为你推荐了 3 款最合适的 AI 工具。" : isPlan ? "好的，我已为你生成从市场调研到视频推广的整套工具方案。" : variant === "detail" ? "今天想了解哪个方案？我可以帮你分析竞品、推荐工具或制定落地计划。" : "嗨，张博！今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。";
   return (
     <aside className="learning-copilot toolhub-copilot" aria-label="智活 Copilot 工具助手">
-      <header className="toolhub-ai-head"><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>你的全球 AI 助手，随时为你提供帮助</p></div><span aria-hidden="true">⚙ ⌄</span></header>
-      <div className="learning-chat toolhub-chat"><article><span className="ai-avatar">A</span><div><small>嗨，张博！</small><p>{content}</p></div></article><article className="toolhub-user-bubble"><p>{variant === "plan" ? "请帮我生成一套从市场调研到视频推广的工具方案" : "帮我分析一下智能硬件赛道的市场机会和潜在关键点。"}</p></article>{variant !== "library" && <article><span className="ai-avatar">A</span><p>这套组合覆盖调研、内容、视觉与协作，并兼顾可用性与低成本。</p></article>}</div>
-      <nav className="learning-copilot-actions" aria-label="工具助手快捷入口"><Link to="/analysis">♧ 分析项目机会 <span aria-hidden="true">›</span></Link><Link to="/tools/recommend">▣ 推荐工具 <span aria-hidden="true">›</span></Link><Link to="/tools/recommendation-plan">♙ 制定落地计划 <span aria-hidden="true">›</span></Link></nav>
+      <header className="toolhub-ai-head"><div><strong><Sparkles aria-hidden="true" size={15} /> 智活 <b>Copilot</b></strong><p>你的全球 AI 助手，随时为你提供帮助</p></div><div className="toolhub-ai-controls"><Link aria-label="Copilot 设置" to="/copilot"><Settings aria-hidden="true" size={14} /></Link>{variant === "library" ? <Link aria-label="收起 Copilot 并查看完整工具箱" to="/tools/all"><ChevronRight aria-hidden="true" size={15} /></Link> : <Link aria-label="打开完整 Copilot" to="/copilot"><ChevronDown aria-hidden="true" size={15} /></Link>}</div></header>
+      <div className="learning-chat toolhub-chat">
+        {isPlan && <article className="toolhub-user-bubble"><p>请帮我生成一套从市场调研到视频推广的工具方案</p></article>}
+        <article><span className="ai-avatar">A</span><div><small>嗨，张博！</small><p>{content}</p></div></article>
+        {!isPlan && !isRecommendation && <article className="toolhub-user-bubble"><p>帮我分析一下智能硬件赛道的市场机会和潜在关键点。</p></article>}
+        {variant !== "library" && <article><span className="ai-avatar">A</span><p>{isRecommendation ? "这三款工具覆盖内容文案、设计与协作，兼顾免费可用与低成本配置。" : "这套组合覆盖调研、内容、视觉与协作，并兼顾可用性与低成本。"}</p></article>}
+        {isPlan && <Link className="toolhub-plan-chat-card" to="/tools/recommendation-plan"><FileText aria-hidden="true" size={17} /><span>查看从市场调研到视频推广的工具方案</span><ChevronRight aria-hidden="true" size={16} /></Link>}
+      </div>
+      {isRecommendation ? <nav className="toolhub-suggestions" aria-label="工具推荐追问"><Link to="/tools/recommendation-plan">如何用这三款工具做内容日历？ <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommendation-plan">帮我生成内容营销执行计划 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommend">为SaaS行业生成内容选题库 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommend">生成社媒推广文案模板 <ChevronRight aria-hidden="true" size={14} /></Link><button form="tool-recommend-form" type="submit">换一换 <ChevronRight aria-hidden="true" size={14} /></button></nav> : <nav className="learning-copilot-actions" aria-label="工具助手快捷入口"><Link to="/analysis">分析项目机会 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommend">推荐工具 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommendation-plan">制定落地计划 <ChevronRight aria-hidden="true" size={14} /></Link></nav>}
       <MiniCopilotForm className="learning-copilot-input" inputAriaLabel="向工具箱 Copilot 提问" />
     </aside>
   );

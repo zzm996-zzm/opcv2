@@ -50,7 +50,20 @@ describe("ToolsPage", () => {
     expect(await screen.findByText("Perplexity")).toBeInTheDocument();
     expect(screen.getByText("Claude")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "平台" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "按热度排序" })).toBeInTheDocument();
     expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "打开智活 Copilot" })).toHaveAttribute("href", "/tools");
+  });
+
+  it("links the library Copilot collapse control to the complete catalog", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ tools: [] }), { status: 200 })
+    );
+    renderPage();
+
+    expect(await screen.findByText("Notion AI")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "收起 Copilot 并查看完整工具箱" })).toHaveAttribute("href", "/tools/all");
+    expect(screen.getByRole("link", { name: "打开智活 Copilot" })).toHaveAttribute("href", "/copilot");
   });
 
   it("refetches the real catalog from the category tabs", async () => {
@@ -188,6 +201,15 @@ describe("ToolsPage", () => {
     expect(screen.getByRole("heading", { name: /推荐执行流程/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "市场调研" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "执行建议" })).toBeInTheDocument();
+    expect(screen.getByText("查看从市场调研到视频推广的工具方案")).toBeInTheDocument();
+  });
+
+  it("renders recommendation-specific Copilot prompts", () => {
+    renderPage("recommend");
+
+    expect(screen.getByText("如何用这三款工具做内容日历？")).toBeInTheDocument();
+    expect(screen.getByText("帮我生成内容营销执行计划")).toBeInTheDocument();
+    expect(screen.getByText("换一换")).toBeInTheDocument();
   });
 
   it("renders the Midjourney reference detail when no slug is supplied", async () => {
@@ -197,5 +219,14 @@ describe("ToolsPage", () => {
     expect(await screen.findByRole("heading", { name: "Midjourney" })).toBeInTheDocument();
     expect(screen.getAllByText(/专业 AI 图像生成工具/).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "用它解决什么" })).toBeInTheDocument();
+  });
+
+  it("uses the Midjourney reference for a known API slug alias", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+    renderPage("detail", "/tools/detail?tool=midjourney-ai");
+
+    expect(await screen.findByRole("heading", { name: "Midjourney" })).toBeInTheDocument();
+    expect(screen.getAllByText(/专业 AI 图像生成工具/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/暂时无法读取最新详情/)).not.toBeInTheDocument();
   });
 });
