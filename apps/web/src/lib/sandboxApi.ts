@@ -1,16 +1,123 @@
 import { apiRequest } from "./apiRequest";
 
+export type SandboxReportEvidence = {
+  title: string;
+  url: string;
+  captured_at: string;
+};
+
+export type SandboxReportMetric = {
+  label: string;
+  value: string;
+};
+
+export type SandboxRoleSummary = {
+  role: string;
+  view: string;
+};
+
+export type SandboxReportInsight = {
+  title: string;
+  detail: string;
+  tags: string[];
+};
+
+export type SandboxActionPlanItem = {
+  order: number;
+  title: string;
+  detail: string;
+  duration: string;
+};
+
+export type SandboxGrowthPathItem = {
+  stage: number;
+  title: string;
+  detail: string;
+};
+
+export type SandboxValidationMetric = {
+  label: string;
+  current: string;
+  target: string;
+  confidence_percent: number;
+};
+
+export type SandboxTimelineItem = {
+  title: string;
+  period: string;
+};
+
 export type SandboxReport = {
   score: number;
   summary: string;
   basis?: "model_simulation";
   disclaimer?: string;
   assumptions?: string[];
-  evidence_sources?: Array<{ title: string; url: string; captured_at: string }>;
-  metrics: Array<{ label: string; value: string }>;
-  role_summaries: Array<{ role: string; view: string }>;
+  evidence_sources?: SandboxReportEvidence[];
+  metrics: SandboxReportMetric[];
+  role_summaries: SandboxRoleSummary[];
   risks: string[];
   next_actions: string[];
+  report_version?: string;
+  consumer_probability?: number;
+  risk_level?: string;
+  recommendation_grade?: string;
+  core_conclusions?: string[];
+  opportunity_analysis?: SandboxReportInsight[];
+  risk_analysis?: SandboxReportInsight[];
+  action_plan?: SandboxActionPlanItem[];
+  growth_path?: SandboxGrowthPathItem[];
+  validation_metrics?: SandboxValidationMetric[];
+  timeline?: SandboxTimelineItem[];
+};
+
+export type SandboxRecognizedField = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+export type SandboxIntakeQuestion = {
+  key: string;
+  title: string;
+  hint: string;
+  placeholder: string;
+  required: boolean;
+  max_length: number;
+  position: number;
+  answer?: string;
+  skipped: boolean;
+};
+
+export type SandboxIntake = {
+  status: "questions" | "ready";
+  initial_idea: string;
+  recognized_fields: SandboxRecognizedField[];
+  questions: SandboxIntakeQuestion[];
+  answered_count: number;
+  total_questions: number;
+};
+
+export type SandboxRunSettings = {
+  depth: "standard" | "deep";
+  output_style: "structured_report" | "concise_report";
+  generate_outline: boolean;
+  variables: Record<string, string>;
+};
+
+export type SandboxSettingOption = {
+  value: string;
+  label: string;
+  description: string;
+  recommended?: boolean;
+};
+
+export type SandboxOptions = {
+  roles: SandboxRole[];
+  system_perspectives: SandboxRole[];
+  depths: SandboxSettingOption[];
+  output_styles: SandboxSettingOption[];
+  defaults: SandboxRunSettings;
 };
 
 export type SandboxSession = {
@@ -25,6 +132,8 @@ export type SandboxSession = {
   current_step: string;
   error_message?: string;
   run_attempt: number;
+  intake: SandboxIntake;
+  settings: SandboxRunSettings;
   report?: SandboxReport;
   created_at: string;
   updated_at: string;
@@ -42,6 +151,7 @@ export type SandboxDraftUpdate = Partial<{
   target_users: string;
   product: string;
   roles: string[];
+  settings: SandboxRunSettings;
 }>;
 
 export type SandboxMessage = {
@@ -55,8 +165,32 @@ export type SandboxMessage = {
 };
 
 export const sandboxApi = {
+  getOptions() {
+    return apiRequest<SandboxOptions>("/api/v1/sandbox/options", { method: "GET" });
+  },
+
   listRoles() {
     return apiRequest<{ roles: SandboxRole[] }>("/api/v1/sandbox/roles", { method: "GET" });
+  },
+
+  createIntake(initialIdea: string) {
+    return apiRequest<SandboxSession>("/api/v1/sandbox/sessions/intake", {
+      method: "POST",
+      body: JSON.stringify({ initial_idea: initialIdea })
+    });
+  },
+
+  answerIntakeQuestion(id: number, questionKey: string, input: { answer: string; skipped: boolean }) {
+    return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/intake/questions/${encodeURIComponent(questionKey)}`, {
+      method: "PUT",
+      body: JSON.stringify(input)
+    });
+  },
+
+  completeIntake(id: number) {
+    return apiRequest<SandboxSession>(`/api/v1/sandbox/sessions/${id}/intake/complete`, {
+      method: "POST"
+    });
   },
 
   createSession(input: { goal: string; targetUsers: string; product: string; roles: string[] }) {

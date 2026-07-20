@@ -68,18 +68,46 @@ describe("sandboxApi", () => {
   });
 
   it("loads roles and updates a sandbox draft", async () => {
+    const settings = {
+      depth: "deep" as const,
+      output_style: "structured_report" as const,
+      generate_outline: true,
+      variables: { pricing: "39 元/月" }
+    };
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ roles: [{ key: "user", label: "用户视角" }] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, roles: ["用户视角"] }), { status: 200 }));
 
     await sandboxApi.listRoles();
-    await sandboxApi.updateDraft(99, { roles: ["用户视角"] });
+    await sandboxApi.updateDraft(99, { roles: ["用户视角"], settings });
 
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/sandbox/roles", expect.objectContaining({ method: "GET" }));
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/sandbox/sessions/99/draft", expect.objectContaining({
       method: "PATCH",
-      body: JSON.stringify({ roles: ["用户视角"] })
+      body: JSON.stringify({ roles: ["用户视角"], settings })
     }));
+  });
+
+  it("loads sandbox options and completes the intake flow", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ id: 99, status: "draft" }), { status: 200 })
+    ));
+
+    await sandboxApi.getOptions();
+    await sandboxApi.createIntake("我想做一款面向上班族的低卡代餐奶昔");
+    await sandboxApi.answerIntakeQuestion(99, "target/user", { answer: "25-35 岁白领", skipped: false });
+    await sandboxApi.completeIntake(99);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/sandbox/options", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/sandbox/sessions/intake", expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ initial_idea: "我想做一款面向上班族的低卡代餐奶昔" })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/sandbox/sessions/99/intake/questions/target%2Fuser", expect.objectContaining({
+      method: "PUT",
+      body: JSON.stringify({ answer: "25-35 岁白领", skipped: false })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/sandbox/sessions/99/intake/complete", expect.objectContaining({ method: "POST" }));
   });
 
   it("lists and creates role follow-up messages", async () => {
