@@ -41,6 +41,8 @@ const errorMessages: Record<string, string> = {
   quota_not_configured: "当前功能额度暂未配置，请联系管理员",
   session_not_found: "记录不存在或已无权限访问",
   invalid_session_id: "记录 ID 不正确",
+  invalid_intake: "补充信息有误，请检查后重试",
+  intake_incomplete: "请完成或明确跳过所有补充问题",
   model_not_found: "测算模型不存在或已无权限访问",
   invalid_model_id: "测算模型 ID 不正确",
   scan_not_found: "竞品扫描不存在或已无权限访问",

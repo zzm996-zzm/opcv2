@@ -10,7 +10,7 @@ const roleArtwork: Record<string, string> = {
   operator: "/sandbox/role-operator.jpg"
 };
 
-export function sandboxRoleKey(role: Pick<SandboxRole, "key" | "label">) {
+function sandboxRoleKey(role: Pick<SandboxRole, "key" | "label">) {
   if (roleArtwork[role.key]) return role.key;
   if (role.label.includes("投资")) return "investor";
   if (role.label.includes("代理") || role.label.includes("渠道")) return "channel";
@@ -19,7 +19,7 @@ export function sandboxRoleKey(role: Pick<SandboxRole, "key" | "label">) {
   return "user";
 }
 
-export function sandboxRoleArtwork(role: Pick<SandboxRole, "key" | "label">) {
+function sandboxRoleArtwork(role: Pick<SandboxRole, "key" | "label">) {
   return roleArtwork[sandboxRoleKey(role)] ?? roleArtwork.user;
 }
 
@@ -58,4 +58,3 @@ function SandboxRoleCard({ compact = false, onToggle, role, selected = false }: 
 }
 
 export default SandboxRoleCard;
-
