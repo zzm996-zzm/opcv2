@@ -81,7 +81,19 @@ function TaskViewNav({ active }: { active: "list" | "board" | "calendar" }) {
 function TaskList({ showMenu }: { showMenu: boolean }) {
   return <>
     <VisualTitle title="任务中心" subtitle="把目标拆解可执行任务，让推进更有节奏" />
-    <div className="task-ref-toolbar"><label>⌕<input placeholder="搜索任务、负责人、进度阶段、标签" /></label><Link className="primary" to="/tasks/new">＋ 新建任务 ⌄</Link><TaskViewNav active="list" /><button>筛选</button><button>排序</button><button>分组</button><button>字段配置</button></div>
+    <div className="task-ref-toolbar">
+      <div className="task-ref-create-tools">
+        <label>⌕<input placeholder="搜索任务、负责人、进度阶段、标签" /></label>
+        <Link className="primary" to="/tasks/new">＋ 新建任务 ⌄</Link>
+      </div>
+      <div className="task-ref-view-tools">
+        <TaskViewNav active="list" />
+        <button type="button">筛选</button>
+        <button type="button">排序</button>
+        <button type="button">分组</button>
+        <button type="button">字段配置</button>
+      </div>
+    </div>
     {showMenu && <div className="task-ref-dropdown"><Link to="/tasks/new"><b>＋</b><span><strong>手动新建任务</strong><small>填写任务信息，快速创建</small></span></Link><Link to="/tasks/ai"><b>✦</b><span><strong>AI 快捷生成任务</strong><small>描述目标，自动拆解执行任务</small></span></Link></div>}
     <section className="task-ref-stats">{[["★", "今日新增", "8", "较昨日 -2"], ["⌛", "进行中", "24", "较昨日 +3"], ["▣", "即将到期", "6", "3天内到期"]].map(([icon, label, value, note]) => <article key={label}><i>{icon}</i><span>{label}<strong>{value}</strong><small>{note}</small></span></article>)}<div>{["负责人", "状态", "进度", "来源"].map((item) => <button key={item}>{item}<span>全部⌄</span></button>)}</div></section>
     <section className="task-ref-table">
