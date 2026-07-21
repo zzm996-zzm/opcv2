@@ -13,7 +13,7 @@ const topNav = [
   { label: "AI教学", href: "/learning" }
 ];
 
-const sidebarGroups = [
+const defaultSidebarGroups = [
   {
     title: "项目确定及拆解",
     items: [
@@ -42,6 +42,35 @@ const sidebarGroups = [
   }
 ];
 
+const taskSidebarGroups = [
+  {
+    title: "项目管理及系统",
+    items: [
+      { label: "项目列阵", href: "/projects", icon: "grid" },
+      { label: "商业沙盘", href: "/sandbox", icon: "home" }
+    ]
+  },
+  {
+    title: "落地",
+    items: [
+      { label: "任务中心", href: "/tasks", icon: "check" },
+      { label: "我负责的管理看板", href: "/tasks/board", icon: "stack" },
+      { label: "发起的待协调", href: "/tasks/calendar", icon: "pulse" },
+      { label: "增长视图", href: "/growth-calculator", icon: "calc" }
+    ]
+  },
+  {
+    title: "增长",
+    items: [
+      { label: "CEO智管", href: "/geo", icon: "target" },
+      { label: "AI探索开发", href: "/leads", icon: "diamond" },
+      { label: "发现AI", href: "/dashboard", icon: "chart" },
+      { label: "CRM客户管理", href: "/crm", icon: "user" },
+      { label: "企业定制化应用", href: "/enterprise", icon: "flag" }
+    ]
+  }
+];
+
 const accountLinks: Array<[string, string, string]> = [
   ["个人中心", "/profile", "user"],
   ["账号与资料设置", "/profile/settings", "settings"],
@@ -62,6 +91,7 @@ function V4PageShell({ children, className = "", showCopilotMini = true }: V4Pag
   const [accountOpen, setAccountOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const nickname = session.user?.nickname || "张婧";
+  const sidebarGroups = location.pathname.startsWith("/tasks") ? taskSidebarGroups : defaultSidebarGroups;
   const isTopNavActive = (href: string) =>
     location.pathname === href || (href !== "/" && location.pathname.startsWith(`${href}/`));
 

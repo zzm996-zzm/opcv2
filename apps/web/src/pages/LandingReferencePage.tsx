@@ -25,6 +25,13 @@ const taskRows = [
   ["输出 MVP 交互原型", "李明", "6月14日", "执行中", "高", "MVP"]
 ] as const;
 
+const taskSubRows = [
+  ["输出竞品用户画像模板", "李明", "6月10日", "已完成", "高", "用户研究"],
+  ["分析竞品CRM功能设定", "李明", "6月11日", "已完成", "中", "用户研究"],
+  ["输出用户分层策略及分析", "李明", "6月12日", "执行中", "中", "用户研究"],
+  ["输出竞品功能化建议（含原型）", "李明", "6月14日", "待开始", "低", "用户研究"]
+] as const;
+
 const dataTabs = ["综合分析", "内容分析", "直播分析", "商品分析", "用户画像", "投放分析", "舆情分析", "对标分析"];
 const resultCopy: Record<string, string> = {
   overview: "综合分析", content: "内容分析", live: "直播分析", product: "商品分析",
@@ -77,9 +84,22 @@ function TaskList({ showMenu }: { showMenu: boolean }) {
     <div className="task-ref-toolbar"><label>⌕<input placeholder="搜索任务、负责人、进度阶段、标签" /></label><Link className="primary" to="/tasks/new">＋ 新建任务 ⌄</Link><TaskViewNav active="list" /><button>筛选</button><button>排序</button><button>分组</button><button>字段配置</button></div>
     {showMenu && <div className="task-ref-dropdown"><Link to="/tasks/new"><b>＋</b><span><strong>手动新建任务</strong><small>填写任务信息，快速创建</small></span></Link><Link to="/tasks/ai"><b>✦</b><span><strong>AI 快捷生成任务</strong><small>描述目标，自动拆解执行任务</small></span></Link></div>}
     <section className="task-ref-stats">{[["★", "今日新增", "8", "较昨日 -2"], ["⌛", "进行中", "24", "较昨日 +3"], ["▣", "即将到期", "6", "3天内到期"]].map(([icon, label, value, note]) => <article key={label}><i>{icon}</i><span>{label}<strong>{value}</strong><small>{note}</small></span></article>)}<div>{["负责人", "状态", "进度", "来源"].map((item) => <button key={item}>{item}<span>全部⌄</span></button>)}</div></section>
-    <section className="task-ref-table"><div className="task-ref-head"><span>□ 任务标题</span><span>负责人</span><span>截止时间</span><span>状态</span><span>优先级</span><span>进展阶段</span><span>操作</span></div>{taskRows.map((row, index) => <article key={row[0]}><span>□ <strong>{row[0]}</strong></span><span><i className="mini-person">{row[1][0]}</i>{row[1]}</span><span>{row[2]}</span><span><b className={`status s${index % 4}`}>{row[3]}⌄</b></span><span><b className={`priority p${index % 3}`}>{row[4]}</b></span><span><em>{row[5]}</em></span><span><Link to="/tasks/detail">任务详情</Link></span></article>)}</section>
+    <section className="task-ref-table">
+      <div className="task-ref-head"><span>□ 任务标题</span><span>负责人</span><span>截止时间</span><span>状态</span><span>优先级</span><span>进展阶段</span><span>操作</span></div>
+      {taskRows.slice(0, 6).map((row, index) => <TaskReferenceRow index={index} key={row[0]} row={row} />)}
+      <section className="task-ref-subtasks" aria-label="展开的子任务">
+        <h3>⌄ 子任务 <b>{taskSubRows.length}</b></h3>
+        {taskSubRows.map((row, index) => <TaskReferenceRow index={index + 2} key={row[0]} row={row} subtask />)}
+        <div className="task-ref-subtask-add"><span>＋ 请输入子任务</span><span>选择负责人⌄</span><span>选择日期</span><span>选择状态⌄</span><span>选择优先级⌄</span><span>选择进度⌄</span><button type="button">添加</button></div>
+      </section>
+      {taskRows.slice(6).map((row, index) => <TaskReferenceRow index={index + 6} key={row[0]} row={row} />)}
+    </section>
     <footer className="landing-ref-pagination"><span>共 10 条任务</span><div>‹ <b>1</b> 2 ›  20 条/页⌄</div></footer>
   </>;
+}
+
+function TaskReferenceRow({ index, row, subtask = false }: { index: number; row: typeof taskRows[number] | typeof taskSubRows[number]; subtask?: boolean }) {
+  return <article className={subtask ? "is-subtask" : ""}><span>□ <strong>{row[0]}</strong></span><span><i className="mini-person">{row[1][0]}</i>{row[1]}</span><span>{row[2]}</span><span><b className={`status s${index % 4}`}>{row[3]}⌄</b></span><span><b className={`priority p${index % 3}`}>{row[4]}</b></span><span><em>{row[5]}</em></span><span>{subtask ? "" : <Link to="/tasks/detail">任务详情</Link>}</span></article>;
 }
 
 function TaskBoard() {

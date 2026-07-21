@@ -722,7 +722,10 @@ describe("TasksPage", () => {
       created_at: "2026-07-10T08:00:00Z",
       updated_at: "2026-07-10T08:00:00Z"
     };
-    const remindAt = new Date("2026-07-18T18:00").toISOString();
+    const reminderDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    reminderDate.setHours(18, 0, 0, 0);
+    const reminderInput = `${reminderDate.getFullYear()}-${String(reminderDate.getMonth() + 1).padStart(2, "0")}-${String(reminderDate.getDate()).padStart(2, "0")}T18:00`;
+    const remindAt = new Date(reminderInput).toISOString();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/tasks?limit=20") {
@@ -768,7 +771,7 @@ describe("TasksPage", () => {
     const dialog = await screen.findByRole("dialog", { name: "任务详情" });
     expect(await within(dialog).findByText("暂无提醒")).toBeInTheDocument();
 
-    fireEvent.change(within(dialog).getByLabelText("提醒时间"), { target: { value: "2026-07-18T18:00" } });
+    fireEvent.change(within(dialog).getByLabelText("提醒时间"), { target: { value: reminderInput } });
     fireEvent.click(within(dialog).getByRole("button", { name: "保存提醒" }));
 
     expect(await within(dialog).findByText("已设置站内提醒")).toBeInTheDocument();
@@ -781,7 +784,7 @@ describe("TasksPage", () => {
     await waitFor(() => expect(within(dialog).getByText("暂无提醒")).toBeInTheDocument());
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/98/reminder", expect.objectContaining({ method: "DELETE" }));
 
-    fireEvent.change(within(dialog).getByLabelText("提醒时间"), { target: { value: "2026-07-18T18:00" } });
+    fireEvent.change(within(dialog).getByLabelText("提醒时间"), { target: { value: reminderInput } });
     fireEvent.change(within(dialog).getByLabelText("提醒频率"), { target: { value: "daily" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "保存提醒" }));
 
