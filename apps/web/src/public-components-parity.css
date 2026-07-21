@@ -1,0 +1,620 @@
+/* The supplied public-component references use a 1672 x 941 design canvas. */
+@media (min-width: 1920px) {
+  .route-motion-frame:has(.public-component-auth),
+  .route-motion-frame:has(.register-details-page),
+  .route-motion-frame:has(.public-profile-shell),
+  .route-motion-frame:has(.public-message-shell),
+  .route-motion-frame:has(.public-help-shell),
+  .route-motion-frame:has(.public-membership-shell),
+  .route-motion-frame:has(.payment-shell) {
+    --public-component-scale: calc(100vw / 1672px);
+    width: 1672px;
+    min-height: 941px;
+    zoom: var(--public-component-scale);
+  }
+
+  .route-motion-frame:has(.public-component-auth) .login-page,
+  .route-motion-frame:has(.public-component-auth) .login-story,
+  .route-motion-frame:has(.public-component-auth) .login-panel,
+  .route-motion-frame:has(.register-details-page) .register-details-page,
+  .route-motion-frame:has(.public-profile-shell) .v4-shell,
+  .route-motion-frame:has(.public-message-shell) .v4-shell,
+  .route-motion-frame:has(.public-help-shell) .v4-shell,
+  .route-motion-frame:has(.public-membership-shell) .v4-shell,
+  .route-motion-frame:has(.payment-shell) .v4-shell,
+  .route-motion-frame:has(.public-profile-shell) .v4-sidebar,
+  .route-motion-frame:has(.public-message-shell) .v4-sidebar,
+  .route-motion-frame:has(.public-help-shell) .v4-sidebar,
+  .route-motion-frame:has(.public-membership-shell) .v4-sidebar,
+  .route-motion-frame:has(.payment-shell) .v4-sidebar {
+    min-height: 941px;
+  }
+
+  .route-motion-frame:has(.public-profile-shell) .v4-sidebar,
+  .route-motion-frame:has(.public-message-shell) .v4-sidebar,
+  .route-motion-frame:has(.public-help-shell) .v4-sidebar,
+  .route-motion-frame:has(.public-membership-shell) .v4-sidebar,
+  .route-motion-frame:has(.payment-shell) .v4-sidebar {
+    height: 941px;
+  }
+
+  .route-motion-frame:has(.public-profile-shell) .v4-workspace,
+  .route-motion-frame:has(.public-message-shell) .v4-workspace,
+  .route-motion-frame:has(.public-help-shell) .v4-workspace,
+  .route-motion-frame:has(.public-membership-shell) .v4-workspace,
+  .route-motion-frame:has(.payment-shell) .v4-workspace {
+    min-height: 941px;
+  }
+
+  .route-motion-frame:has(.public-profile-shell) .v4-page-main,
+  .route-motion-frame:has(.public-message-shell) .v4-page-main,
+  .route-motion-frame:has(.public-help-shell) .v4-page-main,
+  .route-motion-frame:has(.public-membership-shell) .v4-page-main,
+  .route-motion-frame:has(.payment-shell) .v4-page-main {
+    min-height: 863px;
+  }
+
+  .route-motion-frame:has(.public-component-auth) .login-story {
+    padding-right: 75px;
+    padding-left: 77px;
+  }
+
+  .route-motion-frame:has(.public-component-auth) .login-panel {
+    padding-right: 67px;
+    padding-left: 67px;
+  }
+
+  .route-motion-frame:has(.register-details-page) .register-details-page {
+    padding-right: 160px;
+    padding-left: 160px;
+  }
+
+  .route-motion-frame:has(.public-profile-shell) .ui-modal-scrim,
+  .route-motion-frame:has(.public-message-shell) .ui-modal-scrim,
+  .route-motion-frame:has(.public-membership-shell) .ui-modal-scrim,
+  .route-motion-frame:has(.payment-shell) .ui-modal-scrim,
+  .route-motion-frame:has(.public-upgrade-scrim) .public-upgrade-scrim,
+  .route-motion-frame:has(.quota-exhausted-scrim) .quota-exhausted-scrim {
+    width: 1672px;
+    height: 941px;
+  }
+}
+
+/* Login composition: keep the feature list and sculpture on the same visual plane. */
+.public-component-auth .login-story-copy {
+  margin-top: 112px;
+}
+
+.public-component-auth .auth-brand {
+  transform: translateX(-40px);
+}
+
+.public-component-auth .auth-feature-list {
+  margin-top: 48px;
+}
+
+.public-component-auth .login-orbit {
+  right: 8px;
+  bottom: 160px;
+  width: 430px;
+  height: 450px;
+  background-position: center;
+  mix-blend-mode: multiply;
+}
+
+.public-component-auth .login-card {
+  padding-bottom: 58px;
+  border-radius: 8px;
+  transform: translateY(-8px);
+}
+
+.public-component-auth .login-card.register {
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+/* The account-section rail is 200px wide in the reference compositions. */
+.public-profile-shell .profile-layout {
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 49px;
+}
+
+.public-profile-shell .profile-side-tabs,
+.public-membership-shell .profile-side-tabs {
+  width: 200px;
+}
+
+.public-membership-shell .v4-page-main {
+  padding-right: 30px;
+  padding-left: 42px;
+}
+
+.public-membership-shell .billing-page {
+  max-width: 1340px;
+}
+
+.public-membership-shell .billing-page .billing-layout {
+  grid-template-columns: 200px 806px 270px;
+  gap: 32px;
+}
+
+.public-membership-shell .billing-page .plan-crown {
+  font-size: 0;
+}
+
+.public-membership-shell .billing-page .billing-plan-card {
+  height: 176px;
+  min-height: 0;
+  padding: 18px 20px;
+}
+
+.public-membership-shell .billing-page .billing-quota-card {
+  height: 198px;
+  min-height: 0;
+  gap: 8px;
+  padding: 16px 20px;
+}
+
+.public-membership-shell .billing-page .module-section-head {
+  margin-bottom: 0;
+}
+
+.public-membership-shell .billing-page .billing-quota-grid .quota-card {
+  min-height: 110px;
+  padding: 10px 12px;
+}
+
+.public-membership-shell .billing-page .order-card {
+  height: 302px;
+  gap: 10px;
+  padding: 12px 20px;
+  overflow: hidden;
+}
+
+.public-membership-shell .billing-page .order-head,
+.public-membership-shell .billing-page .order-row {
+  min-height: 32px;
+}
+
+.public-profile-shell .profile-side-tabs a,
+.public-membership-shell .profile-side-tabs a {
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+.public-profile-shell .profile-side-tabs a > span,
+.public-membership-shell .profile-side-tabs a > span {
+  min-width: 0;
+}
+
+.public-profile-shell .profile-side-tabs a > b,
+.public-membership-shell .profile-side-tabs a > b {
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .page-title-row {
+  min-height: 63px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-content {
+  gap: 8px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-layout,
+.public-profile-shell .profile-page:has(.preference-card) .profile-layout {
+  grid-template-columns: 200px 790px;
+  gap: 49px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile {
+  min-height: 125px;
+  gap: 8px;
+  padding: 12px 14px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile dl {
+  gap: 6px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile dl div {
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .profile-content {
+  gap: 14px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card {
+  gap: 8px;
+  padding: 16px 22px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .matrix-head {
+  min-height: 44px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .notification-matrix article {
+  min-height: 48px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .matrix-head,
+.public-profile-shell .profile-page:has(.preference-card) .notification-matrix article {
+  grid-template-columns: minmax(220px, 1fr) repeat(3, 132px);
+  padding-right: 12px;
+  padding-left: 12px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row {
+  grid-template-columns: minmax(220px, 1fr) 178px 122px 122px;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row > span {
+  display: none;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row button {
+  min-height: 46px;
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split {
+  gap: 18px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split label {
+  gap: 6px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-save-card {
+  min-height: 68px;
+  margin-top: 30px;
+  padding: 10px;
+}
+
+.public-profile-shell .profile-hero-card {
+  min-height: 130px;
+}
+
+.public-profile-shell .profile-content {
+  gap: 14px;
+}
+
+.public-profile-shell .quick-panel {
+  gap: 12px;
+  padding: 16px 28px;
+}
+
+.public-profile-shell .quick-grid a {
+  height: 82px;
+  min-height: 72px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  overflow: hidden;
+}
+
+/* Content uses the full account canvas, with Copilot as a dedicated right rail. */
+.public-profile-shell .profile-layout.content-mode {
+  grid-template-columns: minmax(0, 1fr) 286px;
+  gap: 66px;
+}
+
+.public-profile-shell .profile-layout.content-mode .profile-content,
+.public-profile-shell .profile-layout.content-mode .content-record-card,
+.public-profile-shell .profile-layout.content-mode .profile-content-copilot {
+  min-width: 0;
+}
+
+.public-profile-shell .profile-content-copilot {
+  top: 0;
+  width: 286px;
+  min-height: 632px;
+  overflow: visible;
+  border-radius: 4px;
+}
+
+.public-profile-shell .profile-layout.content-mode .content-tabs {
+  min-height: 52px;
+}
+
+.public-profile-shell .profile-layout.content-mode .content-record-list article {
+  min-height: 80px;
+}
+
+.public-profile-shell .profile-content-copilot::after,
+.public-membership-shell .public-copilot-panel::after {
+  position: absolute;
+  right: 14px;
+  bottom: -96px;
+  width: 78px;
+  height: 78px;
+  content: "";
+  background: #fff url("/home/logo.png") center / 52px 52px no-repeat;
+  border: 1px solid rgba(52, 89, 220, 0.18);
+  border-radius: 50%;
+  box-shadow: 0 10px 28px rgba(68, 72, 215, 0.2), inset 0 0 22px rgba(94, 102, 238, 0.1);
+}
+
+.public-profile-shell:has(.content-mode) .v4-page-copilot-mini,
+.public-message-shell .v4-page-copilot-mini {
+  display: none;
+}
+
+/* Compact Copilot prompt and the separate brand bubble in account views. */
+.public-profile-shell .v4-page-copilot-mini,
+.payment-shell .v4-page-copilot-mini {
+  top: 674px;
+  right: 32px;
+  bottom: auto;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-rows: 46px 64px;
+  width: 280px;
+  min-width: 280px;
+  min-height: 110px;
+  padding: 0;
+  gap: 0;
+  overflow: visible;
+  border-radius: 4px;
+}
+
+.payment-shell .payment-success-page .success-layout {
+  grid-template-columns: 890px 350px;
+  gap: 50px;
+}
+
+.payment-shell .v4-page-copilot-mini {
+  right: 89px;
+  width: 294px;
+  min-width: 294px;
+}
+
+.payment-shell .v4-page-copilot-mini::after {
+  right: -36px;
+}
+
+.public-profile-shell:has(.profile-hero-card) .v4-page-copilot-mini,
+.payment-shell .v4-page-copilot-mini {
+  top: 710px;
+}
+
+.public-profile-shell .v4-page-copilot-mini .mini-logo,
+.payment-shell .v4-page-copilot-mini .mini-logo {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  width: 28px;
+  height: 28px;
+}
+
+.public-profile-shell .v4-page-copilot-mini > span:last-child,
+.payment-shell .v4-page-copilot-mini > span:last-child {
+  display: grid;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  grid-template-rows: 46px 64px;
+  min-width: 0;
+}
+
+.public-profile-shell .v4-page-copilot-mini strong,
+.payment-shell .v4-page-copilot-mini strong {
+  align-self: center;
+  color: #10265f;
+  font-size: 14px;
+}
+
+.public-profile-shell .v4-page-copilot-mini small,
+.payment-shell .v4-page-copilot-mini small {
+  align-self: center;
+  margin: 0 12px 0 -34px;
+  padding: 13px 38px 13px 42px;
+  color: #9aa6bd;
+  border-top: 1px solid #edf0f7;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.public-profile-shell .v4-page-copilot-mini::before,
+.payment-shell .v4-page-copilot-mini::before {
+  position: absolute;
+  left: 16px;
+  bottom: 22px;
+  color: #224aaf;
+  content: "+";
+  font-size: 20px;
+}
+
+.public-profile-shell .v4-page-copilot-mini::after,
+.payment-shell .v4-page-copilot-mini::after {
+  position: absolute;
+  right: 12px;
+  bottom: -96px;
+  width: 78px;
+  height: 78px;
+  content: "";
+  background: #fff url("/home/logo.png") center / 52px 52px no-repeat;
+  border: 1px solid rgba(52, 89, 220, 0.18);
+  border-radius: 50%;
+  box-shadow: 0 10px 28px rgba(68, 72, 215, 0.2), inset 0 0 22px rgba(94, 102, 238, 0.1);
+}
+
+.public-membership-shell .v4-page-copilot-mini,
+.public-help-shell .v4-page-copilot-mini {
+  top: 818px;
+  right: 38px;
+  bottom: auto;
+  display: grid;
+  width: 78px;
+  min-width: 78px;
+  height: 78px;
+  min-height: 78px;
+  padding: 0;
+  border-radius: 50%;
+  place-items: center;
+}
+
+.public-membership-shell .v4-page-copilot-mini > span:last-child,
+.public-help-shell .v4-page-copilot-mini > span:last-child {
+  display: none;
+}
+
+.public-membership-shell .v4-page-copilot-mini .mini-logo,
+.public-help-shell .v4-page-copilot-mini .mini-logo {
+  width: 52px;
+  height: 52px;
+}
+
+.public-membership-shell .public-copilot-panel {
+  position: sticky;
+  overflow: visible;
+}
+
+/* The reference keeps recent activity compact and leaves room for Copilot. */
+.public-profile-shell .activity-panel {
+  width: 760px;
+  max-width: 760px;
+  gap: 0;
+  padding: 16px 28px;
+}
+
+.public-profile-shell .profile-two-column {
+  gap: 5px;
+}
+
+.public-profile-shell .activity-panel h2 {
+  margin-bottom: 8px;
+}
+
+.public-profile-shell .activity-panel article span {
+  position: relative;
+  display: grid;
+  color: #6c55e8;
+  background: #f0ecff;
+  place-items: center;
+}
+
+.public-profile-shell .activity-panel article {
+  min-height: 42px;
+}
+
+.public-profile-shell .activity-panel article span::after {
+  content: "▤";
+  font-size: 13px;
+}
+
+.public-profile-shell .activity-panel article:nth-of-type(2) span {
+  color: #2386df;
+  background: #e9f5ff;
+}
+
+.public-profile-shell .activity-panel article:nth-of-type(2) span::after {
+  content: "▥";
+}
+
+.public-profile-shell .activity-panel article:nth-of-type(3) span {
+  color: #0db77b;
+  background: #e5fbf2;
+}
+
+.public-profile-shell .activity-panel article:nth-of-type(3) span::after {
+  content: "✓";
+}
+
+.public-upgrade-modal .upgrade-redeem {
+  display: none;
+}
+
+.public-upgrade-modal .benefit-table span,
+.public-upgrade-modal .benefit-table strong {
+  padding: 6px 14px;
+}
+
+.public-upgrade-modal .upgrade-footer {
+  padding-top: 23px;
+  padding-bottom: 23px;
+}
+
+/* Message rows should not absorb the remaining viewport height. */
+.public-message-shell .message-card {
+  min-height: 0;
+  align-content: start;
+  padding: 0 12px 20px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.public-message-shell .message-card-head {
+  padding-bottom: 18px;
+}
+
+.public-message-shell .message-tabs {
+  min-height: 44px;
+  padding-bottom: 6px;
+}
+
+.public-message-shell .message-tabs button.active::after {
+  bottom: -7px;
+}
+
+.public-message-shell .message-row {
+  height: 72px;
+  min-height: 72px;
+  margin-top: 0;
+  padding: 8px 12px;
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.public-message-shell .message-square-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 8px;
+}
+
+/* Keep all three help workflows and the enterprise contact band in one canvas. */
+.public-help-shell .help-card {
+  min-height: 530px;
+  gap: 10px;
+  padding: 18px;
+}
+
+.public-help-shell .help-title {
+  min-height: 64px;
+}
+
+.public-help-shell .help-topic-list button {
+  min-height: 44px;
+}
+
+.public-help-shell .feedback-form textarea {
+  min-height: 90px;
+}
+
+.public-help-shell .ticket-list article {
+  min-height: 70px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.public-help-shell .ticket-list b {
+  top: 15px;
+}
+
+.public-help-shell .wechat-service-card {
+  min-height: 118px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+}

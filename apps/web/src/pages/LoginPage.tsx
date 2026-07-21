@@ -76,44 +76,44 @@ function LoginPage() {
   }
 
   return (
-    <main className="ref-login">
-      <Link className="ref-login-help" to="/help">
+    <main className="login-page public-component-auth">
+      <Link className="auth-help" to="/help">
         <span aria-hidden="true">?</span>
         帮助中心
       </Link>
 
-      <section className="ref-login-story" aria-label="产品价值">
-        <Link className="ref-login-brand" to="/" aria-label="智活AI OPC V4.0 首页">
-          <img alt="" src="/home/logo.png" />
+      <section className="login-story" aria-label="产品价值">
+        <Link className="auth-brand" to="/" aria-label="智活AI OPC V4.0 首页">
+          <span className="v4-logo" aria-hidden="true" />
           <strong>智活AI</strong>
           <small>OPC V4.0</small>
         </Link>
 
-        <div className="ref-login-copy">
+        <div className="login-story-copy">
           <p>企业增长智能引擎</p>
           <h1>让每个决策更智能<br />让每次增长更确定</h1>
           <span>智活AI 助力企业打通数据、洞察与执行，驱动可持续增长</span>
         </div>
 
-        <img className="ref-login-art" alt="" src="/public-components/login-sculpture.jpg" />
+        <div className="login-orbit" aria-hidden="true" />
 
-        <div className="ref-login-features">
+        <div className="auth-feature-list">
           <article>
-            <i className="ref-login-feature-icon chart" aria-hidden="true" />
+            <i className="metric-icon chart" aria-hidden="true" />
             <div>
               <strong>全域数据智能洞察</strong>
               <small>整合多源数据，洞察业务关键机会</small>
             </div>
           </article>
           <article>
-            <i className="ref-login-feature-icon trend" aria-hidden="true" />
+            <i className="metric-icon trend" aria-hidden="true" />
             <div>
               <strong>AI赋能高效决策</strong>
               <small>智能分析与预测，辅助科学决策</small>
             </div>
           </article>
           <article>
-            <i className="ref-login-feature-icon inbox" aria-hidden="true" />
+            <i className="metric-icon inbox" aria-hidden="true" />
             <div>
               <strong>业务闭环持续增长</strong>
               <small>从洞察到执行，沉淀增长方法论</small>
@@ -121,11 +121,13 @@ function LoginPage() {
           </article>
         </div>
 
+        <p className="auth-copyright">© 2024 智活AI 版权所有 | 京ICP备2023001234号-1</p>
+
       </section>
 
-      <section className="ref-login-panel" aria-label="登录注册">
-        <div className={`ref-login-card ${mode === "register" ? "register" : ""}`}>
-          <div className="ref-login-tabs" role="tablist" aria-label="登录注册切换">
+      <section className="login-panel" aria-label="登录注册">
+        <div className={`login-card ${mode === "register" ? "register" : ""}`}>
+          <div className="auth-tabs" role="tablist" aria-label="登录注册切换">
             <button
               aria-selected={mode === "login"}
               onClick={() => {
@@ -153,7 +155,7 @@ function LoginPage() {
           <form onSubmit={submit}>
             {mode === "login" ? (
               <>
-                <label className="ref-login-field">
+                <label className="field auth-input">
                   <span>账号 / 用户名</span>
                   <input
                     aria-label="账号"
@@ -165,7 +167,7 @@ function LoginPage() {
                   />
                 </label>
 
-                <label className="ref-login-field">
+                <label className="field auth-input">
                   <span>密码</span>
                   <input
                     aria-label="密码"
@@ -176,11 +178,11 @@ function LoginPage() {
                     value={password}
                   />
                 </label>
-                <Link className="ref-login-forgot" to="/help">忘记密码</Link>
+                <Link className="forgot-password-link" to="/help">忘记密码</Link>
               </>
             ) : (
-              <div className="ref-login-register-grid">
-                <label className="ref-login-field">
+              <div className="register-field-grid">
+                <label className="field auth-input">
                   <span>账号 <em>*</em></span>
                   <input
                     aria-label="账号"
@@ -191,7 +193,7 @@ function LoginPage() {
                     value={account}
                   />
                 </label>
-                <label className="ref-login-field">
+                <label className="field auth-input">
                   <span>密码 <em>*</em></span>
                   <input
                     aria-label="密码"
@@ -202,7 +204,7 @@ function LoginPage() {
                     value={password}
                   />
                 </label>
-                <label className="ref-login-field">
+                <label className="field auth-input">
                   <span>确认密码 <small>（选填）</small></span>
                   <input
                     aria-label="确认密码"
@@ -213,7 +215,7 @@ function LoginPage() {
                     value={confirmPassword}
                   />
                 </label>
-                <label className="ref-login-field">
+                <label className="field auth-input">
                   <span>邮箱 <small>（选填）</small></span>
                   <input
                     aria-label="邮箱"
@@ -224,7 +226,7 @@ function LoginPage() {
                     value={email}
                   />
                 </label>
-                <label className="ref-login-field">
+                <label className="field auth-input">
                   <span>手机号 <em>*</em></span>
                   <input
                     aria-label="手机号"
@@ -236,7 +238,7 @@ function LoginPage() {
                     value={phone}
                   />
                 </label>
-                <label className="ref-login-field">
+                <label className="field auth-input">
                   <span>微信 / 企业微信 <small>（选填）</small></span>
                   <input
                     aria-label="微信或企业微信"
@@ -249,7 +251,7 @@ function LoginPage() {
               </div>
             )}
 
-            <label className="ref-login-agreement">
+            <label className="agreement-row">
               <input
                 aria-label="同意用户协议和隐私政策"
                 checked={agreementAccepted}
@@ -262,14 +264,14 @@ function LoginPage() {
               </span>
             </label>
 
-            {error && <p className="ref-login-error" role="alert">{error}</p>}
+            {error && <p className="form-error" role="alert">{error}</p>}
             {status === "success" && (
-              <p className="ref-login-success" role="status">
+              <p className="form-success" role="status">
                 {mode === "login" ? "登录成功，正在进入工作台" : "注册成功，正在进入工作台"}
               </p>
             )}
 
-            <button className="ref-login-submit" disabled={!canSubmit} type="submit">
+            <button className="login-submit" disabled={!canSubmit} type="submit">
               {status === "submitting"
                 ? mode === "login" ? "正在登录" : "正在注册"
                 : mode === "login" ? "登录" : "注册并创建账号"}
@@ -277,21 +279,21 @@ function LoginPage() {
 
             {mode === "login" && (
               <>
-                <div className="ref-login-divider">其他登录方式</div>
-                <div className="ref-login-secondary">
+                <div className="auth-divider">其他登录方式</div>
+                <div className="auth-secondary-actions">
                   <button type="button">
-                    <span className="ref-wechat-mark" aria-hidden="true">●</span>
+                    <span className="wechat-mark" aria-hidden="true">●</span>
                     微信快捷登录
                   </button>
                   <button type="button">
-                    <span className="ref-phone-mark" aria-hidden="true" />
+                    <span className="phone-mark" aria-hidden="true" />
                     手机号快捷登录
                   </button>
                 </div>
               </>
             )}
 
-            <p className="ref-login-switch">
+            <p className="auth-switch">
               {mode === "login" ? "还没有账号？" : "已有账号？"}
               <button onClick={() => setMode(mode === "login" ? "register" : "login")} type="button">
                 {mode === "login" ? "立即注册" : "立即登录"}

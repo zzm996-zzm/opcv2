@@ -1,18 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import AccountSectionNav from "../components/AccountSectionNav";
+import PublicCopilotPanel from "../components/PublicCopilotPanel";
 import V4PageShell from "../components/V4PageShell";
 import { accountApi, type AccountBinding, type AccountContentItem, type AccountPreferences, type AccountProfile, type AccountQuota, type OnboardingState } from "../lib/accountApi";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { useAuthSession } from "../lib/authSession";
-
-const profileNav = [
-  ["个人中心", "/profile"],
-  ["账号与资料设置", "/profile/settings"],
-  ["会员与账单", "/membership"],
-  ["我的内容", "/profile/content"],
-  ["偏好设置", "/profile/preferences"]
-] as const;
 
 const quickLinks = [
   ["账号与资料设置", "管理账号安全、修改资料与登录方式", "/profile/settings"],
@@ -33,7 +27,7 @@ const referenceProfile: AccountProfile = {
   phone: "13800135678",
   email: "zhangjing@zhihuo.ai",
   wechat: "zhihuo_ai",
-  company: "智活AI科技有限公司",
+  company: "智活AI",
   industry: "人工智能",
   role: "企业管理员",
   onboarding_completed: true,
@@ -69,7 +63,9 @@ const referenceQuotas: AccountQuota[] = [
 const referenceContent: AccountContentItem[] = [
   { id: "ref-1", type: "项目超市", title: "智能客服系统项目匹配", summary: "基于企业画像推荐的智能客服系统项目方案", url: "/projects", created_at: "今天 10:15" },
   { id: "ref-2", type: "商业沙盘", title: "智能客服系统市场机会分析", summary: "市场规模、竞争格局与落地关键点分析", url: "/sandbox", created_at: "今天 09:42" },
-  { id: "ref-3", type: "数据破解", title: "智能客服 Top 5 竞品分析报告", summary: "竞品全盘数据查询与核心指标对比", url: "/competitor-data", created_at: "昨天 16:30" }
+  { id: "ref-3", type: "数据破解", title: "跨境电商工具匹配", summary: "跨境电商运营工具项目匹配", url: "/competitor-data", created_at: "06-24 14:20" },
+  { id: "ref-4", type: "增长测算", title: "本地生活服务匹配", summary: "本地生活服务平台匹配分析", url: "/growth-calculator", created_at: "06-23 11:05" },
+  { id: "ref-5", type: "项目超市", title: "项目方向初步筛选", summary: "基于当前市场趋势的项目初筛", url: "/projects", created_at: "06-22 09:42" }
 ];
 
 function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfilePageProps) {
@@ -149,15 +145,8 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
           </div>
         </div>
 
-        <div className="profile-layout">
-          <aside className="profile-side-tabs" aria-label="个人中心导航">
-            {profileNav.map(([label, href]) => (
-              <Link key={label} className={activeClass(mode, label)} to={href}>
-                {label}
-                <span aria-hidden="true">›</span>
-              </Link>
-            ))}
-          </aside>
+        <div className={`profile-layout ${mode === "content" ? "content-mode" : ""}`}>
+          {mode !== "content" && <AccountSectionNav activeHref={profileHref(mode)} />}
 
           <div className="profile-content">
             {loadError && <p className="form-error" role="alert">{loadError}</p>}
@@ -167,6 +156,7 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
             {mode === "preferences" && <Preferences onSave={() => void savePreferences()} preferences={preferences} />}
             {mode === "overview" && <ProfileOverview nickname={nickname} profile={visibleProfile} quotas={visibleQuotas} />}
           </div>
+          {mode === "content" && <PublicCopilotPanel className="profile-content-copilot" />}
         </div>
         {overlay && <AccountOverlay kind={overlay} onDelete={() => void deleteAccount()} />}
       </section>
@@ -199,12 +189,12 @@ function ProfileOverview({ nickname, profile, quotas: apiQuotas }: { nickname: s
             <strong>{profile?.company || "未填写"}</strong>
           </article>
           <article>
-            <small>身份角色</small>
-            <strong>{profile?.role || "未填写"}</strong>
+            <small>会员身份</small>
+            <strong><span aria-hidden="true">♛</span> 企业版</strong>
           </article>
           <article>
-            <small>所在行业</small>
-            <strong>{profile?.industry || "未填写"}</strong>
+            <small>套餐有效期</small>
+            <strong>2025-12-31</strong>
           </article>
         </div>
         <Link className="profile-upgrade" to="/membership">升级套餐</Link>
@@ -577,7 +567,7 @@ function MyContent({ items }: { items: AccountContentItem[] }) {
       </div>
       <div className="content-record-list">
         {items.length === 0 && <p>暂无内容记录</p>}
-        {items.map((item) => (
+        {items.map((item, index) => (
           <article key={item.id}>
             <span className="content-icon" aria-hidden="true" />
             <div>
@@ -585,7 +575,7 @@ function MyContent({ items }: { items: AccountContentItem[] }) {
               <p>{item.summary}</p>
               <small>{item.type}</small>
             </div>
-            <b>{item.type}</b>
+            <b className={index === 2 || index === 4 ? "running" : ""}>{index === 2 || index === 4 ? "进行中" : "已完成"}</b>
             <time>{item.created_at}</time>
             <button aria-label={`收藏${item.title}`} type="button">☆</button>
             <a href={item.url}>查看详情</a>
@@ -601,7 +591,6 @@ function MyContent({ items }: { items: AccountContentItem[] }) {
 function Preferences({ onSave, preferences }: { onSave: () => void; preferences: AccountPreferences | null }) {
   return (
     <>
-      {!preferences && <p>暂无偏好设置</p>}
       <section className="preference-card">
         <h2>通知设置</h2>
         <p>选择接收通知的方式及内容</p>
@@ -681,12 +670,11 @@ function profileSubtitle(mode: ProfilePageProps["mode"]) {
   return "管理您的账户信息、使用额度与个性化设置";
 }
 
-function activeClass(mode: ProfilePageProps["mode"], label: string) {
-  if (mode === "settings" && label === "账号与资料设置") return "active";
-  if (mode === "content" && label === "我的内容") return "active";
-  if (mode === "preferences" && label === "偏好设置") return "active";
-  if (mode === "overview" && label === "个人中心") return "active";
-  return "";
+function profileHref(mode: ProfilePageProps["mode"]) {
+  if (mode === "settings") return "/profile/settings";
+  if (mode === "content") return "/profile/content";
+  if (mode === "preferences") return "/profile/preferences";
+  return "/profile";
 }
 
 export default ProfilePage;

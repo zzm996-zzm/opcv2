@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import AccountSectionNav from "../components/AccountSectionNav";
+import PublicCopilotPanel from "../components/PublicCopilotPanel";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import {
@@ -14,14 +16,6 @@ import {
 type MembershipPageProps = {
   showUpgrade?: boolean;
 };
-
-const profileNav = [
-  ["个人中心", "/profile"],
-  ["账号与资料设置", "/profile/settings"],
-  ["会员与账单", "/membership"],
-  ["我的内容", "/profile/content"],
-  ["偏好设置", "/profile/preferences"]
-] as const;
 
 const referenceUsage: MembershipUsageItem[] = [
   { key: "ai", label: "AI 智算额度", used: 8320, limit: 20000, unit: "次" },
@@ -155,7 +149,7 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
               </span>
             ))}
           </div>
-          <BillingCopilot />
+          <PublicCopilotPanel />
         </div>
       </section>
     </V4PageShell>
@@ -165,16 +159,12 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
 }
 
 function ProfileTabs() {
-  return <aside className="profile-side-tabs" aria-label="个人中心导航">{profileNav.map(([label, href]) => <Link className={label === "会员与账单" ? "active" : ""} key={label} to={href}>{label}<span aria-hidden="true">›</span></Link>)}</aside>;
+  return <AccountSectionNav activeHref="/membership" />;
 }
 
 function QuotaCard({ item }: { item: MembershipUsageItem }) {
   const percent = item.limit ? Math.min(100, Math.round(item.used / item.limit * 100)) : 0;
   return <article className="quota-card"><span>{item.label}</span><strong>{item.used.toLocaleString()}<small> / {item.limit.toLocaleString()}</small></strong><div className="quota-bar"><i style={{ width: `${percent}%` }} /></div><small>剩余 {100 - percent}%</small><small>重置日：2025-06-01</small></article>;
-}
-
-function BillingCopilot() {
-  return <aside className="billing-copilot-card" aria-label="智活 Copilot"><header><strong><b>◆</b> 智活 Copilot</strong><span>⚙⌃</span></header><p>你的全球 AI 助手，随时为你提供帮助</p><article><em>A</em><strong>嗨，张婧！</strong><p>今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</p></article><article className="blue">帮我分析一下智能客服系统的市场机会和落地关键点。</article><article><em>A</em><p>好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点，点击下方查看详情。</p></article><div className="copilot-file-chip"><span className="pdf-thumb">PDF</span><span><strong>智能客服系统机会分析报告</strong><small>PDF · 1.2 MB</small></span></div>{["分析项目机会", "推荐工具", "制定落地计划"].map((item) => <Link key={item} to="/copilot">{item}<span>›</span></Link>)}<label className="billing-copilot-input"><span>⌾</span><input aria-label="询问 Copilot" placeholder="询问任何问题..." /><b>➤</b></label></aside>;
 }
 
 function MembershipUpgradeModal({ plans }: { plans: MembershipPlanOption[] }) {
