@@ -52,7 +52,6 @@ describe("ToolsPage", () => {
     expect(screen.getByRole("button", { name: "平台" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "按热度排序" })).toBeInTheDocument();
     expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "打开智活 Copilot" })).toHaveAttribute("href", "/tools");
   });
 
   it("links the library Copilot collapse control to the complete catalog", async () => {
@@ -63,7 +62,6 @@ describe("ToolsPage", () => {
 
     expect(await screen.findByText("Notion AI")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "收起 Copilot 并查看完整工具箱" })).toHaveAttribute("href", "/tools/all");
-    expect(screen.getByRole("link", { name: "打开智活 Copilot" })).toHaveAttribute("href", "/copilot");
   });
 
   it("refetches the real catalog from the category tabs", async () => {

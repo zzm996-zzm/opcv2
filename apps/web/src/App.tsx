@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
+import FloatingCopilotOrb from "./components/FloatingCopilotOrb";
 import { authApi } from "./lib/authApi";
 import { authSession, useAuthSession } from "./lib/authSession";
 import AnalysisHistoryPage from "./pages/AnalysisHistoryPage";
@@ -50,6 +51,7 @@ import ToolsPage from "./pages/ToolsPage";
 
 function App() {
   const location = useLocation();
+  const showGlobalCopilotOrb = shouldShowGlobalCopilotOrb(location.pathname);
 
   useEffect(() => {
     const session = authSession.get();
@@ -90,7 +92,8 @@ function App() {
   }, []);
 
   return (
-    <div className="route-motion-frame" key={location.pathname}>
+    <>
+      <div className="route-motion-frame" key={location.pathname}>
       <Routes location={location}>
       <Route element={<HomePage />} path="/" />
       <Route
@@ -913,8 +916,16 @@ function App() {
         path="/help"
       />
       </Routes>
-    </div>
+      </div>
+      {showGlobalCopilotOrb && <FloatingCopilotOrb />}
+    </>
   );
+}
+
+function shouldShowGlobalCopilotOrb(pathname: string) {
+  const homeRoutes = pathname === "/" || pathname.startsWith("/home/") || pathname.startsWith("/assistant/");
+  const standaloneRoutes = pathname === "/login" || pathname.startsWith("/register/") || pathname === "/terms" || pathname === "/privacy";
+  return !homeRoutes && !standaloneRoutes && !pathname.startsWith("/copilot");
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {

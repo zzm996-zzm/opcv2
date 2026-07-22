@@ -54,6 +54,32 @@ describe("App", () => {
     );
   });
 
+  it("shows one draggable Copilot orb on product routes and hides it on Copilot", () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2099-06-11T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
+    });
+
+    const productRoute = render(
+      <MemoryRouter initialEntries={["/help"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getAllByRole("button", { name: "打开智活 Copilot" })).toHaveLength(1);
+    productRoute.unmount();
+
+    render(
+      <MemoryRouter initialEntries={["/copilot"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole("button", { name: "打开智活 Copilot" })).not.toBeInTheDocument();
+  });
+
   it("redirects a signed-out user from a protected product route", async () => {
     authSession.finishRestore();
 

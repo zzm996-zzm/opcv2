@@ -3,6 +3,7 @@ import { Bell, ChevronDown, ChevronUp, Settings, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
+import FloatingCopilotOrb from "../components/FloatingCopilotOrb";
 import ReferenceShell from "../components/ReferenceShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { authApi } from "../lib/authApi";
@@ -635,16 +636,11 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
             )}
           </aside>
 
-          <button
-            className="ref-home-floating-orb"
-            onClick={() => {
-              setAssistantOpen(true);
-            }}
-            type="button"
-            aria-label="打开智活 Copilot"
-          >
-            <img alt="" src="/home/logo.png" />
-          </button>
+          <FloatingCopilotOrb
+            className={filesOpen || assistantMode === "settings" ? "home-extended-orb" : ""}
+            onActivate={() => setAssistantOpen(true)}
+          />
+
     </ReferenceShell>
   );
 }

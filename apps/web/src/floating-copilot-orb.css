@@ -1,0 +1,82 @@
+.global-copilot-orb {
+  position: fixed;
+  z-index: 24;
+  right: 38px;
+  bottom: 32px;
+  display: grid;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  touch-action: none;
+  user-select: none;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(80, 101, 255, 0.44);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 8px rgba(236, 240, 255, 0.88),
+    0 14px 36px rgba(48, 70, 188, 0.23);
+  cursor: grab;
+  place-items: center;
+  transition: border-color 160ms ease, box-shadow 160ms ease, scale 160ms ease;
+}
+
+.global-copilot-orb:hover {
+  border-color: rgba(63, 84, 245, 0.64);
+  box-shadow:
+    inset 0 0 0 8px rgba(230, 235, 255, 0.94),
+    0 18px 42px rgba(48, 70, 188, 0.28);
+  scale: 1.035;
+}
+
+.global-copilot-orb:active,
+.global-copilot-orb.dragging {
+  transform: none;
+  scale: 1;
+}
+
+.global-copilot-orb.dragging {
+  cursor: grabbing;
+  transition: none;
+}
+
+.global-copilot-orb:focus-visible {
+  outline: 3px solid rgba(23, 96, 245, 0.28);
+  outline-offset: 4px;
+}
+
+.global-copilot-orb .v4-logo {
+  width: 43px;
+  height: 43px;
+  pointer-events: none;
+  animation: global-copilot-logo-float 3.2s ease-in-out infinite;
+}
+
+@keyframes global-copilot-logo-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@media (max-width: 760px) {
+  .global-copilot-orb {
+    right: 18px;
+    bottom: 18px;
+    width: 64px;
+    height: 64px;
+    box-shadow:
+      inset 0 0 0 7px rgba(236, 240, 255, 0.9),
+      0 12px 28px rgba(48, 70, 188, 0.22);
+  }
+
+  .global-copilot-orb .v4-logo {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .global-copilot-orb,
+  .global-copilot-orb .v4-logo {
+    animation: none;
+    transition: none;
+  }
+}

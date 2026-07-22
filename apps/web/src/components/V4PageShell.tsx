@@ -85,7 +85,7 @@ type V4PageShellProps = {
   showCopilotMini?: boolean;
 };
 
-function V4PageShell({ children, className = "", showCopilotMini = true }: V4PageShellProps) {
+function V4PageShell({ children, className = "" }: V4PageShellProps) {
   const session = useAuthSession();
   const location = useLocation();
   const [accountOpen, setAccountOpen] = useState(false);
@@ -228,15 +228,6 @@ function V4PageShell({ children, className = "", showCopilotMini = true }: V4Pag
           {children}
         </main>
 
-        {showCopilotMini && (
-          <Link className="v4-page-copilot-mini" to="/copilot" aria-label="打开智活 Copilot">
-            <span className="mini-logo" aria-hidden="true" />
-            <span>
-              <strong>智活 Copilot</strong>
-              <small>问我任何问题</small>
-            </span>
-          </Link>
-        )}
       </div>
     </div>
   );

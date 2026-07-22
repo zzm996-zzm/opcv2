@@ -158,9 +158,6 @@ function ToolsPage({ variant = "library" }: ToolsPageProps) {
         </div>
         {withCopilot && <ToolsCopilot variant={variant} />}
       </section>
-      <Link className="toolhub-floating-copilot" to={variant === "all" ? "/tools" : "/copilot"} aria-label="打开智活 Copilot">
-        <span className="v4-logo" aria-hidden="true" />
-      </Link>
     </V4PageShell>
   );
 }

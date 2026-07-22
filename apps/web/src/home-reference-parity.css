@@ -698,8 +698,7 @@
     height: 704px;
   }
 
-  .ref-home-layout:has(.attachment-strip) .ref-home-floating-orb,
-  .ref-home-layout:has(.ref-home-copilot-settings) .ref-home-floating-orb {
+  .global-copilot-orb.home-extended-orb {
     bottom: 12px;
   }
 
