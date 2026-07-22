@@ -11,6 +11,7 @@ import "./project-market-enhancements.css";
 import "./sandbox-reference.css";
 import "./public-components-parity.css";
 import "./landing-reference-parity.css";
+import "./home-reference-parity.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

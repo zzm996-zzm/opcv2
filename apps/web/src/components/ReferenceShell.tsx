@@ -28,7 +28,13 @@ const sideGroups = [
   },
   {
     title: "增长",
-    items: [["GEO获客", "/geo", "target"], ["AI线索开发", "/leads", "diamond"]]
+    items: [
+      ["GEO获客", "/geo", "target"],
+      ["AI线索开发", "/leads", "diamond"],
+      ["仪表盘", "/dashboard", "dashboard"],
+      ["CRM客户管理", "/crm", "crm"],
+      ["企业定制化陪跑", "/enterprise", "enterprise"]
+    ]
   }
 ] as const;
 

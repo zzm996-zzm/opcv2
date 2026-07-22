@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Bell, ChevronDown, ChevronUp, Settings, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { MiniCopilotForm } from "../components/MiniCopilot";
@@ -290,6 +291,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   }}
                   type="button"
                 >
+                  <Bell aria-hidden="true" size={22} strokeWidth={1.8} />
                   <span />
                 </button>
                 {noticeOpen && (
@@ -348,12 +350,12 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                     <strong>{nickname} · 智活AI</strong>
                     <small>企业管理员</small>
                   </span>
-                  <span aria-hidden="true">⌄</span>
+                  <ChevronDown aria-hidden="true" size={15} strokeWidth={1.8} />
                 </button>
                 {accountOpen && (
                   <div className="v4-account-menu ref-home-account-menu" role="dialog" aria-label="头像下拉框">
                     <div className="account-card-head">
-                      <span className="v4-avatar large" aria-hidden="true">张</span>
+                      <img className="v4-avatar large" alt="" src="/public-components/avatar.jpg" />
                       <div>
                         <strong>{nickname}</strong>
                         <p>
@@ -393,7 +395,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
             </div>
           )}
       className="ref-home-shell"
-      mainClassName={`ref-home-layout ${assistantOpen ? "with-assistant" : ""}`}
+      mainClassName={`ref-home-layout ${signedIn ? "signed-in" : "signed-out"} ${assistantOpen ? "with-assistant" : "copilot-collapsed"}`}
     >
           <section className="ref-home-dashboard" aria-label="智活AI 工作台">
             <div className="ref-home-welcome">
@@ -531,7 +533,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       onClick={() => setAssistantMode((mode) => (mode === "settings" ? "chat" : "settings"))}
                       type="button"
                     >
-                      ⚙
+                      <Settings aria-hidden="true" size={17} strokeWidth={1.8} />
                     </button>
                     <button
                       aria-label="收起智活 Copilot"
@@ -540,7 +542,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       }}
                       type="button"
                     >
-                      ⌄
+                      <ChevronDown aria-hidden="true" size={18} strokeWidth={1.8} />
                     </button>
                   </div>
                 </div>
@@ -548,7 +550,9 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   <div className="ref-home-copilot-settings">
                     <div className="ref-home-settings-title">
                       <strong>Copilot 设置</strong>
-                      <button aria-label="关闭 Copilot 设置" onClick={() => setAssistantMode("chat")} type="button">×</button>
+                      <button aria-label="关闭 Copilot 设置" onClick={() => setAssistantMode("chat")} type="button">
+                        <X aria-hidden="true" size={17} strokeWidth={1.8} />
+                      </button>
                     </div>
                     <div className="ref-home-model-list" aria-label="模型选择">
                       <span>模型选择</span>
@@ -621,7 +625,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
               >
                 <span className="mini-logo" aria-hidden="true" />
                 <strong>智活 Copilot</strong>
-                <span className="mini-caret" aria-hidden="true">⌃</span>
+                <ChevronUp className="mini-caret" aria-hidden="true" size={18} strokeWidth={1.8} />
                 <span className="ref-home-mini-input" aria-hidden="true">
                   <i>+</i>
                   <small>输入问题，发送后自动展开回复</small>

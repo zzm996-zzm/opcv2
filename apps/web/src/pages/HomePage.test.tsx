@@ -194,6 +194,9 @@ describe("HomePage", () => {
     expect(screen.getByText("项目推荐")).toBeInTheDocument();
     expect(screen.getByText("完成【AI 智能硬件】项目商业画布")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "进行中 3" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "仪表盘" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: "CRM客户管理" })).toHaveAttribute("href", "/crm");
+    expect(screen.getByRole("link", { name: "企业定制化陪跑" })).toHaveAttribute("href", "/enterprise");
     expect(homeApi.summary).not.toHaveBeenCalled();
   });
 
