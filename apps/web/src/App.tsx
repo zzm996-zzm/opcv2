@@ -925,7 +925,7 @@ function App() {
 function shouldShowGlobalCopilotOrb(pathname: string) {
   const homeRoutes = pathname === "/" || pathname.startsWith("/home/") || pathname.startsWith("/assistant/");
   const standaloneRoutes = pathname === "/login" || pathname.startsWith("/register/") || pathname === "/terms" || pathname === "/privacy";
-  return !homeRoutes && !standaloneRoutes && !pathname.startsWith("/copilot");
+  return !homeRoutes && !standaloneRoutes && !pathname.startsWith("/copilot") && !pathname.startsWith("/crm");
 }
 
 function RequireAuth({ children }: { children: React.ReactNode }) {

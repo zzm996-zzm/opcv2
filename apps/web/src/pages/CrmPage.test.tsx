@@ -239,7 +239,7 @@ describe("CrmPage", () => {
     expect(await screen.findByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
     expect(screen.getAllByText(/需求确认/).length).toBeGreaterThan(0);
     const stats = screen.getByLabelText("CRM关键指标");
-    expect(within(stats).getByText("总客户")).toBeInTheDocument();
+    expect(within(stats).getByText("客户总数")).toBeInTheDocument();
     expect(within(stats).getByText("3")).toBeInTheDocument();
     expect(await screen.findByText("客户资料已更新")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看" })).toHaveAttribute("href", "/crm?customer_id=100");

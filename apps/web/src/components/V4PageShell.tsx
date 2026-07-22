@@ -71,6 +71,35 @@ const taskSidebarGroups = [
   }
 ];
 
+const crmSidebarGroups = [
+  {
+    title: "项目管理",
+    items: [
+      { label: "项目看板", href: "/projects", icon: "grid" },
+      { label: "商业沙盘", href: "/sandbox", icon: "home" }
+    ]
+  },
+  {
+    title: "落地执行",
+    items: [
+      { label: "任务中心", href: "/tasks", icon: "check" },
+      { label: "竞品情报", href: "/competitor-data", icon: "stack" },
+      { label: "销售线索池", href: "/leads", icon: "pulse" },
+      { label: "增长分析", href: "/growth-calculator", icon: "calc" }
+    ]
+  },
+  {
+    title: "增长引擎",
+    items: [
+      { label: "GEO获客", href: "/geo", icon: "target" },
+      { label: "AI线索开发", href: "/leads", icon: "diamond" },
+      { label: "仪表盘", href: "/dashboard", icon: "chart" },
+      { label: "CRM客户管理", href: "/crm", icon: "user" },
+      { label: "企业定制化陪跑", href: "/enterprise", icon: "flag" }
+    ]
+  }
+];
+
 const accountLinks: Array<[string, string, string]> = [
   ["个人中心", "/profile", "user"],
   ["账号与资料设置", "/profile/settings", "settings"],
@@ -91,7 +120,9 @@ function V4PageShell({ children, className = "" }: V4PageShellProps) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const nickname = session.user?.nickname || "张婧";
-  const sidebarGroups = location.pathname.startsWith("/tasks") ? taskSidebarGroups : defaultSidebarGroups;
+  const sidebarGroups = location.pathname.startsWith("/crm")
+    ? crmSidebarGroups
+    : location.pathname.startsWith("/tasks") ? taskSidebarGroups : defaultSidebarGroups;
   const isTopNavActive = (href: string) =>
     location.pathname === href || (href !== "/" && location.pathname.startsWith(`${href}/`));
 

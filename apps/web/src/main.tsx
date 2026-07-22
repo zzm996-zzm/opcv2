@@ -13,6 +13,7 @@ import "./public-components-parity.css";
 import "./landing-reference-parity.css";
 import "./home-reference-parity.css";
 import "./floating-copilot-orb.css";
+import "./crm-reference-parity.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

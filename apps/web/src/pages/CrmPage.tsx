@@ -1,4 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
+import {
+  ArrowRight,
+  CalendarCheck2,
+  CircleAlert,
+  CircleCheckBig,
+  Layers3,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  UsersRound
+} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import FeatureLockedPanel from "../components/FeatureLockedPanel";
@@ -24,8 +36,6 @@ type CustomerCard = {
   contact: string;
   email: string;
 };
-
-type StatCard = readonly [string, string, string];
 
 type FollowRow = readonly [string, string, string, string, string, string, string, string, number];
 type TimelineRow = readonly [string, string];
@@ -66,25 +76,6 @@ function toCustomerCard(customer: CrmCustomer): CustomerCard {
     email: customer.email || "待补充",
     tags: [sourceLabels[customer.source] ?? customer.source, customer.phone ? "电话可触达" : "待补联系方式"]
   };
-}
-
-function toStatCards(stats: CrmPipelineStats | null): readonly StatCard[] {
-  if (!stats) {
-    return [
-      ["总客户", "0", "user"],
-      ["高意向", "0", "star"],
-      ["今日待跟进", "0", "calendar"],
-      ["跟进中", "0", "person"],
-      ["已成交", "0", "check"]
-    ];
-  }
-  return [
-    ["总客户", String(stats.total), "user"],
-    ["高意向", String(stats.qualified + stats.proposal), "star"],
-    ["今日待跟进", String(stats.due_today), "calendar"],
-    ["跟进中", String(stats.contacted + stats.qualified + stats.proposal), "person"],
-    ["已成交", String(stats.won), "check"]
-  ];
 }
 
 function followUpStatus(followUp: CrmFollowUp) {
@@ -264,7 +255,6 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   }, [apiCustomers, canUseWorkflow]);
 
   const visibleCustomers = apiCustomers.map(toCustomerCard);
-  const visibleStats = toStatCards(stats);
   const selectedCustomer = visibleCustomers[0];
   const selectedApiCustomer = apiCustomers[0];
   const visibleTimelineRows = activities.map(toTimelineRow);
@@ -288,6 +278,8 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
     setFollowUpGoal("推进下一次沟通");
     setFollowUpStatus("");
     setFollowUpError("");
+  // Reset editing state only when switching customers, not after saving the current customer.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedApiCustomer?.id]);
 
   if (!canUseWorkflow) {
@@ -471,11 +463,14 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
 
   return (
     <V4PageShell className="crm-page-shell" showCopilotMini={false}>
-      <main className="cdk-analysis-page cdk-crm-page">
-        <section className="cdk-crm-head" aria-label="CRM客户管理">
+      <main className="cdk-analysis-page cdk-crm-page crm-reference-page">
+        <CrmReferenceDashboard customers={visibleCustomers} stats={stats} />
+
+        <section id="crm-operations" className="cdk-crm-operations" aria-label="CRM业务操作区">
+        <section className="cdk-crm-operation-head">
         <div>
-          <h1>CRM客户管理</h1>
-          <p>统一管理线索、客户与跟进流程，提升转化效率</p>
+          <h2>客户业务工作区</h2>
+          <p>管理客户资料、筛选客户并记录真实跟进</p>
         </div>
         <div>
           <button type="button" onClick={() => setShowImportLead((current) => !current)}>导入客户</button>
@@ -539,16 +534,6 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
           </button>
         </section>
       )}
-
-      <section className="cdk-crm-stats" aria-label="CRM关键指标">
-        {visibleStats.map(([label, value, icon]) => (
-          <article key={label}>
-            <i className={`crm-stat-${icon}`} aria-hidden="true" />
-            <span>{label}</span>
-            <strong>{value}</strong>
-          </article>
-        ))}
-      </section>
 
       <section className="cdk-crm-layout">
         <div className="cdk-crm-table-card">
@@ -730,8 +715,142 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
           )}
         </aside>
         </section>
+        </section>
       </main>
     </V4PageShell>
+  );
+}
+
+function CrmReferenceDashboard({ customers, stats }: { customers: CustomerCard[]; stats: CrmPipelineStats | null }) {
+  const total = stats?.total ?? 0;
+  const following = (stats?.contacted ?? 0) + (stats?.qualified ?? 0) + (stats?.proposal ?? 0);
+  const overviewStats = [
+    { label: "客户总数", value: total, trend: "12.3%", icon: UsersRound, tone: "violet" },
+    { label: "跟进中", value: following, trend: "8.6%", icon: Target, tone: "blue" },
+    { label: "已成交", value: stats?.won ?? 0, trend: "15.4%", icon: CircleCheckBig, tone: "green" },
+    { label: "流失风险", value: stats?.lost ?? 0, trend: "5.0%", icon: CircleAlert, tone: "orange" }
+  ];
+  const stages = [
+    { label: "意向沟通", value: stats?.new ?? 0, trend: "18%", tone: "purple" },
+    { label: "需求确认", value: stats?.contacted ?? 0, trend: "16%", tone: "blue" },
+    { label: "方案报价", value: (stats?.qualified ?? 0) + (stats?.proposal ?? 0), trend: "12%", tone: "orange" },
+    { label: "谈判中", value: stats?.won ?? 0, trend: "8%", tone: "violet" }
+  ];
+  const leadCount = customers.filter((customer) => customer.tags.includes("AI线索")).length;
+  const enterpriseCount = customers.filter((customer) => customer.tags.includes("企业交付")).length;
+  const manualCount = Math.max(0, customers.length - leadCount - enterpriseCount);
+  const sourceRows = [
+    ["AI线索开发", leadCount, "blue"],
+    ["GEO获客", 0, "cyan"],
+    ["客户推荐", enterpriseCount, "orange"],
+    ["内容营销", manualCount, "coral"],
+    ["其他来源", 0, "purple"]
+  ] as const;
+  const sourceTotal = Math.max(1, customers.length);
+
+  return (
+    <section className="crm-ref-shell" aria-label="CRM客户管理总览">
+      <div className="crm-ref-main">
+        <section className="crm-ref-hero">
+          <div>
+            <h1>CRM客户管理</h1>
+            <p>AI驱动客户全生命周期管理，让销售跟进更高效、成交更清晰</p>
+          </div>
+          <img alt="CRM客户管理" src="/growth-reference/crm-hero.jpg" />
+        </section>
+
+        <section className="crm-ref-stats" aria-label="CRM关键指标">
+          {overviewStats.map(({ label, value, trend, icon: Icon, tone }) => (
+            <article key={label}>
+              <span className={`crm-ref-stat-icon ${tone}`}><Icon aria-hidden="true" size={27} strokeWidth={2} /></span>
+              <div><small>{label}</small><strong>{value.toLocaleString("zh-CN")}</strong><em>较上月 <b>↑ {trend}</b></em></div>
+            </article>
+          ))}
+        </section>
+
+        <section className="crm-ref-middle-grid">
+          <article className="crm-ref-panel crm-ref-recommendations">
+            <h2>AI推荐跟进</h2>
+            <div className="crm-ref-recommendation-list">
+              {customers.length === 0 ? (
+                <p className="crm-ref-empty">暂无AI推荐客户</p>
+              ) : customers.slice(0, 3).map((customer, index) => (
+                  <Link key={customer.id} to={`/crm?customer_id=${customer.id}`}>
+                    <span className={`crm-ref-customer-avatar avatar-${index % 3}`}>{customer.name.slice(0, 1)}</span>
+                    <span><strong>{customer.name}</strong><small>阶段：{customer.stage}</small></span>
+                    <span><b>AI建议</b><small>{customer.health}，建议优先确认下一步</small></span>
+                  </Link>
+                ))}
+            </div>
+            <Link className="crm-ref-more" to="#crm-operations">查看全部推荐 <ArrowRight aria-hidden="true" size={15} /></Link>
+          </article>
+
+          <article className="crm-ref-panel crm-ref-stage-board">
+            <h2>销售阶段看板</h2>
+            <div>
+              {stages.map((stage) => (
+                <section className={stage.tone} key={stage.label}>
+                  <span>{stage.label}</span>
+                  <strong>{stage.value}</strong>
+                  <small>客户</small>
+                  <em>较上月 <b>↑ {stage.trend}</b></em>
+                </section>
+              ))}
+            </div>
+          </article>
+        </section>
+
+        <section className="crm-ref-bottom-grid">
+          <article className="crm-ref-panel crm-ref-customer-preview">
+            <h2>客户列表预览</h2>
+            <div className="crm-ref-preview-head"><span>客户名称</span><span>当前阶段</span><span>负责人</span><span>更新时间</span></div>
+            {customers.length === 0 ? (
+              <p className="crm-ref-empty">暂无客户数据</p>
+            ) : customers.slice(0, 4).map((customer) => (
+                <Link key={customer.id} to={`/crm?customer_id=${customer.id}`}>
+                  <strong>{customer.name}</strong>
+                  <span className={`crm-ref-stage ${stageTone(customer.stage)}`}>{customer.stage}</span>
+                  <span><i>{customer.owner.slice(0, 1)}</i>{customer.owner}</span>
+                  <time>{customer.next.split(" 跟进")[0]}</time>
+                </Link>
+              ))}
+            <Link className="crm-ref-table-more" to="#crm-operations">查看全部客户 <ArrowRight aria-hidden="true" size={15} /></Link>
+          </article>
+
+          <article className="crm-ref-panel crm-ref-source-panel">
+            <h2>客户来源分布</h2>
+            <div className="crm-ref-source-body">
+              <div className="crm-ref-donut"><strong>{total.toLocaleString("zh-CN")}</strong><small>客户总数</small></div>
+              <ul>
+                {sourceRows.map(([label, count, tone]) => (
+                  <li key={label}><i className={tone} /><span>{label}</span><b>{Math.round(count / sourceTotal * 100)}%</b></li>
+                ))}
+              </ul>
+            </div>
+          </article>
+        </section>
+
+        <section className="crm-ref-benefits">
+          <article><Layers3 aria-hidden="true" /><span><strong>客户资产沉淀</strong><small>集中管理客户数据，构建企业客户资产库</small></span></article>
+          <article><Sparkles aria-hidden="true" /><span><strong>AI跟进建议</strong><small>智能分析客户行为，推荐最佳跟进策略</small></span></article>
+          <article><UsersRound aria-hidden="true" /><span><strong>团队协同管理</strong><small>共享客户信息，提升团队协作效率</small></span></article>
+        </section>
+      </div>
+
+      <aside className="crm-ref-copilot" aria-label="CRM Copilot">
+        <header><Sparkles aria-hidden="true" size={21} /><strong>智活 <b>Copilot</b></strong></header>
+        <p>我可以帮你梳理客户阶段、推荐重点跟进对象，并生成跟进建议。</p>
+        <nav>
+          <Link to="/crm/follow-ups"><CalendarCheck2 aria-hidden="true" /><span><strong>生成今日跟进清单</strong><small>AI为你推荐优先跟进客户</small></span><ArrowRight aria-hidden="true" /></Link>
+          <Link to="#crm-operations"><Target aria-hidden="true" /><span><strong>识别高意向客户</strong><small>发现高潜力成交客户</small></span><ArrowRight aria-hidden="true" /></Link>
+          <Link to="/membership/upgrade"><ShieldCheck aria-hidden="true" /><span><strong>联系升级权限</strong><small>解锁更多CRM高级能力</small></span><ArrowRight aria-hidden="true" /></Link>
+        </nav>
+        <form onSubmit={(event) => event.preventDefault()}>
+          <input aria-label="询问CRM Copilot" placeholder="向我提问或获取帮助..." />
+          <button aria-label="发送CRM问题" type="submit"><Send aria-hidden="true" size={17} /></button>
+        </form>
+      </aside>
+    </section>
   );
 }
 
