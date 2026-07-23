@@ -136,7 +136,7 @@ describe("CrmPage", () => {
       })
     })));
     expect(await screen.findByText("客户已创建")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "成都启明星教育" })).toBeInTheDocument());
     expect(screen.getAllByText("手工录入").length).toBeGreaterThan(0);
   });
 

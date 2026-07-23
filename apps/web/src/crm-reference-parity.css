@@ -89,7 +89,7 @@
 
 .crm-ref-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 347px;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 347px);
   min-width: 0;
   min-height: calc(100vh - 70px);
   background: var(--crm-ref-bg);
@@ -97,7 +97,7 @@
 
 .crm-ref-main {
   min-width: 0;
-  padding: 0 10px 0 22px;
+  padding: 0 18px 28px 22px;
 }
 
 .crm-ref-hero {
@@ -218,17 +218,17 @@
   min-width: 0;
   gap: 16px;
   margin-top: 16px;
-  margin-right: 20px;
+  margin-right: 0;
 }
 
 .crm-ref-middle-grid {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  height: 238px;
+  align-items: stretch;
 }
 
 .crm-ref-bottom-grid {
-  grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr);
-  height: 209px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(310px, 0.95fr);
+  align-items: stretch;
   margin-top: 21px;
 }
 
@@ -335,11 +335,11 @@
 .crm-ref-stage-board section {
   position: relative;
   display: grid;
-  min-height: 194px;
-  align-content: start;
+  min-height: 138px;
+  align-content: center;
   justify-items: center;
   overflow: hidden;
-  padding: 12px 5px 14px;
+  padding: 44px 5px 18px;
   background: #fcfcff;
   border: 1px solid #f1f2f8;
 }
@@ -360,8 +360,11 @@
 .crm-ref-stage-board section.violet::after { background: #7445d9; }
 
 .crm-ref-stage-board section > span {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: calc(100% + 10px);
-  margin: -12px -5px 14px;
+  margin: 0 -5px;
   padding: 9px 3px;
   color: #6046c9;
   background: #f0edff;
@@ -380,13 +383,13 @@
 }
 
 .crm-ref-stage-board section small {
-  margin-top: 8px;
+  margin-top: 7px;
   color: #717998;
   font-size: 10px;
 }
 
 .crm-ref-stage-board section em {
-  margin-top: 22px;
+  margin-top: 14px;
   color: #737b98;
   font-size: 9px;
   font-style: normal;
@@ -395,16 +398,17 @@
 .crm-ref-stage-board section em b { color: #16a66f; }
 
 .crm-ref-customer-preview {
-  padding-bottom: 27px;
+  min-height: 260px;
+  padding-bottom: 42px;
 }
 
 .crm-ref-preview-head,
 .crm-ref-customer-preview > a:not(.crm-ref-table-more) {
   display: grid;
-  grid-template-columns: minmax(190px, 1.4fr) minmax(90px, 0.7fr) minmax(85px, 0.7fr) minmax(130px, 1fr);
-  min-height: 28px;
+  grid-template-columns: minmax(0, 1.75fr) 88px 80px minmax(112px, 0.95fr);
+  min-height: 31px;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   padding: 0 8px;
 }
 
@@ -422,7 +426,8 @@
   text-decoration: none;
 }
 
-.crm-ref-customer-preview > a strong {
+.crm-ref-customer-preview > a strong,
+.crm-ref-customer-preview time {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -445,7 +450,10 @@
   place-items: center;
 }
 
-.crm-ref-customer-preview time { color: #7b839c; }
+.crm-ref-customer-preview time {
+  color: #7b839c;
+  font-variant-numeric: tabular-nums;
+}
 
 .crm-ref-stage {
   width: fit-content;
@@ -462,16 +470,17 @@
 
 .crm-ref-source-body {
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
+  grid-template-columns: minmax(132px, 0.9fr) minmax(118px, 1fr);
   align-items: center;
-  gap: 17px;
-  margin-top: 11px;
+  gap: 18px;
+  min-height: 184px;
+  margin-top: 16px;
 }
 
 .crm-ref-donut {
   display: grid;
-  width: 136px;
-  height: 136px;
+  width: clamp(126px, 10vw, 148px);
+  height: clamp(126px, 10vw, 148px);
   align-content: center;
   color: #111a58;
   background:
@@ -486,7 +495,7 @@
 
 .crm-ref-source-body ul {
   display: grid;
-  gap: 10px;
+  gap: 11px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -498,7 +507,8 @@
   align-items: center;
   gap: 7px;
   color: #60698a;
-  font-size: 9px;
+  font-size: 10px;
+  line-height: 1.25;
 }
 
 .crm-ref-source-body li i { width: 6px; height: 6px; background: #3972de; border-radius: 50%; }
@@ -525,8 +535,8 @@
   margin-top: 17px;
   background: #fff;
   border: 1px solid #f0f2f8;
-  width: calc(100% + 20px);
-  margin-left: -20px;
+  width: 100%;
+  margin-left: 0;
 }
 
 .crm-ref-benefits article {
