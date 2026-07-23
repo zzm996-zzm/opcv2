@@ -278,6 +278,25 @@ func TestServiceFiltersFeatureAccessByKey(t *testing.T) {
 	}
 }
 
+func TestServiceUnlocksFeatureAccessForActiveProSubscription(t *testing.T) {
+	repository := newMemoryRepository()
+	repository.subscriptions[42] = Subscription{
+		UserID:   42,
+		PlanCode: PlanPro,
+		Status:   "active",
+		StartsAt: time.Now().Add(-time.Hour),
+	}
+	service := NewService(repository)
+
+	response, err := service.FeatureAccess(context.Background(), 42, []string{FeatureCRM})
+	if err != nil {
+		t.Fatalf("FeatureAccess() error = %v", err)
+	}
+	if len(response.Features) != 1 || response.Features[0].Status != "available" || !response.Features[0].AllowWorkflow {
+		t.Fatalf("feature should be available for pro subscription: %+v", response.Features)
+	}
+}
+
 func TestServiceCreatesManualCheckoutOrder(t *testing.T) {
 	repository := newMemoryRepository()
 	repository.plans = []PlanOption{{Code: PlanPro, BillingCycle: "month", PriceCents: 6900}}

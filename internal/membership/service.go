@@ -267,6 +267,14 @@ func (s *Service) FeatureAccess(ctx context.Context, userID int64, keys []string
 	if userID <= 0 {
 		return FeatureAccessResponse{}, ErrUserIDRequired
 	}
+	planCode := PlanFree
+	if s.repository != nil {
+		snapshot, err := s.repository.CurrentSnapshot(ctx, userID, s.now())
+		if err != nil {
+			return FeatureAccessResponse{}, err
+		}
+		planCode = snapshot.Plan.Code
+	}
 	requested := map[string]bool{}
 	for _, key := range keys {
 		key = strings.TrimSpace(key)
@@ -277,6 +285,17 @@ func (s *Service) FeatureAccess(ctx context.Context, userID int64, keys []string
 	features := []FeatureAccess{}
 	for _, feature := range defaultFeatureAccess() {
 		if len(requested) == 0 || requested[feature.Key] {
+			if planCode == PlanPro {
+				feature.Status = "available"
+				feature.RequiredPlan = ""
+				feature.Message = ""
+				feature.CTA = ""
+				feature.UpgradeURL = ""
+				feature.ContactURL = ""
+				feature.DataPolicy = "member_workflow"
+				feature.AllowReadOnly = true
+				feature.AllowWorkflow = true
+			}
 			features = append(features, feature)
 		}
 	}
