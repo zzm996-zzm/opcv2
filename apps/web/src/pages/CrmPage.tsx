@@ -1,12 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   ArrowRight,
-  CalendarCheck2,
   CircleAlert,
   CircleCheckBig,
   Layers3,
-  Send,
-  ShieldCheck,
   Sparkles,
   Target,
   UsersRound
@@ -14,6 +11,7 @@ import {
 import { Link, useLocation } from "react-router-dom";
 
 import FeatureLockedPanel from "../components/FeatureLockedPanel";
+import UnifiedCopilotPanel from "../components/UnifiedCopilotPanel";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { crmApi, type CrmActivity, type CrmCustomer, type CrmFollowUp, type CrmPipelineStats, type CrmStage } from "../lib/crmApi";
@@ -971,19 +969,18 @@ function CrmReferenceDashboard({
         </section>
       </div>
 
-      <aside className="crm-ref-copilot" aria-label="CRM Copilot">
-        <header><Sparkles aria-hidden="true" size={21} /><strong>智活 <b>Copilot</b></strong></header>
-        <p>我可以帮你梳理客户阶段、推荐重点跟进对象，并生成跟进建议。</p>
-        <nav>
-          <Link to={locked ? upgradePath : "/crm/follow-ups"}><CalendarCheck2 aria-hidden="true" /><span><strong>生成今日跟进清单</strong><small>AI为你推荐优先跟进客户</small></span><ArrowRight aria-hidden="true" /></Link>
-          <Link to={operationsPath}><Target aria-hidden="true" /><span><strong>识别高意向客户</strong><small>发现高潜力成交客户</small></span><ArrowRight aria-hidden="true" /></Link>
-          <Link to="/membership/upgrade"><ShieldCheck aria-hidden="true" /><span><strong>联系升级权限</strong><small>解锁更多CRM高级能力</small></span><ArrowRight aria-hidden="true" /></Link>
-        </nav>
-        <form onSubmit={(event) => event.preventDefault()}>
-          <input aria-label="询问CRM Copilot" placeholder="向我提问或获取帮助..." />
-          <button aria-label="发送CRM问题" type="submit"><Send aria-hidden="true" size={17} /></button>
-        </form>
-      </aside>
+      <UnifiedCopilotPanel
+        actions={[
+          { href: locked ? upgradePath : "/crm/follow-ups", label: "生成今日跟进清单" },
+          { href: operationsPath, label: "识别高意向客户" },
+          { href: locked ? "/membership/upgrade" : "#crm-operations", label: locked ? "升级 CRM 权限" : "制定客户跟进计划" }
+        ]}
+        ariaLabel="CRM Copilot"
+        className="crm-ref-copilot"
+        inputAriaLabel="询问CRM Copilot"
+        response="我可以帮你梳理客户阶段、推荐重点跟进对象，并生成可执行的跟进建议。"
+        userPrompt="帮我看看今天应该优先跟进哪些客户。"
+      />
     </section>
   );
 }

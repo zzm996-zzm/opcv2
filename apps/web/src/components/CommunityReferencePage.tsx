@@ -6,6 +6,7 @@ import { authSession } from "../lib/authSession";
 import { contentApi, type CommunityConfig } from "../lib/contentApi";
 import { MiniCopilotForm } from "./MiniCopilot";
 import ReferenceShell from "./ReferenceShell";
+import UnifiedCopilotPanel from "./UnifiedCopilotPanel";
 import V4PageShell from "./V4PageShell";
 
 export type CommunityReferenceVariant = "overview" | "members" | "enterprise";
@@ -242,27 +243,19 @@ function CommunityStats({ overview }: { overview: boolean }) {
 }
 
 function CommunityCopilot() {
-  return (
-    <aside className="learning-copilot community-ref-copilot" aria-label="智活 Copilot 社群助手">
-      <header>
-        <div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>你的全能 AI 助手，随时为你提供帮助</p></div>
-        <div className="learning-copilot-tools" aria-hidden="true"><span>⚙</span><span>⌃</span></div>
-      </header>
-      <div className="community-ref-chat">
-        <article><span>A</span><p>嗨，张婧！<br />今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</p></article>
-        <p className="community-ref-guess">猜你想问</p>
-        <div className="community-ref-question">帮我分析一下智能硬件赛道的市场机会</div>
-        <article><span>A</span><p>好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点。</p></article>
-      </div>
-      <section className="community-ref-report"><i>▦</i><div><strong>智能硬件市场机会分析报告</strong><small>PDF · 2.4MB</small></div></section>
-      <nav className="learning-copilot-actions" aria-label="社群助手快捷入口">
-        <Link to="/analysis">▥ 分析项目机会 <span>›</span></Link>
-        <Link to="/tools/recommend">▣ 推荐工具 <span>›</span></Link>
-        <Link to="/learning/plan">▤ 制定落地计划 <span>›</span></Link>
-      </nav>
-      <MiniCopilotForm className="learning-copilot-input" placeholder="向我提问，或输入 @ 调用技能" sendIcon="›" />
-    </aside>
-  );
+  return <UnifiedCopilotPanel
+    actions={[
+      { href: "/analysis", label: "分析项目机会" },
+      { href: "/tools/recommend", label: "推荐工具" },
+      { href: "/learning/plan", label: "制定落地计划" }
+    ]}
+    ariaLabel="智活 Copilot 社群助手"
+    className="community-ref-copilot"
+    inputAriaLabel="询问社群 Copilot"
+    report={{ title: "智能硬件市场机会分析报告", meta: "PDF · 2.4 MB" }}
+    response="好的，已为你生成分析报告，包含市场规模、竞争格局和落地要点。"
+    userPrompt="帮我分析一下智能硬件赛道的市场机会。"
+  />;
 }
 
 function JoinModal({ config, onClose, onSubmit, status, variant }: {

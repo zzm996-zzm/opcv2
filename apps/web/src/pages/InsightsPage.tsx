@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import UnifiedCopilotPanel from "../components/UnifiedCopilotPanel";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { contentApi, type ContentArticle } from "../lib/contentApi";
 
@@ -359,74 +360,23 @@ function InsightDetail() {
 function InsightsCopilot({ variant }: { variant: NonNullable<InsightsPageProps["variant"]> }) {
   const isDetail = variant === "detail";
   const isFileAnalysis = variant === "fileAnalysis";
-  const [collapsed, setCollapsed] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [showQuickActions, setShowQuickActions] = useState(true);
-
-  function toggleCollapsed() {
-    setCollapsed((current) => !current);
-    setSettingsOpen(false);
-  }
-
-  return (
-    <aside className={`insights-copilot${isFileAnalysis ? " analysis-open" : ""}${collapsed ? " is-collapsed" : ""}`} aria-label="智活 Copilot 咨询助手">
-      <header className="insights-ai-head">
-        <div><strong><span aria-hidden="true">✦</span> 智活 Copilot</strong><p>你的全球 AI 助手，随时为你提供帮助</p></div>
-        <div className="insights-ai-tools">
-          {!collapsed && (
-            <button
-              aria-controls="insights-copilot-settings"
-              aria-expanded={settingsOpen}
-              aria-label={settingsOpen ? "关闭 Copilot 设置" : "打开 Copilot 设置"}
-              className="insights-ai-settings-trigger"
-              onClick={() => setSettingsOpen((current) => !current)}
-              title="Copilot 设置"
-              type="button"
-            >
-              ⚙
-            </button>
-          )}
-          <button
-            aria-controls="insights-copilot-body"
-            aria-expanded={!collapsed}
-            aria-label={collapsed ? "展开 Copilot" : "收起 Copilot"}
-            onClick={toggleCollapsed}
-            title={collapsed ? "展开 Copilot" : "收起 Copilot"}
-            type="button"
-          >
-            {collapsed ? "⌄" : "⌃"}
-          </button>
-          {settingsOpen && (
-            <div className="insights-copilot-settings" id="insights-copilot-settings" role="dialog" aria-label="Copilot 设置">
-              <strong>对话设置</strong>
-              <label>
-                <input checked={showQuickActions} onChange={(event) => setShowQuickActions(event.target.checked)} type="checkbox" />
-                <span>显示快捷建议</span>
-              </label>
-              <Link to="/profile/preferences">更多偏好设置 <span aria-hidden="true">›</span></Link>
-            </div>
-          )}
-        </div>
-      </header>
-      <div className="insights-copilot-body" id="insights-copilot-body" hidden={collapsed}>
-        {isFileAnalysis ? <FileAnalysisChat /> : isDetail ? <DetailCopilot /> : <ListCopilot />}
-        {!isFileAnalysis && showQuickActions && (
-          <nav className="insights-copilot-actions" aria-label="咨询助手快捷入口">
-            {(isDetail ? ["总结这篇资讯要点", "提炼行业启示", "推荐相关工具/报告"] : ["追踪 AI 客服行业资讯", "总结今天的重点动态", "推荐相关报告与工具"]).map((item) => <Link key={item} to="/insights/file-analysis"><span aria-hidden="true">▣</span>{item}<b aria-hidden="true">›</b></Link>)}
-          </nav>
-        )}
-        {!isFileAnalysis && <form className="insights-chat-composer" onSubmit={(event) => event.preventDefault()}><button aria-label="添加附件" type="button">＋</button><input aria-label="咨询通提问" placeholder="询问任何问题..." /><button aria-label="发送问题" type="submit">➤</button></form>}
-      </div>
-    </aside>
-  );
-}
-
-function ListCopilot() {
-  return <div className="insights-chat"><article><span className="ai-avatar">A</span><p>嗨，张婧！<br />今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</p></article><article className="user"><p>帮我追踪 AI 客服行业资讯<br />并总结今日重点动态。</p></article><article><span className="ai-avatar">A</span><div><p>好的，已为你生成今日重点资讯摘要，包含趋势、机会与行动建议，点击下方查看详情。</p><span className="learning-file-chip">今日 AI 客服行业资讯摘要<small>PDF · 1.7 MB</small></span></div></article></div>;
-}
-
-function DetailCopilot() {
-  return <div className="insights-chat"><article><span className="ai-avatar">A</span><p>您好，我是智活 Copilot。<br />您可以问我这篇资讯、分析内容并提炼优质出处引用。</p></article><article><span className="ai-avatar">A</span><div><p>您可以这样问（与资讯相关）</p><ul><li>行业趋势、市场动态</li><li>企业动态、投融资信息</li><li>政策法规、行业标准</li><li>技术发展、产品对比</li></ul></div></article><article><span className="ai-avatar">A</span><div><p>例如：</p><ul><li>2024 年智能客服行业的最新趋势</li><li>国内 AI 客服领域的头部企业</li><li>智能客服在金融行业的落地案例</li></ul></div></article></div>;
+  return <UnifiedCopilotPanel
+    actions={[
+      { href: "/insights/file-analysis", label: isDetail ? "总结这篇资讯要点" : "追踪 AI 客服行业资讯" },
+      { href: "/insights/file-analysis", label: isDetail ? "提炼行业启示" : "总结今天的重点动态" },
+      { href: "/tools/recommend", label: isDetail ? "推荐相关工具/报告" : "推荐相关报告与工具" }
+    ]}
+    ariaLabel="智活 Copilot 咨询助手"
+    actionsAriaLabel="咨询助手快捷入口"
+    bodyId="insights-copilot-body"
+    className={`insights-copilot${isFileAnalysis ? " analysis-open" : ""}`}
+    inputAriaLabel="咨询通提问"
+    report={isFileAnalysis ? { title: "AI 客服行业资讯摘要", meta: "PDF · 1.7 MB" } : undefined}
+    response={isFileAnalysis ? "已为你整理当前资讯的关键数据、趋势和可执行建议。" : isDetail ? "您好，我是智活 Copilot。我可以帮你总结这篇资讯、提炼行业启示并补充相关出处。" : "好的，已为你生成今日重点资讯摘要，包含趋势、机会与行动建议。"}
+    userPrompt={isFileAnalysis ? "请分析这篇资讯并提炼关键行动建议。" : isDetail ? undefined : "帮我追踪 AI 客服行业资讯并总结今日重点动态。"}
+    content={isFileAnalysis ? <FileAnalysisChat /> : undefined}
+    showComposer={!isFileAnalysis}
+  />;
 }
 
 function FileAnalysisChat() {
@@ -437,7 +387,6 @@ function FileAnalysisChat() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<Awaited<ReturnType<typeof contentApi.answerInsightQuestion>> | null>(null);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -453,30 +402,23 @@ function FileAnalysisChat() {
     event.preventDefault();
     if (!selectedArticle || !question.trim() || pending) return;
     setPending(true);
-    setError("");
     try {
       setAnswer(await contentApi.answerInsightQuestion(question, [selectedArticle]));
-    } catch (caught) {
-      setAnswer(null);
-      setError(apiErrorMessage(caught, "暂时无法生成带引用回答"));
     } finally {
       setPending(false);
     }
   }
 
-  return (
-    <div className="insights-file-chat">
-      <div className="insights-chat"><article><span className="ai-avatar">A</span><p>请帮我分析 2024 年企业 AI 客服的市场趋势、代表企业和落地机会。</p></article><article><span className="ai-avatar">A</span><div><p>为你分析如下：</p><h3>市场趋势</h3><p>2024 年企业 AI 客服市场持续向智能化、全渠道融合和场景化演进，大模型与 RAG 技术提升了复杂问题解决率。</p><h3>代表企业</h3><p>国内阿里云、腾讯云、百度智能云、华为云，以及 Salesforce、Intercom、Ada、Zendesk 等持续布局智能客服。</p><h3>落地机会</h3><p>重点机会在于大模型能力升级、企业知识中台建设、行业垂直方案和客服营销一体化。</p><h3>建议动作</h3><p>建议企业从高频场景切入，优化知识库与自动化流程，并建立可量化的服务与增长指标。</p></div></article></div>
-      {answer && <article className="insights-live-answer"><span className="ai-avatar">A</span><div><p>{answer.answer}</p>{answer.citations.length > 0 && <section className="insights-reference-panel"><h2>出处引用</h2><div>{answer.citations.map((citation) => <a href={citation.source_url} key={citation.id}><b>{citation.source_name}</b><span>{citation.label}</span><small>{citation.excerpt}</small></a>)}</div></section>}</div></article>}
-      <section className="insights-static-sources"><h2>出处引用（点击查看原文）</h2><div>{[["艾瑞咨询", "《2024年中国智能客服行业研究报告》", "2024-06-18"], ["IDC", "《中国AI应用市场（2024）预测》", "2024-05-22"], ["赛迪顾问", "《2025中国企业AI应用白皮书》", "2024-06-12"], ["Gartner", "Cool Vendors in Customer Service and Support, 2024", "2024-07-15"]].map(([source, title, date]) => <a href="#sources" key={title}><b>{source}</b><span>{title}</span><small>{date}</small></a>)}</div></section>
-      <form className="insights-chat-composer" onSubmit={submit}>
-        <select aria-label="问答资讯" className="sr-only" onChange={(event) => setSelectedArticle(event.target.value)} value={selectedArticle}>{articles.map((article) => <option key={article.slug} value={article.slug}>{article.title}</option>)}</select>
-        <input aria-label="资讯问答问题" onChange={(event) => setQuestion(event.target.value)} placeholder="继续提问，获取更精准的资讯..." value={question} />
-        <button aria-label="生成带引用回答" disabled={!question.trim() || pending} type="submit">{pending ? "…" : "➤"}</button>
-      </form>
-      {error && <p className="form-error" role="alert">{error}</p>}
-    </div>
-  );
+  return <div className="unified-copilot-thread insights-file-chat">
+    <article className="user"><p>请帮我分析 2024 年企业 AI 客服的市场趋势、代表企业和落地机会。</p></article>
+    <article className="assistant"><span className="ai-avatar">A</span><p>为你分析如下：市场持续向智能化、全渠道融合和场景化演进，建议从高频场景切入，建立可量化的服务与增长指标。</p></article>
+    {answer && <article className="assistant"><span className="ai-avatar">A</span><div><p>{answer.answer}</p>{answer.citations.length > 0 && <section className="insights-reference-panel"><h2>出处引用</h2><div>{answer.citations.map((citation) => <a href={citation.source_url} key={citation.id}><b>{citation.source_name}</b><span>{citation.label}</span><small>{citation.excerpt}</small></a>)}</div></section>}</div></article>}
+    <form className="insights-chat-composer" onSubmit={submit}>
+      <select aria-label="问答资讯" className="sr-only" onChange={(event) => setSelectedArticle(event.target.value)} value={selectedArticle}>{articles.map((article) => <option key={article.slug} value={article.slug}>{article.title}</option>)}</select>
+      <input aria-label="资讯问答问题" onChange={(event) => setQuestion(event.target.value)} placeholder="继续提问，获取更精准的资讯..." value={question} />
+      <button aria-label="生成带引用回答" disabled={!question.trim() || pending} type="submit">{pending ? "…" : "➤"}</button>
+    </form>
+  </div>;
 }
 
 function formatInsightTime(value: string) {

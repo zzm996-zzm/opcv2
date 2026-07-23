@@ -10,7 +10,6 @@ import {
   FileText,
   Lightbulb,
   Link2,
-  Settings,
   ShieldCheck,
   Sparkles,
   Star,
@@ -19,7 +18,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
-import { MiniCopilotForm } from "../components/MiniCopilot";
+import UnifiedCopilotPanel from "../components/UnifiedCopilotPanel";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { contentApi, type ContentTool } from "../lib/contentApi";
@@ -468,20 +467,30 @@ function ToolDetail() {
 function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["variant"]> }) {
   const isRecommendation = variant === "recommend";
   const isPlan = variant === "plan";
-  const content = isRecommendation ? "收到！基于你的需求，我为你推荐了 3 款最合适的 AI 工具。" : isPlan ? "好的，我已为你生成从市场调研到视频推广的整套工具方案。" : variant === "detail" ? "今天想了解哪个方案？我可以帮你分析竞品、推荐工具或制定落地计划。" : "嗨，张博！今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。";
+  const response = isRecommendation
+    ? "收到！基于你的需求，我为你推荐了 3 款最合适的 AI 工具。"
+    : isPlan
+      ? "好的，我已为你生成从市场调研到视频推广的整套工具方案。"
+      : variant === "detail"
+        ? "我可以结合当前工具的能力、价格和使用门槛，帮你判断是否适合。"
+        : "我可以按你的业务场景、预算和团队能力筛选合适的 AI 工具。";
   return (
-    <aside className="learning-copilot toolhub-copilot" aria-label="智活 Copilot 工具助手">
-      <header className="toolhub-ai-head"><div><strong><Sparkles aria-hidden="true" size={15} /> 智活 <b>Copilot</b></strong><p>你的全球 AI 助手，随时为你提供帮助</p></div><div className="toolhub-ai-controls"><Link aria-label="Copilot 设置" to="/copilot"><Settings aria-hidden="true" size={14} /></Link>{variant === "library" ? <Link aria-label="收起 Copilot 并查看完整工具箱" to="/tools/all"><ChevronRight aria-hidden="true" size={15} /></Link> : <Link aria-label="打开完整 Copilot" to="/copilot"><ChevronDown aria-hidden="true" size={15} /></Link>}</div></header>
-      <div className="learning-chat toolhub-chat">
-        {isPlan && <article className="toolhub-user-bubble"><p>请帮我生成一套从市场调研到视频推广的工具方案</p></article>}
-        <article><span className="ai-avatar">A</span><div><small>嗨，张博！</small><p>{content}</p></div></article>
-        {!isPlan && !isRecommendation && <article className="toolhub-user-bubble"><p>帮我分析一下智能硬件赛道的市场机会和潜在关键点。</p></article>}
-        {variant !== "library" && <article><span className="ai-avatar">A</span><p>{isRecommendation ? "这三款工具覆盖内容文案、设计与协作，兼顾免费可用与低成本配置。" : "这套组合覆盖调研、内容、视觉与协作，并兼顾可用性与低成本。"}</p></article>}
-        {isPlan && <Link className="toolhub-plan-chat-card" to="/tools/recommendation-plan"><FileText aria-hidden="true" size={17} /><span>查看从市场调研到视频推广的工具方案</span><ChevronRight aria-hidden="true" size={16} /></Link>}
-      </div>
-      {isRecommendation ? <nav className="toolhub-suggestions" aria-label="工具推荐追问"><Link to="/tools/recommendation-plan">如何用这三款工具做内容日历？ <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommendation-plan">帮我生成内容营销执行计划 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommend">为SaaS行业生成内容选题库 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommend">生成社媒推广文案模板 <ChevronRight aria-hidden="true" size={14} /></Link><button form="tool-recommend-form" type="submit">换一换 <ChevronRight aria-hidden="true" size={14} /></button></nav> : <nav className="learning-copilot-actions" aria-label="工具助手快捷入口"><Link to="/analysis">分析项目机会 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommend">推荐工具 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommendation-plan">制定落地计划 <ChevronRight aria-hidden="true" size={14} /></Link></nav>}
-      <MiniCopilotForm className="learning-copilot-input" inputAriaLabel="向工具箱 Copilot 提问" />
-    </aside>
+    <UnifiedCopilotPanel
+      actionContent={isRecommendation ? <nav className="unified-copilot-actions toolhub-suggestions" aria-label="工具推荐追问"><Link to="/tools/recommendation-plan">如何用这三款工具做内容日历？ <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommendation-plan">帮我生成内容营销执行计划 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommend">为SaaS行业生成内容选题库 <ChevronRight aria-hidden="true" size={14} /></Link><Link to="/tools/recommend">生成社媒推广文案模板 <ChevronRight aria-hidden="true" size={14} /></Link><button form="tool-recommend-form" type="submit">换一换 <ChevronRight aria-hidden="true" size={14} /></button></nav> : undefined}
+      actions={[
+        { href: "/analysis", label: "分析项目机会" },
+        { href: "/tools/recommend", label: "推荐工具" },
+        { href: "/tools/recommendation-plan", label: "制定落地计划" }
+      ]}
+      ariaLabel="智活 Copilot 工具助手"
+      className="toolhub-copilot"
+      collapseHref={variant === "library" ? "/tools/all" : undefined}
+      collapseLabel="收起 Copilot 并查看完整工具箱"
+      inputAriaLabel="向工具箱 Copilot 提问"
+      report={isPlan ? { title: "查看从市场调研到视频推广的工具方案", meta: "工具方案 · 已生成" } : undefined}
+      response={response}
+      userPrompt={isPlan ? "请帮我生成一套从市场调研到视频推广的工具方案" : isRecommendation ? "帮我推荐适合当前需求的 AI 工具" : "帮我分析一下智能硬件赛道的市场机会和潜在关键点。"}
+    />
   );
 }
 

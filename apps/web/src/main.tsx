@@ -15,6 +15,7 @@ import "./home-reference-parity.css";
 import "./floating-copilot-orb.css";
 import "./crm-reference-parity.css";
 import "./v4-shell-consistency.css";
+import "./unified-copilot-panel.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -1,0 +1,390 @@
+.unified-copilot-panel {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  width: 100%;
+  min-width: 300px;
+  height: calc(100vh - 112px);
+  min-height: 620px;
+  max-height: 760px;
+  flex-direction: column;
+  overflow: hidden;
+  color: #14224b;
+  background: #fff;
+  border: 1px solid #e4e9f3;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(36, 56, 112, 0.08);
+}
+
+/* The rail is a shared contract. Page-specific legacy selectors may decorate it,
+   but they cannot change its width, height, or alignment. */
+.v4-shell .unified-copilot-panel {
+  align-self: start;
+  height: calc(100vh - 116px) !important;
+  min-height: 620px !important;
+  max-height: none !important;
+}
+
+.insights-reference-page {
+  grid-template-columns: minmax(0, 1fr) 384px !important;
+}
+
+.community-ref-page {
+  grid-template-columns: minmax(0, 1fr) 384px !important;
+}
+
+.public-membership-shell .billing-page .billing-layout {
+  grid-template-columns: 200px minmax(0, 1fr) 384px !important;
+  align-items: start;
+}
+
+.public-membership-shell .billing-page .unified-copilot-panel {
+  margin-top: -108px !important;
+  height: 840px !important;
+}
+
+.community-ref-page .unified-copilot-panel {
+  margin-top: 0 !important;
+}
+
+.crm-ref-shell {
+  grid-template-columns: minmax(0, 1fr) 384px !important;
+}
+
+.unified-copilot-panel.is-collapsed {
+  height: auto;
+  min-height: 0;
+}
+
+.unified-copilot-head {
+  position: relative;
+  display: flex;
+  min-height: 112px;
+  padding: 24px 22px 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  border-bottom: 1px solid #e8ecf3;
+}
+
+.unified-copilot-head > div:first-child {
+  min-width: 0;
+}
+
+.unified-copilot-head strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #111d4d;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.unified-copilot-head strong svg {
+  width: 19px;
+  height: 19px;
+  color: #1767f2;
+}
+
+.unified-copilot-head strong b {
+  color: #1767f2;
+}
+
+.unified-copilot-head p {
+  max-width: 230px;
+  margin: 12px 0 0;
+  color: #73809d;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.unified-copilot-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.unified-copilot-controls button,
+.unified-copilot-controls a {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  color: #254273;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.unified-copilot-controls button:hover,
+.unified-copilot-controls a:hover {
+  background: #f2f6ff;
+}
+
+.unified-copilot-controls svg {
+  width: 17px;
+  height: 17px;
+}
+
+.unified-copilot-settings {
+  display: flex;
+  min-height: 66px;
+  padding: 12px 18px;
+  align-items: center;
+  justify-content: space-between;
+  background: #f7f9fd;
+  border-bottom: 1px solid #e8ecf3;
+}
+
+.unified-copilot-settings label,
+.unified-copilot-settings label > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unified-copilot-settings label > span {
+  display: grid;
+  gap: 3px;
+}
+
+.unified-copilot-settings input {
+  width: 16px;
+  height: 16px;
+}
+
+.unified-copilot-settings strong,
+.unified-copilot-settings small {
+  font-size: 11px;
+}
+
+.unified-copilot-settings small {
+  color: #8791a8;
+}
+
+.unified-copilot-settings a {
+  display: flex;
+  align-items: center;
+  color: #1767f2;
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.unified-copilot-settings svg {
+  width: 14px;
+}
+
+.unified-copilot-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.unified-copilot-thread {
+  display: grid;
+  min-height: 0;
+  padding: 20px 18px 12px;
+  gap: 14px;
+  overflow: auto;
+}
+
+.unified-copilot-thread article {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.unified-copilot-thread article > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  color: #fff;
+  background: #2385ed;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.unified-copilot-thread article p {
+  margin: 0;
+  padding: 13px 14px;
+  color: #485572;
+  background: #f8fafe;
+  border: 1px solid #e8edf5;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.unified-copilot-thread article p strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #24345e;
+  font-size: 13px;
+}
+
+.unified-copilot-thread article.user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.unified-copilot-thread article.user p {
+  max-width: 88%;
+  color: #185acb;
+  background: #edf4ff;
+  border-color: #dfebff;
+}
+
+.unified-copilot-report {
+  display: grid;
+  margin-left: 42px;
+  padding: 12px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: #33415f;
+  background: #fafbfe;
+  border: 1px solid #e7ebf3;
+  border-radius: 7px;
+  text-decoration: none;
+}
+
+.unified-copilot-report i {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  color: #f06b55;
+  background: #fff0ed;
+  border-radius: 6px;
+}
+
+.unified-copilot-report svg {
+  width: 19px;
+}
+
+.unified-copilot-report span {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.unified-copilot-report strong {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unified-copilot-report small {
+  color: #8993aa;
+  font-size: 10px;
+}
+
+.unified-copilot-actions {
+  display: grid;
+  margin-top: auto;
+  padding: 0 18px;
+}
+
+.unified-copilot-actions a {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  color: #27436f;
+  border-top: 1px solid #e8ecf3;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.unified-copilot-actions svg {
+  width: 15px;
+  height: 15px;
+}
+
+.unified-copilot-input {
+  display: grid;
+  min-height: 58px;
+  margin: 10px 18px 18px;
+  padding: 0 82px 0 6px;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  border: 1px solid #dfe5ef;
+  border-radius: 7px;
+}
+
+.unified-copilot-input input {
+  width: 100%;
+  min-width: 0;
+  color: #263453;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 12px;
+}
+
+.unified-copilot-input button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  color: #1767f2;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.unified-copilot-input button:disabled {
+  color: #a7b0c2;
+  cursor: default;
+}
+
+.unified-copilot-panel .mini-copilot-live-thread {
+  max-height: 180px;
+  margin: 0 18px 14px;
+  overflow: auto;
+}
+
+@media (max-width: 1100px) {
+  .insights-reference-page,
+  .community-ref-page {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .public-membership-shell .billing-page .billing-layout,
+  .crm-ref-shell {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .unified-copilot-panel {
+    position: static;
+    min-width: 0;
+    height: auto;
+    min-height: 600px;
+    max-height: none;
+  }
+
+  .v4-shell .unified-copilot-panel {
+    height: auto !important;
+    min-height: 600px !important;
+    max-height: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .unified-copilot-panel {
+    min-height: 520px;
+  }
+
+  .unified-copilot-input {
+    padding-right: 6px;
+  }
+}
