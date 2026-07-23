@@ -917,7 +917,7 @@ function App() {
       />
       </Routes>
       </div>
-      {showGlobalCopilotOrb && <FloatingCopilotOrb />}
+      {showGlobalCopilotOrb && <FloatingCopilotOrb className={location.pathname.startsWith("/membership") ? "membership-floating-orb" : ""} />}
     </>
   );
 }

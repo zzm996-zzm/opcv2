@@ -1,0 +1,523 @@
+/* Membership reference composition.
+   The shared Copilot rail has intentionally broad defaults for other pages;
+   this page follows the supplied 1672px reference canvas instead. */
+.public-membership-shell {
+  --membership-blue: #1557ff;
+  --membership-ink: #07152f;
+  --membership-muted: #7182a5;
+  background: #f8f9fd;
+}
+
+/* The reference places the compact brand bubble in the lower-right corner.
+   Inline drag coordinates are intentionally overridden only on membership
+   routes so a previous page's saved position cannot cover the order table. */
+.membership-floating-orb {
+  top: auto !important;
+  right: 38px !important;
+  bottom: 32px !important;
+  left: auto !important;
+}
+
+.public-membership-shell .v4-page-main {
+  min-width: 0;
+  padding: 27px 30px 36px 42px;
+  overflow: visible;
+  background: #f8f9fd;
+}
+
+.public-membership-shell .billing-page {
+  width: 100%;
+  max-width: 1340px;
+  margin: 0 auto;
+}
+
+.public-membership-shell .billing-page > .page-title-row {
+  min-height: 72px;
+}
+
+.public-membership-shell .billing-page > .page-title-row h1 {
+  color: var(--membership-ink);
+  font-size: 26px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.public-membership-shell .billing-page > .page-title-row p {
+  margin-top: 7px;
+  color: #52678f;
+  font-size: 13px;
+}
+
+.public-membership-shell .billing-page .billing-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 806px) minmax(240px, 270px) !important;
+  gap: 32px;
+  align-items: start;
+}
+
+.public-membership-shell .billing-page .profile-side-tabs {
+  width: 200px;
+  min-width: 0;
+  padding: 10px 0;
+  gap: 4px;
+  background: transparent;
+}
+
+.public-membership-shell .billing-page .profile-side-tabs a {
+  min-height: 44px;
+  padding: 0 14px;
+  gap: 12px;
+  color: #405893;
+  border-left: 3px solid transparent;
+  border-radius: 0;
+  font-size: 14px;
+}
+
+.public-membership-shell .billing-page .profile-side-tabs a.active {
+  color: var(--membership-blue);
+  background: #f1f5ff;
+  border-left-color: var(--membership-blue);
+}
+
+.public-membership-shell .billing-page .profile-side-tabs a > b {
+  margin-left: auto;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.public-membership-shell .billing-page .profile-content {
+  display: grid;
+  min-width: 0;
+  gap: 18px;
+}
+
+.public-membership-shell .billing-page .billing-plan-card,
+.public-membership-shell .billing-page .billing-quota-card,
+.public-membership-shell .billing-page .order-card {
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #edf0f7;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(34, 58, 112, 0.035);
+}
+
+.public-membership-shell .billing-page .billing-plan-card {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) 104px minmax(250px, 1.1fr);
+  height: auto;
+  min-height: 176px;
+  gap: 18px;
+  padding: 18px 20px;
+}
+
+.public-membership-shell .billing-page .plan-main {
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.public-membership-shell .billing-page .plan-crown {
+  width: 76px;
+  height: 76px;
+  color: #f2a11b;
+  background: linear-gradient(145deg, #fffaf0, #ffedd3);
+  border-radius: 24px;
+  font-size: 43px;
+}
+
+.public-membership-shell .billing-page .plan-crown::before {
+  content: none;
+}
+
+.public-membership-shell .billing-page .plan-main small {
+  color: #7485a8;
+  font-size: 12px;
+}
+
+.public-membership-shell .billing-page .plan-main h2 {
+  margin: 8px 0 9px;
+  color: var(--membership-ink);
+  font-size: 22px;
+  white-space: nowrap;
+}
+
+.public-membership-shell .billing-page .plan-main h2 b {
+  margin-left: 7px;
+  padding: 4px 8px;
+  color: #d17b00;
+  background: #fff1d8;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  vertical-align: 3px;
+}
+
+.public-membership-shell .billing-page .plan-main p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 10px;
+  color: #61759f;
+  font-size: 12px;
+}
+
+.public-membership-shell .billing-page .plan-main p strong {
+  color: var(--membership-ink);
+  font-size: 17px;
+}
+
+.public-membership-shell .billing-page .plan-main p em {
+  margin-left: 0;
+  padding: 4px 8px;
+  color: var(--membership-blue);
+  background: #edf3ff;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .plan-actions {
+  gap: 10px;
+}
+
+.public-membership-shell .billing-page .plan-actions a {
+  min-height: 40px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.public-membership-shell .billing-page .plan-actions a.outline {
+  color: var(--membership-blue);
+  background: #fff;
+  border: 2px solid var(--membership-blue);
+}
+
+.public-membership-shell .billing-page .plan-summary {
+  align-content: center;
+  gap: 11px 14px;
+  color: #21376f;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .plan-summary strong {
+  color: #7182a5;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .plan-summary span {
+  display: grid;
+  grid-template-columns: 15px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.public-membership-shell .billing-page .plan-summary b {
+  color: #20386f;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .billing-quota-card {
+  height: auto;
+  min-height: 198px;
+  padding: 17px 20px 14px;
+}
+
+.public-membership-shell .billing-page .module-section-head {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.public-membership-shell .billing-page .module-section-head h2,
+.public-membership-shell .billing-page .order-card h2 {
+  margin-bottom: 5px;
+  color: var(--membership-ink);
+  font-size: 18px;
+}
+
+.public-membership-shell .billing-page .module-section-head p,
+.public-membership-shell .billing-page .module-section-head > span {
+  color: #7083a8;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .billing-quota-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0;
+}
+
+.public-membership-shell .billing-page .billing-quota-grid .quota-card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 114px;
+  padding: 9px 12px 0;
+  background: transparent;
+  border: 0;
+}
+
+.public-membership-shell .billing-page .billing-quota-grid .quota-card + .quota-card {
+  border-left: 1px solid #edf0f7;
+}
+
+.public-membership-shell .billing-page .quota-card > span {
+  min-height: 30px;
+  color: #253b70;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.public-membership-shell .billing-page .quota-card > strong {
+  color: var(--membership-ink);
+  font-size: 16px;
+}
+
+.public-membership-shell .billing-page .quota-card > strong small,
+.public-membership-shell .billing-page .quota-card > small {
+  color: #8190ad;
+  font-size: 10px;
+}
+
+.public-membership-shell .billing-page .quota-bar {
+  width: 100%;
+  height: 5px;
+  margin-top: 2px;
+  background: #e7edf8;
+  border-radius: 999px;
+}
+
+.public-membership-shell .billing-page .quota-bar i {
+  display: block;
+  height: 100%;
+  background: var(--membership-blue);
+  border-radius: inherit;
+}
+
+.public-membership-shell .billing-page .order-card {
+  height: auto;
+  min-height: 302px;
+  padding: 15px 20px 12px;
+  overflow: hidden;
+}
+
+.public-membership-shell .billing-page .order-head,
+.public-membership-shell .billing-page .order-row {
+  grid-template-columns: 1.3fr .95fr 1.2fr .75fr .75fr .75fr .75fr;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .order-row {
+  color: #20376c;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .order-row .paid {
+  padding: 3px 7px;
+  color: #0f9160;
+  background: #def7ea;
+}
+
+.public-membership-shell .billing-page .view-all-order {
+  min-height: 32px;
+  margin-top: 9px;
+  color: #20376c;
+  border-radius: 6px;
+}
+
+/* The right rail is part of the billing grid. It must never float over the
+   plan or quota cards, even though the shared panel uses an !important height. */
+.public-membership-shell .billing-page .public-copilot-panel,
+.public-membership-shell .billing-page .unified-copilot-panel {
+  position: sticky;
+  top: 98px;
+  width: 100%;
+  min-width: 0 !important;
+  height: min(632px, calc(100vh - 180px)) !important;
+  min-height: 500px !important;
+  max-height: 632px !important;
+  margin-top: 0 !important;
+  overflow: hidden;
+}
+
+.public-membership-shell .billing-page .unified-copilot-head {
+  min-height: 74px;
+  padding: 14px 16px 12px;
+}
+
+.public-membership-shell .billing-page .unified-copilot-head strong {
+  font-size: 16px;
+}
+
+.public-membership-shell .billing-page .unified-copilot-head p {
+  max-width: 190px;
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .unified-copilot-thread {
+  padding: 16px 14px 10px;
+  gap: 12px;
+}
+
+.public-membership-shell .billing-page .unified-copilot-thread article p {
+  padding: 10px 11px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.public-membership-shell .billing-page .unified-copilot-actions {
+  padding: 0 14px;
+}
+
+.public-membership-shell .billing-page .unified-copilot-actions a {
+  min-height: 44px;
+  font-size: 11px;
+}
+
+.public-membership-shell .billing-page .unified-copilot-input {
+  min-height: 44px;
+  margin: auto 14px 14px;
+  border-radius: 8px;
+}
+
+.public-membership-shell .billing-page .unified-copilot-input input {
+  font-size: 11px;
+}
+
+.public-membership-shell .public-upgrade-scrim {
+  z-index: 80;
+  background: rgba(27, 42, 78, 0.32);
+  backdrop-filter: blur(3px);
+}
+
+.public-membership-shell + .public-upgrade-scrim,
+.public-upgrade-scrim {
+  z-index: 80;
+}
+
+.public-upgrade-modal {
+  width: min(812px, calc(100vw - 32px));
+  max-height: calc(100vh - 42px);
+  padding: 28px 38px 0;
+  border: 1px solid #e7ebf4;
+  border-radius: 14px;
+  box-shadow: 0 28px 80px rgba(22, 36, 77, 0.2);
+}
+
+.public-upgrade-modal .upgrade-head {
+  min-height: 50px;
+}
+
+.public-upgrade-modal .upgrade-head p {
+  color: #7381a1;
+  font-size: 12px;
+}
+
+.public-upgrade-modal .upgrade-plan-card {
+  min-height: 286px;
+  border-radius: 9px;
+}
+
+.public-upgrade-modal .upgrade-plan-card.featured {
+  border-color: #2d63ed;
+  box-shadow: inset 0 0 0 1px rgba(45, 99, 237, 0.2);
+}
+
+.public-upgrade-modal .upgrade-plan-card h3 {
+  font-size: 16px;
+}
+
+.public-upgrade-modal .upgrade-plan-card > strong {
+  font-size: 27px;
+}
+
+.public-upgrade-modal .upgrade-benefit {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1450px) and (min-width: 1181px) {
+  .public-membership-shell .v4-page-main {
+    padding-left: 30px;
+    padding-right: 20px;
+  }
+
+  .public-membership-shell .billing-page .billing-layout {
+    grid-template-columns: 180px minmax(0, 1fr) 250px !important;
+    gap: 22px;
+  }
+
+  .public-membership-shell .billing-page .profile-side-tabs {
+    width: 180px;
+  }
+
+  .public-membership-shell .billing-page .billing-plan-card {
+    grid-template-columns: minmax(210px, 1fr) 94px minmax(210px, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .public-membership-shell .v4-page-main {
+    padding: 22px 18px 28px;
+  }
+
+  .public-membership-shell .billing-page .billing-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .public-membership-shell .billing-page .profile-side-tabs {
+    display: flex;
+    width: 100%;
+    padding: 0;
+    overflow-x: auto;
+  }
+
+  .public-membership-shell .billing-page .profile-side-tabs a {
+    flex: 0 0 auto;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+
+  .public-membership-shell .billing-page .profile-side-tabs a.active {
+    border-bottom-color: var(--membership-blue);
+  }
+
+  .public-membership-shell .billing-page .public-copilot-panel,
+  .public-membership-shell .billing-page .unified-copilot-panel {
+    position: static;
+    height: auto !important;
+    min-height: 500px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-membership-shell .billing-page .billing-plan-card {
+    grid-template-columns: 1fr;
+  }
+
+  .public-membership-shell .billing-page .plan-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .public-membership-shell .billing-page .billing-quota-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .public-membership-shell .billing-page .billing-quota-grid .quota-card + .quota-card {
+    border-left: 0;
+  }
+
+  .public-membership-shell .billing-page .order-table {
+    overflow-x: auto;
+  }
+
+  .public-membership-shell .billing-page .order-head,
+  .public-membership-shell .billing-page .order-row {
+    min-width: 780px;
+  }
+}
