@@ -44,6 +44,26 @@ type CustomerStageFilter = "all" | CrmStage;
 type FollowUpDueFilter = "all" | "today" | "week" | "overdue";
 type FollowUpStatusFilter = "all" | "pending" | "overdue";
 
+type CrmReferenceDisplay = {
+  overview?: {
+    total: number;
+    following: number;
+    won: number;
+    lost: number;
+  };
+  stages?: readonly {
+    label: string;
+    value: number;
+    trend: string;
+    tone: string;
+  }[];
+  sources?: readonly {
+    label: string;
+    percent: number;
+    tone: string;
+  }[];
+};
+
 const stageLabels: Record<CrmStage, string> = {
   new: "新线索",
   contacted: "需求确认",
@@ -58,6 +78,94 @@ const sourceLabels: Record<string, string> = {
   enterprise: "企业交付",
   manual: "手工录入"
 };
+
+const crmPreviewStats: CrmPipelineStats = {
+  total: 1286,
+  new: 228,
+  contacted: 172,
+  qualified: 96,
+  proposal: 146,
+  won: 328,
+  lost: 87,
+  due_today: 64
+};
+
+const crmPreviewDisplay: CrmReferenceDisplay = {
+  overview: {
+    total: 1286,
+    following: 642,
+    won: 328,
+    lost: 87
+  },
+  stages: [
+    { label: "意向沟通", value: 228, trend: "18%", tone: "purple" },
+    { label: "需求确认", value: 172, trend: "16%", tone: "blue" },
+    { label: "方案报价", value: 96, trend: "12%", tone: "orange" },
+    { label: "谈判中", value: 64, trend: "8%", tone: "violet" }
+  ],
+  sources: [
+    { label: "AI线索开发", percent: 42, tone: "blue" },
+    { label: "GEO获客", percent: 28, tone: "cyan" },
+    { label: "客户推荐", percent: 16, tone: "orange" },
+    { label: "内容营销", percent: 10, tone: "coral" },
+    { label: "其他来源", percent: 4, tone: "purple" }
+  ]
+};
+
+const crmPreviewCustomers: CustomerCard[] = [
+  {
+    id: 9001,
+    name: "杭州智创科技有限公司",
+    owner: "李明",
+    value: "待评估",
+    stage: "需求确认",
+    health: "高意向",
+    next: "2024-05-20 10:30 跟进客户进展",
+    tags: ["AI线索", "电话可触达"],
+    location: "AI线索开发 · 华东",
+    contact: "待补充",
+    email: "待补充"
+  },
+  {
+    id: 9002,
+    name: "上海云联信息技术有限公司",
+    owner: "王琳",
+    value: "待评估",
+    stage: "方案报价",
+    health: "高意向",
+    next: "2024-05-20 09:50 跟进客户进展",
+    tags: ["GEO获客", "电话可触达"],
+    location: "GEO获客 · 华东",
+    contact: "待补充",
+    email: "待补充"
+  },
+  {
+    id: 9003,
+    name: "广州星瀚贸易有限公司",
+    owner: "张伟",
+    value: "待评估",
+    stage: "意向沟通",
+    health: "可推进",
+    next: "2024-05-19 16:20 跟进客户进展",
+    tags: ["客户推荐", "电话可触达"],
+    location: "客户推荐 · 华南",
+    contact: "待补充",
+    email: "待补充"
+  },
+  {
+    id: 9004,
+    name: "深圳数智未来科技有限公司",
+    owner: "刘婷",
+    value: "待评估",
+    stage: "谈判中",
+    health: "高意向",
+    next: "2024-05-19 14:10 跟进客户进展",
+    tags: ["内容营销", "电话可触达"],
+    location: "内容营销 · 华南",
+    contact: "待补充",
+    email: "待补充"
+  }
+];
 
 function toCustomerCard(customer: CrmCustomer): CustomerCard {
   const nextDate = customer.next_follow_up_at
@@ -283,6 +391,20 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   }, [selectedApiCustomer?.id]);
 
   if (!canUseWorkflow) {
+    if (featureAccess && variant === "customers") {
+      return (
+        <V4PageShell className="crm-page-shell" showCopilotMini={false}>
+          <main className="cdk-analysis-page cdk-crm-page crm-reference-page">
+            <CrmReferenceDashboard
+              customers={crmPreviewCustomers}
+              stats={crmPreviewStats}
+              locked
+              display={crmPreviewDisplay}
+            />
+          </main>
+        </V4PageShell>
+      );
+    }
     if (featureAccess) return <FeatureLockedPanel feature={featureAccess} variant="crm" />;
     return (
       <V4PageShell className="crm-page-shell" showCopilotMini={false}>
@@ -721,16 +843,29 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   );
 }
 
-function CrmReferenceDashboard({ customers, stats }: { customers: CustomerCard[]; stats: CrmPipelineStats | null }) {
-  const total = stats?.total ?? 0;
-  const following = (stats?.contacted ?? 0) + (stats?.qualified ?? 0) + (stats?.proposal ?? 0);
+function CrmReferenceDashboard({
+  customers,
+  stats,
+  locked = false,
+  display
+}: {
+  customers: CustomerCard[];
+  stats: CrmPipelineStats | null;
+  locked?: boolean;
+  display?: CrmReferenceDisplay;
+}) {
+  const total = display?.overview?.total ?? stats?.total ?? 0;
+  const following = display?.overview?.following ?? (stats?.contacted ?? 0) + (stats?.qualified ?? 0) + (stats?.proposal ?? 0);
+  const upgradePath = "/membership/upgrade";
+  const customerPath = (customerID: number) => (locked ? upgradePath : `/crm?customer_id=${customerID}`);
+  const operationsPath = locked ? upgradePath : "#crm-operations";
   const overviewStats = [
     { label: "客户总数", value: total, trend: "12.3%", icon: UsersRound, tone: "violet" },
     { label: "跟进中", value: following, trend: "8.6%", icon: Target, tone: "blue" },
-    { label: "已成交", value: stats?.won ?? 0, trend: "15.4%", icon: CircleCheckBig, tone: "green" },
-    { label: "流失风险", value: stats?.lost ?? 0, trend: "5.0%", icon: CircleAlert, tone: "orange" }
+    { label: "已成交", value: display?.overview?.won ?? stats?.won ?? 0, trend: "15.4%", icon: CircleCheckBig, tone: "green" },
+    { label: "流失风险", value: display?.overview?.lost ?? stats?.lost ?? 0, trend: "5.0%", icon: CircleAlert, tone: "orange" }
   ];
-  const stages = [
+  const stages = display?.stages ?? [
     { label: "意向沟通", value: stats?.new ?? 0, trend: "18%", tone: "purple" },
     { label: "需求确认", value: stats?.contacted ?? 0, trend: "16%", tone: "blue" },
     { label: "方案报价", value: (stats?.qualified ?? 0) + (stats?.proposal ?? 0), trend: "12%", tone: "orange" },
@@ -739,14 +874,13 @@ function CrmReferenceDashboard({ customers, stats }: { customers: CustomerCard[]
   const leadCount = customers.filter((customer) => customer.tags.includes("AI线索")).length;
   const enterpriseCount = customers.filter((customer) => customer.tags.includes("企业交付")).length;
   const manualCount = Math.max(0, customers.length - leadCount - enterpriseCount);
-  const sourceRows = [
-    ["AI线索开发", leadCount, "blue"],
-    ["GEO获客", 0, "cyan"],
-    ["客户推荐", enterpriseCount, "orange"],
-    ["内容营销", manualCount, "coral"],
-    ["其他来源", 0, "purple"]
-  ] as const;
-  const sourceTotal = Math.max(1, customers.length);
+  const sourceRows = display?.sources ?? [
+    { label: "AI线索开发", percent: Math.round(leadCount / Math.max(1, customers.length) * 100), tone: "blue" },
+    { label: "GEO获客", percent: 0, tone: "cyan" },
+    { label: "客户推荐", percent: Math.round(enterpriseCount / Math.max(1, customers.length) * 100), tone: "orange" },
+    { label: "内容营销", percent: Math.round(manualCount / Math.max(1, customers.length) * 100), tone: "coral" },
+    { label: "其他来源", percent: 0, tone: "purple" }
+  ];
 
   return (
     <section className="crm-ref-shell" aria-label="CRM客户管理总览">
@@ -775,14 +909,14 @@ function CrmReferenceDashboard({ customers, stats }: { customers: CustomerCard[]
               {customers.length === 0 ? (
                 <p className="crm-ref-empty">暂无AI推荐客户</p>
               ) : customers.slice(0, 3).map((customer, index) => (
-                  <Link key={customer.id} to={`/crm?customer_id=${customer.id}`}>
+                  <Link key={customer.id} to={customerPath(customer.id)}>
                     <span className={`crm-ref-customer-avatar avatar-${index % 3}`}>{customer.name.slice(0, 1)}</span>
                     <span><strong>{customer.name}</strong><small>阶段：{customer.stage}</small></span>
                     <span><b>AI建议</b><small>{customer.health}，建议优先确认下一步</small></span>
                   </Link>
                 ))}
             </div>
-            <Link className="crm-ref-more" to="#crm-operations">查看全部推荐 <ArrowRight aria-hidden="true" size={15} /></Link>
+            <Link className="crm-ref-more" to={operationsPath}>查看全部推荐 <ArrowRight aria-hidden="true" size={15} /></Link>
           </article>
 
           <article className="crm-ref-panel crm-ref-stage-board">
@@ -807,14 +941,14 @@ function CrmReferenceDashboard({ customers, stats }: { customers: CustomerCard[]
             {customers.length === 0 ? (
               <p className="crm-ref-empty">暂无客户数据</p>
             ) : customers.slice(0, 4).map((customer) => (
-                <Link key={customer.id} to={`/crm?customer_id=${customer.id}`}>
+                <Link key={customer.id} to={customerPath(customer.id)}>
                   <strong>{customer.name}</strong>
                   <span className={`crm-ref-stage ${stageTone(customer.stage)}`}>{customer.stage}</span>
                   <span><i>{customer.owner.slice(0, 1)}</i>{customer.owner}</span>
                   <time>{customer.next.split(" 跟进")[0]}</time>
                 </Link>
               ))}
-            <Link className="crm-ref-table-more" to="#crm-operations">查看全部客户 <ArrowRight aria-hidden="true" size={15} /></Link>
+            <Link className="crm-ref-table-more" to={operationsPath}>查看全部客户 <ArrowRight aria-hidden="true" size={15} /></Link>
           </article>
 
           <article className="crm-ref-panel crm-ref-source-panel">
@@ -822,8 +956,8 @@ function CrmReferenceDashboard({ customers, stats }: { customers: CustomerCard[]
             <div className="crm-ref-source-body">
               <div className="crm-ref-donut"><strong>{total.toLocaleString("zh-CN")}</strong><small>客户总数</small></div>
               <ul>
-                {sourceRows.map(([label, count, tone]) => (
-                  <li key={label}><i className={tone} /><span>{label}</span><b>{Math.round(count / sourceTotal * 100)}%</b></li>
+                {sourceRows.map(({ label, percent, tone }) => (
+                  <li key={label}><i className={tone} /><span>{label}</span><b>{percent}%</b></li>
                 ))}
               </ul>
             </div>
@@ -841,8 +975,8 @@ function CrmReferenceDashboard({ customers, stats }: { customers: CustomerCard[]
         <header><Sparkles aria-hidden="true" size={21} /><strong>智活 <b>Copilot</b></strong></header>
         <p>我可以帮你梳理客户阶段、推荐重点跟进对象，并生成跟进建议。</p>
         <nav>
-          <Link to="/crm/follow-ups"><CalendarCheck2 aria-hidden="true" /><span><strong>生成今日跟进清单</strong><small>AI为你推荐优先跟进客户</small></span><ArrowRight aria-hidden="true" /></Link>
-          <Link to="#crm-operations"><Target aria-hidden="true" /><span><strong>识别高意向客户</strong><small>发现高潜力成交客户</small></span><ArrowRight aria-hidden="true" /></Link>
+          <Link to={locked ? upgradePath : "/crm/follow-ups"}><CalendarCheck2 aria-hidden="true" /><span><strong>生成今日跟进清单</strong><small>AI为你推荐优先跟进客户</small></span><ArrowRight aria-hidden="true" /></Link>
+          <Link to={operationsPath}><Target aria-hidden="true" /><span><strong>识别高意向客户</strong><small>发现高潜力成交客户</small></span><ArrowRight aria-hidden="true" /></Link>
           <Link to="/membership/upgrade"><ShieldCheck aria-hidden="true" /><span><strong>联系升级权限</strong><small>解锁更多CRM高级能力</small></span><ArrowRight aria-hidden="true" /></Link>
         </nav>
         <form onSubmit={(event) => event.preventDefault()}>

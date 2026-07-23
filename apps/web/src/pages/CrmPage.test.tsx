@@ -1061,7 +1061,7 @@ describe("CrmPage", () => {
     await waitFor(() => expect(screen.getAllByText("企业交付客户复盘下一步").length).toBeGreaterThan(0));
   });
 
-  it("shows locked state without loading CRM APIs", async () => {
+  it("shows the design preview for locked CRM overview without loading CRM APIs", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ customers: [] }), { status: 200 })
     );
@@ -1074,7 +1074,7 @@ describe("CrmPage", () => {
         required_plan: "pro",
         upgrade_url: "/membership",
         contact_url: "/enterprise",
-        allow_read_only: false,
+        allow_read_only: true,
         allow_workflow: false
       }]
     });
@@ -1085,8 +1085,26 @@ describe("CrmPage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("当前不会读取业务数据，也不会创建任务、客户或分析请求。")).toBeInTheDocument();
+    expect(await screen.findByLabelText("CRM客户管理总览")).toBeInTheDocument();
+    expect(screen.getByLabelText("CRM关键指标")).toBeInTheDocument();
+    expect(screen.getAllByText("1,286").length).toBeGreaterThan(0);
+    expect(screen.getByText("642")).toBeInTheDocument();
+    expect(screen.getByText("328")).toBeInTheDocument();
+    expect(screen.getByText("87")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI推荐跟进" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "销售阶段看板" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "客户来源分布" })).toBeInTheDocument();
+    expect(screen.getByLabelText("CRM Copilot")).toBeInTheDocument();
+    expect(screen.getAllByText("杭州智创科技有限公司").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("上海云联信息技术有限公司").length).toBeGreaterThan(0);
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("28%")).toBeInTheDocument();
+    expect(screen.queryByText("当前为示例预览，升级后接入真实客户数据")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("CRM业务操作区")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "新建客户" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /查看全部|生成今日跟进清单|识别高意向客户/ }).every((link) => (
+      link.getAttribute("href") === "/membership/upgrade"
+    ))).toBe(true);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
