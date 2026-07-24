@@ -41,6 +41,8 @@ describe("InsightsPage", () => {
     expect(screen.getByText("第 1 / 1 页")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "下一页" })).not.toBeInTheDocument();
     expect(screen.getByText("嗨，张婧！", { exact: false })).toBeInTheDocument();
+    expect(document.querySelector(".unified-copilot-head .copilot-title-logo")).toBeInTheDocument();
+    expect(document.querySelectorAll(".unified-copilot-thread .ai-avatar")).toHaveLength(2);
   });
 
   it("opens settings and toggles the complete Copilot panel", () => {

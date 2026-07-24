@@ -38,6 +38,14 @@
   font-size: 0;
 }
 
+.ai-avatar {
+  color: transparent !important;
+  background: transparent url("/home/logo.png") center / contain no-repeat !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  font-size: 0 !important;
+}
+
 .ref-brand img,
 .ref-mobile-brand img,
 .ref-topnav a.copilot img,

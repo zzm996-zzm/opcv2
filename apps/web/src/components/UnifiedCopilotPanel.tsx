@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronRight, ChevronUp, FileText, Settings, Sparkles } from "lucide-react";
+import { ChevronRight, ChevronUp, FileText, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useAuthSession } from "../lib/authSession";
@@ -65,7 +65,7 @@ function UnifiedCopilotPanel({
     <aside className={`unified-copilot-panel ${className}`.trim()} aria-label={ariaLabel}>
       <header className="unified-copilot-head">
         <div>
-          <strong><Sparkles aria-hidden="true" />智活 <b>Copilot</b></strong>
+          <strong><span className="copilot-title-logo v4-logo" aria-hidden="true" />智活 <b>Copilot</b></strong>
           <p>{subtitle}</p>
         </div>
         <div className="unified-copilot-controls">
@@ -102,12 +102,12 @@ function UnifiedCopilotPanel({
       <div className="unified-copilot-body" id={bodyId}>
           {content ?? <div className="unified-copilot-thread">
             <article className="assistant">
-              <span aria-hidden="true">A</span>
+              <span className="ai-avatar" aria-hidden="true">A</span>
               <p><strong>嗨，{nickname}！</strong>今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</p>
             </article>
             {userPrompt && <article className="user"><p>{userPrompt}</p></article>}
             <article className="assistant">
-              <span aria-hidden="true">A</span>
+              <span className="ai-avatar" aria-hidden="true">A</span>
               <p>{response}</p>
             </article>
             {report && (
