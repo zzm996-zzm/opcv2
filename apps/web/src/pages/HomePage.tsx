@@ -518,8 +518,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
             </section>
           </section>
 
-          <aside className={`ref-home-copilot ${assistantOpen ? "open" : "closed"}`} aria-label="智活 Copilot">
-            {assistantOpen ? (
+          {assistantOpen && <aside className="ref-home-copilot open" aria-label="智活 Copilot">
               <>
                 <div className="ref-home-copilot-head">
                   <div>
@@ -543,7 +542,7 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                       }}
                       type="button"
                     >
-                      <ChevronDown aria-hidden="true" size={18} strokeWidth={1.8} />
+                      <ChevronUp aria-hidden="true" size={18} strokeWidth={1.8} />
                     </button>
                   </div>
                 </div>
@@ -615,31 +614,15 @@ function HomePage({ assistantState, menuState }: HomePageProps) {
                   />
                 </div>
               </>
-            ) : (
-              <button
-                className="ref-home-copilot-mini"
-                onClick={() => {
-                  setAssistantOpen(true);
-                  setAssistantMode("chat");
-                }}
-                type="button"
-              >
-                <span className="mini-logo" aria-hidden="true" />
-                <strong>智活 Copilot</strong>
-                <ChevronUp className="mini-caret" aria-hidden="true" size={18} strokeWidth={1.8} />
-                <span className="ref-home-mini-input" aria-hidden="true">
-                  <i>+</i>
-                  <small>输入问题，发送后自动展开回复</small>
-                  <b>↗</b>
-                </span>
-              </button>
-            )}
-          </aside>
+          </aside>}
 
-          <FloatingCopilotOrb
+          {!assistantOpen && <FloatingCopilotOrb
             className={filesOpen || assistantMode === "settings" ? "home-extended-orb" : ""}
-            onActivate={() => setAssistantOpen(true)}
-          />
+            onActivate={() => {
+              setAssistantOpen(true);
+              setAssistantMode("chat");
+            }}
+          />}
 
     </ReferenceShell>
   );

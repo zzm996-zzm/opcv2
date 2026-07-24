@@ -87,6 +87,10 @@
   align-items: start;
 }
 
+.sb-page-grid:not(:has(.sb-copilot)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .sb-page-content {
   min-width: 0;
 }

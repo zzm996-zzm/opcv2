@@ -20,14 +20,15 @@ describe("LandingReferencePage", () => {
     expect(screen.getByPlaceholderText("搜索任务、负责人、进度阶段、标签")).toBeInTheDocument();
   });
 
-  it("collapses and expands the Copilot panel", () => {
+  it("hides and restores the complete Copilot panel", () => {
     const { container } = renderReference("tasks", "list");
 
     fireEvent.click(screen.getByRole("button", { name: "收起智活 Copilot" }));
     expect(container.querySelector(".landing-ref-layout")).toHaveClass("copilot-collapsed");
+    expect(screen.queryByRole("complementary", { name: "智活 Copilot" })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText("询问任何问题...")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "展开智活 Copilot" }));
+    fireEvent.click(screen.getByRole("button", { name: "打开智活 Copilot" }));
     expect(container.querySelector(".landing-ref-layout")).not.toHaveClass("copilot-collapsed");
     expect(screen.getByPlaceholderText("询问任何问题...")).toBeInTheDocument();
   });

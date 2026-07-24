@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import FloatingCopilotOrb from "./components/FloatingCopilotOrb";
+import { CopilotPanelVisibilityProvider, useCopilotPanelVisibility } from "./components/CopilotPanelVisibility";
 import { authApi } from "./lib/authApi";
 import { authSession, useAuthSession } from "./lib/authSession";
 import AnalysisHistoryPage from "./pages/AnalysisHistoryPage";
@@ -49,9 +50,10 @@ import TaskCreatePage from "./pages/TaskCreatePage";
 import TasksPage from "./pages/TasksPage";
 import ToolsPage from "./pages/ToolsPage";
 
-function App() {
+function AppRoutes() {
   const location = useLocation();
   const showGlobalCopilotOrb = shouldShowGlobalCopilotOrb(location.pathname);
+  const copilotPanel = useCopilotPanelVisibility();
 
   useEffect(() => {
     const session = authSession.get();
@@ -917,7 +919,12 @@ function App() {
       />
       </Routes>
       </div>
-      {showGlobalCopilotOrb && <FloatingCopilotOrb className={location.pathname.startsWith("/membership") ? "membership-floating-orb" : ""} />}
+      {(copilotPanel?.hasPanel ? !copilotPanel.isPanelOpen : showGlobalCopilotOrb) && (
+        <FloatingCopilotOrb
+          className={location.pathname.startsWith("/membership") ? "membership-floating-orb" : ""}
+          onActivate={copilotPanel?.hasPanel ? copilotPanel.openPanel : undefined}
+        />
+      )}
     </>
   );
 }
@@ -939,6 +946,14 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     return <Navigate replace state={{ returnTo: location.pathname + location.search }} to="/login" />;
   }
   return children;
+}
+
+function App() {
+  return (
+    <CopilotPanelVisibilityProvider>
+      <AppRoutes />
+    </CopilotPanelVisibilityProvider>
+  );
 }
 
 export default App;

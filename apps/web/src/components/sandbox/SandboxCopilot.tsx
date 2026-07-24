@@ -1,7 +1,9 @@
-import { ChevronDown, ChevronRight, Paperclip, Send, Sparkles } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { ChevronRight, ChevronUp, Paperclip, Send, Sparkles } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 
+import { useRegisteredCopilotPanel } from "../CopilotPanelVisibility";
+import FloatingCopilotOrb from "../FloatingCopilotOrb";
 import { MiniCopilotForm } from "../MiniCopilot";
 
 export type SandboxCopilotMode = "home" | "questions" | "summary" | "roles" | "start" | "run" | "report" | "history";
@@ -57,23 +59,26 @@ const modeCopy: Record<SandboxCopilotMode, { user: string; assistant: string; ac
 };
 
 function SandboxCopilot({ children, mode, progress, project }: SandboxCopilotProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const copilotPanel = useRegisteredCopilotPanel();
   const copy = modeCopy[mode];
 
+  if (!copilotPanel.isPanelOpen) {
+    return copilotPanel.hasSharedController ? null : <FloatingCopilotOrb onActivate={copilotPanel.openPanel} />;
+  }
+
   return (
-    <aside className={`sb-copilot ${collapsed ? "is-collapsed" : ""}`} aria-label="智活 Copilot">
+    <aside className="sb-copilot" aria-label="智活 Copilot">
       <header>
         <span className="sb-copilot-mark" aria-hidden="true"><Sparkles size={20} /></span>
         <div>
           <strong>智活 Copilot</strong>
           <small>你的全能 AI 助手，随时为你提供帮助</small>
         </div>
-        <button aria-expanded={!collapsed} aria-label={collapsed ? "展开 Copilot" : "收起 Copilot"} onClick={() => setCollapsed((value) => !value)} type="button">
-          <ChevronDown size={18} />
+        <button aria-label="收起 Copilot" onClick={copilotPanel.closePanel} type="button">
+          <ChevronUp size={18} />
         </button>
       </header>
-      {!collapsed && (
-        <>
+      <>
           <div className="sb-copilot-thread">
             <article className="is-user"><span>我</span><p>{project || copy.user}</p></article>
             <article><span><Sparkles size={14} /></span><p>{copy.assistant}</p></article>
@@ -98,11 +103,9 @@ function SandboxCopilot({ children, mode, progress, project }: SandboxCopilotPro
             sendIcon={<Send size={16} />}
             threadTitlePrefix="商业沙盘："
           />
-        </>
-      )}
+      </>
     </aside>
   );
 }
 
 export default SandboxCopilot;
-

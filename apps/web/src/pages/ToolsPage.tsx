@@ -484,8 +484,6 @@ function ToolsCopilot({ variant }: { variant: NonNullable<ToolsPageProps["varian
       ]}
       ariaLabel="智活 Copilot 工具助手"
       className="toolhub-copilot"
-      collapseHref={variant === "library" ? "/tools/all" : undefined}
-      collapseLabel="收起 Copilot 并查看完整工具箱"
       inputAriaLabel="向工具箱 Copilot 提问"
       report={isPlan ? { title: "查看从市场调研到视频推广的工具方案", meta: "工具方案 · 已生成" } : undefined}
       response={response}

@@ -38,6 +38,18 @@
   align-items: start;
 }
 
+.insights-reference-page:not(:has(.unified-copilot-panel)),
+.community-ref-page:not(:has(.unified-copilot-panel)),
+.crm-ref-shell:not(:has(.unified-copilot-panel)),
+.tools-shell .toolhub-page.with-copilot:not(:has(.unified-copilot-panel)),
+.public-profile-shell .profile-layout.content-mode:not(:has(.unified-copilot-panel)) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.public-membership-shell .billing-page .billing-layout:not(:has(.unified-copilot-panel)) {
+  grid-template-columns: 200px minmax(0, 1fr) !important;
+}
+
 .public-membership-shell .billing-page .unified-copilot-panel {
   margin-top: -108px !important;
   height: 840px !important;
@@ -49,11 +61,6 @@
 
 .crm-ref-shell {
   grid-template-columns: minmax(0, 1fr) 384px !important;
-}
-
-.unified-copilot-panel.is-collapsed {
-  height: auto;
-  min-height: 0;
 }
 
 .unified-copilot-head {

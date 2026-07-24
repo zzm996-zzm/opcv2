@@ -54,14 +54,17 @@ describe("ToolsPage", () => {
     expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
   });
 
-  it("links the library Copilot collapse control to the complete catalog", async () => {
+  it("uses the shared Copilot collapse control", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ tools: [] }), { status: 200 })
     );
     renderPage();
 
     expect(await screen.findByText("Notion AI")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "收起 Copilot 并查看完整工具箱" })).toHaveAttribute("href", "/tools/all");
+    fireEvent.click(screen.getByRole("button", { name: "收起 Copilot" }));
+
+    expect(screen.queryByLabelText("智活 Copilot 工具助手")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开智活 Copilot" })).toBeInTheDocument();
   });
 
   it("refetches the real catalog from the category tabs", async () => {

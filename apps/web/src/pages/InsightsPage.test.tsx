@@ -43,14 +43,11 @@ describe("InsightsPage", () => {
     expect(screen.getByText("嗨，张婧！", { exact: false })).toBeInTheDocument();
   });
 
-  it("opens settings and collapses the Copilot panel", () => {
+  it("opens settings and toggles the complete Copilot panel", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ articles: [] }), { status: 200 })
     );
     renderPage();
-
-    const copilot = screen.getByRole("complementary", { name: "智活 Copilot 咨询助手" });
-    const body = document.getElementById("insights-copilot-body");
 
     fireEvent.click(screen.getByRole("button", { name: "打开 Copilot 设置" }));
 
@@ -62,13 +59,13 @@ describe("InsightsPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "收起 Copilot" }));
 
-    expect(copilot).toHaveClass("is-collapsed");
-    expect(body).toHaveAttribute("hidden");
+    expect(screen.queryByRole("complementary", { name: "智活 Copilot 咨询助手" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Copilot 设置" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开智活 Copilot" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "展开 Copilot" }));
-    expect(copilot).not.toHaveClass("is-collapsed");
-    expect(body).not.toHaveAttribute("hidden");
+    fireEvent.click(screen.getByRole("button", { name: "打开智活 Copilot" }));
+    expect(screen.getByRole("complementary", { name: "智活 Copilot 咨询助手" })).toBeInTheDocument();
+    expect(document.getElementById("insights-copilot-body")).toBeInTheDocument();
   });
 
   it("renders the reference detail when the content API is unavailable", async () => {

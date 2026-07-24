@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, ChevronUp, FileText, Settings, Sparkles } from "lucide-react";
+import { ChevronRight, ChevronUp, FileText, Settings, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { useAuthSession } from "../lib/authSession";
+import { useRegisteredCopilotPanel } from "./CopilotPanelVisibility";
+import FloatingCopilotOrb from "./FloatingCopilotOrb";
 import { MiniCopilotForm } from "./MiniCopilot";
 
 export type UnifiedCopilotAction = {
@@ -16,8 +18,6 @@ type UnifiedCopilotPanelProps = {
   ariaLabel?: string;
   actionsAriaLabel?: string;
   className?: string;
-  collapseHref?: string;
-  collapseLabel?: string;
   content?: ReactNode;
   inputAriaLabel?: string;
   bodyId?: string;
@@ -44,8 +44,6 @@ function UnifiedCopilotPanel({
   ariaLabel = "智活 Copilot",
   bodyId,
   className = "",
-  collapseHref,
-  collapseLabel = "收起 Copilot",
   content,
   inputAriaLabel = "询问智活 Copilot",
   report,
@@ -55,13 +53,16 @@ function UnifiedCopilotPanel({
   userPrompt
 }: UnifiedCopilotPanelProps) {
   const session = useAuthSession();
-  const [collapsed, setCollapsed] = useState(false);
+  const panel = useRegisteredCopilotPanel();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(true);
   const nickname = session.user?.nickname || "张婧";
+  if (!panel.isPanelOpen) {
+    return panel.hasSharedController ? null : <FloatingCopilotOrb onActivate={panel.openPanel} />;
+  }
 
   return (
-    <aside className={`unified-copilot-panel${collapsed ? " is-collapsed" : ""} ${className}`.trim()} aria-label={ariaLabel}>
+    <aside className={`unified-copilot-panel ${className}`.trim()} aria-label={ariaLabel}>
       <header className="unified-copilot-head">
         <div>
           <strong><Sparkles aria-hidden="true" />智活 <b>Copilot</b></strong>
@@ -77,34 +78,29 @@ function UnifiedCopilotPanel({
           >
             <Settings aria-hidden="true" />
           </button>
-          {collapseHref ? (
-            <Link aria-label={collapseLabel} title={collapseLabel} to={collapseHref}><ChevronRight aria-hidden="true" /></Link>
-          ) : (
-            <button
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? "展开 Copilot" : "收起 Copilot"}
-              onClick={() => {
-                setCollapsed((value) => !value);
-                setSettingsOpen(false);
-              }}
-              title={collapsed ? "展开 Copilot" : "收起 Copilot"}
-              type="button"
-            >
-              {collapsed ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
-            </button>
-          )}
+          <button
+            aria-label="收起 Copilot"
+            onClick={() => {
+              setSettingsOpen(false);
+              panel.closePanel();
+            }}
+            title="收起 Copilot"
+            type="button"
+          >
+            <ChevronUp aria-hidden="true" />
+          </button>
         </div>
       </header>
 
-      {settingsOpen && !collapsed && (
+      {settingsOpen && (
         <section className="unified-copilot-settings" role="dialog" aria-label="Copilot 设置">
           <label><input aria-label="显示快捷建议" checked={showQuickActions} onChange={(event) => setShowQuickActions(event.target.checked)} type="checkbox" /><span><strong>显示快捷建议</strong><small>当前页面上下文已开启</small></span></label>
           <Link to="/profile/preferences">更多偏好设置 <ChevronRight aria-hidden="true" /></Link>
         </section>
       )}
 
-      <div className="unified-copilot-body" id={bodyId} hidden={collapsed}>
-          {!collapsed && (content ?? <div className="unified-copilot-thread">
+      <div className="unified-copilot-body" id={bodyId}>
+          {content ?? <div className="unified-copilot-thread">
             <article className="assistant">
               <span aria-hidden="true">A</span>
               <p><strong>嗨，{nickname}！</strong>今天想聚焦哪个方向？我可以帮你分析机会、推荐工具或制定落地计划。</p>
@@ -120,9 +116,9 @@ function UnifiedCopilotPanel({
                 <span><strong>{report.title}</strong><small>{report.meta}</small></span>
               </Link>
             )}
-          </div>)}
+          </div>}
 
-          {!collapsed && showQuickActions && (actionContent ?? (
+          {showQuickActions && (actionContent ?? (
             <nav className="unified-copilot-actions" aria-label={actionsAriaLabel}>
               {actions.map((action) => (
                 <Link key={`${action.href}-${action.label}`} to={action.href}>{action.label}<ChevronRight aria-hidden="true" /></Link>
@@ -130,7 +126,7 @@ function UnifiedCopilotPanel({
             </nav>
           ))}
 
-          {!collapsed && showComposer && <MiniCopilotForm
+          {showComposer && <MiniCopilotForm
             className="unified-copilot-input"
             inputAriaLabel={inputAriaLabel}
             sendIcon="➤"

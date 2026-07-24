@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -234,6 +234,15 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: "咨询通" })).toBeInTheDocument();
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "打开智活 Copilot" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "收起 Copilot" }));
+    expect(screen.queryByRole("complementary", { name: "智活 Copilot 咨询助手" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开智活 Copilot" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开智活 Copilot" }));
+    expect(screen.getByRole("complementary", { name: "智活 Copilot 咨询助手" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "打开智活 Copilot" })).not.toBeInTheDocument();
   });
 
   it("renders the tool recommendation plan route for a signed-in user", () => {

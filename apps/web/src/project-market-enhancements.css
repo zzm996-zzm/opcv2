@@ -30,6 +30,10 @@
   align-items: start;
 }
 
+.project-market-shell .project-market-layout:not(:has(.pm-copilot)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .project-market-shell .project-market-main {
   display: grid;
   min-width: 0;

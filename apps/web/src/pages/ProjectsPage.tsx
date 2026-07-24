@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { ChevronUp } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
+import { useRegisteredCopilotPanel } from "../components/CopilotPanelVisibility";
+import FloatingCopilotOrb from "../components/FloatingCopilotOrb";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
@@ -1588,7 +1591,7 @@ function Considerations() {
 }
 
 function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const copilotPanel = useRegisteredCopilotPanel();
   const { matchId, opportunitySlug } = useParams();
   const [searchParams] = useSearchParams();
   const [opportunities, setOpportunities] = useState<ProjectOpportunity[]>([]);
@@ -1632,6 +1635,10 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
     : activeDetailSection?.blocks?.flatMap((block) => block.items?.map((item) => item.title || item.value || "").filter(Boolean) ?? []) ?? []).slice(0, 4);
   const caseLessons = cases.flatMap((item) => item.lessons ?? []).slice(0, 3);
 
+  if (!copilotPanel.isPanelOpen) {
+    return copilotPanel.hasSharedController ? null : <FloatingCopilotOrb onActivate={copilotPanel.openPanel} />;
+  }
+
   let conversation: React.ReactNode;
   if (variant === "match" || variant === "questions") {
     const steps = variant === "match" ? ["提交需求，AI 开始分析", "确认关键信息", "生成匹配结果与建议"] : ["补齐预算、时间与项目偏好", "提交当前问题的真实选择", "按回答生成匹配结果"];
@@ -1656,7 +1663,7 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   }
 
   return (
-    <aside className={`pm-copilot pm-copilot-${variant}${collapsed ? " is-collapsed" : ""}`} aria-label="智活 Copilot">
+    <aside className={`pm-copilot pm-copilot-${variant}`} aria-label="智活 Copilot">
       <header>
         <span aria-hidden="true">✦</span>
         <div>
@@ -1666,16 +1673,14 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
         <Link className="pm-copilot-settings" aria-label="项目超市 Copilot 设置" title="Copilot 设置" to="/assistant/settings">⚙</Link>
         <button
           type="button"
-          aria-controls="project-copilot-body"
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? "展开项目超市 Copilot" : "收起项目超市 Copilot"}
-          title={collapsed ? "展开 Copilot" : "收起 Copilot"}
-          onClick={() => setCollapsed((current) => !current)}
+          aria-label="收起项目超市 Copilot"
+          title="收起 Copilot"
+          onClick={copilotPanel.closePanel}
         >
-          {collapsed ? "⌄" : "⌃"}
+          <ChevronUp aria-hidden="true" size={18} />
         </button>
       </header>
-      <div className="project-copilot-body" id="project-copilot-body" hidden={collapsed}>
+      <div className="project-copilot-body" id="project-copilot-body">
         <div className="pm-copilot-conversation">{conversation}</div>
         <nav>
           <Link to="/projects/explore">分析市场机会</Link>
