@@ -1,84 +1,4 @@
-/* The supplied public-component references use a 1672 x 941 design canvas. */
-@media (min-width: 1920px) {
-  .route-motion-frame:has(.public-component-auth),
-  .route-motion-frame:has(.register-details-page),
-  .route-motion-frame:has(.public-profile-shell),
-  .route-motion-frame:has(.public-message-shell),
-  .route-motion-frame:has(.public-help-shell),
-  .route-motion-frame:has(.public-membership-shell),
-  .route-motion-frame:has(.payment-shell) {
-    --public-component-scale: calc(100vw / 1672px);
-    width: 1672px;
-    min-height: 941px;
-    zoom: var(--public-component-scale);
-  }
-
-  .route-motion-frame:has(.public-component-auth) .login-page,
-  .route-motion-frame:has(.public-component-auth) .login-story,
-  .route-motion-frame:has(.public-component-auth) .login-panel,
-  .route-motion-frame:has(.register-details-page) .register-details-page,
-  .route-motion-frame:has(.public-profile-shell) .v4-shell,
-  .route-motion-frame:has(.public-message-shell) .v4-shell,
-  .route-motion-frame:has(.public-help-shell) .v4-shell,
-  .route-motion-frame:has(.public-membership-shell) .v4-shell,
-  .route-motion-frame:has(.payment-shell) .v4-shell,
-  .route-motion-frame:has(.public-profile-shell) .v4-sidebar,
-  .route-motion-frame:has(.public-message-shell) .v4-sidebar,
-  .route-motion-frame:has(.public-help-shell) .v4-sidebar,
-  .route-motion-frame:has(.public-membership-shell) .v4-sidebar,
-  .route-motion-frame:has(.payment-shell) .v4-sidebar {
-    min-height: 941px;
-  }
-
-  .route-motion-frame:has(.public-profile-shell) .v4-sidebar,
-  .route-motion-frame:has(.public-message-shell) .v4-sidebar,
-  .route-motion-frame:has(.public-help-shell) .v4-sidebar,
-  .route-motion-frame:has(.public-membership-shell) .v4-sidebar,
-  .route-motion-frame:has(.payment-shell) .v4-sidebar {
-    height: 941px;
-  }
-
-  .route-motion-frame:has(.public-profile-shell) .v4-workspace,
-  .route-motion-frame:has(.public-message-shell) .v4-workspace,
-  .route-motion-frame:has(.public-help-shell) .v4-workspace,
-  .route-motion-frame:has(.public-membership-shell) .v4-workspace,
-  .route-motion-frame:has(.payment-shell) .v4-workspace {
-    min-height: 941px;
-  }
-
-  .route-motion-frame:has(.public-profile-shell) .v4-page-main,
-  .route-motion-frame:has(.public-message-shell) .v4-page-main,
-  .route-motion-frame:has(.public-help-shell) .v4-page-main,
-  .route-motion-frame:has(.public-membership-shell) .v4-page-main,
-  .route-motion-frame:has(.payment-shell) .v4-page-main {
-    min-height: 863px;
-  }
-
-  .route-motion-frame:has(.public-component-auth) .login-story {
-    padding-right: 75px;
-    padding-left: 77px;
-  }
-
-  .route-motion-frame:has(.public-component-auth) .login-panel {
-    padding-right: 67px;
-    padding-left: 67px;
-  }
-
-  .route-motion-frame:has(.register-details-page) .register-details-page {
-    padding-right: 160px;
-    padding-left: 160px;
-  }
-
-  .route-motion-frame:has(.public-profile-shell) .ui-modal-scrim,
-  .route-motion-frame:has(.public-message-shell) .ui-modal-scrim,
-  .route-motion-frame:has(.public-membership-shell) .ui-modal-scrim,
-  .route-motion-frame:has(.payment-shell) .ui-modal-scrim,
-  .route-motion-frame:has(.public-upgrade-scrim) .public-upgrade-scrim,
-  .route-motion-frame:has(.quota-exhausted-scrim) .quota-exhausted-scrim {
-    width: 1672px;
-    height: 941px;
-  }
-}
+/* Reference measurements inform component proportions, never viewport scaling. */
 
 /* Login composition: keep the feature list and sculpture on the same visual plane. */
 .public-component-auth .login-story-copy {
@@ -617,4 +537,254 @@
   min-height: 118px;
   padding-top: 16px;
   padding-bottom: 16px;
+}
+
+@media (max-width: 1600px) {
+  .public-profile-shell .profile-layout,
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-layout,
+  .public-profile-shell .profile-page:has(.preference-card) .profile-layout {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .public-profile-shell .profile-side-tabs,
+  .public-membership-shell .profile-side-tabs {
+    width: 180px;
+  }
+
+  .public-profile-shell .activity-panel {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .public-profile-shell .profile-content,
+  .public-profile-shell .profile-content > *,
+  .public-profile-shell .profile-facts,
+  .public-profile-shell .quota-grid,
+  .public-profile-shell .quick-grid,
+  .public-profile-shell .profile-two-column,
+  .public-profile-shell .preference-card,
+  .public-profile-shell .preference-save-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .public-profile-shell .profile-hero-card {
+    grid-template-columns: 82px minmax(120px, 0.75fr) minmax(0, 1.25fr) auto;
+    gap: 14px;
+    padding-right: 24px;
+    padding-left: 24px;
+  }
+
+  .public-profile-shell .quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-profile-shell .quick-grid a:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .matrix-head,
+  .public-profile-shell .profile-page:has(.preference-card) .notification-matrix article {
+    grid-template-columns: minmax(160px, 1fr) repeat(3, minmax(82px, 110px));
+    gap: 8px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-row {
+    grid-template-columns: minmax(170px, 1fr) repeat(3, minmax(96px, 1fr));
+  }
+
+  .public-help-shell .help-page,
+  .public-help-shell .help-page > *,
+  .public-help-shell .help-grid,
+  .public-help-shell .help-card,
+  .public-help-shell .wechat-service-card {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .public-help-shell .help-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-help-shell .wechat-service-card {
+    grid-template-columns: 58px minmax(0, 1fr) 100px minmax(170px, 210px);
+    padding: 18px 24px;
+  }
+
+  .public-help-shell .wechat-service-card > button {
+    grid-column: 2 / -1;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 1180px) {
+  .public-profile-shell .profile-layout,
+  .public-profile-shell .profile-layout.content-mode,
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-layout,
+  .public-profile-shell .profile-page:has(.preference-card) .profile-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .public-profile-shell .profile-side-tabs,
+  .public-membership-shell .profile-side-tabs {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .public-profile-shell .profile-side-tabs a,
+  .public-membership-shell .profile-side-tabs a {
+    flex: 0 0 auto;
+  }
+
+  .public-profile-shell .profile-content,
+  .public-profile-shell .profile-layout.content-mode .profile-content,
+  .public-profile-shell .profile-layout.content-mode .content-record-card {
+    min-width: 0;
+  }
+
+  .public-profile-shell .profile-hero-card {
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+  }
+
+  .public-profile-shell .profile-hero-card .profile-facts {
+    grid-column: 1 / -1;
+  }
+
+  .public-profile-shell .quota-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-profile-shell .profile-two-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .matrix-head,
+  .public-profile-shell .profile-page:has(.preference-card) .notification-matrix article {
+    grid-template-columns: minmax(150px, 1fr) repeat(3, minmax(72px, 96px));
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-row {
+    grid-template-columns: minmax(150px, 1fr) repeat(3, minmax(90px, 1fr));
+  }
+
+  .public-profile-shell .profile-content-copilot {
+    display: none;
+  }
+
+  .public-help-shell .help-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-help-shell .wechat-service-card {
+    grid-template-columns: 56px minmax(0, 1fr) 100px;
+  }
+
+  .public-help-shell .wechat-service-card > div:last-of-type {
+    grid-column: 2 / -1;
+  }
+
+  .public-help-shell .wechat-service-card > button {
+    grid-column: 2 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .public-message-shell .message-row {
+    grid-template-columns: 10px 46px minmax(0, 1fr) auto 20px;
+    gap: 12px;
+  }
+
+  .public-message-shell .message-copy,
+  .public-message-shell .message-copy strong,
+  .public-message-shell .message-copy small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .public-help-shell .help-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-help-shell .wechat-service-card {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .public-help-shell .wechat-service-card > .qr-box {
+    grid-column: 1;
+  }
+
+  .public-help-shell .wechat-service-card > div:last-of-type {
+    grid-column: 2;
+  }
+
+  .public-help-shell .wechat-service-card > button {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 700px) {
+  .public-profile-shell .profile-page:has(.preference-card) .matrix-head {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    padding: 8px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .matrix-head span {
+    flex-direction: column;
+    gap: 6px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .notification-matrix article {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 12px 8px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .notification-matrix article > div {
+    grid-column: 1 / -1;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-row,
+  .public-profile-shell .profile-page:has(.preference-card) .preference-card.split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-profile-shell .quota-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-profile-shell .profile-hero-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+    padding: 18px;
+  }
+
+  .public-profile-shell .profile-hero-card .profile-upgrade,
+  .public-profile-shell .profile-hero-card .profile-facts {
+    grid-column: 1 / -1;
+  }
+
+  .public-profile-shell .profile-hero-card .profile-upgrade {
+    justify-self: stretch;
+  }
+
+  .public-help-shell .wechat-service-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-help-shell .wechat-service-card > *,
+  .public-help-shell .wechat-service-card > .qr-box,
+  .public-help-shell .wechat-service-card > div:last-of-type,
+  .public-help-shell .wechat-service-card > button {
+    grid-column: 1;
+  }
 }

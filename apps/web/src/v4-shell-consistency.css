@@ -6,7 +6,17 @@
 }
 
 .route-motion-frame:has(.v4-shell) {
+  width: 100%;
+  min-width: 0;
   animation: none;
+  zoom: 1;
+}
+
+.v4-shell.v4-shell,
+.v4-shell.v4-shell .v4-workspace,
+.v4-shell.v4-shell .v4-page-main {
+  width: 100%;
+  min-width: 0;
 }
 
 @media (min-width: 1181px) {
