@@ -5209,6 +5209,40 @@ a:active {
   border-radius: 1px 4px 4px 1px;
 }
 
+.v4-side-nav .v4-line-icon {
+  width: 22px;
+  height: 22px;
+  background: center / contain no-repeat;
+  border: 0;
+  border-radius: 0;
+  filter: drop-shadow(0 2px 3px rgba(39, 84, 190, 0.16));
+  transform: none;
+  transition: filter 160ms ease, scale 160ms ease;
+}
+
+.v4-side-nav .v4-line-icon::before,
+.v4-side-nav .v4-line-icon::after {
+  display: none;
+}
+
+.v4-side-nav .v4-line-icon.grid { background-image: url("/navigation/project-market.png"); }
+.v4-side-nav .v4-line-icon.home { background-image: url("/navigation/sandbox.png"); }
+.v4-side-nav .v4-line-icon.check { background-image: url("/navigation/tasks.png"); }
+.v4-side-nav .v4-line-icon.stack { background-image: url("/navigation/competitor-data.png"); }
+.v4-side-nav .v4-line-icon.pulse { background-image: url("/navigation/competitor-monitoring.png"); }
+.v4-side-nav .v4-line-icon.calc { background-image: url("/navigation/growth-calculator.png"); }
+.v4-side-nav .v4-line-icon.target { background-image: url("/navigation/geo.png"); }
+.v4-side-nav .v4-line-icon.diamond { background-image: url("/navigation/leads.png"); }
+.v4-side-nav .v4-line-icon.chart { background-image: url("/navigation/dashboard.png"); }
+.v4-side-nav .v4-line-icon.user { background-image: url("/navigation/crm.png"); }
+.v4-side-nav .v4-line-icon.flag { background-image: url("/navigation/enterprise.png"); }
+
+.v4-side-nav .v4-side-link:hover .v4-line-icon,
+.v4-side-nav .v4-side-link.active .v4-line-icon {
+  filter: saturate(1.16) drop-shadow(0 3px 5px rgba(39, 84, 190, 0.24));
+  scale: 1.06;
+}
+
 .v4-line-icon.chat {
   border-radius: 9px;
 }
