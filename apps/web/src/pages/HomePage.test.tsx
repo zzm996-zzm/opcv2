@@ -197,6 +197,9 @@ describe("HomePage", () => {
     expect(screen.getByRole("link", { name: "仪表盘" })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: "CRM客户管理" })).toHaveAttribute("href", "/crm");
     expect(screen.getByRole("link", { name: "企业定制化陪跑" })).toHaveAttribute("href", "/enterprise");
+    expect(document.querySelector(".ref-home-metric .metric-icon.folder")).toBeInTheDocument();
+    expect(document.querySelector(".ref-home-metric .metric-icon.inbox")).toBeInTheDocument();
+    expect(document.querySelector(".ref-home-metric .metric-icon.trend")).toBeInTheDocument();
     expect(document.querySelector(".ref-home-domain-art.landing")).toBeInTheDocument();
     expect(document.querySelector(".ref-home-domain-art.ring")).not.toBeInTheDocument();
     expect(homeApi.summary).not.toHaveBeenCalled();

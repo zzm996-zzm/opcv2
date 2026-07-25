@@ -460,10 +460,12 @@
 .ref-home-metric > span { display: grid; gap: 12px; }
 .ref-home-metric small { color: var(--ref-muted); font-size: 14px; font-weight: 500; }
 .ref-home-metric strong { color: var(--ref-ink-strong); font-size: 30px; line-height: 1; font-weight: 600; }
-.ref-home-metric > i { position: relative; display: grid; width: 46px; height: 46px; background: #edf3ff; border-radius: 9px; place-items: center; }
-.ref-home-metric > i::after { width: 22px; height: 18px; border: 3px solid #1760f5; border-radius: 4px; content: ""; }
-.ref-home-metric > i.inbox::after { background: linear-gradient(135deg,#6fe0ff,#3170ff); border: 0; }
-.ref-home-metric > i.trend::after { width: 24px; height: 14px; border-top: 0; border-right: 0; border-radius: 0; transform: skewY(-18deg); }
+.ref-home-metric > i { position: relative; display: grid; width: 46px; height: 46px; background: transparent center/contain no-repeat; border-radius: 0; box-shadow: none; place-items: center; }
+.ref-home-metric > i.folder { background-image: url('/home/metric-project.png'); }
+.ref-home-metric > i.inbox { background-image: url('/home/metric-tasks.png'); }
+.ref-home-metric > i.trend { background-image: url('/home/metric-growth.png'); }
+.ref-home-metric > i::before,
+.ref-home-metric > i::after { display: none; }
 
 .ref-home-domains { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin-top: 24px; }
 .ref-home-domain { position: relative; min-height: 224px; overflow: hidden; padding: 32px 26px; color: var(--ref-ink); background: rgba(255,255,255,.82); border: 1px solid var(--ref-line); border-radius: 10px; text-decoration: none; transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
