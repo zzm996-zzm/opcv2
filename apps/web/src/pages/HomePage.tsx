@@ -22,7 +22,7 @@ const heroCards = [
     title: "落地",
     desc: "工具赋能，咨询陪跑，高效执行",
     href: "/tasks",
-    art: "ring"
+    art: "landing"
   },
   {
     title: "增长",
