@@ -249,6 +249,10 @@
     border-radius: 0;
   }
 
+  .ref-home-domain > div:first-child {
+    padding-right: 136px;
+  }
+
   .ref-home-domain:last-child {
     border-right: 0;
   }
@@ -311,6 +315,10 @@
     border: 0;
     border-right: 1px solid #f0f2f8;
     border-radius: 0;
+  }
+
+  .ref-home-recommend-card > div {
+    padding-right: 92px;
   }
 
   .ref-home-recommend-card:last-child {
@@ -953,5 +961,51 @@
     top: 118px;
     height: calc(100vh - 142px);
     margin-top: 8px;
+  }
+}
+
+@container home-dashboard (max-width: 900px) {
+  .ref-home-layout .ref-home-dashboard .ref-home-welcome {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .ref-home-domains {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ref-home-domain:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .ref-home-recommend-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container home-dashboard (max-width: 560px) {
+  .ref-home-domains {
+    grid-template-columns: 1fr;
+  }
+
+  .ref-home-domain:last-child {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  @container home-dashboard (max-width: 900px) {
+    .ref-home-domain:nth-child(2n) {
+      border-right: 0;
+    }
+
+    .ref-home-recommend-card {
+      border-right: 0;
+      border-bottom: 1px solid #f0f2f8;
+    }
+
+    .ref-home-recommend-card:last-child {
+      border-bottom: 0;
+    }
   }
 }
