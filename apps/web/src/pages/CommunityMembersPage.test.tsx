@@ -29,7 +29,7 @@ describe("CommunityMembersPage", () => {
     expect(screen.getByText("创业成长互助社区")).toBeInTheDocument();
     expect(screen.getByText("企业决策者交流圈")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "加入会员社群" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "会员社群二维码" })).toHaveAttribute("src", "/community/member-qr.jpg");
+    expect(screen.getByRole("img", { name: "会员社群二维码" })).toHaveAttribute("src", "/community/member-join-card.png");
     expect(screen.getByRole("button", { name: "我知道了" })).toBeInTheDocument();
     expect(screen.getByText("社群价值")).toBeInTheDocument();
     expect(screen.getByText("社群动态")).toBeInTheDocument();

@@ -2373,6 +2373,33 @@
   box-shadow: 0 20px 54px rgba(160, 111, 21, 0.22);
 }
 
+.community-ref-modal.template,
+.community-ref-modal-layer.enterprise .community-ref-modal.template {
+  width: min(410px, calc(100vw - 32px));
+  min-height: 0;
+  padding: 10px 10px 14px;
+}
+
+.community-ref-join-card {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.community-ref-modal.template > button:first-child {
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+  color: #5f6676;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(25, 37, 70, 0.12);
+}
+
+.community-ref-modal.template > button:last-child {
+  margin-top: 10px;
+}
+
 .community-ref-modal > button:first-child {
   position: absolute;
   top: 13px;

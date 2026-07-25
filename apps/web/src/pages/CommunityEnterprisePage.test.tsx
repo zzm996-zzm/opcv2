@@ -29,7 +29,7 @@ describe("CommunityEnterprisePage", () => {
     expect(screen.getByText("创业成长互助社区")).toBeInTheDocument();
     expect(screen.getByText("企业决策者交流圈")).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "加入企业社群" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "企业社群二维码" })).toHaveAttribute("src", "/community/enterprise-qr.jpg");
+    expect(screen.getByRole("img", { name: "企业社群二维码" })).toHaveAttribute("src", "/community/enterprise-join-card.png");
     expect(screen.getByRole("button", { name: "我知道了" })).toBeInTheDocument();
     expect(screen.getByText("社群价值")).toBeInTheDocument();
     expect(screen.getByText("从0到1搭建私域的3个关键动作")).toBeInTheDocument();

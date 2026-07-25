@@ -267,22 +267,34 @@ function JoinModal({ config, onClose, onSubmit, status, variant }: {
 }) {
   const isMember = variant === "members";
   const qrVariant = config?.qr_variants?.find((item) => item.key === variant);
-  const fallbackImage = isMember ? "/community/member-qr.jpg" : "/community/enterprise-qr.jpg";
+  const fallbackCard = isMember ? "/community/member-join-card.png" : "/community/enterprise-join-card.png";
+  const useFallbackCard = !qrVariant;
+  const dialogLabel = isMember ? "加入会员社群" : "加入企业社群";
+  const qrLabel = isMember ? "会员社群二维码" : "企业社群二维码";
 
   return (
     <div className={`community-ref-modal-layer ${isMember ? "member" : "enterprise"}`}>
       <button aria-label="关闭入群弹窗遮罩" className="community-ref-modal-scrim" onClick={onClose} type="button" />
-      <section aria-label={isMember ? "加入会员社群" : "加入企业社群"} aria-modal="true" className="community-ref-modal" role="dialog">
+      <section aria-label={dialogLabel} aria-modal="true" className={`community-ref-modal ${useFallbackCard ? "template" : ""}`} role="dialog">
         <button aria-label={isMember ? "关闭加入会员社群弹窗" : "关闭加入企业社群弹窗"} onClick={onClose} type="button">×</button>
-        {!isMember ? <i className="community-ref-crown" aria-hidden="true">♛</i> : null}
-        <h2>{isMember ? "加入会员社群" : "加入企业社群"}</h2>
-        <p>{config?.headline ?? (isMember ? <>与 <b>1,200+</b> 创业者一起交流成长</> : <>与 <b>300+</b> 企业决策者一起链接资源</>)}</p>
-        <div className="community-ref-qr">
-          <img alt={qrVariant?.label || (isMember ? "会员社群二维码" : "企业社群二维码")} src={qrVariant?.image_url || fallbackImage} />
-        </div>
-        <small><span aria-hidden="true">●●</span>{qrVariant?.description || "使用微信扫一扫，添加社群小助手，拉你入群"}</small>
-        {qrVariant?.join_url ? <a href={qrVariant.join_url}>打开入群链接</a> : null}
-        {status ? <strong role="status">{status}</strong> : null}
+        {useFallbackCard ? (
+          <>
+            <h2 className="ref-community-sr-only">{dialogLabel}</h2>
+            <img alt={qrLabel} className="community-ref-join-card" src={fallbackCard} />
+          </>
+        ) : (
+          <>
+            {!isMember ? <i className="community-ref-crown" aria-hidden="true">♛</i> : null}
+            <h2>{dialogLabel}</h2>
+            <p>{config?.headline ?? (isMember ? <>与 <b>1,200+</b> 创业者一起交流成长</> : <>与 <b>300+</b> 企业决策者一起链接资源</>)}</p>
+            <div className="community-ref-qr">
+              <img alt={qrVariant.label || qrLabel} src={qrVariant.image_url} />
+            </div>
+            <small><span aria-hidden="true">●●</span>{qrVariant.description || "使用微信扫一扫，添加社群小助手，拉你入群"}</small>
+            {qrVariant.join_url ? <a href={qrVariant.join_url}>打开入群链接</a> : null}
+            {status ? <strong role="status">{status}</strong> : null}
+          </>
+        )}
         <button onClick={onSubmit} type="button">我知道了</button>
       </section>
     </div>
