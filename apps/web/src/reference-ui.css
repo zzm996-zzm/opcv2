@@ -296,9 +296,9 @@
 .ref-project-core-card { position: relative; min-height: 194px; overflow: hidden; padding: 28px 24px; background: #fff; border: 1px solid var(--ref-line); border-radius: 12px; box-shadow: 0 8px 24px rgba(42,62,108,.04); transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
 .ref-project-core-card:hover { border-color: #cfdaeb; box-shadow: 0 14px 30px rgba(42,62,108,.09); transform: translateY(-2px); }
 .ref-project-core-card.robot { color: #fff; background: linear-gradient(120deg,#3152fb,#6b4cf5); border: 0; }
-.ref-project-core-card::after { position: absolute; right: 18px; bottom: 20px; width: 132px; height: 112px; background: url('/project-market/core-explore.jpg') center/cover; border-radius: 8px; content: ""; mix-blend-mode: multiply; transition: filter 220ms ease, scale 360ms cubic-bezier(.22,.8,.3,1); }
-.ref-project-core-card.robot::after { background-image: url('/project-market/core-match.jpg'); mix-blend-mode: screen; }
-.ref-project-core-card.case::after { background-image: url('/project-market/core-cases.jpg'); }
+.ref-project-core-card::after { position: absolute; right: 18px; bottom: 20px; width: 132px; height: 112px; background: url('/project-market/core-explore.png') center/cover; border-radius: 8px; content: ""; transition: filter 220ms ease, scale 360ms cubic-bezier(.22,.8,.3,1); }
+.ref-project-core-card.robot::after { background-image: url('/project-market/core-match.png'); }
+.ref-project-core-card.case::after { background-image: url('/project-market/core-cases.png'); }
 .ref-project-core-card:hover::after { filter: saturate(1.12) contrast(1.02); scale: 1.06; }
 .ref-project-core-card > div { position: relative; z-index: 2; width: 60%; }
 .ref-project-core-card h3 { margin: 0; color: inherit; font-size: 18px; font-weight: 600; }

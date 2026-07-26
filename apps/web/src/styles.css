@@ -18250,7 +18250,7 @@ a:active {
 }
 
 .pm-hero.compact.history .pm-ai-art {
-  background-image: url("/project-market/history-hero.jpg");
+  background-image: url("/project-market/history-hero.png");
 }
 
 .pm-hero.compact.questions {
@@ -18514,16 +18514,16 @@ a:active {
   width: 104px;
   height: 104px;
   content: "";
-  background: transparent url("/project-market/core-match.jpg") center / contain no-repeat;
+  background: transparent url("/project-market/core-match.png") center / contain no-repeat;
   transform: translateY(-50%);
 }
 
 .pm-core-card.lens::after {
-  background-image: url("/project-market/core-explore.jpg");
+  background-image: url("/project-market/core-explore.png");
 }
 
 .pm-core-card.case::after {
-  background-image: url("/project-market/core-cases.jpg");
+  background-image: url("/project-market/core-cases.png");
 }
 
 .pm-section-head {
