@@ -4,12 +4,12 @@ import { Link } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningCourse } from "../lib/learningApi";
-import { referenceCourses } from "../lib/learningReference";
+import { learningCourseCover, referenceCourses } from "../lib/learningReference";
 
 const learningActions = [
-  ["能力诊断", "提交目标和项目上下文，生成可追溯的模型评估。", "开始诊断", "/learning/diagnosis"],
-  ["系统学习路径", "查看诊断快照生成的阶段计划并记录完成状态。", "查看路径", "/learning/plan"],
-  ["学习历史进度", "查看已经持久化的课程学习进度。", "查看进度", "/learning/history"]
+  ["能力诊断", "提交目标和项目上下文，生成可追溯的模型评估。", "开始诊断", "/learning/diagnosis", "/learning/function-diagnosis.jpg"],
+  ["系统学习路径", "查看诊断快照生成的阶段计划并记录完成状态。", "查看路径", "/learning/plan", "/learning/function-path.jpg"],
+  ["学习历史进度", "查看已经持久化的课程学习进度。", "查看进度", "/learning/history", "/learning/function-history.jpg"]
 ] as const;
 
 function formatLearners(value: number) {
@@ -47,7 +47,7 @@ function LearningPage() {
             <div className="course-row">
               {courses.map((course, index) => (
                 <Link className="course-card" key={course.slug} to={`/learning/courses/${course.slug}`}>
-                  <div className={`course-cover ${["blue", "cyan", "violet", "deep"][index % 4]}`} style={{ backgroundImage: `url(/learning/course-0${index + 1}.jpg)` }}><span>{course.category}</span><i aria-hidden="true" /></div>
+                  <div className={`course-cover ${["blue", "cyan", "violet", "deep"][index % 4]}`} style={{ backgroundImage: `url(${learningCourseCover(course.category)})` }}><span>{course.category}</span><i aria-hidden="true" /></div>
                   <div className="course-copy"><h3>{course.title}</h3><p>{course.description}</p><footer><small>{course.category} · {course.hours}课时</small><small>{formatLearners(course.learners)}</small><strong>{course.price_label}</strong></footer></div>
                 </Link>
               ))}
@@ -56,7 +56,7 @@ function LearningPage() {
 
           <section className="learning-card learning-functions" aria-label="学习功能">
             <h2>学习功能</h2><div className="learning-function-grid">
-              {learningActions.map(([title, description, action, href]) => <article className="learning-function-card" key={title}><div><h3>{title}</h3><p>{description}</p><Link to={href}>{action} ›</Link></div></article>)}
+              {learningActions.map(([title, description, action, href, artwork]) => <article className="learning-function-card" key={title}><div><h3>{title}</h3><p>{description}</p><Link to={href}>{action} ›</Link></div><img alt="" className="learning-function-art" src={artwork} /></article>)}
             </div>
           </section>
         </div>

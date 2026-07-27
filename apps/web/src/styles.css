@@ -46897,7 +46897,7 @@ a:active {
 
 .learning-hero-art {
   height: 150px;
-  background: url("/learning/hero-learning.jpg") center / contain no-repeat;
+  background: url("/learning/hero-learning.png") center / contain no-repeat;
 }
 
 .learning-card {
@@ -46929,7 +46929,7 @@ a:active {
 .course-cover,
 .course-catalog-card .course-cover,
 .recommended-cover {
-  background-position: center !important;
+  background-position: left center !important;
   background-repeat: no-repeat !important;
   background-size: cover !important;
 }
@@ -46980,9 +46980,23 @@ a:active {
 }
 
 .learning-function-card {
-  min-height: 170px;
+  grid-template-columns:minmax(0,1fr) 86px;
+  gap:4px;
+  min-height:190px;
+  padding:18px 14px;
   border-radius: 5px;
 }
+
+.learning-function-card .learning-function-art {
+  align-self:center;
+  width:92px;
+  height:92px;
+  object-fit:contain;
+  mix-blend-mode:multiply;
+}
+
+.learning-function-card p { max-width:100%; }
+.learning-function-card a { min-width:0; padding-right:12px; padding-left:12px; }
 
 .learning-copilot {
   top: 102px;
@@ -47297,7 +47311,7 @@ a:active {
 .recommended-header {
   min-height: 135px;
   padding: 20px 420px 18px 22px;
-  background: #eef3ff url("/learning/hero-learning.jpg") right 12px center / 390px 128px no-repeat;
+  background: #eef3ff url("/learning/hero-learning.png") right 12px center / 390px 128px no-repeat;
   border-radius: 6px;
 }
 

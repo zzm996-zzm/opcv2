@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningCourse } from "../lib/learningApi";
-import { referenceCourses } from "../lib/learningReference";
+import { learningCourseCover, referenceCourses } from "../lib/learningReference";
 
 const categoryTabs = ["全部", "入门", "实战", "行业", "工具"] as const;
 
@@ -47,13 +47,13 @@ function LearningCoursesPage() {
             <label className="courses-search"><input aria-label="搜索课程" onChange={(event) => setQuery(event.target.value)} placeholder="搜索课程名称或关键词" value={query} /><span aria-hidden="true" /></label>
           </header>
           <div className="courses-toolbar" aria-label="课程筛选"><div className="course-tabs">{categoryTabs.map((tab) => <button className={category === tab ? "active" : ""} key={tab} onClick={() => setCategory(tab)} type="button">{tab}</button>)}</div></div>
-          <section className="learning-hot-strip" aria-label="本周热门课程"><strong>🔥 本周热门课程</strong>{referenceCourses.slice(0, 3).map((course, index) => <Link key={course.slug} to={`/learning/courses/${course.slug}`}><img alt="" src={`/learning/course-${String(index + 1).padStart(2, "0")}.jpg`} /><span><b>{course.title}</b><small>{formatLearners(course.learners)} 🔥</small></span></Link>)}<Link to="/learning/courses">查看全部榜单 ›</Link></section>
+          <section className="learning-hot-strip" aria-label="本周热门课程"><strong>🔥 本周热门课程</strong>{referenceCourses.slice(0, 3).map((course) => <Link key={course.slug} to={`/learning/courses/${course.slug}`}><img alt="" src={learningCourseCover(course.category)} /><span><b>{course.title}</b><small>{formatLearners(course.learners)} 🔥</small></span></Link>)}<Link to="/learning/courses">查看全部榜单 ›</Link></section>
           {loading ? <p role="status">正在加载课程目录...</p> : null}
           {!loading && visibleCourses.length === 0 ? <p role="status">没有符合条件的课程。</p> : null}
           <section className="course-catalog-grid" aria-label="课程列表">
             {visibleCourses.map((course, index) => (
               <Link className="course-catalog-card" key={course.slug} to={`/learning/courses/${course.slug}`}>
-                <div className={`course-cover ${["ai", "chat", "headset", "bars"][index % 4]}`} style={{ backgroundImage: `url(/learning/course-${String(index % 15 + 1).padStart(2, "0")}.jpg)` }}><span>{course.category}</span><i aria-hidden="true" /></div>
+                <div className={`course-cover ${["ai", "chat", "headset", "bars"][index % 4]}`} style={{ backgroundImage: `url(${learningCourseCover(course.category)})` }}><span>{course.category}</span><i aria-hidden="true" /></div>
                 <div className="course-card-copy"><h2>{course.title}</h2><p>{course.description}</p><footer><small>{course.hours}课时</small><small>{formatLearners(course.learners)}</small><strong>{course.price_label}</strong></footer></div>
               </Link>
             ))}

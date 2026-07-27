@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { learningApi, type LearningCourse } from "../lib/learningApi";
-import { referenceCourses } from "../lib/learningReference";
+import { learningCourseCover, referenceCourses } from "../lib/learningReference";
 
 function formatLearners(value: number) {
   if (value >= 1000) return `${(value / 1000).toFixed(1)}k人学习`;
@@ -33,7 +33,7 @@ function LearningRecommendedCoursesPage() {
           {loading ? <p role="status">正在加载课程...</p> : null}
           {!loading && courses.length === 0 ? <p role="status">当前暂无已发布课程。</p> : null}
           <section className="recommended-course-grid" aria-label="已发布课程">
-            {courses.map((course, index) => <Link className="recommended-course-card" key={course.slug} to={`/learning/courses/${course.slug}`}><div className={`recommended-cover thumb-${index % 4 + 1}`} style={{ backgroundImage: `url(/learning/course-${String(index % 15 + 1).padStart(2, "0")}.jpg)` }}><span>{course.category}</span></div><div className="recommended-card-copy"><h2>{course.title}</h2><p>{course.description}</p><footer><small>{course.hours}课时</small><small>{formatLearners(course.learners)}</small><strong>{course.price_label}</strong></footer></div></Link>)}
+            {courses.map((course, index) => <Link className="recommended-course-card" key={course.slug} to={`/learning/courses/${course.slug}`}><div className={`recommended-cover thumb-${index % 4 + 1}`} style={{ backgroundImage: `url(${learningCourseCover(course.category)})` }}><span>{course.category}</span></div><div className="recommended-card-copy"><h2>{course.title}</h2><p>{course.description}</p><footer><small>{course.hours}课时</small><small>{formatLearners(course.learners)}</small><strong>{course.price_label}</strong></footer></div></Link>)}
           </section>
         </div>
         <aside className={`learning-copilot recommended-copilot ${copilotOpen ? "" : "collapsed"}`} aria-label="智活 Copilot 课程助手">

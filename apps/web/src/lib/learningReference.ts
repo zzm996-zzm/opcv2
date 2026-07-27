@@ -11,6 +11,17 @@ import type {
 
 const timestamp = "2024-05-20T10:30:00+08:00";
 
+const courseCoverByCategory: Record<string, string> = {
+  入门: "/learning/course-entry.jpg",
+  实战: "/learning/course-practice.jpg",
+  行业: "/learning/course-industry.jpg",
+  工具: "/learning/course-tools.jpg"
+};
+
+export function learningCourseCover(category: string) {
+  return courseCoverByCategory[category] ?? courseCoverByCategory.实战;
+}
+
 export const referenceCourses: LearningCourse[] = [
   [1, "ai-basics", "AI基础入门：从0到1了解AI", "快速掌握 AI 核心概念与应用场景", "入门", "入门", 18, 12400, "免费", ["AI基础", "认知入门"], ["AI基础认知", "AI能力地图与应用场景", "常用AI工具入门"]],
   [2, "prompt-engineering", "提示词工程实战", "掌握高质量提示词设计与优化技巧", "实战", "实战", 24, 8700, "会员免费", ["提示词", "实战"], ["提示词基本结构", "复杂场景提示词设计", "多轮对话策略"]],
