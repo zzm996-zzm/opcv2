@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Clock3, History, Search, ShieldCheck, Users } from "lucide-react";
+import { ArrowRight, History, Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
@@ -10,10 +10,10 @@ type SandboxHomeViewProps = {
 };
 
 const pillars = [
-  { title: "多角色推演", detail: "五大核心视角全面洞察", icon: Users },
-  { title: "机会与风险识别", detail: "推演发现关键影响因素", icon: ShieldCheck },
-  { title: "科学决策支持", detail: "数据驱动更优决策", icon: BarChart3 },
-  { title: "推演历史沉淀", detail: "复盘迭代持续优化", icon: Clock3 }
+  { title: "多角色推演", detail: "五大核心视角全面洞察", artwork: "/sandbox/pillar-roles.jpg" },
+  { title: "机会与风险识别", detail: "推演发现关键影响因素", artwork: "/sandbox/pillar-risks.jpg" },
+  { title: "科学决策支持", detail: "数据驱动更优决策", artwork: "/sandbox/pillar-decisions.jpg" },
+  { title: "推演历史沉淀", detail: "复盘迭代持续优化", artwork: "/sandbox/pillar-history.jpg" }
 ];
 
 function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
@@ -45,7 +45,7 @@ function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
             <h2>多角色模拟未来，推演不同视角，判断项目机会与风险</h2>
             <p>从用户、竞争、运营、增长到风险，多维度模拟真实世界的商业逻辑，助力科学决策。</p>
           </div>
-          <img alt="多角色商业沙盘" className="sb-home-art" src="/sandbox/home-hero.jpg" />
+          <img alt="多角色商业沙盘" className="sb-home-art" src="/sandbox/home-hero.png" />
           <form className="sb-home-start" onSubmit={submit}>
             <Search aria-hidden="true" className="sb-home-search" size={22} />
             <label htmlFor="sandbox-initial-idea">描述你要推演的项目或情况</label>
@@ -65,9 +65,9 @@ function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
           </form>
         </section>
         <section aria-label="商业沙盘能力" className="sb-pillar-strip">
-          {pillars.map(({ detail, icon: Icon, title }, index) => (
+          {pillars.map(({ artwork, detail, title }, index) => (
             <article key={title}>
-              <span><Icon size={20} /></span>
+              <span><img alt="" src={artwork} /></span>
               <div><strong>{title}</strong><small>{detail}</small></div>
               <b>{String(index + 1).padStart(2, "0")}</b>
             </article>
@@ -79,4 +79,3 @@ function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
 }
 
 export default SandboxHomeView;
-

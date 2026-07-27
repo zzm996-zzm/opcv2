@@ -38128,7 +38128,7 @@ a:active {
   position: absolute;
   z-index: 1;
   inset: 0 0 0 360px;
-  background: transparent url("/sandbox/home-hero.jpg") center top / contain no-repeat;
+  background: transparent url("/sandbox/home-hero.png") center top / contain no-repeat;
 }
 
 .sandbox-orbit > * {
