@@ -1082,7 +1082,7 @@
 .data-hero-art {
   min-height: 240px;
   margin: -18px -20px -20px 0;
-  background: url("/landing/data-hero.jpg") center / cover no-repeat;
+  background: url("/landing/data-hero.jpg") right center / cover no-repeat;
   border-radius: 4px;
 }
 
@@ -1442,6 +1442,7 @@
   .ai-task-summary > div { grid-template-columns:1fr; }
   .ai-task-result > header { align-items:stretch; flex-direction:column; }
   .data-ref-hero { grid-template-columns:1fr; padding:28px 22px 56px; }
+  .data-ref-hero .hero-pills { margin-bottom:34px; }
   .data-hero-art { min-height:190px; margin:10px 0 -12px; }
   .data-query-card { margin:-32px 10px 0; padding:16px; }
   .data-query-card > div { grid-template-columns:1fr; }
