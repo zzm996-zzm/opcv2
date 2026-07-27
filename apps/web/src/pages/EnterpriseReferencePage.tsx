@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
@@ -144,7 +145,12 @@ function EnterpriseCaseDetail({ onContact }: { onContact: () => void }) {
 function EnterpriseSuccess() {
   return (
     <main className="er-success-page">
-      <div className="er-success-icon">✓</div><h1>需求提交成功！</h1><p>感谢您的信任！我们已收到您的需求，专业顾问团队将在 <b>24 小时内</b> 与您联系，<br />为您提供专属解决方案。</p>
+      <div className="er-success-icon" aria-hidden="true">
+        <i /><i /><i /><i /><i /><i />
+        <Check size={58} strokeWidth={5} />
+      </div>
+      <h1>需求提交成功！</h1>
+      <p>感谢您的信任！我们已收到您的需求，专业顾问团队将在 <b>24 小时内</b> 与您联系，<br />为您提供专属解决方案。</p>
       <section className="er-success-info"><h2>您的提交信息</h2>{[["▥", "企业名称", "上海智活科技有限公司"], ["♟", "联系人", "张婧"], ["☎", "联系方式", "138 **** 5678"], ["▣", "提交时间", "2024-06-01 14:30:25"]].map(([icon, label, value]) => <article key={label}><i>{icon}</i><strong>{label}</strong><span>{value}</span></article>)}</section>
       <h2>我们将为您</h2><section className="er-success-services">{[["♙", "专业顾问 1对1联系沟通", "资深行业顾问将尽快与您取得联系，深入了解您的业务需求与目标。"], ["◇", "定制方案评估", "结合行业最佳实践与数据洞察，为您量身定制可落地的增长解决方案。"], ["▣", "排期跟踪服务", "全流程进度跟踪，关键节点及时同步，确保项目高效推进与落地。"]].map(([icon, title, detail]) => <article key={title}><i>{icon}</i><div><strong>{title}</strong><p>{detail}</p></div></article>)}</section>
       <Link to="/">⌂ 返回首页</Link>

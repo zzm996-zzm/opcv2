@@ -48489,7 +48489,32 @@ a:active {
   text-align:center;
 }
 
-.er-success-icon { display:grid; width:310px; height:120px; overflow:hidden; color:transparent; background:url("/enterprise-reference/success-check.png") center / contain no-repeat; place-items:center; font-size:0; }
+.er-success-icon {
+  position:relative;
+  display:grid;
+  width:310px;
+  height:120px;
+  overflow:hidden;
+  color:#fff;
+  place-items:center;
+}
+.er-success-icon::before {
+  width:88px;
+  height:88px;
+  content:"";
+  background:linear-gradient(145deg,#4ce089,#08b867);
+  border:1px solid rgba(0,151,81,.2);
+  border-radius:50%;
+  box-shadow:0 13px 24px rgba(8,184,103,.18),inset 0 2px 3px rgba(255,255,255,.42);
+}
+.er-success-icon svg { position:absolute; z-index:1; filter:drop-shadow(0 2px 1px rgba(0,107,60,.14)); }
+.er-success-icon i { position:absolute; width:7px; height:16px; background:#7569ed; border-radius:3px; transform:rotate(-24deg); }
+.er-success-icon i:nth-child(1) { top:15px; left:68px; }
+.er-success-icon i:nth-child(2) { top:27px; left:111px; width:6px; height:10px; background:#ffbd3d; transform:rotate(28deg); }
+.er-success-icon i:nth-child(3) { top:18px; right:94px; width:9px; height:9px; background:#55d6a1; transform:rotate(45deg); }
+.er-success-icon i:nth-child(4) { top:38px; right:58px; width:8px; height:8px; background:#f05a83; transform:rotate(22deg); }
+.er-success-icon i:nth-child(5) { bottom:18px; left:48px; width:5px; height:9px; background:#d6d7e8; transform:rotate(36deg); }
+.er-success-icon i:nth-child(6) { right:119px; bottom:15px; width:7px; height:7px; background:#599cff; transform:rotate(18deg); }
 .er-success-page > h1 { margin-top:44px; font-size:42px; }
 .er-success-page > p { margin:14px 0 0; color:#68729c; font-size:16px; line-height:1.8; }
 .er-success-page > p b { color:#3c3bd2; }
