@@ -39815,10 +39815,15 @@ a:active {
 }
 
 .cdk-history-page,
-.cdk-leads-page,
 .cdk-insights-page,
 .cdk-tools-page {
   min-width: 1180px;
+  padding-bottom: 54px;
+}
+
+.cdk-leads-page {
+  width: 100%;
+  min-width: 0;
   padding-bottom: 54px;
 }
 
@@ -39836,6 +39841,16 @@ a:active {
   width: min(1360px, calc(100vw - 96px));
   margin-right: auto;
   margin-left: auto;
+}
+
+.cdk-leads-hero,
+.cdk-leads-search-card,
+.cdk-leads-crm-card,
+.cdk-leads-result-card,
+.cdk-leads-source-section,
+.cdk-leads-rule-section,
+.cdk-leads-extra {
+  width: min(1360px, 100%);
 }
 
 .cdk-history-hero {
@@ -40592,6 +40607,130 @@ a:active {
 
 .cdk-leads-extra {
   margin-top: 22px;
+}
+
+@media (max-width: 1540px) {
+  .cdk-leads-crm-card {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .cdk-leads-follow-table {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 1180px) {
+  .cdk-leads-hero {
+    grid-template-columns: 170px minmax(0, 1fr);
+  }
+
+  .cdk-crown-art {
+    width: 150px;
+  }
+
+  .cdk-leads-formula {
+    grid-column: 1 / -1;
+  }
+
+}
+
+@media (max-width: 760px) {
+  .cdk-leads-hero,
+  .cdk-leads-search-card,
+  .cdk-leads-crm-card,
+  .cdk-leads-source-section > div,
+  .cdk-leads-rule-section {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cdk-leads-hero {
+    gap: 18px;
+    margin-top: 20px;
+  }
+
+  .cdk-crown-art {
+    width: 136px;
+    height: 104px;
+  }
+
+  .cdk-crown-art::before {
+    top: 22px;
+    left: 28px;
+    width: 90px;
+    height: 58px;
+  }
+
+  .cdk-leads-hero h1 {
+    font-size: 36px;
+  }
+
+  .cdk-leads-formula {
+    grid-column: auto;
+    padding: 18px;
+  }
+
+  .cdk-leads-formula div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cdk-leads-formula i {
+    display: none;
+  }
+
+  .cdk-leads-search-card {
+    padding: 20px 18px 0;
+  }
+
+  .cdk-leads-search-card label,
+  .cdk-leads-search-card textarea,
+  .cdk-leads-tags,
+  .cdk-leads-actions {
+    grid-column: 1;
+  }
+
+  .cdk-leads-search-card textarea,
+  .cdk-leads-tags,
+  .cdk-leads-actions {
+    grid-row: auto;
+  }
+
+  .cdk-leads-tags {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-bottom: 8px;
+  }
+
+  .cdk-leads-actions {
+    justify-items: stretch;
+    padding-bottom: 18px;
+  }
+
+  .cdk-leads-actions button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .cdk-leads-safe {
+    margin: 0 -18px;
+    padding: 14px 18px;
+  }
+
+  .cdk-leads-crm-card,
+  .cdk-leads-result-card {
+    padding: 20px;
+  }
+
+  .cdk-leads-stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cdk-leads-table-head {
+    display: none;
+  }
+
+  .cdk-leads-rule-section {
+    align-items: start;
+  }
 }
 
 .cdk-insights-page .insights-page,
