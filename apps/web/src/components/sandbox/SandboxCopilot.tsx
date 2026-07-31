@@ -17,9 +17,9 @@ type SandboxCopilotProps = {
 
 const modeCopy: Record<SandboxCopilotMode, { user: string; assistant: string; actions: Array<[string, string]> }> = {
   home: {
-    user: "我有一个新的项目设想，想从多个角度判断机会与潜在风险。",
-    assistant: "告诉我项目、目标用户和你最想验证的问题。我会先补齐关键信息，再组织多角色推演。",
-    actions: [["开始多角色推演", "/sandbox/setup"], ["查看推演思路", "/sandbox/questions"], ["历史推演记录", "/sandbox/history"]]
+    user: "我有一个智能家居新品的想法，帮我从多角度分析市场并评估机会与潜在风险。",
+    assistant: "好的，既然从用户、竞争对手、运营策略、增长路径和风险研判等多个角色进行模拟推演，为你输出机会与风险判断结果。",
+    actions: [["开始多角色推演", "/sandbox/setup"], ["查看推演思路", "/sandbox/questions"], ["生成推演大纲", "/sandbox/setup"], ["历史推演记录", "/sandbox/history"]]
   },
   questions: {
     user: "请帮我补齐这次推演需要的信息。",
@@ -67,7 +67,7 @@ function SandboxCopilot({ children, mode, progress, project }: SandboxCopilotPro
   }
 
   return (
-    <aside className="sb-copilot" aria-label="智活 Copilot">
+    <aside className={`sb-copilot${mode === "home" ? " sb-copilot-home" : ""}`} aria-label="智活 Copilot">
       <header>
         <span className="sb-copilot-mark" aria-hidden="true"><Sparkles size={20} /></span>
         <div>

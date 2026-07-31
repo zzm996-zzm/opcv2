@@ -1,0 +1,223 @@
+/* Final home-page parity overrides for the supplied 1672 x 941 reference. */
+
+.sb-home-shell.v4-shell {
+  --app-sidebar-width: 250px;
+  --app-topbar-height: 66px;
+}
+
+@media (min-width: 1401px) {
+  .sb-home-shell.v4-shell .v4-sidebar {
+    padding: 16px 16px 22px;
+  }
+
+  .sb-home-shell.v4-shell .v4-brand {
+    gap: 10px;
+  }
+
+  .sb-home-shell.v4-shell .v4-logo {
+    width: 32px;
+    height: 30px;
+  }
+
+  .sb-home-shell.v4-shell .v4-brand-name {
+    font-size: 23px;
+  }
+
+  .sb-home-shell.v4-shell .v4-side-nav {
+    gap: 22px;
+    margin-top: 49px;
+  }
+
+  .sb-home-shell.v4-shell .v4-side-link,
+  .sb-home-shell.v4-shell .v4-side-link.active {
+    min-height: 30px;
+    gap: 14px;
+    font-size: 15px;
+  }
+
+  .sb-home-shell.v4-shell .v4-side-link.active {
+    width: calc(100% + 24px);
+    min-height: 42px;
+    margin-left: -12px;
+    padding: 0 12px;
+    color: #1760f5;
+    background: #f0f2ff;
+    border-radius: 8px;
+  }
+
+  .sb-home-shell.v4-shell .v4-sidebar-bottom {
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+  }
+
+  .sb-home-shell.v4-shell .sidebar-collapse {
+    min-height: 26px;
+  }
+
+  .sb-home-shell.v4-shell .v4-page-topbar {
+    height: 66px;
+    min-height: 66px;
+    padding: 5px 28px 5px 58px;
+  }
+
+  .sb-home-shell.v4-shell .v4-topnav {
+    height: 56px;
+    min-height: 56px;
+    gap: 30px;
+    padding: 0 28px;
+    border-radius: 0 0 22px 22px;
+  }
+
+  .sb-home-shell.v4-shell .v4-topnav a {
+    min-height: 56px;
+    font-size: 16px;
+  }
+
+  .sb-home-shell.v4-shell .v4-account-area {
+    height: 56px;
+  }
+
+  .sb-home-shell.v4-shell .v4-avatar {
+    width: 36px;
+    height: 36px;
+    border-width: 2px;
+  }
+
+  .sb-home-frame.sb-app {
+    padding: 22px 24px 30px 38px;
+  }
+
+  .sb-home-frame .sb-page-grid {
+    grid-template-columns: minmax(0, 1008px) 300px;
+    gap: 52px;
+    width: 1360px;
+    max-width: 100%;
+  }
+
+  .sb-home-frame .sb-home-main {
+    min-height: 817px;
+  }
+
+  .sb-home-frame .sb-home-hero {
+    min-height: 711px;
+  }
+
+  .sb-home-frame .sb-home-copy {
+    width: 366px;
+    padding: 80px 0 0 15px;
+  }
+
+  .sb-home-frame .sb-home-copy h1 {
+    margin-bottom: 26px;
+    font-size: 58px !important;
+    line-height: 1 !important;
+    font-weight: 900 !important;
+  }
+
+  .sb-home-shell.v4-shell .v4-page-main .sb-home-copy h2 {
+    max-width: 360px;
+    margin-bottom: 20px;
+    font-size: 20px !important;
+    line-height: 1.62 !important;
+    font-weight: 800 !important;
+  }
+
+  .sb-home-shell.v4-shell .v4-page-main .sb-home-copy > p {
+    max-width: 340px;
+    font-size: 13px !important;
+    line-height: 1.8 !important;
+  }
+
+  .sb-home-frame .sb-home-art {
+    top: -25px;
+    right: -16px;
+    width: 684px;
+    height: 708px;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .sb-home-frame .sb-home-start {
+    top: 350px;
+    left: 0;
+    width: 380px;
+    min-height: 260px;
+    padding: 32px 36px 26px;
+  }
+
+  .sb-home-shell.v4-shell .v4-page-main .sb-home-start textarea {
+    font-size: 13px !important;
+    line-height: 1.7 !important;
+  }
+
+  .sb-home-frame .sb-home-search,
+  .sb-home-frame .sb-home-start label,
+  .sb-home-frame .sb-home-start textarea {
+    transform: translateX(4px);
+  }
+
+  .sb-home-frame .sb-pillar-strip {
+    width: calc(100% - 8px);
+    min-height: 100px;
+    margin: -14px 0 0 10px;
+  }
+
+  .sb-home-frame .sb-home-actions {
+    grid-template-columns: 160px 126px;
+    gap: 20px;
+  }
+
+  .sb-home-frame .sb-copilot-home {
+    top: 63px;
+    width: 300px;
+    min-height: 696px;
+    height: 696px;
+    max-height: 696px;
+    gap: 16px;
+    padding: 22px 18px 16px;
+  }
+
+  .sb-home-frame .sb-copilot-home nav {
+    margin-top: 28px;
+  }
+
+  .sb-home-frame .sb-copilot-home nav a {
+    min-height: 48px;
+  }
+
+  .sb-home-shell.v4-shell .v4-page-main .sb-copilot-home header small {
+    font-size: 11px !important;
+  }
+
+  .sb-home-shell.v4-shell .v4-page-main .sb-copilot-home .sb-copilot-thread p {
+    font-size: 12px !important;
+    line-height: 1.75 !important;
+  }
+
+  .sb-home-frame .sb-copilot-home .sb-copilot-thread {
+    gap: 53px;
+    margin-top: 31px;
+    padding-right: 9px;
+  }
+
+  .sb-home-frame .sb-copilot-home .sb-copilot-thread article {
+    gap: 15px;
+  }
+
+  .sb-home-frame .sb-copilot-home .sb-copilot-input {
+    margin-top: auto;
+  }
+
+  .sb-home-shell.v4-shell .v4-page-main .sb-pillar-strip small {
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .sb-home-frame .sb-home-art {
+    object-fit: cover;
+    object-position: center;
+  }
+}

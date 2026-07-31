@@ -24,9 +24,11 @@ function SandboxFrame({
   copilotProject,
   title = true
 }: SandboxFrameProps) {
+  const isHome = copilotMode === "home" && title === false;
+
   return (
-    <V4PageShell className="sb-shell" showCopilotMini={false}>
-      <section className={`sb-app ${className}`} aria-label="商业沙盘">
+    <V4PageShell className={`sb-shell${isHome ? " sb-home-shell" : ""}`} showCopilotMini={false}>
+      <section className={`sb-app${isHome ? " sb-home-frame" : ""} ${className}`} aria-label="商业沙盘">
         <div className="sb-page-grid">
           <main className="sb-page-content">
             {title && (
@@ -48,4 +50,3 @@ function SandboxFrame({
 }
 
 export default SandboxFrame;
-
