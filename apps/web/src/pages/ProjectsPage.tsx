@@ -239,16 +239,16 @@ function MarketHome() {
     <>
       <section className="ref-project-hero">
         <div className="ref-project-hero-copy">
-          <h1>项目超市</h1>
-          <h2>发现下一个可落地机会</h2>
-          <p>从真实案例、赛道数据、失败教训和增长路径中筛出适合你的项目。</p>
+          <h1 className="pm-asset-copy-sr">项目超市</h1>
+          <h2 className="pm-asset-copy-sr">发现下一个可落地机会</h2>
+          <p className="pm-asset-copy-sr">从真实案例、赛道数据、失败教训和增长路径中筛出适合你的项目。</p>
           <form className="ref-project-search" onSubmit={(event) => { event.preventDefault(); navigate(`/projects/explore${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`); }}>
             <span aria-hidden="true">⌕</span>
             <input aria-label="搜索项目名称、行业、关键词" onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目名称、行业、关键词" value={query} />
             <button type="submit" aria-label="搜索">⌕</button>
           </form>
         </div>
-        <img className="ref-project-hero-art" alt="" src="/project-market/home-hero.jpg" />
+        <img className="ref-project-hero-art" alt="" src="/project-market/home-hero-full.png" />
       </section>
 
       <section className="ref-project-badges" aria-label="项目机会标签">

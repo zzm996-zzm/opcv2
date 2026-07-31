@@ -79,49 +79,108 @@
 }
 
 .project-market-shell .pm-layout-home .ref-project-hero-art {
-  inset: 0 0 0 auto;
-  width: 650px;
-  height: 362px;
-  object-fit: cover;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
   object-position: center;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%);
-  mask-image: linear-gradient(90deg, transparent, #000 5%);
+  mix-blend-mode: normal;
+  -webkit-mask-image: none;
+  mask-image: none;
 }
 
 .project-market-shell .pm-layout-home .ref-project-hero-copy > h1,
 .project-market-shell .pm-layout-home .ref-project-hero-copy > h2,
 .project-market-shell .pm-layout-home .ref-project-hero-copy > p {
-  position: static;
-  width: auto;
-  height: auto;
-  overflow: visible;
-  clip: auto;
-  white-space: normal;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .project-market-shell .pm-layout-home .ref-project-hero-copy {
-  padding-top: 44px;
-  padding-left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
 }
 
-.project-market-shell .pm-layout-home .ref-project-hero-copy > p {
-  width: 340px;
+.project-market-shell .pm-layout-home .ref-project-hero {
+  height: min(538px, 44vw);
+  min-height: 420px;
 }
 
 .project-market-shell .pm-layout-home .ref-project-search {
-  left: 0;
+  top: auto;
+  bottom: 140px;
+  left: 8px;
+  width: min(585px, 58%);
+  height: 70px;
+  grid-template-columns: 52px minmax(0, 1fr) 70px;
+  border-radius: 10px;
 }
 
-.project-market-shell .pm-layout-home .ref-project-search {
-  z-index: 3;
+.project-market-shell .project-market-page:has(.pm-layout-home) {
+  max-width: 1700px;
 }
 
-.project-market-shell .pm-layout-home .ref-project-core-card::after {
-  right: 0;
-  bottom: -3px;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
+.project-market-shell .pm-layout-home .ref-project-search > span {
+  font-size: 28px;
+}
+
+.project-market-shell .pm-layout-home .ref-project-search input {
+  font-size: 17px;
+}
+
+.project-market-shell .pm-layout-home .ref-project-search button {
+  width: 60px;
+  height: 58px;
+  margin-right: 6px;
+  border-radius: 10px;
+  font-size: 20px;
+}
+
+.project-market-shell .pm-layout-home .ref-project-badges {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 220px;
+  margin-top: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.project-market-shell .pm-layout-home .ref-project-badges article {
+  min-height: 110px;
+  padding: 0 28px;
+  border-bottom: 1px solid #e9edf5;
+}
+
+.project-market-shell .pm-layout-home .ref-project-badges article:nth-child(3n) {
+  border-right: 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-badges article:nth-child(n + 4) {
+  border-bottom: 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core {
+  margin-top: 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card {
+  min-height: 220px;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card.robot {
+  grid-column: 1 / -1;
+  min-height: 260px;
+  padding: 36px 34px;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.robot::after {
@@ -129,8 +188,9 @@
   width: 100%;
   height: 100%;
   background-image: url("/project-market/core-match-full.jpg");
-  background-position: 58% 40%;
-  background-size: auto 249%;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: calc(100% - 170px) auto;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.robot > div {
@@ -140,6 +200,10 @@
 
 .project-market-shell .pm-layout-home .ref-project-core-card.robot > a {
   z-index: 3;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card.robot > div {
+  width: 42%;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.lens::after {
@@ -261,11 +325,20 @@
   }
 
   .project-market-shell .pm-layout-home .ref-project-hero-art {
-    right: -210px;
-    left: auto;
-    width: 560px;
-    opacity: 0.42;
-    object-fit: cover;
+    inset: 0;
+    width: 100%;
+    opacity: 1;
+    object-fit: fill;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero {
+    height: min(480px, 72vw);
+    min-height: 360px;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-search {
+    bottom: 92px;
+    width: min(520px, 70%);
   }
 
 }
