@@ -1,0 +1,271 @@
+/* Final home-page parity overrides for the supplied 1672 x 941 reference. */
+
+.project-market-shell.v4-shell {
+  --app-topbar-height: 64px;
+}
+
+@media (min-width: 1401px) {
+  .project-market-shell.v4-shell .v4-page-main {
+    padding-right: 22px;
+    padding-left: 39px;
+  }
+
+  .project-market-shell.v4-shell .v4-sidebar {
+    padding: 16px 16px 18px;
+  }
+
+  .project-market-shell.v4-shell .v4-side-nav {
+    gap: 26px;
+    margin-top: 54px;
+  }
+
+  .project-market-shell.v4-shell .v4-side-link,
+  .project-market-shell.v4-shell .v4-side-link.active {
+    min-height: 30px;
+    gap: 14px;
+    font-size: 15px;
+  }
+
+  .project-market-shell.v4-shell .v4-side-link.active {
+    width: calc(100% + 24px);
+    min-height: 42px;
+    margin-left: -12px;
+    padding: 0 12px;
+    color: #1760f5;
+    background: #f0f2ff;
+    border-radius: 8px;
+  }
+
+  .project-market-shell.v4-shell .sidebar-collapse {
+    display: none;
+  }
+
+  .project-market-shell.v4-shell .v4-sidebar-bottom {
+    margin-bottom: 18px;
+  }
+
+  .project-market-shell.v4-shell .v4-page-topbar {
+    height: 64px;
+    min-height: 64px;
+    padding: 6px 34px 6px 210px;
+  }
+
+  .project-market-shell.v4-shell .v4-topnav {
+    height: 52px;
+    min-height: 52px;
+    gap: 30px;
+    padding: 0 28px;
+    border-radius: 0 0 22px 22px;
+  }
+
+  .project-market-shell.v4-shell .v4-topnav a {
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  .project-market-shell.v4-shell .v4-account-area {
+    height: 52px;
+  }
+
+  .project-market-shell.v4-shell .v4-avatar {
+    width: 36px;
+    height: 36px;
+    border-width: 2px;
+  }
+}
+
+.project-market-shell .pm-layout-home .ref-project-hero {
+  background: #edf2ff;
+}
+
+.project-market-shell .pm-layout-home .ref-project-hero-art {
+  inset: 0 0 0 auto;
+  width: 650px;
+  height: 362px;
+  object-fit: cover;
+  object-position: center;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%);
+  mask-image: linear-gradient(90deg, transparent, #000 5%);
+}
+
+.project-market-shell .pm-layout-home .ref-project-hero-copy > h1,
+.project-market-shell .pm-layout-home .ref-project-hero-copy > h2,
+.project-market-shell .pm-layout-home .ref-project-hero-copy > p {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+.project-market-shell .pm-layout-home .ref-project-hero-copy {
+  padding-top: 44px;
+  padding-left: 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-hero-copy > p {
+  width: 340px;
+}
+
+.project-market-shell .pm-layout-home .ref-project-search {
+  left: 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-search {
+  z-index: 3;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card::after {
+  right: 0;
+  bottom: -3px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card.robot::after {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("/project-market/core-match-full.jpg");
+  background-position: 58% 40%;
+  background-size: auto 249%;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card.robot > div {
+  position: relative;
+  z-index: 2;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card.robot > a {
+  z-index: 3;
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card.lens::after {
+  width: 165px;
+  height: 160px;
+  background-image: url("/project-market/core-explore.jpg");
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card.case::after {
+  width: 150px;
+  height: 160px;
+  background-image: url("/project-market/core-cases.jpg");
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid .pm-thumb {
+  min-height: 86px;
+  height: 92px;
+  background: #dfe5f4 var(--featured-art) center / cover no-repeat !important;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid p {
+  display: block;
+  margin: 0 10px;
+  padding: 0;
+  overflow: hidden;
+  color: #7080a4;
+  font-size: 8px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article > div:not(.pm-thumb) {
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.project-market-shell .pm-copilot-home {
+  height: min(716px, calc(100vh - 145px));
+  min-height: 680px;
+  margin-top: 59px;
+}
+
+.project-market-shell .pm-copilot-home > header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #edf0f7;
+}
+
+.project-market-shell .pm-copilot-home .pm-copilot-conversation {
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.project-market-shell .pm-copilot-home .pm-copilot-bubble p {
+  padding: 10px 12px;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.project-market-shell .pm-copilot-home .pm-copilot-bubble {
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+
+.project-market-shell .pm-copilot-home .pm-copilot-bubble b {
+  width: 28px;
+  height: 28px;
+  font-size: 9px;
+}
+
+.project-market-shell .pm-copilot-home .pm-copilot-projects {
+  gap: 0;
+  padding: 0 8px;
+}
+
+.project-market-shell .pm-copilot-home .pm-copilot-projects > a {
+  min-height: 58px;
+  border-bottom: 1px solid #edf0f7;
+}
+
+.project-market-shell .pm-copilot-home .pm-copilot-projects > a:last-child {
+  border-bottom: 0;
+}
+
+.project-market-shell .pm-copilot-home .pm-project-thumb {
+  width: 50px;
+  height: 40px;
+}
+
+.project-market-shell .pm-copilot-home .pm-copilot-cta {
+  min-height: 32px;
+  color: #3d47c8;
+  background: #eef0ff;
+}
+
+.project-market-shell .pm-copilot-home nav {
+  gap: 0;
+  border-top: 1px solid #edf0f7;
+}
+
+.project-market-shell .pm-copilot-home nav a {
+  min-height: 38px;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid #edf0f7;
+  border-radius: 0;
+}
+
+@media (max-width: 1400px) {
+  .project-market-shell .pm-layout-home .ref-project-hero-copy > h1,
+  .project-market-shell .pm-layout-home .ref-project-hero-copy > h2,
+  .project-market-shell .pm-layout-home .ref-project-hero-copy > p {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: revert;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-art {
+    right: -210px;
+    left: auto;
+    width: 560px;
+    opacity: 0.42;
+    object-fit: cover;
+  }
+
+}

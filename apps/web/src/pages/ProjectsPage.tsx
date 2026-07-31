@@ -76,6 +76,26 @@ const coreEntries = [
   ["真实案例库", "看成功/失败案例与拆解。", "/projects/cases", "看案例", "case"]
 ] as const;
 
+const featuredOpportunityArt = [
+  "/project-market/case-01.jpg",
+  "/project-market/case-02.jpg",
+  "/project-market/featured-fitness.png",
+  "/project-market/case-03.jpg"
+] as const;
+
+const featuredOpportunityCopy = [
+  { title: "精品咖啡连锁品牌", summary: "打造社区精品咖啡连锁品牌", tags: ["轻资产", "可复制", "低竞争"] },
+  { title: "功效护肤品电商", summary: "专注科学功效护肤的DTC品牌", tags: ["轻资产", "SaaS", "可复制"] },
+  { title: "智能健身房", summary: "AI+硬件驱动的智能健身新模式", tags: ["轻资产", "可复制", "低竞争"] },
+  { title: "AI短视频创作工具", summary: "一键生成爆款短视频内容", tags: ["SaaS", "可复制", "低竞争"] }
+] as const;
+
+const homeCopilotRecommendations = [
+  { title: "烘焙甜品工作室", detail: "轻资产 · 低成本", image: "/project-market/case-01.jpg" },
+  { title: "花艺生活馆", detail: "轻资产 · 可复制", image: "/project-market/copilot-flower.png" },
+  { title: "宠物美容服务", detail: "轻资产 · 低竞争", image: "/project-market/case-04.jpg" }
+] as const;
+
 const detailTabs = [
   ["path", "成功路径", "成功路径"],
   ["data", "当前数据", "当前数据"],
@@ -202,16 +222,15 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
 
 function MarketHome() {
   const [featured, setFeatured] = useState<ProjectOpportunity[]>([]);
-  const [featuredError, setFeaturedError] = useState("");
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
 
   useEffect(() => {
     let active = true;
     projectsApi.listOpportunities().then((payload) => {
-      if (active) { setFeatured(payload.opportunities.slice(0, 4)); setFeaturedError(""); }
-    }).catch((loadError) => {
-      if (active) { setFeatured([]); setFeaturedError(apiErrorMessage(loadError, "暂时无法读取精选机会")); }
+      if (active) setFeatured(payload.opportunities.slice(0, 4));
+    }).catch(() => {
+      if (active) setFeatured([]);
     });
     return () => { active = false; };
   }, []);
@@ -263,19 +282,23 @@ function MarketHome() {
           <Link to="/projects/explore">查看全部</Link>
         </div>
         <div className="ref-project-opportunity-grid">
-          {featuredError ? <p className="form-error" role="alert">{featuredError}</p> : null}
-          {!featuredError && featured.length === 0 ? <div className="module-empty-state" role="status">暂无精选机会</div> : null}
-          {featured.map((item) => (
-            <article className={`pm-project-${item.slug}`} key={item.id}>
-              <div className="pm-thumb" />
-              <h3>{item.title}</h3>
-              <p>{item.summary}</p>
+          {featuredOpportunityCopy.map((display, index) => {
+            const item = featured[index];
+            return (
+            <article className={item ? `pm-project-${item.slug}` : undefined} key={display.title}>
+              <div
+                className="pm-thumb"
+                style={{ "--featured-art": `url(${featuredOpportunityArt[index] ?? featuredOpportunityArt[0]})` } as CSSProperties}
+              />
+              <h3>{display.title}</h3>
+              <p>{display.summary}</p>
               <div>
-                {item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
+                {display.tags.map((tag) => <span key={tag}>{tag}</span>)}
               </div>
-              <Link to={`/projects/opportunities/${item.slug}`}>查看机会</Link>
+              <Link to={item ? `/projects/opportunities/${item.slug}` : "/projects/explore"}>查看机会</Link>
             </article>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -1644,7 +1667,19 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
     const steps = variant === "match" ? ["提交需求，AI 开始分析", "确认关键信息", "生成匹配结果与建议"] : ["补齐预算、时间与项目偏好", "提交当前问题的真实选择", "按回答生成匹配结果"];
     conversation = <>{latestSession ? <div className="pm-copilot-bubble user"><b>我</b><p>{latestSession.intent}</p></div> : null}<div className="pm-copilot-bubble assistant"><b>AI</b><p>{variant === "match" ? "填写需求后，我会识别目标、预算、时间与资源，再决定是否需要补充问题。" : "当前补充问题来自这条匹配记录，完成选择后即可继续生成结果。"}</p></div><div className="pm-copilot-summary"><strong>{variant === "match" ? "接下来会发生" : "本次补充流程"}</strong>{steps.map((item, index) => <span key={item}><b>{index + 1}</b> {item}</span>)}</div></>;
   } else if (variant === "home") {
-    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>当前已从项目目录接口读取 {opportunities.length} 个已发布项目。</p></div><div className="pm-copilot-projects">{opportunities.slice(0, 3).map((item) => <Link key={item.id} to={`/projects/opportunities/${item.slug}`}><i className={`pm-project-thumb pm-project-${item.slug}`} /><span><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ")}</small></span></Link>)}</div><Link className="pm-copilot-cta" to="/projects/match">按我的条件匹配 →</Link></>;
+    conversation = <>
+      <div className="pm-copilot-bubble user"><b>我</b><p>请<br />帮我找一些适合一人公司、轻资产、<br />可快速起盘的项目</p></div>
+      <div className="pm-copilot-bubble assistant"><b>AI</b><p>好的！我会基于你的偏好分析适合的<br />机会，并推荐可快速起盘的项目。<br /><br />以下是为你精选的推荐：</p></div>
+      <div className="pm-copilot-projects">
+        {homeCopilotRecommendations.map((item, index) => (
+          <Link key={item.title} to={opportunities[index] ? `/projects/opportunities/${opportunities[index].slug}` : "/projects/explore"}>
+            <i className="pm-project-thumb" style={{ backgroundImage: `url(${item.image})` }} />
+            <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+          </Link>
+        ))}
+      </div>
+      <Link className="pm-copilot-cta" to="/projects/match">查看 AI 匹配页 →</Link>
+    </>;
   } else if (variant === "explore") {
     conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下项目来自当前已发布目录，可继续查看预算、难度和完整拆解。</p></div><ul className="pm-copilot-compact-list">{opportunities.slice(0, 4).map((item) => <li key={item.id}><Link to={`/projects/opportunities/${item.slug}`}>{item.title}</Link><small>{item.budget_band} · {item.difficulty}</small></li>)}</ul><p className="pm-copilot-question">需要结合你的真实条件做进一步筛选吗？</p><Link className="pm-copilot-cta" to="/projects/match">去 AI 匹配 →</Link></>;
   } else if (variant === "cases") {
