@@ -192,3 +192,203 @@
   border-bottom: 1px solid #edf0f7;
   border-radius: 0;
 }
+
+/* Scale the home composition from the main column instead of locking it to one viewport. */
+@container (min-width: 761px) {
+  .project-market-shell .pm-layout-home .ref-project-hero {
+    height: 35.9127cqw;
+    min-height: 0;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-copy {
+    width: 42.6587cqw;
+    padding: 4.3651cqw 0 0 0.5952cqw;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero h1 {
+    font-size: clamp(34px, 4.1667cqw, 42px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero h2 {
+    font-size: clamp(21px, 2.5794cqw, 26px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero p {
+    width: 36.7063cqw;
+    font-size: clamp(11px, 1.2897cqw, 13px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-art {
+    right: 0;
+    width: 64.4841cqw;
+    height: 36.21cqw;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-search {
+    top: 21.6269cqw;
+    left: 0.5952cqw;
+    width: min(34.7222cqw, 350px);
+    height: clamp(38px, 4.3651cqw, 44px);
+    grid-template-columns: clamp(32px, 3.7698cqw, 38px) minmax(0, 1fr) clamp(38px, 4.5635cqw, 46px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-search input {
+    font-size: clamp(9px, 0.9921cqw, 10px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-search button {
+    width: clamp(32px, 3.7698cqw, 38px);
+    height: 77.3%;
+    margin-right: 1.3%;
+    font-size: clamp(13px, 1.4881cqw, 15px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges {
+    min-height: 7.2421cqw;
+    margin-top: 0;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges article {
+    grid-template-columns: clamp(30px, 3.7698cqw, 38px) minmax(0, 1fr);
+    padding: 0 0.7937cqw;
+  }
+
+  .project-market-shell .pm-layout-home .pm-home-badge-icon {
+    width: clamp(30px, 3.7698cqw, 38px);
+    height: clamp(30px, 3.7698cqw, 38px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges strong {
+    font-size: clamp(9px, 1.0913cqw, 11px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges small {
+    font-size: clamp(7px, 0.7937cqw, 8px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core > h2,
+  .project-market-shell .pm-layout-home .ref-project-section-head h2 {
+    margin: 2.381cqw 0 1.389cqw 0.5952cqw;
+    font-size: clamp(14px, 1.4881cqw, 15px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-grid {
+    gap: 1.5873cqw;
+    padding: 0 0.5952cqw;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card {
+    min-height: clamp(132px, 15.2778cqw, 154px);
+    padding: 1.9841cqw 1.7857cqw;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card::after {
+    right: 0.7937cqw;
+    bottom: 1.9841cqw;
+    width: clamp(122px, 14.3849cqw, 145px);
+    height: clamp(120px, 14.3849cqw, 145px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card.robot::after {
+    width: clamp(150px, 17.8571cqw, 180px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card > div {
+    width: 57%;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card h3 {
+    font-size: clamp(14px, 1.5873cqw, 16px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card p {
+    margin-top: 0.6944cqw;
+    font-size: clamp(9px, 0.9921cqw, 10px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card > a {
+    bottom: 1.7857cqw;
+    left: 1.7857cqw;
+    min-width: clamp(76px, 8.3333cqw, 84px);
+    height: clamp(28px, 3.0754cqw, 31px);
+    font-size: clamp(9px, 0.9921cqw, 10px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-opportunity-grid {
+    gap: 1.3889cqw;
+    padding: 0 0.5952cqw 2.381cqw;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-opportunity-grid article {
+    min-height: clamp(160px, 17.6587cqw, 178px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-opportunity-grid .pm-thumb {
+    height: clamp(80px, 9.127cqw, 92px);
+  }
+}
+
+@media (max-width: 760px) {
+  .project-market-shell .pm-layout-home .ref-project-hero {
+    height: clamp(230px, 92cqw, 330px);
+    min-height: 0;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-art {
+    right: -50cqw;
+    width: 140cqw;
+    height: 92cqw;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-copy {
+    padding: 7.5cqw 4.5cqw 0;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-search {
+    top: 60.8939cqw;
+    left: 4.5cqw;
+    width: 91cqw;
+    height: clamp(40px, 12cqw, 46px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges {
+    min-height: 28cqw;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges article {
+    min-height: 14cqw;
+    padding: 0 3cqw;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card {
+    min-height: 42cqw;
+  }
+}
+
+/* Keep the reference composition on Retina-sized desktop viewports. */
+@container (min-width: 761px) and (max-width: 960px) {
+  .project-market-shell .pm-layout-home .ref-project-badges {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges article {
+    min-height: 73px;
+    border-right: 1px solid #e9edf5;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges article:last-child {
+    border-right: 0;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-grid {
+    grid-template-columns: 1.27fr 1fr 1fr;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-core-card.robot {
+    grid-column: auto;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-opportunity-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
