@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 
 const STORAGE_KEY = "opcv2:copilot-orb-position";
-const ORB_SIZE = 76;
-const VIEWPORT_MARGIN = 8;
+const ORB_SIZE = 52;
+const VIEWPORT_MARGIN = 16;
 
 type OrbPosition = {
   left: number;

@@ -49356,3 +49356,123 @@ a:active {
     min-height: 214px;
   }
 }
+
+/* Keep wide data views inside their own scroll regions on narrow screens. */
+.task-table,
+.geo-keyword-list,
+.geo-task-table,
+.cdk-leads-follow-table {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.task-table > article {
+  min-width: 720px;
+}
+
+.geo-keyword-list > article {
+  min-width: 620px;
+}
+
+.geo-task-table > article {
+  min-width: 520px;
+}
+
+.cdk-leads-follow-table > article {
+  min-width: 560px;
+}
+
+.task-table > .module-empty-state,
+.geo-keyword-list > p,
+.geo-task-table > p,
+.cdk-leads-follow-table > .module-empty-state {
+  min-width: 0;
+}
+
+.task-filter-bar,
+.task-search-field,
+.task-list-panel,
+.geo-workbench,
+.geo-lower-grid,
+.leads-workbench,
+.leads-lower-grid,
+.cdk-leads-crm-card,
+.cdk-leads-result-card,
+.cdk-leads-source-section,
+.cdk-leads-rule-section {
+  min-width: 0;
+}
+
+.geo-engine-grid article,
+.leads-company-list article,
+.cdk-leads-stat-grid article,
+.cdk-leads-crm-copy,
+.cdk-leads-follow-table {
+  min-width: 0;
+}
+
+.geo-engine-grid strong,
+.leads-company-list h3,
+.cdk-leads-stat-grid strong {
+  overflow-wrap: break-word;
+  word-break: keep-all;
+}
+
+.geo-engine-grid span,
+.cdk-leads-stat-grid strong {
+  white-space: nowrap;
+}
+
+.global-copilot-orb {
+  right: 16px;
+  bottom: 16px;
+  width: 52px;
+  height: 52px;
+}
+
+.global-copilot-orb .v4-logo {
+  width: 30px;
+  height: 30px;
+}
+
+@media (max-width: 760px) {
+  .task-table > article {
+    min-width: 720px;
+  }
+
+  .task-filter-bar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .task-filter-bar > select,
+  .task-filter-clear {
+    width: 100%;
+  }
+
+  .cdk-leads-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cdk-leads-stat-grid article:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .cdk-leads-stat-grid strong {
+    font-size: 22px;
+  }
+
+  .global-copilot-orb {
+    right: 16px;
+    bottom: 16px;
+    width: 52px;
+    height: 52px;
+  }
+
+  .global-copilot-orb .v4-logo {
+    width: 30px;
+    height: 30px;
+  }
+}
