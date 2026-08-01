@@ -7,6 +7,10 @@ import { authSession } from "../lib/authSession";
 
 type AuthMode = "login" | "register";
 
+type LoginPageProps = {
+  initialMode?: AuthMode;
+};
+
 const errorMessages: Record<string, string> = {
   invalid_phone: "请输入正确的中国大陆手机号",
   invalid_code: "验证码错误或已过期",
@@ -19,10 +23,10 @@ const errorMessages: Record<string, string> = {
   account_exists: "账号已存在，请直接登录"
 };
 
-function LoginPage() {
+function LoginPage({ initialMode = "login" }: LoginPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [mode, setMode] = useState<AuthMode>("login");
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

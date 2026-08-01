@@ -87,6 +87,17 @@ describe("LoginPage", () => {
     expect(screen.getByRole("button", { name: "注册并创建账号" })).toBeDisabled();
   });
 
+  it("can open directly in registration mode for the /register alias", () => {
+    render(
+      <MemoryRouter>
+        <LoginPage initialMode="register" />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("tab", { name: "注册" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "注册并创建账号" })).toBeInTheDocument();
+  });
+
   it("registers with account and password without phone", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

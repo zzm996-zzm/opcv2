@@ -12,7 +12,6 @@ import CommunityEnterprisePage from "./pages/CommunityEnterprisePage";
 import CommunityMembersPage from "./pages/CommunityMembersPage";
 import CommunityPage from "./pages/CommunityPage";
 import CopilotPage from "./pages/CopilotPage";
-import CompetitorDataPage from "./pages/CompetitorDataPage";
 import CompetitorMonitoringPage from "./pages/CompetitorMonitoringPage";
 import CrmPage from "./pages/CrmPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -42,17 +41,18 @@ import LoginPage from "./pages/LoginPage";
 import MembershipPage from "./pages/MembershipPage";
 import MembershipPaymentPage from "./pages/MembershipPaymentPage";
 import MessagesPage from "./pages/MessagesPage";
+import NotFoundPage from "./pages/NotFoundPage";
 import ProjectsPage from "./pages/ProjectsPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterDetailsPage from "./pages/RegisterDetailsPage";
 import SandboxPage from "./pages/SandboxPage";
-import TaskCreatePage from "./pages/TaskCreatePage";
-import TasksPage from "./pages/TasksPage";
 import ToolsPage from "./pages/ToolsPage";
+import V4PageShell from "./components/V4PageShell";
 
 function AppRoutes() {
   const location = useLocation();
-  const showGlobalCopilotOrb = shouldShowGlobalCopilotOrb(location.pathname);
+  const session = useAuthSession();
+  const showGlobalCopilotOrb = session.ready && shouldShowGlobalCopilotOrb(location.pathname);
   const copilotPanel = useCopilotPanelVisibility();
 
   useEffect(() => {
@@ -139,6 +139,7 @@ function AppRoutes() {
         path="/assistant/collapsed"
       />
       <Route element={<LoginPage />} path="/login" />
+      <Route element={<LoginPage initialMode="register" />} path="/register" />
       <Route element={<RegisterDetailsPage />} path="/register/details" />
       <Route element={<LegalPage kind="terms" />} path="/terms" />
       <Route element={<LegalPage kind="privacy" />} path="/privacy" />
@@ -161,6 +162,7 @@ function AppRoutes() {
       <Route element={<RequireAuth><MembershipPaymentPage mode="checkout" /></RequireAuth>} path="/membership/checkout" />
       <Route element={<RequireAuth><MembershipPaymentPage mode="quota" /></RequireAuth>} path="/membership/quota" />
       <Route element={<RequireAuth><MembershipPaymentPage mode="success" /></RequireAuth>} path="/membership/success" />
+      <Route element={<RequireAuth><Navigate replace to="/profile/settings" /></RequireAuth>} path="/account/settings" />
       <Route
         element={
           <RequireAuth>
@@ -692,10 +694,7 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <>
-              <LandingReferencePage module="tasks" view="create" />
-              <div className="landing-live-sr-only"><TaskCreatePage /></div>
-            </>
+            <LandingReferencePage module="tasks" view="create" />
           </RequireAuth>
         }
         path="/tasks/new"
@@ -709,10 +708,7 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <>
-              <LandingReferencePage module="tasks" view="list" />
-              <div className="landing-live-sr-only"><TasksPage /></div>
-            </>
+            <LandingReferencePage module="tasks" view="list" />
           </RequireAuth>
         }
         path="/tasks"
@@ -730,10 +726,7 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <>
-              <LandingReferencePage module="data" view="home" />
-              <div className="landing-live-sr-only"><CompetitorDataPage /></div>
-            </>
+            <LandingReferencePage module="data" view="home" />
           </RequireAuth>
         }
         path="/competitor-data"
@@ -744,10 +737,7 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <>
-              <LandingReferencePage module="monitoring" view="home" />
-              <div className="landing-live-sr-only"><CompetitorMonitoringPage /></div>
-            </>
+            <CompetitorMonitoringPage />
           </RequireAuth>
         }
         path="/competitor-monitoring"
@@ -758,10 +748,7 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <>
-              <LandingReferencePage module="growth" view="home" />
-              <div className="landing-live-sr-only"><GrowthCalculatorPage /></div>
-            </>
+            <GrowthCalculatorPage />
           </RequireAuth>
         }
         path="/growth-calculator"
@@ -829,10 +816,7 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <>
-              <EnterpriseReferencePage />
-              <div className="landing-live-sr-only"><EnterprisePage /></div>
-            </>
+            <EnterprisePage />
           </RequireAuth>
         }
         path="/enterprise"
@@ -917,6 +901,7 @@ function AppRoutes() {
         }
         path="/help"
       />
+      <Route element={<RequireAuth><NotFoundPage /></RequireAuth>} path="*" />
       </Routes>
       </div>
       {(copilotPanel?.hasPanel ? !copilotPanel.isPanelOpen : showGlobalCopilotOrb) && (
@@ -940,12 +925,32 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
   if (!session.ready) {
-    return <main className="session-loading">正在恢复登录状态...</main>;
+    return <SessionRestoreShell />;
   }
   if (!session.user) {
     return <Navigate replace state={{ returnTo: location.pathname + location.search }} to="/login" />;
   }
   return children;
+}
+
+function SessionRestoreShell() {
+  return (
+    <V4PageShell className="session-restore-shell">
+      <section className="session-restore-content" aria-label="正在恢复登录状态">
+        <div className="session-restore-heading">
+          <span className="session-restore-kicker">智活AI OPC</span>
+          <h1>正在恢复工作台</h1>
+          <p role="status" aria-label="恢复登录状态">正在恢复登录状态...</p>
+        </div>
+        <div className="session-restore-grid" aria-hidden="true">
+          <span className="session-restore-block wide" />
+          <span className="session-restore-block" />
+          <span className="session-restore-block" />
+          <span className="session-restore-block large" />
+        </div>
+      </section>
+    </V4PageShell>
+  );
 }
 
 function App() {

@@ -37,6 +37,19 @@ describe("App", () => {
     });
   }
 
+  it("keeps the application shell visible while authentication is restoring", () => {
+    render(
+      <MemoryRouter initialEntries={["/dashboard"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("navigation", { name: "顶部全局功能区" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "产品侧边导航" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "恢复登录状态" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "打开智活 Copilot" })).not.toBeInTheDocument();
+  });
+
   it("renders the OPC product shell", () => {
     render(
       <MemoryRouter>
@@ -116,6 +129,41 @@ describe("App", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "AI线索开发" })).toBeInTheDocument();
+  });
+
+  it("redirects account settings alias to the existing settings page", async () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2099-06-11T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/account/settings"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole("heading", { name: "账号与资料设置" })).toBeInTheDocument();
+  });
+
+  it("renders an in-app not-found page for an unknown authenticated route", () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2099-06-11T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/does-not-exist"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "页面不存在" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "返回工作台" })).toHaveAttribute("href", "/");
   });
 
   it("renders the locked board-three navigation on visible but unavailable growth pages", async () => {
