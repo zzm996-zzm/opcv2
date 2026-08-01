@@ -108,17 +108,18 @@
 }
 
 .project-market-shell .pm-layout-home .ref-project-hero {
-  height: min(538px, 44vw);
-  min-height: 420px;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 2170 / 725;
 }
 
 .project-market-shell .pm-layout-home .ref-project-search {
-  top: auto;
-  bottom: 140px;
-  left: 8px;
-  width: min(585px, 58%);
-  height: 70px;
-  grid-template-columns: 52px minmax(0, 1fr) 70px;
+  top: 61%;
+  bottom: auto;
+  left: 0.8%;
+  width: min(40%, 400px);
+  height: clamp(44px, 15.5%, 70px);
+  grid-template-columns: clamp(36px, 5.5%, 52px) minmax(0, 1fr) clamp(48px, 6.5%, 70px);
   border-radius: 10px;
 }
 
@@ -131,27 +132,27 @@
 }
 
 .project-market-shell .pm-layout-home .ref-project-search input {
-  font-size: 17px;
+  font-size: 16px;
 }
 
 .project-market-shell .pm-layout-home .ref-project-search button {
-  width: 60px;
-  height: 58px;
-  margin-right: 6px;
+  width: min(86%, 60px);
+  height: 82%;
+  margin-right: 7%;
   border-radius: 10px;
   font-size: 20px;
 }
 
 .project-market-shell .pm-layout-home .ref-project-badges {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  min-height: 220px;
+  min-height: clamp(132px, 15vw, 184px);
   margin-top: 0;
   border-radius: 0;
   box-shadow: none;
 }
 
 .project-market-shell .pm-layout-home .ref-project-badges article {
-  min-height: 110px;
+  min-height: clamp(66px, 7.5vw, 92px);
   padding: 0 28px;
   border-bottom: 1px solid #e9edf5;
 }
@@ -179,8 +180,8 @@
 
 .project-market-shell .pm-layout-home .ref-project-core-card.robot {
   grid-column: 1 / -1;
-  min-height: 260px;
-  padding: 36px 34px;
+  min-height: clamp(160px, 17vw, 230px);
+  padding: 28px 24px;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.robot::after {
@@ -312,18 +313,6 @@
 }
 
 @media (max-width: 1400px) {
-  .project-market-shell .pm-layout-home .ref-project-hero-copy > h1,
-  .project-market-shell .pm-layout-home .ref-project-hero-copy > h2,
-  .project-market-shell .pm-layout-home .ref-project-hero-copy > p {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: revert;
-    overflow: visible;
-    clip: auto;
-    white-space: normal;
-  }
-
   .project-market-shell .pm-layout-home .ref-project-hero-art {
     inset: 0;
     width: 100%;
@@ -332,13 +321,16 @@
   }
 
   .project-market-shell .pm-layout-home .ref-project-hero {
-    height: min(480px, 72vw);
-    min-height: 360px;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 2170 / 725;
   }
 
   .project-market-shell .pm-layout-home .ref-project-search {
-    bottom: 92px;
-    width: min(520px, 70%);
+    top: 61%;
+    bottom: auto;
+    width: 72%;
+    height: clamp(38px, 15%, 56px);
   }
 
 }
