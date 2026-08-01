@@ -76,20 +76,23 @@
 
 .project-market-shell .pm-layout-home .ref-project-core-card.robot::after {
   background-image: url("/project-market/core-match-full.jpg");
-  background-position: 78% center;
-  background-size: auto 250%;
+  background-position: 78% 58%;
+  background-size: auto 340%;
+  background-repeat: no-repeat;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.lens::after {
   background-image: url("/project-market/core-explore-full.jpg");
-  background-position: center;
-  background-size: cover;
+  background-position: 72% center;
+  background-size: auto 250%;
+  background-repeat: no-repeat;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.case::after {
   background-image: url("/project-market/core-cases-full.jpg");
-  background-position: center;
-  background-size: cover;
+  background-position: 72% center;
+  background-size: auto 250%;
+  background-repeat: no-repeat;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.robot h3::after {
@@ -402,7 +405,7 @@
   .project-market-shell .pm-layout-home .ref-project-search {
     top: 60.5%;
     left: 5.4cqw;
-    width: min(32cqw, 520px);
+    width: min(38cqw, 520px);
   }
 
   .project-market-shell .pm-layout-home .ref-project-badges {
