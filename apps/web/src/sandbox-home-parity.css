@@ -1,11 +1,11 @@
 /* Final home-page parity overrides for the supplied 1672 x 941 reference. */
 
 .sb-home-shell.v4-shell {
-  --app-sidebar-width: 250px;
-  --app-topbar-height: 66px;
+  --app-sidebar-width: clamp(212px, 14.95vw, 250px);
+  --app-topbar-height: clamp(58px, 3.95vw, 66px);
 }
 
-@media (min-width: 1401px) {
+@media (min-width: 1181px) {
   .sb-home-shell.v4-shell .v4-sidebar {
     padding: 16px 16px 22px;
   }
@@ -15,12 +15,12 @@
   }
 
   .sb-home-shell.v4-shell .v4-logo {
-    width: 32px;
-    height: 30px;
+    width: clamp(28px, 1.91vw, 32px);
+    height: clamp(27px, 1.79vw, 30px);
   }
 
   .sb-home-shell.v4-shell .v4-brand-name {
-    font-size: 23px;
+    font-size: clamp(20px, 1.38vw, 23px);
   }
 
   .sb-home-shell.v4-shell .v4-side-nav {
@@ -32,7 +32,7 @@
   .sb-home-shell.v4-shell .v4-side-link.active {
     min-height: 30px;
     gap: 14px;
-    font-size: 15px;
+    font-size: clamp(14px, 0.9vw, 15px);
   }
 
   .sb-home-shell.v4-shell .v4-side-link.active {
@@ -56,26 +56,26 @@
   }
 
   .sb-home-shell.v4-shell .v4-page-topbar {
-    height: 66px;
-    min-height: 66px;
-    padding: 5px 28px 5px 58px;
+    height: var(--app-topbar-height);
+    min-height: var(--app-topbar-height);
+    padding: 5px clamp(20px, 1.67vw, 28px) 5px clamp(32px, 3.47vw, 58px);
   }
 
   .sb-home-shell.v4-shell .v4-topnav {
-    height: 56px;
-    min-height: 56px;
-    gap: 30px;
-    padding: 0 28px;
+    height: calc(var(--app-topbar-height) - 10px);
+    min-height: calc(var(--app-topbar-height) - 10px);
+    gap: clamp(20px, 1.79vw, 30px);
+    padding: 0 clamp(20px, 1.67vw, 28px);
     border-radius: 0 0 22px 22px;
   }
 
   .sb-home-shell.v4-shell .v4-topnav a {
-    min-height: 56px;
-    font-size: 16px;
+    min-height: calc(var(--app-topbar-height) - 10px);
+    font-size: clamp(14px, 0.96vw, 16px);
   }
 
   .sb-home-shell.v4-shell .v4-account-area {
-    height: 56px;
+    height: calc(var(--app-topbar-height) - 10px);
   }
 
   .sb-home-shell.v4-shell .v4-avatar {
@@ -85,32 +85,33 @@
   }
 
   .sb-home-frame.sb-app {
-    padding: 22px 24px 30px 38px;
+    padding: clamp(18px, 1.32vw, 22px) clamp(20px, 1.44vw, 24px) 30px clamp(22px, 2.27vw, 38px);
   }
 
   .sb-home-frame .sb-page-grid {
-    grid-template-columns: minmax(0, 1008px) 300px;
-    gap: 52px;
-    width: 1360px;
+    grid-template-columns: minmax(0, 1fr) clamp(250px, 17.94vw, 300px);
+    gap: clamp(20px, 3.11vw, 52px);
+    width: min(100%, 1360px);
     max-width: 100%;
   }
 
   .sb-home-frame .sb-home-main {
-    min-height: 817px;
+    min-height: 0;
   }
 
   .sb-home-frame .sb-home-hero {
-    min-height: 711px;
+    min-height: 0;
+    aspect-ratio: 1008 / 711;
   }
 
   .sb-home-frame .sb-home-copy {
-    width: 366px;
-    padding: 80px 0 0 15px;
+    width: 36.31%;
+    padding: 7.94% 0 0 1.49%;
   }
 
   .sb-home-frame .sb-home-copy h1 {
     margin-bottom: 26px;
-    font-size: 58px !important;
+    font-size: clamp(46px, 3.47vw, 58px) !important;
     line-height: 1 !important;
     font-weight: 900 !important;
   }
@@ -118,32 +119,32 @@
   .sb-home-shell.v4-shell .v4-page-main .sb-home-copy h2 {
     max-width: 360px;
     margin-bottom: 20px;
-    font-size: 20px !important;
+    font-size: clamp(17px, 1.2vw, 20px) !important;
     line-height: 1.62 !important;
     font-weight: 800 !important;
   }
 
   .sb-home-shell.v4-shell .v4-page-main .sb-home-copy > p {
     max-width: 340px;
-    font-size: 13px !important;
+    font-size: clamp(12px, 0.78vw, 13px) !important;
     line-height: 1.8 !important;
   }
 
   .sb-home-frame .sb-home-art {
-    top: -25px;
-    right: -16px;
-    width: 684px;
-    height: 708px;
+    top: -3.52%;
+    right: -1.59%;
+    width: 67.86%;
+    height: 99.58%;
     object-fit: cover;
     object-position: center;
   }
 
   .sb-home-frame .sb-home-start {
-    top: 350px;
+    top: 49.23%;
     left: 0;
-    width: 380px;
-    min-height: 260px;
-    padding: 32px 36px 26px;
+    width: 37.7%;
+    min-height: 36.57%;
+    padding: clamp(24px, 1.91vw, 32px) clamp(22px, 2.15vw, 36px) clamp(20px, 1.56vw, 26px);
   }
 
   .sb-home-shell.v4-shell .v4-page-main .sb-home-start textarea {
@@ -164,18 +165,18 @@
   }
 
   .sb-home-frame .sb-home-actions {
-    grid-template-columns: 160px 126px;
-    gap: 20px;
+    grid-template-columns: minmax(0, 1.27fr) minmax(96px, 1fr);
+    gap: clamp(10px, 1.2vw, 20px);
   }
 
   .sb-home-frame .sb-copilot-home {
-    top: 63px;
-    width: 300px;
-    min-height: 696px;
-    height: 696px;
-    max-height: 696px;
-    gap: 16px;
-    padding: 22px 18px 16px;
+    top: clamp(48px, 3.77vw, 63px);
+    width: 100%;
+    min-height: clamp(580px, 41.63vw, 696px);
+    height: clamp(580px, 41.63vw, 696px);
+    max-height: clamp(580px, 41.63vw, 696px);
+    gap: clamp(12px, 0.96vw, 16px);
+    padding: clamp(18px, 1.32vw, 22px) clamp(14px, 1.08vw, 18px) 16px;
   }
 
   .sb-home-frame .sb-copilot-home nav {
