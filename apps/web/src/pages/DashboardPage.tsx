@@ -12,6 +12,7 @@ function DashboardPage() {
   const [loadError, setLoadError] = useState("");
   const [featureAccess, setFeatureAccess] = useState<FeatureAccess | null>(null);
   const [featureAccessError, setFeatureAccessError] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -37,6 +38,7 @@ function DashboardPage() {
   useEffect(() => {
     if (!canUseWorkflow) return;
     let active = true;
+    setSummaryLoading(true);
     dashboardApi
       .getSummary()
       .then((payload) => {
@@ -48,6 +50,9 @@ function DashboardPage() {
         if (!active) return;
         setSummary(null);
         setLoadError(apiErrorMessage(error, "暂时无法读取仪表盘数据"));
+      })
+      .finally(() => {
+        if (active) setSummaryLoading(false);
       });
     return () => {
       active = false;
@@ -65,7 +70,7 @@ function DashboardPage() {
     if (featureAccess) return <FeatureLockedPanel feature={featureAccess} variant="dashboard" />;
     return (
       <V4PageShell className="dashboard-shell" showCopilotMini={false}>
-        <p className={featureAccessError ? "form-error" : "module-empty-state"} role={featureAccessError ? "alert" : "status"}>{featureAccessError || "正在读取功能开通状态..."}</p>
+        <DashboardSkeleton error={featureAccessError} />
       </V4PageShell>
     );
   }
@@ -90,7 +95,7 @@ function DashboardPage() {
             </div>
           </div>
           <div className="dashboard-metric-grid">
-            {visibleMetrics.length === 0 ? (
+            {summaryLoading ? <DashboardMetricSkeleton /> : visibleMetrics.length === 0 ? (
               <div className="module-empty-state" role="status">暂无经营指标</div>
             ) : visibleMetrics.map(([label, value, change]) => (
               <article key={label}>
@@ -116,7 +121,7 @@ function DashboardPage() {
               </div>
             </div>
             <div className="dashboard-trend-chart" aria-label="增长趋势图">
-              {visibleTrend.length === 0 ? (
+              {summaryLoading ? <DashboardChartSkeleton /> : visibleTrend.length === 0 ? (
                 <div className="module-empty-state" role="status">暂无增长趋势</div>
               ) : visibleTrend.map(([day, height]) => (
                 <article key={day}>
@@ -129,7 +134,7 @@ function DashboardPage() {
 
           <aside className="dashboard-alert-card" aria-label="经营预警">
             <h2>经营预警</h2>
-            {visibleAlerts.length === 0 ? (
+            {summaryLoading ? <DashboardListSkeleton /> : visibleAlerts.length === 0 ? (
               <p className="module-empty-state">暂无经营预警</p>
             ) : visibleAlerts.map(([title, detail]) => (
               <article key={title}>
@@ -149,7 +154,7 @@ function DashboardPage() {
               </div>
             </div>
             <div className="dashboard-project-list">
-              {visibleProjects.length === 0 ? (
+              {summaryLoading ? <DashboardListSkeleton /> : visibleProjects.length === 0 ? (
                 <div className="module-empty-state" role="status">暂无项目机会</div>
               ) : visibleProjects.map(([name, value, leads, stage]) => (
                 <article key={name}>
@@ -164,7 +169,7 @@ function DashboardPage() {
 
           <aside className="dashboard-pipeline-card" aria-label="销售漏斗">
             <h2>销售漏斗</h2>
-            {visiblePipeline.length === 0 ? (
+            {summaryLoading ? <DashboardListSkeleton /> : visiblePipeline.length === 0 ? (
               <p className="module-empty-state">暂无销售漏斗</p>
             ) : visiblePipeline.map(([stage, count, percent]) => (
               <article key={stage}>
@@ -188,7 +193,7 @@ function DashboardPage() {
             <Link to="/tasks">查看全部任务</Link>
           </div>
           <div className="dashboard-task-list">
-            {visibleTasks.length === 0 ? (
+            {summaryLoading ? <DashboardListSkeleton /> : visibleTasks.length === 0 ? (
               <div className="module-empty-state" role="status">暂无今日行动</div>
             ) : visibleTasks.map(([time, action]) => (
               <article key={`${time}-${action}`}>
@@ -201,6 +206,27 @@ function DashboardPage() {
       </section>
     </V4PageShell>
   );
+}
+
+function DashboardSkeleton({ error }: { error: string }) {
+  return <section aria-busy="true" aria-label="仪表盘加载中" className="module-page dashboard-page dashboard-skeleton">
+    <div className="page-title-row"><div><h1>仪表盘</h1><p>{error || "正在读取仪表盘能力与经营数据..."}</p></div><span className="dashboard-skeleton-button" /></div>
+    {error ? <p className="form-error" role="alert">{error}</p> : null}
+    <section className="dashboard-metric-section"><div className="module-section-head"><div><h2>经营指标</h2><p>按本月口径汇总收入、线索和执行效率</p></div></div><div className="dashboard-metric-grid"><DashboardMetricSkeleton /></div></section>
+    <section className="dashboard-grid"><div className="dashboard-trend-card"><div className="module-section-head"><div><h2>增长趋势</h2><p>最近 7 天线索与成交机会变化</p></div></div><DashboardChartSkeleton /></div><aside className="dashboard-alert-card"><h2>经营预警</h2><DashboardListSkeleton /></aside></section>
+  </section>;
+}
+
+function DashboardMetricSkeleton() {
+  return <>{["收入", "线索", "转化", "利润"].map((label) => <article className="skeleton-block" key={label}><small /><strong /><span /></article>)}</>;
+}
+
+function DashboardChartSkeleton() {
+  return <div aria-hidden="true" className="dashboard-chart-skeleton">{[42, 64, 50, 78, 58, 88, 70].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div>;
+}
+
+function DashboardListSkeleton() {
+  return <div aria-hidden="true" className="dashboard-list-skeleton"><i /><i /><i /></div>;
 }
 
 export default DashboardPage;

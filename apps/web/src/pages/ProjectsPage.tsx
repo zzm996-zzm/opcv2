@@ -222,6 +222,7 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
 
 function MarketHome() {
   const [featured, setFeatured] = useState<ProjectOpportunity[]>([]);
+  const [featuredLoading, setFeaturedLoading] = useState(true);
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
 
@@ -231,6 +232,8 @@ function MarketHome() {
       if (active) setFeatured(payload.opportunities.slice(0, 4));
     }).catch(() => {
       if (active) setFeatured([]);
+    }).finally(() => {
+      if (active) setFeaturedLoading(false);
     });
     return () => { active = false; };
   }, []);
@@ -281,7 +284,9 @@ function MarketHome() {
           <h2>精选机会</h2>
           <Link to="/projects/explore">查看全部</Link>
         </div>
-        <div className="ref-project-opportunity-grid">
+        {featuredLoading ? <div aria-label="正在加载精选机会" className="ref-project-opportunity-grid pm-skeleton-grid" role="status">
+          {featuredOpportunityCopy.map((display) => <article className="pm-skeleton-card" key={display.title}><span /><b /><i /><i /><em /></article>)}
+        </div> : <div className="ref-project-opportunity-grid">
           {featuredOpportunityCopy.map((display, index) => {
             const item = featured[index];
             return (
@@ -299,7 +304,7 @@ function MarketHome() {
             </article>
             );
           })}
-        </div>
+        </div>}
       </section>
 
     </>

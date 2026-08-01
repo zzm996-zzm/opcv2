@@ -22,6 +22,103 @@
   --shadow-soft: 0 16px 48px rgba(47, 91, 176, 0.1);
 }
 
+/* Loading states keep the page geometry visible while API-backed content resolves. */
+.pm-skeleton-grid {
+  min-height: 260px;
+}
+
+.pm-skeleton-card {
+  display: grid;
+  min-height: 248px;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #e7ebf4;
+  border-radius: 8px;
+}
+
+.pm-skeleton-card > span,
+.pm-skeleton-card > b,
+.pm-skeleton-card > i,
+.pm-skeleton-card > em,
+.dashboard-skeleton .skeleton-block::before,
+.dashboard-skeleton .skeleton-block::after,
+.dashboard-list-skeleton i {
+  display: block;
+  background: linear-gradient(100deg, #edf1f8 25%, #f8faff 42%, #edf1f8 63%);
+  background-size: 320% 100%;
+  animation: ui-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+.pm-skeleton-card > span { min-height: 112px; border-radius: 6px; }
+.pm-skeleton-card > b { width: 72%; height: 14px; border-radius: 4px; }
+.pm-skeleton-card > i { width: 92%; height: 10px; border-radius: 4px; }
+.pm-skeleton-card > em { width: 38%; height: 28px; margin-top: auto; border-radius: 5px; }
+
+.dashboard-skeleton .dashboard-skeleton-button {
+  width: 118px;
+  height: 40px;
+  border-radius: 6px;
+  background: #e9eef8;
+}
+
+.dashboard-skeleton .skeleton-block {
+  position: relative;
+  display: grid;
+  min-height: 106px;
+  gap: 10px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #e5eaf3;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.dashboard-skeleton .skeleton-block::before,
+.dashboard-skeleton .skeleton-block::after {
+  width: 62%;
+  height: 11px;
+  border-radius: 4px;
+  content: "";
+}
+
+.dashboard-skeleton .skeleton-block::after { width: 42%; height: 26px; }
+.dashboard-skeleton .skeleton-block small,
+.dashboard-skeleton .skeleton-block strong,
+.dashboard-skeleton .skeleton-block span { display: none; }
+
+.dashboard-chart-skeleton {
+  display: flex;
+  height: 220px;
+  gap: 14px;
+  padding: 20px 18px 18px;
+  align-items: end;
+  background: linear-gradient(180deg, #fbfcff, #f5f8fd);
+  border-radius: 8px;
+}
+
+.dashboard-chart-skeleton i {
+  flex: 1 1 0;
+  min-width: 14px;
+  border-radius: 5px 5px 2px 2px;
+  background: linear-gradient(180deg, #dbe5fb, #edf2fa);
+  animation: ui-skeleton-pulse 1.4s ease-in-out infinite alternate;
+}
+
+.dashboard-chart-skeleton i:nth-child(2n) { animation-delay: 160ms; }
+.dashboard-list-skeleton { display: grid; gap: 14px; padding-top: 12px; }
+.dashboard-list-skeleton i { height: 34px; border-radius: 5px; }
+
+@keyframes ui-skeleton-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes ui-skeleton-pulse {
+  from { opacity: .58; }
+  to { opacity: 1; }
+}
+
 /* Landing reference workspace: tasks, competitor data, monitoring, and growth. */
 .landing-ref-shell {
   --landing-blue: #2749ed;
