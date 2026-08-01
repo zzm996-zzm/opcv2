@@ -1,4 +1,4 @@
-/* Final home-page parity overrides for the supplied 1672 x 941 reference. */
+/* Home-page parity for the supplied 1672 x 941 project-market reference. */
 
 .project-market-shell.v4-shell {
   --app-topbar-height: 64px;
@@ -74,149 +74,30 @@
   }
 }
 
-.project-market-shell .pm-layout-home .ref-project-hero {
-  background: #edf2ff;
-}
-
-.project-market-shell .pm-layout-home .ref-project-hero-art {
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: fill;
-  object-position: center;
-  mix-blend-mode: normal;
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-
-.project-market-shell .pm-layout-home .ref-project-hero-copy > h1,
-.project-market-shell .pm-layout-home .ref-project-hero-copy > h2,
-.project-market-shell .pm-layout-home .ref-project-hero-copy > p {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-.project-market-shell .pm-layout-home .ref-project-hero-copy {
-  width: 100%;
-  height: 100%;
-  padding: 0;
-}
-
-.project-market-shell .pm-layout-home .ref-project-hero {
-  height: auto;
-  min-height: 0;
-  aspect-ratio: 2170 / 725;
-}
-
-.project-market-shell .pm-layout-home .ref-project-search {
-  top: 61%;
-  bottom: auto;
-  left: 0.8%;
-  width: min(40%, 400px);
-  height: clamp(44px, 15.5%, 70px);
-  grid-template-columns: clamp(36px, 5.5%, 52px) minmax(0, 1fr) clamp(48px, 6.5%, 70px);
-  border-radius: 10px;
-}
-
-.project-market-shell .project-market-page:has(.pm-layout-home) {
-  max-width: 1700px;
-}
-
-.project-market-shell .pm-layout-home .ref-project-search > span {
-  font-size: 28px;
-}
-
-.project-market-shell .pm-layout-home .ref-project-search input {
-  font-size: 16px;
-}
-
-.project-market-shell .pm-layout-home .ref-project-search button {
-  width: min(86%, 60px);
-  height: 82%;
-  margin-right: 7%;
-  border-radius: 10px;
-  font-size: 20px;
-}
-
-.project-market-shell .pm-layout-home .ref-project-badges {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  min-height: clamp(132px, 15vw, 184px);
-  margin-top: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.project-market-shell .pm-layout-home .ref-project-badges article {
-  min-height: clamp(66px, 7.5vw, 92px);
-  padding: 0 28px;
-  border-bottom: 1px solid #e9edf5;
-}
-
-.project-market-shell .pm-layout-home .ref-project-badges article:nth-child(3n) {
-  border-right: 0;
-}
-
-.project-market-shell .pm-layout-home .ref-project-badges article:nth-child(n + 4) {
-  border-bottom: 0;
-}
-
-.project-market-shell .pm-layout-home .ref-project-core {
-  margin-top: 0;
-}
-
-.project-market-shell .pm-layout-home .ref-project-core-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.project-market-shell .pm-layout-home .ref-project-core-card {
-  min-height: 220px;
-}
-
-.project-market-shell .pm-layout-home .ref-project-core-card.robot {
-  grid-column: 1 / -1;
-  min-height: clamp(160px, 17vw, 230px);
-  padding: 28px 24px;
-}
-
 .project-market-shell .pm-layout-home .ref-project-core-card.robot::after {
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  background-image: url("/project-market/core-match-full.jpg");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: calc(100% - 170px) auto;
-}
-
-.project-market-shell .pm-layout-home .ref-project-core-card.robot > div {
-  position: relative;
-  z-index: 2;
-}
-
-.project-market-shell .pm-layout-home .ref-project-core-card.robot > a {
-  z-index: 3;
-}
-
-.project-market-shell .pm-layout-home .ref-project-core-card.robot > div {
-  width: 42%;
+  background-image: url("/project-market/core-match.jpg");
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.lens::after {
-  width: 165px;
-  height: 160px;
   background-image: url("/project-market/core-explore.jpg");
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.case::after {
-  width: 150px;
-  height: 160px;
   background-image: url("/project-market/core-cases.jpg");
+}
+
+.project-market-shell .pm-layout-home .ref-project-core-card.robot h3::after {
+  display: inline-grid;
+  min-height: 18px;
+  align-items: center;
+  margin-left: 8px;
+  padding: 0 7px;
+  color: #f4f2ff;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 9px;
+  content: "推荐";
+  font-size: 8px;
+  vertical-align: 2px;
 }
 
 .project-market-shell .pm-layout-home .ref-project-opportunity-grid .pm-thumb {
@@ -310,27 +191,4 @@
   border: 0;
   border-bottom: 1px solid #edf0f7;
   border-radius: 0;
-}
-
-@media (max-width: 1400px) {
-  .project-market-shell .pm-layout-home .ref-project-hero-art {
-    inset: 0;
-    width: 100%;
-    opacity: 1;
-    object-fit: fill;
-  }
-
-  .project-market-shell .pm-layout-home .ref-project-hero {
-    height: auto;
-    min-height: 0;
-    aspect-ratio: 2170 / 725;
-  }
-
-  .project-market-shell .pm-layout-home .ref-project-search {
-    top: 61%;
-    bottom: auto;
-    width: 72%;
-    height: clamp(38px, 15%, 56px);
-  }
-
 }

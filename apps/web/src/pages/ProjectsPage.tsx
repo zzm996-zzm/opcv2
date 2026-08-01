@@ -248,7 +248,7 @@ function MarketHome() {
             <button type="submit" aria-label="搜索">⌕</button>
           </form>
         </div>
-        <img className="ref-project-hero-art" alt="" src="/project-market/home-hero-full.png" />
+        <img className="ref-project-hero-art" alt="" src="/project-market/home-hero.jpg" />
       </section>
 
       <section className="ref-project-badges" aria-label="项目机会标签">
