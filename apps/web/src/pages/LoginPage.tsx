@@ -46,7 +46,7 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
         accountReady &&
         passwordReady &&
         phone.trim().length >= 11 &&
-        (!confirmPassword || confirmPassword === password)
+        confirmPassword === password
       );
     }
     return accountReady && passwordReady;
@@ -125,7 +125,7 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
           </article>
         </div>
 
-        <p className="auth-copyright">© 2024 智活AI 版权所有 | 京ICP备2023001234号-1</p>
+        <p className="auth-copyright">© 2026 智活AI 版权所有 | <a href="https://beian.miit.gov.cn/" rel="noreferrer" target="_blank">京ICP备2023001234号-1</a></p>
 
       </section>
 
@@ -193,7 +193,9 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
                     autoComplete="username"
                     maxLength={32}
                     onChange={(event) => setAccount(event.target.value)}
-                    placeholder="请输入账号，支持字母、数字、下划线，4-32位"
+                    placeholder="请输入账号（4-32位）"
+                    aria-required="true"
+                    required
                     value={account}
                   />
                 </label>
@@ -205,19 +207,24 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="请输入密码，至少6位"
                     type="password"
+                    aria-required="true"
+                    required
                     value={password}
                   />
                 </label>
                 <label className="field auth-input">
-                  <span>确认密码 <small>（选填）</small></span>
+                  <span>确认密码 <em>*</em></span>
                   <input
                     aria-label="确认密码"
                     autoComplete="new-password"
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     placeholder="请再次输入密码"
                     type="password"
+                    aria-required="true"
+                    required
                     value={confirmPassword}
                   />
+                  {confirmPassword && confirmPassword !== password ? <small className="field-error" role="alert">两次密码不一致</small> : null}
                 </label>
                 <label className="field auth-input">
                   <span>邮箱 <small>（选填）</small></span>
@@ -239,6 +246,8 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
                     maxLength={11}
                     onChange={(event) => setPhone(event.target.value)}
                     placeholder="请输入手机号"
+                    aria-required="true"
+                    required
                     value={phone}
                   />
                 </label>

@@ -203,7 +203,7 @@ function MessageListPage() {
 
         <div className="message-tabs" role="tablist" aria-label="消息分类">
           {tabs.map((tab) => (
-            <button key={tab.type || "all"} className={`${activeType === tab.type ? "active" : ""} ${["analysis", "lead", "crm", "membership"].includes(tab.type) ? "sr-only" : ""}`} onClick={() => selectMessageType(tab.type)} role="tab" aria-selected={activeType === tab.type} type="button">
+            <button key={tab.type || "all"} className={activeType === tab.type ? "active" : ""} onClick={() => selectMessageType(tab.type)} role="tab" aria-selected={activeType === tab.type} type="button">
               {tab.label} <span>{tab.count}</span>
             </button>
           ))}

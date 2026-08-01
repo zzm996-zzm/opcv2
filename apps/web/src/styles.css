@@ -49437,6 +49437,32 @@ a:active {
   height: 30px;
 }
 
+.auth-copyright a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.field-error {
+  color: #c23c2d;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.message-tabs {
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scroll-snap-type: x proximity;
+}
+
+.message-tabs button {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
 @media (max-width: 760px) {
   .task-table > article {
     min-width: 720px;
@@ -49474,5 +49500,134 @@ a:active {
   .global-copilot-orb .v4-logo {
     width: 30px;
     height: 30px;
+  }
+
+  .login-page {
+    display: block;
+    min-height: 100vh;
+    background: #f7faff;
+  }
+
+  .login-story {
+    min-height: 0;
+    padding: 20px 16px 24px;
+  }
+
+  .public-component-auth .auth-brand {
+    margin-left: 0;
+    transform: none;
+  }
+
+  .login-story-copy {
+    margin-top: 36px;
+  }
+
+  .login-story-copy h1 {
+    font-size: 30px;
+  }
+
+  .login-story-copy span {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .login-orbit {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    height: 120px;
+    margin-top: 12px;
+    opacity: .54;
+  }
+
+  .auth-feature-list {
+    gap: 14px;
+    margin-top: 16px;
+  }
+
+  .auth-feature-list article {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .auth-feature-list .metric-icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .auth-feature-list strong {
+    font-size: 14px;
+  }
+
+  .auth-feature-list small {
+    margin-top: 4px;
+    font-size: 12px;
+  }
+
+  .auth-copyright {
+    position: static;
+    margin-top: 18px;
+    font-size: 12px;
+  }
+
+  .login-panel {
+    padding: 0 16px 28px;
+    align-items: start;
+  }
+
+  .login-card,
+  .public-component-auth .login-card.register {
+    width: 100%;
+    max-height: none;
+    min-height: 0;
+    padding: 24px 18px;
+    overflow: visible;
+    border-radius: 10px;
+  }
+
+  .agreement-row {
+    align-items: flex-start;
+    line-height: 1.5;
+  }
+
+  .agreement-row a {
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .login-page {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 46%);
+  }
+
+  .login-story {
+    min-height: auto;
+    padding: 28px 4vw 30px;
+  }
+
+  .login-story-copy {
+    margin-top: 72px;
+  }
+
+  .login-story-copy h1 {
+    font-size: 36px;
+  }
+
+  .login-orbit {
+    right: -50px;
+    bottom: 40px;
+    width: 390px;
+    height: 330px;
+    opacity: .65;
+  }
+
+  .auth-feature-list {
+    max-width: 340px;
+    margin-top: 42px;
+  }
+
+  .login-panel {
+    padding: 44px 3vw 46px;
   }
 }
