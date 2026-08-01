@@ -257,6 +257,39 @@ describe("ProfilePage", () => {
     }));
   });
 
+  it("exposes interactive notification switches and model selection", async () => {
+    mockAccount();
+    vi.mocked(accountApi.updatePreferences).mockResolvedValue({
+      notifications_enabled: false,
+      default_model: "chatgpt-5.5",
+      language: "zh-CN",
+      timezone: "Asia/Shanghai"
+    });
+
+    render(
+      <MemoryRouter>
+        <ProfilePage mode="preferences" />
+      </MemoryRouter>
+    );
+
+    const switches = await screen.findAllByRole("switch");
+    expect(switches[0]).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(switches[0]);
+    expect(switches[0]).toHaveAttribute("aria-checked", "false");
+
+    const chatgpt = screen.getByRole("radio", { name: "ChatGPT 5.5" });
+    fireEvent.click(chatgpt);
+    expect(chatgpt).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "保存设置" }));
+    await waitFor(() => expect(accountApi.updatePreferences).toHaveBeenCalledWith({
+      notifications_enabled: false,
+      default_model: "chatgpt-5.5",
+      language: "zh-CN",
+      timezone: "Asia/Shanghai"
+    }));
+  });
+
   it.each([
     ["password", "修改密码", "确认修改"],
     ["logout", "退出登录", "确认退出"],

@@ -13648,7 +13648,8 @@ a:active {
   min-height: 56px;
 }
 
-.notification-matrix article > i {
+.notification-matrix article > i,
+.notification-matrix article > button {
   justify-self: center;
 }
 
@@ -13748,6 +13749,7 @@ a:active {
 }
 
 .billing-plan-card,
+.membership-plan-options,
 .billing-quota-card,
 .order-card,
 .billing-copilot-card {
@@ -14260,6 +14262,10 @@ a:active {
   overflow: hidden;
   border: 1px solid #dce5f5;
   border-radius: 12px;
+}
+
+.model-choice-buttons {
+  display: contents;
 }
 
 .benefit-table h3 {
@@ -31010,6 +31016,7 @@ a:active {
 }
 
 .billing-plan-card,
+.membership-plan-options,
 .billing-quota-card,
 .order-card,
 .billing-copilot-card,
@@ -31032,6 +31039,67 @@ a:active {
   gap: 26px;
   min-height: 162px;
   padding: 24px;
+}
+
+.membership-plan-options {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+}
+
+.membership-plan-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.membership-plan-option {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.membership-plan-option h3,
+.membership-plan-option p {
+  min-width: 0;
+  margin: 0;
+}
+
+.membership-plan-option h3 {
+  color: #10265f;
+  font-size: 15px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.membership-plan-option p {
+  margin-top: 5px;
+  color: #7890c1;
+  font-size: 12px;
+}
+
+.membership-plan-option button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 12px;
+  color: white;
+  background: var(--blue);
+  border: 0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.membership-plan-option button:disabled {
+  color: #8190ad;
+  background: #eef2f8;
+  cursor: not-allowed;
 }
 
 .plan-main {
@@ -31508,9 +31576,17 @@ a:active {
   display: inline-block;
   width: 36px;
   height: 20px;
+  padding: 0;
   justify-self: center;
   background: #e4ebf7;
+  border: 0;
   border-radius: 999px;
+  cursor: pointer;
+}
+
+.toggle-switch:focus-visible {
+  outline: 3px solid rgba(21, 87, 255, 0.25);
+  outline-offset: 3px;
 }
 
 .toggle-switch::after {
@@ -31603,6 +31679,19 @@ a:active {
   color: #7890c1;
   font-size: 13px;
   font-weight: 780;
+}
+
+.preference-save-card .form-success {
+  color: #0f9160;
+}
+
+.preference-save-card .form-error {
+  color: #c53b47;
+}
+
+.preference-save-card button:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 
 .help-page {

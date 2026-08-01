@@ -78,6 +78,7 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
   const [preferences, setPreferences] = useState<AccountPreferences | null>(null);
   const [loadError, setLoadError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [actionFailed, setActionFailed] = useState(false);
   const visibleProfile = profile || referenceProfile;
   const visibleBindings = binding === "unbound"
     ? referenceBindings.map((item) => ({ ...item, masked_value: item.type === "wechat" ? "未绑定" : "未填写", bound: false }))
@@ -115,13 +116,16 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
     };
   }, []);
 
-  async function savePreferences() {
+  async function savePreferences(patch: Partial<AccountPreferences> = {}) {
     if (!preferences) return;
+    const nextPreferences = { ...preferences, ...patch };
     try {
-      const updated = await accountApi.updatePreferences(preferences);
+      const updated = await accountApi.updatePreferences(nextPreferences);
       setPreferences(updated);
+      setActionFailed(false);
       setActionMessage("偏好设置已保存");
     } catch (error) {
+      setActionFailed(true);
       setActionMessage(apiErrorMessage(error, "偏好设置保存失败"));
     }
   }
@@ -129,8 +133,10 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
   async function deleteAccount() {
     try {
       await accountApi.deleteAccount();
+      setActionFailed(false);
       setActionMessage("账号注销已提交");
     } catch (error) {
+      setActionFailed(true);
       setActionMessage(apiErrorMessage(error, "账号注销提交失败"));
     }
   }
@@ -150,10 +156,10 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
 
           <div className="profile-content">
             {loadError && <p className="form-error" role="alert">{loadError}</p>}
-            {actionMessage && <p className="form-success" role="status">{actionMessage}</p>}
+            {mode !== "preferences" && actionMessage && <p className={actionFailed ? "form-error" : "form-success"} role={actionFailed ? "alert" : "status"}>{actionMessage}</p>}
             {mode === "settings" && <AccountSettings bindings={visibleBindings} onboarding={visibleOnboarding} profile={visibleProfile} />}
             {mode === "content" && <MyContent items={visibleContent} />}
-            {mode === "preferences" && <Preferences onSave={() => void savePreferences()} preferences={preferences} />}
+            {mode === "preferences" && <Preferences actionFailed={actionFailed} actionMessage={actionMessage} onSave={(patch) => savePreferences(patch)} preferences={preferences} />}
             {mode === "overview" && <ProfileOverview nickname={nickname} profile={visibleProfile} quotas={visibleQuotas} />}
           </div>
           {mode === "content" && <PublicCopilotPanel className="profile-content-copilot" />}
@@ -588,7 +594,45 @@ function MyContent({ items }: { items: AccountContentItem[] }) {
   );
 }
 
-function Preferences({ onSave, preferences }: { onSave: () => void; preferences: AccountPreferences | null }) {
+const preferenceModels = [
+  { value: "claude-opus-4.8", label: "Claude Opus 4.8" },
+  { value: "chatgpt-5.5", label: "ChatGPT 5.5" },
+  { value: "grok-4.3", label: "Grok 4.3" }
+] as const;
+
+const notificationRows = [
+  ["任务提醒", "任务创建、分配、截止时间等提醒", true, true, true],
+  ["系统通知", "系统更新、功能上线等重要通知", true, true, false],
+  ["营销消息", "产品动态、活动信息等推广内容", true, false, false]
+] as const;
+
+function Preferences({ actionFailed, actionMessage, onSave, preferences }: { actionFailed: boolean; actionMessage: string; onSave: (patch: Partial<AccountPreferences>) => Promise<void> | void; preferences: AccountPreferences | null }) {
+  const [notificationEnabled, setNotificationEnabled] = useState(preferences?.notifications_enabled ?? true);
+  const [selectedModel, setSelectedModel] = useState(preferences?.default_model ?? preferenceModels[0].value);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!preferences) return;
+    setNotificationEnabled(preferences.notifications_enabled);
+    setSelectedModel(preferences.default_model || preferenceModels[0].value);
+  }, [preferences]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave({
+        notifications_enabled: notificationEnabled,
+        default_model: selectedModel
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleNotifications() {
+    setNotificationEnabled((enabled) => !enabled);
+  }
+
   return (
     <>
       <section className="preference-card">
@@ -596,15 +640,15 @@ function Preferences({ onSave, preferences }: { onSave: () => void; preferences:
         <p>选择接收通知的方式及内容</p>
         <div className="notification-matrix">
           <div className="matrix-head">
+            <strong>通知类型</strong>
             {["站内通知", "邮件通知", "企业微信通知"].map((item) => (
-              <span key={item}>{item}<i className="toggle-switch on" aria-hidden="true" /></span>
+              <span key={item}>
+                {item}
+                <button aria-checked={notificationEnabled} aria-label={`切换${item}`} className={`toggle-switch ${notificationEnabled ? "on" : ""}`} onClick={toggleNotifications} role="switch" type="button" />
+              </span>
             ))}
           </div>
-          {[
-            ["任务提醒", "任务创建、分配、截止时间等提醒", true, true, true],
-            ["系统通知", "系统更新、功能上线等重要通知", true, true, false],
-            ["营销消息", "产品动态、活动信息等推广内容", true, false, false]
-          ].map(([title, desc, inApp, email, wechat]) => (
+          {notificationRows.map(([title, desc, inApp, email, wechat]) => (
             <article key={title as string}>
               <span className="preference-row-icon" aria-hidden="true" />
               <div>
@@ -612,7 +656,7 @@ function Preferences({ onSave, preferences }: { onSave: () => void; preferences:
                 <small>{desc}</small>
               </div>
               {[inApp, email, wechat].map((enabled, index) => (
-                <i className={`toggle-switch ${enabled ? "on" : ""}`} key={index} aria-hidden="true" />
+                <button aria-checked={notificationEnabled && enabled} aria-label={`切换${title}的${["站内通知", "邮件通知", "企业微信通知"][index]}`} className={`toggle-switch ${notificationEnabled && enabled ? "on" : ""}`} key={index} onClick={toggleNotifications} role="switch" type="button" />
               ))}
             </article>
           ))}
@@ -624,13 +668,15 @@ function Preferences({ onSave, preferences }: { onSave: () => void; preferences:
         <p>选择默认模型与个性化设置</p>
         <div className="model-choice-row">
           <strong>默认模型 <small>设置你在智活AI中默认使用的模型</small></strong>
-          <span>当前默认模型：{preferences?.default_model ?? "未设置"}</span>
-          {["Claude opus4.8", "Chatgpt 5.5", "Gork4.3"].map((model, index) => (
-            <button className={index === 0 ? "active" : ""} key={model} type="button">
-              <span className={`model-mark mark-${index}`} aria-hidden="true" />
-              {model}
-            </button>
-          ))}
+          <span>当前默认模型：{modelLabel(preferences?.default_model)}</span>
+          <div aria-label="默认模型" className="model-choice-buttons" role="radiogroup">
+            {preferenceModels.map((model, index) => (
+              <button aria-checked={selectedModel === model.value} className={selectedModel === model.value ? "active" : ""} key={model.value} onClick={() => setSelectedModel(model.value)} role="radio" type="button">
+                <span className={`model-mark mark-${index}`} aria-hidden="true" />
+                {model.label}
+              </button>
+            ))}
+          </div>
         </div>
         <small className="preference-note">部分模型的可用性可能因你的身份或企业权限而有所不同</small>
       </section>
@@ -649,11 +695,18 @@ function Preferences({ onSave, preferences }: { onSave: () => void; preferences:
       </section>
 
       <section className="preference-save-card">
-        <button onClick={onSave} type="button">保存设置</button>
-        <span>更改将自动保存</span>
+        <button disabled={saving} onClick={() => void save()} type="button">{saving ? "保存中..." : "保存设置"}</button>
+        {actionMessage
+          ? <span className={actionFailed ? "form-error" : "form-success"} role={actionFailed ? "alert" : "status"}>{actionMessage}</span>
+          : <span>修改后点击保存即可生效</span>}
       </section>
     </>
   );
+}
+
+function modelLabel(value: string | undefined) {
+  if (!value) return "未设置";
+  return preferenceModels.find((model) => model.value === value)?.label || value;
 }
 
 function profileTitle(mode: ProfilePageProps["mode"]) {

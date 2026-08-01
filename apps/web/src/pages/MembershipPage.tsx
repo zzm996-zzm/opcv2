@@ -114,6 +114,34 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
               </div>
             </section>
 
+            {plans.length > 0 && (
+              <section className="membership-plan-options" aria-labelledby="membership-plan-options-title">
+                <div className="module-section-head">
+                  <div>
+                    <h2 id="membership-plan-options-title">套餐选择</h2>
+                    <p>选择套餐后创建订单，继续完成支付</p>
+                  </div>
+                </div>
+                <div className="membership-plan-option-grid">
+                  {plans.map((plan) => {
+                    const isCurrent = snapshot?.plan.code === plan.code;
+                    const isCheckingOut = checkoutPlan === plan.code;
+                    return (
+                      <article className="membership-plan-option" key={plan.code}>
+                        <div>
+                          <h3>{plan.name}</h3>
+                          <p>{plan.price_cents === 0 ? "免费" : formatAmount(plan.price_cents)} / {plan.billing_cycle === "year" ? "年" : "月"}</p>
+                        </div>
+                        <button disabled={isCurrent || Boolean(checkoutPlan)} onClick={() => void createCheckout(plan)} type="button">
+                          {isCurrent ? "当前使用" : isCheckingOut ? "创建中..." : `开通${plan.name}`}
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+
             <section className="billing-quota-card">
               <div className="module-section-head">
                 <div><h2>各功能额度</h2><p>本月周期：2025-06-01 至 2025-06-30</p></div>
@@ -140,14 +168,6 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
             {checkoutMessage && <p className="form-success" role="status">{checkoutMessage}</p>}
             <span className="sr-only">当前积分 {snapshot?.credit_balance ?? 0}</span>
             {visibleUsage.map((item) => <span className="sr-only" key={`test-${item.key}`}>{item.label} {item.used}/{item.limit} {item.unit}</span>)}
-            {plans.map((plan) => (
-              <span className="sr-only" key={plan.code}>
-                <h2>{plan.name}</h2>
-                <button disabled={checkoutPlan === plan.code || snapshot?.plan.code === plan.code} onClick={() => void createCheckout(plan)} type="button">
-                  {snapshot?.plan.code === plan.code ? "当前使用" : checkoutPlan === plan.code ? "创建中..." : `开通${plan.name}`}
-                </button>
-              </span>
-            ))}
           </div>
           <PublicCopilotPanel />
         </div>
@@ -163,8 +183,9 @@ function ProfileTabs() {
 }
 
 function QuotaCard({ item }: { item: MembershipUsageItem }) {
-  const percent = item.limit ? Math.min(100, Math.round(item.used / item.limit * 100)) : 0;
-  return <article className="quota-card"><span>{item.label}</span><strong>{item.used.toLocaleString()}<small> / {item.limit.toLocaleString()}</small></strong><div className="quota-bar"><i style={{ width: `${percent}%` }} /></div><small>剩余 {100 - percent}%</small><small>重置日：2025-06-01</small></article>;
+  const configured = item.limit > 0;
+  const percent = configured ? Math.min(100, Math.round(item.used / item.limit * 100)) : 0;
+  return <article className="quota-card"><span>{item.label}</span><strong>{item.used.toLocaleString()}<small> / {item.limit.toLocaleString()}</small></strong><div className="quota-bar" aria-hidden="true"><i style={{ width: `${percent}%` }} /></div><small>{configured ? `剩余 ${100 - percent}%` : "未配置"}</small><small>重置日：2025-06-01</small></article>;
 }
 
 function MembershipUpgradeModal({ plans }: { plans: MembershipPlanOption[] }) {

@@ -127,6 +127,22 @@ describe("MembershipPage", () => {
     expect(await screen.findByText("已创建订单 ZS-20260702-0013，客服会协助完成支付")).toBeInTheDocument();
   });
 
+  it("shows unconfigured quota state instead of a misleading percentage", async () => {
+    mockMembership();
+    vi.mocked(membershipApi.usage).mockResolvedValueOnce({
+      usage: [{ key: "sandbox", label: "商业沙盘推演", used: 0, limit: 0, unit: "次/月" }]
+    });
+
+    render(
+      <MemoryRouter>
+        <MembershipPage />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("未配置")).toBeInTheDocument();
+    expect(screen.queryByText("剩余 100%")).not.toBeInTheDocument();
+  });
+
   it("redeems membership code from the upgrade page", async () => {
     mockMembership();
     vi.mocked(membershipApi.redeem).mockResolvedValue({
