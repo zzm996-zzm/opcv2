@@ -371,6 +371,65 @@
   }
 }
 
+/* Desktop Hero uses the supplied full composition so its text, artwork, and
+   pale-blue field share the exact same pixels instead of visibly splitting. */
+@container (min-width: 761px) {
+  .project-market-shell .pm-layout-home .ref-project-hero {
+    background: #e8edff url("/project-market/home-hero-full.png") center / 100% 100% no-repeat;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-art {
+    display: none;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-copy {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-copy > .pm-asset-copy-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-search {
+    top: 60.5%;
+    left: 5.4cqw;
+    width: min(32cqw, 520px);
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-badges {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .project-market-shell .pm-layout-home .ref-project-hero {
+    background: #edf2ff;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-art {
+    display: block;
+  }
+
+  .project-market-shell .pm-layout-home .ref-project-hero-copy > .pm-asset-copy-sr {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+}
+
 /* Keep the reference composition on Retina-sized desktop viewports. */
 @container (min-width: 761px) and (max-width: 960px) {
   .project-market-shell .pm-layout-home .ref-project-badges {
