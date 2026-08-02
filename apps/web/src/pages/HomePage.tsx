@@ -116,9 +116,9 @@ const accountLinks: Array<[string, string, string]> = [
 ];
 
 const models: Array<[string, string, boolean]> = [
-  ["Claude opus4.8", "claude", true],
-  ["Chatgpt 5.5", "chatgpt", false],
-  ["Grok4.3", "grok", false]
+  ["Claude Opus 4.8", "claude", true],
+  ["ChatGPT 5.5", "chatgpt", false],
+  ["Grok 4.3", "grok", false]
 ];
 
 type HomePageProps = {

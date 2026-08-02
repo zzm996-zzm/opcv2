@@ -283,7 +283,7 @@ describe("HomePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "打开智活 Copilot" }));
     fireEvent.click(screen.getByRole("button", { name: "打开 Copilot 设置" }));
     expect(screen.getByText("Copilot 设置")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Claude opus4.8" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Claude Opus 4.8" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "添加文件" }));
     expect(screen.getByText("市场分析报告.pdf")).toBeInTheDocument();

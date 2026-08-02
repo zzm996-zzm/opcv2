@@ -105,8 +105,8 @@ describe("CopilotPage", () => {
     renderPage("models");
 
     expect(screen.getByRole("dialog", { name: "模型选择" })).toBeInTheDocument();
-    expect(screen.getByText("Claude opus4.8")).toBeInTheDocument();
-    expect(screen.getByText("Grok4.3")).toBeInTheDocument();
+    expect(screen.getByText("Claude Opus 4.8")).toBeInTheDocument();
+    expect(screen.getByText("Grok 4.3")).toBeInTheDocument();
   });
 
   it("smoke tests the selected model and shows recent AI run diagnostics", async () => {
@@ -417,9 +417,9 @@ describe("CopilotPage", () => {
 
     expect(screen.getByRole("button", { name: "3 模型" })).toHaveClass("active");
     expect(screen.getByRole("button", { name: "取消选择 GPT-4o" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "取消选择 Claude opus4.8" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "取消选择 Grok4.3" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "选择模型 Grok4.3" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消选择 Claude Opus 4.8" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消选择 Grok 4.3" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "选择模型 Grok 4.3" })).not.toBeInTheDocument();
   });
 
   it("shows an optimistic comparison question while waiting for model answers", async () => {

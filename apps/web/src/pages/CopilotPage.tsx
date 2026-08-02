@@ -58,8 +58,8 @@ type OptimisticMessageInput = {
 
 const fallbackModels: CopilotModel[] = [
   { name: "GPT-4o", value: "gpt-main", icon: "swirl", selected: true },
-  { name: "Claude opus4.8", value: "claude-opus", icon: "ai" },
-  { name: "Grok4.3", value: "grok", icon: "black" }
+  { name: "Claude Opus 4.8", value: "claude-opus", icon: "ai" },
+  { name: "Grok 4.3", value: "grok", icon: "black" }
 ] as const;
 
 const referenceThreads: CopilotThread[] = [
