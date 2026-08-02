@@ -1,5 +1,5 @@
-import { ChevronRight, ChevronUp, Paperclip, Send, Sparkles } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronRight, ChevronUp, Paperclip, Send, Settings, Sparkles } from "lucide-react";
+import { useLayoutEffect, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { useRegisteredCopilotPanel } from "../CopilotPanelVisibility";
@@ -60,7 +60,12 @@ const modeCopy: Record<SandboxCopilotMode, { user: string; assistant: string; ac
 
 function SandboxCopilot({ children, mode, progress, project }: SandboxCopilotProps) {
   const copilotPanel = useRegisteredCopilotPanel();
+  const openPanel = copilotPanel.openPanel;
   const copy = modeCopy[mode];
+
+  useLayoutEffect(() => {
+    if (mode === "home") openPanel();
+  }, [mode, openPanel]);
 
   if (!copilotPanel.isPanelOpen) {
     return copilotPanel.hasSharedController ? null : <FloatingCopilotOrb onActivate={copilotPanel.openPanel} />;
@@ -74,9 +79,12 @@ function SandboxCopilot({ children, mode, progress, project }: SandboxCopilotPro
           <strong>智活 Copilot</strong>
           <small>你的全能 AI 助手，随时为你提供帮助</small>
         </div>
-        <button aria-label="收起 Copilot" onClick={copilotPanel.closePanel} type="button">
-          <ChevronUp size={18} />
-        </button>
+        <div className="sb-copilot-controls">
+          <Link aria-label="Copilot 设置" to="/profile/preferences"><Settings size={17} /></Link>
+          <button aria-label="收起 Copilot" onClick={copilotPanel.closePanel} type="button">
+            <ChevronUp size={18} />
+          </button>
+        </div>
       </header>
       <>
           <div className="sb-copilot-thread">

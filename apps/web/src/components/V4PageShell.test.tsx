@@ -16,6 +16,7 @@ describe("V4PageShell", () => {
     expect(screen.getByRole("button", { name: "项目确定及拆解" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "项目超市" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "竞品全盘数据破解" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "增长洞察" })).toHaveAttribute("href", "/growth-calculator");
     expect(screen.getByRole("link", { name: "CRM客户管理" })).toBeInTheDocument();
     expect(screen.queryByText("项目管理及系统")).not.toBeInTheDocument();
     expect(screen.queryByText("增长引擎")).not.toBeInTheDocument();

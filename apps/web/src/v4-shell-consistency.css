@@ -91,6 +91,14 @@
     font-size: 15px;
   }
 
+  .v4-shell.v4-shell .v4-lucide-icon {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 19px;
+    color: currentColor;
+    stroke-width: 1.8;
+  }
+
   .v4-shell.v4-shell .v4-side-link.active {
     color: #1760f5;
   }

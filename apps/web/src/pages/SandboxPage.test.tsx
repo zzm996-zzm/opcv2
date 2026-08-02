@@ -113,6 +113,35 @@ describe("SandboxPage production flow", () => {
     vi.restoreAllMocks();
   });
 
+  it("validates an empty homepage prompt without presenting the primary action as disabled", () => {
+    signIn();
+    render(
+      <MemoryRouter initialEntries={["/sandbox"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    const startButton = screen.getByRole("button", { name: /开始推演/ });
+    expect(startButton).toBeEnabled();
+    fireEvent.click(startButton);
+    expect(screen.getByRole("alert")).toHaveTextContent("请先描述要推演的项目或情况。");
+  });
+
+  it("reopens the homepage Copilot after it was closed on another route", async () => {
+    signIn();
+    render(
+      <MemoryRouter initialEntries={["/sandbox"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "收起 Copilot" }));
+    fireEvent.click(screen.getByRole("link", { name: "项目超市" }));
+    fireEvent.click(screen.getByRole("link", { name: "商业沙盘" }));
+
+    expect(await screen.findByRole("complementary", { name: "智活 Copilot" })).toBeInTheDocument();
+  });
+
   it("creates an API-backed intake from the homepage and enters questions", async () => {
     signIn();
     const created = fixture();

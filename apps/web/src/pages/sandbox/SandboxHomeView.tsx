@@ -24,7 +24,11 @@ function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
   async function submit(event: FormEvent) {
     event.preventDefault();
     const value = idea.trim();
-    if (!value || submitting) return;
+    if (!value) {
+      setError("请先描述要推演的项目或情况。");
+      return;
+    }
+    if (submitting) return;
     setSubmitting(true);
     setError("");
     try {
@@ -48,15 +52,18 @@ function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
           <img alt="多角色商业沙盘" className="sb-home-art" src="/sandbox/home-hero.png" />
           <form className="sb-home-start" onSubmit={submit}>
             <Search aria-hidden="true" className="sb-home-search" size={22} />
-            <label htmlFor="sandbox-initial-idea">描述你要推演的项目或情况</label>
             <textarea
+              aria-label="描述你要推演的项目或情况"
               id="sandbox-initial-idea"
-              onChange={(event) => setIdea(event.target.value)}
-              placeholder="请描述项目、行业、目标用户、当前阶段、关键约束，以及你最想判断的问题"
+              onChange={(event) => {
+                setIdea(event.target.value);
+                if (error) setError("");
+              }}
+              placeholder="请描述你要推演的项目 / 情况，并补充行业、目标用户、当前阶段、关键约束，以及你最想判断的问题"
               value={idea}
             />
             <div className="sb-home-actions">
-              <button disabled={!idea.trim() || submitting} type="submit">
+              <button disabled={submitting} type="submit">
                 {submitting ? "分析中..." : "开始推演"}<ArrowRight size={19} />
               </button>
               <Link to="/sandbox/history"><History size={17} />沙盘历史</Link>
@@ -65,11 +72,10 @@ function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
           </form>
         </section>
         <section aria-label="商业沙盘能力" className="sb-pillar-strip">
-          {pillars.map(({ artwork, detail, title }, index) => (
+          {pillars.map(({ artwork, detail, title }) => (
             <article key={title}>
               <span><img alt="" src={artwork} /></span>
               <div><strong>{title}</strong><small>{detail}</small></div>
-              <b>{String(index + 1).padStart(2, "0")}</b>
             </article>
           ))}
         </section>

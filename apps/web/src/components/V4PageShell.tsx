@@ -1,3 +1,19 @@
+import {
+  Activity,
+  BarChart3,
+  Calculator,
+  CircleCheckBig,
+  CircleHelp,
+  Database,
+  Diamond,
+  Flag,
+  House,
+  MessageCircle,
+  Radar,
+  Store,
+  Users,
+  type LucideIcon
+} from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -27,7 +43,7 @@ const defaultSidebarGroups = [
       { label: "任务中心", href: "/tasks", icon: "check" },
       { label: "竞品全盘数据破解", href: "/competitor-data", icon: "stack" },
       { label: "竞品动态监测", href: "/competitor-monitoring", icon: "pulse" },
-      { label: "增长测算", href: "/growth-calculator", icon: "calc" }
+      { label: "增长洞察", href: "/growth-calculator", icon: "calc" }
     ]
   },
   {
@@ -49,6 +65,25 @@ const accountLinks: Array<[string, string, string]> = [
   ["我的内容", "/profile/content", "content"],
   ["偏好设置", "/profile/preferences", "gear"]
 ];
+
+const sidebarIcons: Record<string, LucideIcon> = {
+  calc: Calculator,
+  chart: BarChart3,
+  check: CircleCheckBig,
+  diamond: Diamond,
+  flag: Flag,
+  grid: Store,
+  home: House,
+  pulse: Activity,
+  stack: Database,
+  target: Radar,
+  user: Users
+};
+
+function SidebarIcon({ name }: { name: string }) {
+  const Icon = sidebarIcons[name];
+  return Icon ? <Icon aria-hidden="true" className="v4-lucide-icon" /> : null;
+}
 
 type V4PageShellProps = {
   accountSlot?: ReactNode;
@@ -100,7 +135,7 @@ function V4PageShell({ accountSlot, children, className = "", mainClassName = ""
                   className={`v4-side-link ${location.pathname.startsWith(item.href) ? "active" : ""}`}
                   to={item.href}
                 >
-                  <span className={`v4-line-icon ${item.icon}`} aria-hidden="true" />
+                  <SidebarIcon name={item.icon} />
                   <span>{item.label}</span>
                 </Link>
               ))}
@@ -110,11 +145,11 @@ function V4PageShell({ accountSlot, children, className = "", mainClassName = ""
 
         <div className="v4-sidebar-bottom">
           <Link className={`v4-side-link with-dot ${location.pathname.startsWith("/messages") ? "active" : ""}`} to="/messages">
-            <span className="v4-line-icon chat" aria-hidden="true" />
+            <MessageCircle aria-hidden="true" className="v4-lucide-icon" />
             <span>消息中心</span>
           </Link>
           <Link className="v4-side-link" to="/help">
-            <span className="v4-line-icon help" aria-hidden="true" />
+            <CircleHelp aria-hidden="true" className="v4-lucide-icon" />
             <span>帮助与反馈</span>
           </Link>
           <button

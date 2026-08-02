@@ -53,6 +53,7 @@ function AppRoutes() {
   const location = useLocation();
   const session = useAuthSession();
   const showGlobalCopilotOrb = session.ready && shouldShowGlobalCopilotOrb(location.pathname);
+  const keepSandboxOrbVisible = location.pathname === "/sandbox";
   const copilotPanel = useCopilotPanelVisibility();
 
   useEffect(() => {
@@ -904,10 +905,10 @@ function AppRoutes() {
       <Route element={<RequireAuth><NotFoundPage /></RequireAuth>} path="*" />
       </Routes>
       </div>
-      {(copilotPanel?.hasPanel ? !copilotPanel.isPanelOpen : showGlobalCopilotOrb) && (
+      {(keepSandboxOrbVisible || (copilotPanel?.hasPanel ? !copilotPanel.isPanelOpen : showGlobalCopilotOrb)) && (
         <FloatingCopilotOrb
-          className={location.pathname.startsWith("/membership") ? "membership-floating-orb" : ""}
-          onActivate={copilotPanel?.hasPanel ? copilotPanel.openPanel : undefined}
+          className={keepSandboxOrbVisible ? "sandbox-floating-orb" : location.pathname.startsWith("/membership") ? "membership-floating-orb" : ""}
+          onActivate={copilotPanel?.hasPanel && !copilotPanel.isPanelOpen ? copilotPanel.openPanel : undefined}
         />
       )}
     </>
