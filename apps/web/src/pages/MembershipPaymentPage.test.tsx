@@ -48,5 +48,7 @@ describe("MembershipPaymentPage", () => {
     expect(screen.getByRole("heading", { name: "支付成功，会员已激活！" })).toBeInTheDocument();
     expect(screen.getByText("额度已刷新，可立即使用")).toBeInTheDocument();
     expect(screen.getByText("20250601101545987612")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "复制订单编号" }));
+    expect(screen.getByRole("button", { name: "复制订单编号" })).toHaveTextContent("已复制");
   });
 });

@@ -70,7 +70,19 @@ function QuotaModalPage() {
 }
 
 function SuccessContent() {
-  return <div className="success-layout"><main className="success-main"><header><span>✓</span><h1>支付成功，会员已激活！</h1><p>感谢您的信任与支持，智活AI助您数据驱动，增长确定。</p></header><section className="activation-facts">{[["♛", "会员等级", "会员版 推荐"], ["▣", "生效时间", "2025-06-01 10:15"], ["▣", "有效期至", "2026-05-31"], ["⟳", "下次重置日", "2025-07-01"]].map(([icon, label, value]) => <article key={label}><i>{icon}</i><span>{label}</span><strong>{value}</strong></article>)}</section><section className="renewed-benefits"><h2>额度已刷新，可立即使用</h2><div className="success-table"><div><span>功能权益</span><span>本次刷新额度</span><span>有效期内可用</span></div>{benefits.slice(0, 5).map(([name, value]) => <div key={name}><span>◇ {name}</span><span>+{value}</span><span>{value}</span></div>)}</div><p>✓ 您的会员权益已生效，当前所有功能均可使用</p></section><footer><Link to="/profile">返回个人中心</Link><Link className="primary" to="/">立即使用</Link><p>♢ 支付遇到问题？ <Link to="/help">查看支付帮助</Link> 或 <Link to="/help">联系在线客服 ›</Link></p></footer></main><aside className="success-side"><section><h2>本次开通信息</h2>{[["开通套餐", "会员版（年付）"], ["支付金额", "¥980"], ["支付方式", "微信支付"], ["订单编号", "20250601101545987612"], ["支付时间", "2025-06-01 10:15:45"]].map(([label, value]) => <p key={label}><span>{label}</span><b>{value}</b></p>)}</section><article><i>♛</i><div><strong>会员专属特权</strong><p>更多高阶能力，助力企业精准决策，持续增长</p><Link to="/membership">查看全部权益 ›</Link></div></article></aside></div>;
+  const [copied, setCopied] = useState(false);
+  const orderNumber = "20250601101545987612";
+
+  async function copyOrderNumber() {
+    setCopied(true);
+    try {
+      await navigator.clipboard?.writeText(orderNumber);
+    } catch {
+      // Clipboard access can be unavailable in embedded browsers; the inline state still confirms the action.
+    }
+  }
+
+  return <div className="success-layout"><main className="success-main"><header><span>✓</span><h1>支付成功，会员已激活！</h1><p>感谢您的信任与支持，智活AI助您数据驱动，增长确定。</p></header><section className="activation-facts">{[["♛", "会员等级", "会员版 推荐"], ["▣", "生效时间", "2025-06-01 10:15"], ["▣", "有效期至", "2026-05-31"], ["⟳", "下次重置日", "2025-07-01"]].map(([icon, label, value]) => <article key={label}><i>{icon}</i><span>{label}</span><strong>{value}</strong></article>)}</section><section className="renewed-benefits"><h2>额度已刷新，可立即使用</h2><div className="success-table"><div><span>功能权益</span><span>本次刷新额度</span><span>有效期内可用</span></div>{benefits.slice(0, 5).map(([name, value]) => <div key={name}><span>◇ {name}</span><span>+{value}</span><span>{value}</span></div>)}</div><p>✓ 您的会员权益已生效，当前所有功能均可使用</p></section><footer><Link to="/profile">返回个人中心</Link><Link className="primary" to="/">立即使用</Link><p>♢ 支付遇到问题？ <Link to="/help">查看支付帮助</Link> 或 <Link to="/help">联系在线客服 ›</Link></p></footer></main><aside className="success-side"><section><h2>本次开通信息</h2>{[["开通套餐", "会员版（年付）"], ["支付金额", "¥980"], ["支付方式", "微信支付"], ["订单编号", orderNumber], ["支付时间", "2025-06-01 10:15:45"]].map(([label, value]) => <p key={label}><span>{label}</span><b className={label === "订单编号" ? "order-number" : ""}><span>{value}</span>{label === "订单编号" && <button aria-label="复制订单编号" onClick={() => void copyOrderNumber()} type="button">{copied ? "已复制" : "复制"}</button>}</b></p>)}</section><article><i>♛</i><div><strong>会员专属特权</strong><p>更多高阶能力，助力企业精准决策，持续增长</p><Link to="/membership">查看全部权益 ›</Link></div></article></aside></div>;
 }
 
 export default MembershipPaymentPage;
