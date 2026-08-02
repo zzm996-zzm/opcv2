@@ -43096,6 +43096,26 @@ a:active {
   display: grid;
 }
 
+.cdk-crm-table-scroll,
+.cdk-followups-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.cdk-crm-table-scroll {
+  border-bottom: 1px solid #e6edf8;
+}
+
+.cdk-crm-table-scroll .cdk-crm-table {
+  min-width: 1040px;
+}
+
+.cdk-followups-table-scroll .cdk-followups-table {
+  min-width: 1040px;
+}
+
 .cdk-crm-table-head,
 .cdk-crm-table article {
   display: grid;
@@ -43105,6 +43125,32 @@ a:active {
   min-height: 62px;
   padding: 0 18px;
   border-bottom: 1px solid #e6edf8;
+}
+
+.cdk-crm-table-head > :first-child,
+.cdk-crm-table article > :first-child,
+.cdk-crm-table-head > :nth-child(2),
+.cdk-crm-table article > :nth-child(2),
+.cdk-followups-row > :first-child {
+  position: sticky;
+  z-index: 2;
+  background: inherit;
+}
+
+.cdk-crm-table-head > :first-child,
+.cdk-crm-table article > :first-child {
+  left: 0;
+}
+
+.cdk-crm-table-head > :nth-child(2),
+.cdk-crm-table article > :nth-child(2) {
+  left: 56px;
+  box-shadow: 8px 0 12px -12px rgba(25, 74, 150, 0.4);
+}
+
+.cdk-followups-row > :first-child {
+  left: 0;
+  box-shadow: 8px 0 12px -12px rgba(25, 74, 150, 0.4);
 }
 
 .cdk-crm-table-head {
@@ -43125,6 +43171,15 @@ a:active {
 .cdk-crm-table small {
   margin: 0;
   display: block;
+}
+
+.cdk-crm-table article > :nth-child(2),
+.cdk-followups-row > :first-child,
+.cdk-crm-detail-list dd {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .cdk-crm-table h3 {

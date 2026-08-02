@@ -691,6 +691,7 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
 
           <h2 className="sr-only">客户列表</h2>
           {error && <p className="form-error" role="alert">{error}</p>}
+          <div className="cdk-crm-table-scroll">
           <div className="cdk-crm-table" role="table" aria-label="客户列表">
             <div className="cdk-crm-table-head" role="row">
               {["", "客户 / 公司", "阶段", "标签", "最近跟进", "负责人", "下次跟进", "操作"].map((item) => (
@@ -702,23 +703,24 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
             ) : visibleCustomers.map((customer) => (
                 <article key={customer.name} role="row">
                   <input aria-label={`选择${customer.name}`} type="checkbox" />
-                  <div>
+                  <div title={customer.name}>
                     <h3>{customer.name}</h3>
                     <small>{customer.location}</small>
                   </div>
                   <span className={`stage ${stageTone(customer.stage)}`}>{customer.stage}</span>
                   <div className="cdk-crm-tags">
-                    {customer.tags.map((tag) => <b key={tag}>{tag}</b>)}
+                    {customer.tags.map((tag) => <b key={tag} title={tag}>{tag}</b>)}
                   </div>
                   <span>{customer.stage === "新线索" ? "暂无最近跟进" : "最近已更新"}</span>
                   <span>{customer.owner}</span>
-                  <span>{customer.next}</span>
+                  <span title={customer.next}>{customer.next}</span>
                   <div className="cdk-crm-actions">
                     <Link to={`/crm?customer_id=${customer.id}`}>查看</Link>
                     <button type="button" aria-label={`更多操作 ${customer.name}`}>•••</button>
                   </div>
                 </article>
               ))}
+          </div>
           </div>
 
           <footer className="cdk-crm-pagination">
@@ -738,16 +740,16 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
               <section className="cdk-crm-profile">
                 <i aria-hidden="true" />
                 <div>
-                  <strong>{selectedCustomer.name.split(" · ")[0]}</strong>
+                  <strong title={selectedCustomer.name.split(" · ")[0]}>{selectedCustomer.name.split(" · ")[0]}</strong>
                   <span>{selectedCustomer.stage}</span>
                   <p>{selectedCustomer.name.split(" · ")[1] || selectedCustomer.location}</p>
-                  <div>{selectedCustomer.tags.map((tag) => <b key={tag}>{tag}</b>)}</div>
+                  <div>{selectedCustomer.tags.map((tag) => <b key={tag} title={tag}>{tag}</b>)}</div>
                 </div>
               </section>
               <dl className="cdk-crm-detail-list">
-                <div><dt>联系方式</dt><dd>{selectedCustomer.contact} {selectedCustomer.email}</dd></div>
-                <div><dt>来源</dt><dd>{selectedCustomer.location}</dd></div>
-                <div><dt>需求摘要</dt><dd>{selectedCustomer.health}，下一步：{selectedCustomer.next}</dd></div>
+                <div><dt>联系方式</dt><dd title={`${selectedCustomer.contact} ${selectedCustomer.email}`}>{selectedCustomer.contact} {selectedCustomer.email}</dd></div>
+                <div><dt>来源</dt><dd title={selectedCustomer.location}>{selectedCustomer.location}</dd></div>
+                <div><dt>需求摘要</dt><dd title={`${selectedCustomer.health}，下一步：${selectedCustomer.next}`}>{selectedCustomer.health}，下一步：{selectedCustomer.next}</dd></div>
               </dl>
               <section className="cdk-crm-profile-form" aria-label="编辑客户资料">
                 <label>
@@ -1214,6 +1216,7 @@ function FollowUpsPage() {
               <option value="overdue">已逾期</option>
             </select>
           </header>
+          <div className="cdk-followups-table-scroll">
           <div className="cdk-followups-table" role="table" aria-label="全部跟进列表">
             {error && <p className="form-error" role="alert">{error}</p>}
             {rescheduleStatus && <p className="form-success" role="status">{rescheduleStatus}</p>}
@@ -1228,11 +1231,11 @@ function FollowUpsPage() {
               <div className="module-empty-state" role="status">暂无跟进记录</div>
             ) : pagedFollowRows.map(({ followUp, row: [name, sub, stage, note, owner, next, priority, status, customerID] }) => (
                 <article className={`cdk-followups-row${rescheduleID === followUp.id || recordID === followUp.id ? " editing" : ""}`} key={followUp.id} role="row">
-                  <div><strong>{name}</strong><small>{sub}</small></div>
+                  <div title={`${name} ${sub}`}><strong>{name}</strong><small>{sub}</small></div>
                   <span className={`stage ${stageTone(stage)}`}>{stage}</span>
-                  <p>{note}</p>
+                  <p title={note}>{note}</p>
                   <span>{owner}</span>
-                  <time>{next}</time>
+                  <time title={next}>{next}</time>
                   <b className={`priority ${priority}`}>{priority}</b>
                   <span className="follow-status">{status}</span>
                   <div><Link to={`/crm?customer_id=${customerID}`}>查看详情</Link><button type="button" onClick={() => startRecord(followUp)}>记录跟进</button><button type="button" onClick={() => startReschedule(followUp)}>改期</button></div>
@@ -1276,6 +1279,7 @@ function FollowUpsPage() {
                   )}
                 </article>
               ))}
+          </div>
           </div>
           <footer className="cdk-crm-pagination">
             <span>共 {visibleFollowRows.length} 条记录</span>

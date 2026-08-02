@@ -4,7 +4,7 @@
   display: flex;
   width: 100%;
   min-width: 300px;
-  height: calc(100vh - 112px);
+  height: calc(100dvh - 112px);
   min-height: 620px;
   max-height: 760px;
   flex-direction: column;
@@ -20,8 +20,8 @@
    but they cannot change its width, height, or alignment. */
 .v4-shell .unified-copilot-panel {
   align-self: start;
-  height: calc(100vh - 116px) !important;
-  min-height: 620px !important;
+  height: calc(100dvh - 116px) !important;
+  min-height: 0 !important;
   max-height: none !important;
 }
 
@@ -52,7 +52,7 @@
 
 .public-membership-shell .billing-page .unified-copilot-panel {
   margin-top: -108px !important;
-  height: 840px !important;
+  height: calc(100dvh - 116px) !important;
 }
 
 .community-ref-page .unified-copilot-panel {
@@ -188,14 +188,34 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .unified-copilot-thread {
   display: grid;
   min-height: 0;
+  flex: 1 1 auto;
   padding: 20px 18px 12px;
   gap: 14px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.unified-copilot-thread article,
+.unified-copilot-thread article p,
+.unified-copilot-report,
+.unified-copilot-report span {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.unified-copilot-thread article p,
+.unified-copilot-report strong,
+.unified-copilot-report small {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .unified-copilot-thread article {
@@ -295,6 +315,7 @@
 
 .unified-copilot-actions {
   display: grid;
+  flex: 0 0 auto;
   margin-top: auto;
   padding: 0 18px;
 }
@@ -318,6 +339,7 @@
 
 .unified-copilot-input {
   display: grid;
+  flex: 0 0 auto;
   min-height: 58px;
   margin: 10px 18px 18px;
   padding: 0 82px 0 6px;
