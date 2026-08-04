@@ -75,21 +75,21 @@
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.robot::after {
-  background-image: url("/project-market/core-match.jpg");
+  background-image: url("/project-market/core-match-full.jpg");
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.lens::after {
-  background-image: url("/project-market/core-explore.jpg");
+  background-image: url("/project-market/core-explore-full.jpg");
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
 }
 
 .project-market-shell .pm-layout-home .ref-project-core-card.case::after {
-  background-image: url("/project-market/core-cases.jpg");
+  background-image: url("/project-market/core-cases-full.jpg");
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
