@@ -16,9 +16,14 @@ be treated as available until the matching backend handlers and tests land.
 
 ```json
 {
-  "error": "invalid_request"
+  "error": "invalid_request",
+  "message": "请求内容有误，请检查后重试"
 }
 ```
+
+`error` is the stable machine-readable code. Authentication endpoints also
+return a user-facing Chinese `message`; clients should display it when present
+and fall back to their local copy for older responses.
 
 - List endpoints that accept `limit` default to `20`.
 - `limit <= 0` or non-numeric `limit` returns `400 {"error":"invalid_limit"}`.

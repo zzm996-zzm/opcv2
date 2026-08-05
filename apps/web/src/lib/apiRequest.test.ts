@@ -64,10 +64,28 @@ describe("apiRequest", () => {
       new Response(JSON.stringify({ error: "invalid_request" }), { status: 400 })
     );
 
-    await expect(apiRequest("/api/v1/tasks")).rejects.toMatchObject({
+    const request = apiRequest("/api/v1/tasks");
+    await expect(request).rejects.toMatchObject({
       code: "invalid_request",
       message: "请求参数有误，请检查后重试"
     });
-    await expect(apiRequest("/api/v1/tasks")).rejects.toBeInstanceOf(ApiRequestError);
+    await expect(request).rejects.toBeInstanceOf(ApiRequestError);
+  });
+
+  it("prefers a user-facing message returned by the backend", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "invalid_credentials",
+          message: "账号或密码不正确，请重新输入"
+        }),
+        { status: 401 }
+      )
+    );
+
+    await expect(apiRequest("/api/v1/auth/login")).rejects.toMatchObject({
+      code: "invalid_credentials",
+      message: "账号或密码不正确，请重新输入"
+    });
   });
 });

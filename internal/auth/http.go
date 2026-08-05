@@ -52,7 +52,7 @@ func (h *HTTPHandler) sendCode(c *gin.Context) {
 		Phone string `json:"phone"`
 	}
 	if err := decodeAuthJSON(c, &request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		writeAuthResponse(c, http.StatusBadRequest, "invalid_request", "请求内容有误，请检查后重试")
 		return
 	}
 	if err := h.app.SendCode(c.Request.Context(), request.Phone); err != nil {
@@ -72,7 +72,7 @@ func (h *HTTPHandler) login(c *gin.Context) {
 		AgreementAccepted bool   `json:"agreement_accepted"`
 	}
 	if err := decodeAuthJSON(c, &request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		writeAuthResponse(c, http.StatusBadRequest, "invalid_request", "登录信息格式有误，请检查后重试")
 		return
 	}
 	result, err := h.app.Login(c.Request.Context(), LoginInput{
@@ -101,7 +101,7 @@ func (h *HTTPHandler) register(c *gin.Context) {
 		AgreementAccepted bool   `json:"agreement_accepted"`
 	}
 	if err := decodeAuthJSON(c, &request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		writeAuthResponse(c, http.StatusBadRequest, "invalid_request", "注册信息格式有误，请检查后重试")
 		return
 	}
 	result, err := h.app.Register(c.Request.Context(), RegisterInput{
@@ -123,7 +123,7 @@ func (h *HTTPHandler) register(c *gin.Context) {
 func (h *HTTPHandler) refresh(c *gin.Context) {
 	refreshToken, err := c.Cookie(refreshCookieName)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_refresh_token"})
+		writeAuthResponse(c, http.StatusUnauthorized, "invalid_refresh_token", "登录状态已过期，请重新登录")
 		return
 	}
 	result, err := h.app.Refresh(c.Request.Context(), refreshToken)
@@ -139,7 +139,7 @@ func (h *HTTPHandler) refresh(c *gin.Context) {
 func (h *HTTPHandler) logout(c *gin.Context) {
 	refreshToken, _ := c.Cookie(refreshCookieName)
 	if err := h.app.Logout(c.Request.Context(), refreshToken); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "logout_failed"})
+		writeAuthResponse(c, http.StatusInternalServerError, "logout_failed", "暂时无法退出登录，请稍后再试")
 		return
 	}
 	h.clearRefreshCookie(c)
@@ -160,12 +160,14 @@ func (h *HTTPHandler) RequireAccessToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := strings.TrimSpace(c.GetHeader("Authorization"))
 		if !strings.HasPrefix(header, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_access_token"})
+			c.Abort()
+			writeAuthResponse(c, http.StatusUnauthorized, "invalid_access_token", "请先登录后再继续操作")
 			return
 		}
 		userID, err := h.tokens.ParseAccess(strings.TrimSpace(strings.TrimPrefix(header, "Bearer ")))
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid_access_token"})
+			c.Abort()
+			writeAuthResponse(c, http.StatusUnauthorized, "invalid_access_token", "登录状态已过期，请重新登录")
 			return
 		}
 		c.Set(UserIDContextKey, userID)
@@ -228,34 +230,38 @@ func writeLoginResult(c *gin.Context, result LoginResult) {
 func writeAuthError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrInvalidPhone):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_phone"})
+		writeAuthResponse(c, http.StatusBadRequest, "invalid_phone", "请输入正确的中国大陆手机号")
 	case errors.Is(err, ErrInvalidCode):
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_code"})
+		writeAuthResponse(c, http.StatusUnauthorized, "invalid_code", "验证码错误或已过期，请重新获取")
 	case errors.Is(err, ErrCodeRateLimited):
-		c.JSON(http.StatusTooManyRequests, gin.H{"error": "code_rate_limited"})
+		writeAuthResponse(c, http.StatusTooManyRequests, "code_rate_limited", "验证码发送太频繁，请稍后再试")
 	case errors.Is(err, ErrSMSUnavailable):
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "sms_unavailable"})
+		writeAuthResponse(c, http.StatusServiceUnavailable, "sms_unavailable", "短信服务暂时不可用，请稍后再试")
 	case errors.Is(err, ErrAgreementRequired):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "agreement_required"})
+		writeAuthResponse(c, http.StatusBadRequest, "agreement_required", "请先阅读并同意用户协议和隐私政策")
 	case errors.Is(err, ErrNicknameRequired):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "nickname_required"})
+		writeAuthResponse(c, http.StatusBadRequest, "nickname_required", "请输入昵称")
 	case errors.Is(err, ErrInvalidAccount):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_account"})
+		writeAuthResponse(c, http.StatusBadRequest, "invalid_account", "账号需为4-32位字母、数字或下划线")
 	case errors.Is(err, ErrInvalidPassword):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_password"})
+		writeAuthResponse(c, http.StatusBadRequest, "invalid_password", "密码需为6-72位")
 	case errors.Is(err, ErrInvalidCredentials):
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_credentials"})
+		writeAuthResponse(c, http.StatusUnauthorized, "invalid_credentials", "账号或密码不正确，请重新输入")
 	case errors.Is(err, ErrAccountExists):
-		c.JSON(http.StatusConflict, gin.H{"error": "account_exists"})
+		writeAuthResponse(c, http.StatusConflict, "account_exists", "该账号已注册，请直接登录")
 	case errors.Is(err, ErrInvalidRefreshToken), errors.Is(err, ErrInvalidAccessToken):
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_token"})
+		writeAuthResponse(c, http.StatusUnauthorized, "invalid_token", "登录状态已过期，请重新登录")
 	case errors.Is(err, ErrUserNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
+		writeAuthResponse(c, http.StatusNotFound, "user_not_found", "账号不存在或已失效")
 	case errors.Is(err, ErrUserDisabled):
-		c.JSON(http.StatusForbidden, gin.H{"error": "user_disabled"})
+		writeAuthResponse(c, http.StatusForbidden, "user_disabled", "该账号已被停用，如有疑问请联系客服")
 	case errors.Is(err, ErrAuthNotConfigured):
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		writeAuthResponse(c, http.StatusInternalServerError, "service_not_ready", "登录服务暂时不可用，请稍后再试")
 	default:
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
+		writeAuthResponse(c, http.StatusInternalServerError, "internal_error", "服务开小差了，请稍后再试")
 	}
+}
+
+func writeAuthResponse(c *gin.Context, status int, code, message string) {
+	c.JSON(status, gin.H{"error": code, "message": message})
 }

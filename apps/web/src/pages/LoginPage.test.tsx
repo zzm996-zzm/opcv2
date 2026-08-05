@@ -82,7 +82,7 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText("密码")).toBeInTheDocument();
     expect(screen.getByLabelText("确认密码")).toBeInTheDocument();
     expect(screen.getByLabelText("邮箱")).toBeInTheDocument();
-    expect(screen.getByLabelText("手机号")).toBeInTheDocument();
+    expect(screen.getByLabelText("手机号")).not.toBeRequired();
     expect(screen.getByLabelText("微信或企业微信")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "注册并创建账号" })).toBeDisabled();
   });
@@ -133,10 +133,8 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText("确认密码"), {
       target: { value: "secret123" }
     });
-    fireEvent.change(screen.getByLabelText("手机号"), {
-      target: { value: "13800138000" }
-    });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
+    expect(screen.getByRole("button", { name: "注册并创建账号" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "注册并创建账号" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -145,7 +143,10 @@ describe("LoginPage", () => {
 
   it("shows a specific registration error when the account already exists", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ error: "account_exists" }), { status: 409 })
+      new Response(
+        JSON.stringify({ error: "account_exists", message: "这个账号已经注册过了，请直接登录" }),
+        { status: 409 }
+      )
     );
 
     render(
@@ -164,13 +165,10 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText("确认密码"), {
       target: { value: "secret123" }
     });
-    fireEvent.change(screen.getByLabelText("手机号"), {
-      target: { value: "13800138000" }
-    });
     fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
     fireEvent.click(screen.getByRole("button", { name: "注册并创建账号" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("账号已存在，请直接登录");
+    expect(await screen.findByRole("alert")).toHaveTextContent("这个账号已经注册过了，请直接登录");
   });
 
   it("returns to the requested route after login", async () => {

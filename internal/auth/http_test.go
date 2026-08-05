@@ -110,9 +110,7 @@ func TestAuthEndpointsRejectUnknownJSONFields(t *testing.T) {
 
 	router.ServeHTTP(recorder, request)
 
-	if recorder.Code != http.StatusBadRequest || recorder.Body.String() != `{"error":"invalid_request"}` {
-		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
-	}
+	assertAuthErrorResponse(t, recorder, http.StatusBadRequest, "invalid_request", "登录信息格式有误，请检查后重试")
 	if app.loginIn != (LoginInput{}) {
 		t.Fatalf("login input = %+v, want zero value", app.loginIn)
 	}
@@ -131,9 +129,7 @@ func TestAuthEndpointsRejectMultipleJSONValues(t *testing.T) {
 
 	router.ServeHTTP(recorder, request)
 
-	if recorder.Code != http.StatusBadRequest || recorder.Body.String() != `{"error":"invalid_request"}` {
-		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
-	}
+	assertAuthErrorResponse(t, recorder, http.StatusBadRequest, "invalid_request", "注册信息格式有误，请检查后重试")
 	if app.registerIn != (RegisterInput{}) {
 		t.Fatalf("register input = %+v, want zero value", app.registerIn)
 	}
@@ -277,6 +273,7 @@ func TestRefreshEndpointRejectsDisabledUser(t *testing.T) {
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("status = %d body=%s, want %d", recorder.Code, recorder.Body.String(), http.StatusForbidden)
 	}
+	assertAuthErrorResponse(t, recorder, http.StatusForbidden, "user_disabled", "该账号已被停用，如有疑问请联系客服")
 }
 
 func TestAuthEndpointReturnsServiceNotReadyForMissingDependencies(t *testing.T) {
@@ -292,7 +289,22 @@ func TestAuthEndpointReturnsServiceNotReadyForMissingDependencies(t *testing.T) 
 
 	router.ServeHTTP(recorder, request)
 
-	if recorder.Code != http.StatusInternalServerError || recorder.Body.String() != `{"error":"service_not_ready"}` {
-		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	assertAuthErrorResponse(t, recorder, http.StatusInternalServerError, "service_not_ready", "登录服务暂时不可用，请稍后再试")
+}
+
+func assertAuthErrorResponse(t *testing.T, recorder *httptest.ResponseRecorder, status int, code, message string) {
+	t.Helper()
+	if recorder.Code != status {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, status, recorder.Body.String())
+	}
+	var response struct {
+		Error   string `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Error != code || response.Message != message {
+		t.Fatalf("response = %+v, want error=%q message=%q", response, code, message)
 	}
 }

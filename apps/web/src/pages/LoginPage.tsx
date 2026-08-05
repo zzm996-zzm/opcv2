@@ -42,15 +42,10 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
     const accountReady = account.trim().length >= 4;
     const passwordReady = password.trim().length >= 6;
     if (mode === "register") {
-      return (
-        accountReady &&
-        passwordReady &&
-        phone.trim().length >= 11 &&
-        confirmPassword === password
-      );
+      return accountReady && passwordReady && confirmPassword === password;
     }
     return accountReady && passwordReady;
-  }, [account, agreementAccepted, confirmPassword, mode, password, phone, status]);
+  }, [account, agreementAccepted, confirmPassword, mode, password, status]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -238,16 +233,14 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
                   />
                 </label>
                 <label className="field auth-input">
-                  <span>手机号 <em>*</em></span>
+                  <span>手机号 <small>（选填）</small></span>
                   <input
                     aria-label="手机号"
                     autoComplete="tel"
                     inputMode="tel"
                     maxLength={11}
                     onChange={(event) => setPhone(event.target.value)}
-                    placeholder="请输入手机号"
-                    aria-required="true"
-                    required
+                    placeholder="请输入手机号（选填）"
                     value={phone}
                   />
                 </label>
@@ -321,7 +314,7 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
 
 function resolveError(error: unknown, mode: AuthMode) {
   const fallback = mode === "login" ? "暂时无法完成登录" : "暂时无法完成注册";
-  if (error instanceof ApiRequestError) return errorMessages[error.code] ?? error.message;
+  if (error instanceof ApiRequestError) return error.message;
   if (!(error instanceof Error)) return fallback;
   return errorMessages[error.message] ?? fallback;
 }

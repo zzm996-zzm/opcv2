@@ -75,8 +75,8 @@ export class ApiRequestError extends Error {
   code: string;
   status: number;
 
-  constructor(code: string, status: number) {
-    super(errorMessages[code] ?? errorMessages.request_failed);
+  constructor(code: string, status: number, message?: string) {
+    super(message?.trim() || errorMessages[code] || errorMessages.request_failed);
     this.name = "ApiRequestError";
     this.code = code;
     this.status = status;
@@ -110,8 +110,8 @@ export async function apiStreamRequest(path: string, init: RequestInit = {}) {
     }
   });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new ApiRequestError(payload.error ?? "request_failed", response.status);
+    const payload = (await response.json().catch(() => ({}))) as { error?: string; message?: string };
+    throw new ApiRequestError(payload.error ?? "request_failed", response.status, payload.message);
   }
   return response;
 }
