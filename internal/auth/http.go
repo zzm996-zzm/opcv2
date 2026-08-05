@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +15,7 @@ import (
 const (
 	refreshCookieName = "opcv2_refresh"
 	UserIDContextKey  = "auth_user_id"
+	maxAuthBodySize   = 16 << 10
 )
 
 type AuthApplication interface {
@@ -48,7 +51,7 @@ func (h *HTTPHandler) sendCode(c *gin.Context) {
 	var request struct {
 		Phone string `json:"phone"`
 	}
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := decodeAuthJSON(c, &request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
@@ -68,7 +71,7 @@ func (h *HTTPHandler) login(c *gin.Context) {
 		Password          string `json:"password"`
 		AgreementAccepted bool   `json:"agreement_accepted"`
 	}
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := decodeAuthJSON(c, &request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
@@ -97,7 +100,7 @@ func (h *HTTPHandler) register(c *gin.Context) {
 		Password          string `json:"password"`
 		AgreementAccepted bool   `json:"agreement_accepted"`
 	}
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if err := decodeAuthJSON(c, &request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
@@ -194,6 +197,25 @@ func (h *HTTPHandler) clearRefreshCookie(c *gin.Context) {
 	})
 }
 
+func decodeAuthJSON(c *gin.Context, dst any) error {
+	if c.Request.Body == nil {
+		return errors.New("empty request body")
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, maxAuthBodySize))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		return errors.New("request must contain a single JSON value")
+	}
+	return errors.New("request must contain a single JSON value")
+}
+
 func writeLoginResult(c *gin.Context, result LoginResult) {
 	c.JSON(http.StatusOK, gin.H{
 		"user":                    result.User,
@@ -231,6 +253,8 @@ func writeAuthError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user_not_found"})
 	case errors.Is(err, ErrUserDisabled):
 		c.JSON(http.StatusForbidden, gin.H{"error": "user_disabled"})
+	case errors.Is(err, ErrAuthNotConfigured):
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal_error"})
 	}

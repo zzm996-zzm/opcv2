@@ -27,6 +27,7 @@ var (
 	ErrUserNotFound        = errors.New("user not found")
 	ErrUserDisabled        = errors.New("user disabled")
 	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+	ErrAuthNotConfigured   = errors.New("auth service is not configured")
 )
 
 var mainlandPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
@@ -146,7 +147,7 @@ func (s *Service) SendCode(ctx context.Context, rawPhone string) error {
 		return ErrInvalidPhone
 	}
 	if s.deps.Codes == nil || s.deps.SMS == nil {
-		return errors.New("SMS service is not configured")
+		return ErrAuthNotConfigured
 	}
 	code, err := s.deps.GenerateCode()
 	if err != nil {
@@ -182,13 +183,13 @@ func (s *Service) Login(ctx context.Context, input LoginInput) (LoginResult, err
 		return LoginResult{}, ErrInvalidPhone
 	}
 	if s.deps.Codes == nil {
-		return LoginResult{}, errors.New("auth service is not configured")
+		return LoginResult{}, ErrAuthNotConfigured
 	}
 	if err := s.deps.Codes.Verify(ctx, input.Phone, input.Code); err != nil {
 		return LoginResult{}, err
 	}
 	if s.deps.Users == nil || s.deps.Tokens == nil || s.deps.Sessions == nil {
-		return LoginResult{}, errors.New("auth service is not configured")
+		return LoginResult{}, ErrAuthNotConfigured
 	}
 
 	user, created, err := s.deps.Users.FindOrCreateByPhone(ctx, input.Nickname, input.Phone, time.Now())
@@ -236,7 +237,7 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (LoginResul
 		input.Nickname = input.Account
 	}
 	if s.deps.Users == nil || s.deps.Tokens == nil || s.deps.Sessions == nil {
-		return LoginResult{}, errors.New("auth service is not configured")
+		return LoginResult{}, ErrAuthNotConfigured
 	}
 	passwordHash, err := hashPassword(input.Password)
 	if err != nil {
@@ -265,7 +266,7 @@ func (s *Service) loginWithPassword(ctx context.Context, input LoginInput) (Logi
 		return LoginResult{}, ErrInvalidCredentials
 	}
 	if s.deps.Users == nil || s.deps.Tokens == nil || s.deps.Sessions == nil {
-		return LoginResult{}, errors.New("auth service is not configured")
+		return LoginResult{}, ErrAuthNotConfigured
 	}
 	credentials, err := s.deps.Users.FindCredentialsByAccount(ctx, input.Account)
 	if err != nil {
@@ -285,7 +286,7 @@ func (s *Service) loginWithPassword(ctx context.Context, input LoginInput) (Logi
 
 func (s *Service) Refresh(ctx context.Context, refreshToken string) (LoginResult, error) {
 	if s.deps.Sessions == nil || s.deps.Users == nil || s.deps.Tokens == nil {
-		return LoginResult{}, errors.New("auth service is not configured")
+		return LoginResult{}, ErrAuthNotConfigured
 	}
 	userID, err := s.deps.Sessions.Consume(ctx, strings.TrimSpace(refreshToken))
 	if err != nil {
@@ -343,7 +344,7 @@ func (s *Service) Logout(ctx context.Context, refreshToken string) error {
 
 func (s *Service) CurrentUser(ctx context.Context, userID int64) (User, error) {
 	if s.deps.Users == nil {
-		return User{}, errors.New("auth service is not configured")
+		return User{}, ErrAuthNotConfigured
 	}
 	user, err := s.deps.Users.FindByID(ctx, userID)
 	if err != nil {

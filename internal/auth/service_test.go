@@ -152,6 +152,15 @@ func TestSendCodeRejectsInvalidPhone(t *testing.T) {
 	}
 }
 
+func TestSendCodeReturnsNotConfiguredError(t *testing.T) {
+	service := NewService(Dependencies{})
+
+	err := service.SendCode(context.Background(), "13800138000")
+	if !errors.Is(err, ErrAuthNotConfigured) {
+		t.Fatalf("SendCode() error = %v, want ErrAuthNotConfigured", err)
+	}
+}
+
 func TestLoginCreatesSessionAfterCodeVerification(t *testing.T) {
 	users := &fakeUserRepository{created: true}
 	sessions := &fakeSessionStore{}
@@ -267,6 +276,18 @@ func TestLoginWithAccountPasswordRejectsInvalidPassword(t *testing.T) {
 	})
 	if !errors.Is(err, ErrInvalidCredentials) {
 		t.Fatalf("Login() error = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestLoginWithAccountPasswordReturnsNotConfiguredError(t *testing.T) {
+	service := NewService(Dependencies{})
+
+	_, err := service.Login(context.Background(), LoginInput{
+		Account:  "deploy_user",
+		Password: "secret123",
+	})
+	if !errors.Is(err, ErrAuthNotConfigured) {
+		t.Fatalf("Login() error = %v, want ErrAuthNotConfigured", err)
 	}
 }
 

@@ -97,6 +97,48 @@ func TestSendCodeEndpointReturnsAcceptedWithoutExposingCode(t *testing.T) {
 	}
 }
 
+func TestAuthEndpointsRejectUnknownJSONFields(t *testing.T) {
+	app := &fakeAuthApplication{}
+	router := newAuthTestRouter(app, staticTokenManager{})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/login",
+		strings.NewReader(`{"account":"deploy_user","password":"secret123","unexpected":true}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || recorder.Body.String() != `{"error":"invalid_request"}` {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+	if app.loginIn != (LoginInput{}) {
+		t.Fatalf("login input = %+v, want zero value", app.loginIn)
+	}
+}
+
+func TestAuthEndpointsRejectMultipleJSONValues(t *testing.T) {
+	app := &fakeAuthApplication{}
+	router := newAuthTestRouter(app, staticTokenManager{})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/register",
+		strings.NewReader(`{"account":"deploy_user","password":"secret123"}{}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || recorder.Body.String() != `{"error":"invalid_request"}` {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+	if app.registerIn != (RegisterInput{}) {
+		t.Fatalf("register input = %+v, want zero value", app.registerIn)
+	}
+}
+
 func TestLoginEndpointSetsRefreshCookie(t *testing.T) {
 	app := &fakeAuthApplication{result: LoginResult{
 		User:               User{ID: 42, Nickname: "张晨", Phone: "13800138000", Status: "active"},
@@ -234,5 +276,23 @@ func TestRefreshEndpointRejectsDisabledUser(t *testing.T) {
 
 	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("status = %d body=%s, want %d", recorder.Code, recorder.Body.String(), http.StatusForbidden)
+	}
+}
+
+func TestAuthEndpointReturnsServiceNotReadyForMissingDependencies(t *testing.T) {
+	app := &fakeAuthApplication{err: ErrAuthNotConfigured}
+	router := newAuthTestRouter(app, staticTokenManager{})
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/auth/login",
+		strings.NewReader(`{"account":"deploy_user","password":"secret123"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusInternalServerError || recorder.Body.String() != `{"error":"service_not_ready"}` {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }
