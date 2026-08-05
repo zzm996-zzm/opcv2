@@ -185,7 +185,7 @@ function ProfileTabs() {
 function QuotaCard({ item }: { item: MembershipUsageItem }) {
   const configured = item.limit > 0;
   const percent = configured ? Math.min(100, Math.round(item.used / item.limit * 100)) : 0;
-  const Icon = quotaIcons[item.key] || Sparkles;
+  const Icon = quotaIconFor(item);
   return <article className={`quota-card quota-card-${item.key}`}><span className="quota-label"><Icon aria-hidden="true" size={18} strokeWidth={2} />{item.label}</span><strong>{item.used.toLocaleString()}<small> / {item.limit.toLocaleString()}</small></strong><div className="quota-bar" aria-hidden="true"><i style={{ width: `${percent}%` }} /></div><small>{configured ? `剩余 ${100 - percent}%` : "未配置"}</small><small>重置日：2025-06-01</small></article>;
 }
 
@@ -196,6 +196,18 @@ const quotaIcons: Record<string, LucideIcon> = {
   sandbox: ChartNoAxesCombined,
   competitor: Layers3
 };
+
+function quotaIconFor(item: MembershipUsageItem): LucideIcon {
+  const key = item.key.toLowerCase();
+  const label = item.label.toLowerCase();
+  if (quotaIcons[item.key]) return quotaIcons[item.key];
+  if (key.includes("competitor") || label.includes("竞品")) return Layers3;
+  if (key.includes("sandbox") || label.includes("沙盘")) return ChartNoAxesCombined;
+  if (key.includes("tool") || label.includes("工具")) return Pencil;
+  if (key.includes("data") || key.includes("lead") || label.includes("数据") || label.includes("线索")) return Database;
+  if (key.includes("copilot") || key.includes("chat") || label.includes("对话")) return Sparkles;
+  return BrainCircuit;
+}
 
 function MembershipUpgradeModal({ plans }: { plans: MembershipPlanOption[] }) {
   const [code, setCode] = useState("");

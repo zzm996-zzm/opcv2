@@ -180,8 +180,11 @@
 
 .public-membership-shell .billing-page .plan-actions a {
   min-height: 40px;
+  min-width: 104px;
+  padding: 0 8px;
   border-radius: 8px;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .public-membership-shell .billing-page .plan-actions a.outline {
@@ -480,7 +483,7 @@
   }
 
   .public-membership-shell .billing-page .billing-plan-card {
-    grid-template-columns: minmax(210px, 1fr) 94px minmax(210px, 1fr);
+    grid-template-columns: minmax(210px, 1fr) 104px minmax(210px, 1fr);
     gap: 12px;
   }
 }
