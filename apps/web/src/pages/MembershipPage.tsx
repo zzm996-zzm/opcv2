@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { BrainCircuit, ChartNoAxesCombined, Database, Layers3, Pencil, Sparkles, type LucideIcon } from "lucide-react";
 
 import AccountSectionNav from "../components/AccountSectionNav";
 import PublicCopilotPanel from "../components/PublicCopilotPanel";
@@ -114,6 +115,29 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
               </div>
             </section>
 
+            <section className="billing-quota-card">
+              <div className="module-section-head">
+                <div><h2>各功能额度</h2><p>本月周期：2025-06-01 至 2025-06-30</p></div>
+                <span>所有额度均按自然月重置，本月重置日：2025-06-01</span>
+              </div>
+              <div className="quota-grid billing-quota-grid">
+                {visibleUsage.map((item) => <QuotaCard item={item} key={item.key} />)}
+              </div>
+            </section>
+
+            <section className="order-card">
+              <h2>订单记录</h2>
+              <div className="order-table">
+                <div className="order-head">{["订单号", "套餐", "支付时间", "支付状态", "金额", "支付方式", "操作"].map((item) => <span key={item}>{item}</span>)}</div>
+                {visibleOrders.map((order) => (
+                  <div className="order-row" key={order.id}>
+                    <span>{order.order_no}</span><span>{planName(plans, order.plan_code)}</span><span>{formatDateTime(order.paid_at || order.created_at)}</span>
+                    <span className="paid">已支付</span><span>{formatAmount(order.amount_cents)}</span><span>已开票</span><Link to="/membership/checkout">查看详情</Link>
+                  </div>
+                ))}
+              </div>
+              <button className="view-all-order" type="button">查看全部订单</button>
+            </section>
             {plans.length > 0 && (
               <section className="membership-plan-options" aria-labelledby="membership-plan-options-title">
                 <div className="module-section-head">
@@ -141,30 +165,6 @@ function MembershipPage({ showUpgrade = false }: MembershipPageProps) {
                 </div>
               </section>
             )}
-
-            <section className="billing-quota-card">
-              <div className="module-section-head">
-                <div><h2>各功能额度</h2><p>本月周期：2025-06-01 至 2025-06-30</p></div>
-                <span>所有额度均按自然月重置，本月重置日：2025-06-01</span>
-              </div>
-              <div className="quota-grid billing-quota-grid">
-                {visibleUsage.map((item) => <QuotaCard item={item} key={item.key} />)}
-              </div>
-            </section>
-
-            <section className="order-card">
-              <h2>订单记录</h2>
-              <div className="order-table">
-                <div className="order-head">{["订单号", "套餐", "支付时间", "支付状态", "金额", "支付方式", "操作"].map((item) => <span key={item}>{item}</span>)}</div>
-                {visibleOrders.map((order) => (
-                  <div className="order-row" key={order.id}>
-                    <span>{order.order_no}</span><span>{planName(plans, order.plan_code)}</span><span>{formatDateTime(order.paid_at || order.created_at)}</span>
-                    <span className="paid">已支付</span><span>{formatAmount(order.amount_cents)}</span><span>已开票</span><Link to="/membership/checkout">查看详情</Link>
-                  </div>
-                ))}
-              </div>
-              <button className="view-all-order" type="button">查看全部订单</button>
-            </section>
             {checkoutMessage && <p className="form-success" role="status">{checkoutMessage}</p>}
             <span className="sr-only">当前积分 {snapshot?.credit_balance ?? 0}</span>
             {visibleUsage.map((item) => <span className="sr-only" key={`test-${item.key}`}>{item.label} {item.used}/{item.limit} {item.unit}</span>)}
@@ -185,8 +185,17 @@ function ProfileTabs() {
 function QuotaCard({ item }: { item: MembershipUsageItem }) {
   const configured = item.limit > 0;
   const percent = configured ? Math.min(100, Math.round(item.used / item.limit * 100)) : 0;
-  return <article className="quota-card"><span>{item.label}</span><strong>{item.used.toLocaleString()}<small> / {item.limit.toLocaleString()}</small></strong><div className="quota-bar" aria-hidden="true"><i style={{ width: `${percent}%` }} /></div><small>{configured ? `剩余 ${100 - percent}%` : "未配置"}</small><small>重置日：2025-06-01</small></article>;
+  const Icon = quotaIcons[item.key] || Sparkles;
+  return <article className={`quota-card quota-card-${item.key}`}><span className="quota-label"><Icon aria-hidden="true" size={18} strokeWidth={2} />{item.label}</span><strong>{item.used.toLocaleString()}<small> / {item.limit.toLocaleString()}</small></strong><div className="quota-bar" aria-hidden="true"><i style={{ width: `${percent}%` }} /></div><small>{configured ? `剩余 ${100 - percent}%` : "未配置"}</small><small>重置日：2025-06-01</small></article>;
 }
+
+const quotaIcons: Record<string, LucideIcon> = {
+  ai: BrainCircuit,
+  data: Database,
+  tools: Pencil,
+  sandbox: ChartNoAxesCombined,
+  competitor: Layers3
+};
 
 function MembershipUpgradeModal({ plans }: { plans: MembershipPlanOption[] }) {
   const [code, setCode] = useState("");

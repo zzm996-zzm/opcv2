@@ -99,8 +99,13 @@ function V4PageShell({ accountSlot, children, className = "", mainClassName = ""
   const [accountOpen, setAccountOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const nickname = session.user?.nickname || "张婧";
-  const isTopNavActive = (href: string) =>
-    location.pathname === href || (href !== "/" && location.pathname.startsWith(`${href}/`));
+  const isTopNavActive = (href: string) => {
+    if (href !== "/") {
+      return location.pathname === href || location.pathname.startsWith(`${href}/`);
+    }
+    // Profile, billing and utility routes are still part of the workbench.
+    return !topNav.some((item) => item.href !== "/" && (location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)));
+  };
 
   async function logout() {
     try {
