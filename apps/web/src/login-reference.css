@@ -964,3 +964,126 @@
     animation: none;
   }
 }
+
+/* Desktop parity is based on the 1672 x 945 reference canvas. Scale the
+   complete composition on shorter screens so spacing stays proportional. */
+@media (min-width: 881px) {
+  .login-page.public-component-auth {
+    --auth-layout-scale: min(
+      1,
+      calc(100svh / 945px),
+      calc(46vw / 680px)
+    );
+    grid-template-columns: 54% 46%;
+  }
+
+  .login-page.public-component-auth .login-story {
+    padding: 0;
+  }
+
+  .login-page.public-component-auth .auth-brand {
+    position: absolute;
+    top: 32px;
+    left: 38px;
+    margin: 0;
+    transform: none;
+    transform-origin: left top;
+    zoom: var(--auth-layout-scale);
+  }
+
+  .login-page.public-component-auth .auth-brand {
+    gap: 14px;
+    min-height: 50px;
+  }
+
+  .login-page.public-component-auth .auth-brand .v4-logo {
+    width: 46px;
+    height: 41px;
+    background: url("/home/logo.png") center / contain no-repeat;
+  }
+
+  .login-page.public-component-auth .auth-brand strong {
+    font-size: 31px;
+  }
+
+  .login-page.public-component-auth .auth-brand small {
+    font-size: 17px;
+  }
+
+  .login-page.public-component-auth .auth-help {
+    top: 42px;
+    right: 42px;
+    transform-origin: right top;
+    zoom: var(--auth-layout-scale);
+  }
+
+  .login-page.public-component-auth .login-story-copy {
+    position: absolute;
+    top: 195px;
+    left: 76px;
+    width: 570px;
+    margin: 0;
+    transform-origin: left top;
+    zoom: var(--auth-layout-scale);
+  }
+
+  .login-page.public-component-auth .login-story-copy h1 {
+    font-size: 44px;
+  }
+
+  .login-page.public-component-auth .login-story-copy p {
+    padding: 3px 15px;
+  }
+
+  .login-page.public-component-auth .auth-feature-list {
+    position: absolute;
+    top: 455px;
+    left: 76px;
+    width: 400px;
+    gap: 22px;
+    margin: 0;
+    transform-origin: left top;
+    zoom: var(--auth-layout-scale);
+  }
+
+  .login-page.public-component-auth .login-orbit {
+    top: 340px;
+    right: 0;
+    bottom: auto;
+    width: 540px;
+    height: 470px;
+    min-width: 540px;
+    transform: none;
+    transform-origin: right top;
+    zoom: var(--auth-layout-scale);
+  }
+
+  .login-page.public-component-auth .auth-copyright {
+    right: 8px;
+    bottom: 24px;
+    left: auto;
+    font-size: 13px;
+    white-space: nowrap;
+    transform-origin: right bottom;
+    zoom: var(--auth-layout-scale);
+  }
+
+  .login-page.public-component-auth .login-panel {
+    padding: 0;
+  }
+
+  .login-page.public-component-auth .login-card,
+  .login-page.public-component-auth .login-card.register {
+    width: 604px;
+    min-height: 698px;
+    padding: 42px 38px 34px;
+    transform-origin: center;
+    zoom: var(--auth-layout-scale);
+  }
+
+  .login-page.public-component-auth .login-card.register {
+    width: min(720px, calc(46vw / var(--auth-layout-scale) - 64px));
+    max-height: calc((100svh - 48px) / var(--auth-layout-scale));
+    min-height: 0;
+  }
+}
