@@ -1,6 +1,23 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BrainCircuit, ChartNoAxesCombined, Database, Layers3, Pencil, Sparkles, type LucideIcon } from "lucide-react";
+import {
+  Box,
+  BrainCircuit,
+  ChartNoAxesCombined,
+  Check,
+  Circle,
+  Crown,
+  Database,
+  Folder,
+  Grid3X3,
+  Info,
+  Layers3,
+  Pencil,
+  Radar,
+  Sparkles,
+  X,
+  type LucideIcon
+} from "lucide-react";
 
 import AccountSectionNav from "../components/AccountSectionNav";
 import PublicCopilotPanel from "../components/PublicCopilotPanel";
@@ -230,16 +247,44 @@ function MembershipUpgradeModal({ plans }: { plans: MembershipPlanOption[] }) {
     }
   }
 
+  const normalBenefits = ["商业沙盘推演：1 次/月", "竞品全盘数据破解：5 次/月", "竞品动态监测：共用查询额度", "其他功能：本版暂不限次", "默认单一模型"];
+  const memberBenefits = ["商业沙盘推演：20 次/月", "竞品全盘数据破解：200 次/月", "竞品动态监测：共用查询额度", "其他功能：本版暂不限次", "支持 GPT / Claude / Grok 模型切换", "支持深度思考"];
+  const comparisonRows: Array<[LucideIcon, string, string, string]> = [
+    [ChartNoAxesCombined, "商业沙盘推演", "1 次 / 月", "20 次 / 月"],
+    [Database, "竞品全盘数据破解查询", "5 次 / 月", "200 次 / 月"],
+    [Radar, "竞品动态监测", "共用查询额度", "共用查询额度"],
+    [Box, "模型切换", "默认单一模型", "支持 GPT / Claude / Grok 模型切换"],
+    [Grid3X3, "其他功能", "本版暂不限次", "本版暂不限次"]
+  ];
+
   return <div className="ui-modal-scrim public-upgrade-scrim" role="dialog" aria-label="升级套餐"><section className="upgrade-modal public-upgrade-modal">
-    <div className="upgrade-head"><div><h2>升级套餐</h2><p>对比普通版与会员版权益，选择更适合你的方案</p></div><div className="billing-toggle"><button type="button">月付</button><button className="active" type="button">年付 <span>更优惠</span></button></div><Link className="modal-close" to="/membership" aria-label="关闭升级套餐">×</Link></div>
+    <div className="upgrade-head"><div><h2>升级套餐</h2><p>对比普通版与会员版权益，选择更适合你的方案</p></div><div className="billing-toggle"><button type="button">月付</button><button className="active" type="button">年付 <span>更优惠</span></button></div><Link className="modal-close" to="/membership" aria-label="关闭升级套餐"><X aria-hidden="true" /></Link></div>
     <div className="upgrade-plan-grid">
-      <article className="upgrade-plan-card"><h3>▱ 普通版 <small>当前方案</small></h3><strong>¥0 <small>/ 免费</small></strong>{["商业沙盘推演：1 次/月", "竞品全盘数据破解：5 次/月", "竞品动态监测：共用查询额度", "其他功能：本版暂不限次", "默认单一模型"].map((item) => <p className="upgrade-benefit" key={item}><i /><span>{item}</span></p>)}</article>
-      <article className="upgrade-plan-card featured"><i>推荐</i><h3>♛ 会员版 <b>推荐</b></h3><strong>¥980 <small>/ 年，折合 ¥81.67 / 月</small></strong>{["商业沙盘推演：20 次/月", "竞品全盘数据破解：200 次/月", "竞品动态监测：共用查询额度", "其他功能：本版暂不限次", "支持 GPT / Claude / Grok 模型切换", "支持深度思考"].map((item) => <p className="upgrade-benefit" key={item}><i /><span>{item}</span></p>)}</article>
+      <article className="upgrade-plan-card">
+        <div className="upgrade-plan-title"><Folder aria-hidden="true" /><h3>普通版</h3><small>当前方案</small></div>
+        <div className="upgrade-plan-price"><strong>¥0</strong><small>/ 免费</small></div>
+        <div className="upgrade-benefit-list">{normalBenefits.map((item) => <UpgradeBenefitRow item={item} key={item} />)}</div>
+      </article>
+      <article className="upgrade-plan-card featured">
+        <span className="upgrade-ribbon" aria-hidden="true">推荐</span>
+        <div className="upgrade-plan-title"><Crown aria-hidden="true" /><h3>会员版</h3><small>推荐</small></div>
+        <div className="upgrade-plan-price"><strong>¥980</strong><small>/ 年 折合 ¥81.67 / 月</small></div>
+        <div className="upgrade-benefit-list">{memberBenefits.map((item) => <UpgradeBenefitRow featured item={item} key={item} />)}</div>
+      </article>
     </div>
-    <div className="benefit-table"><h3>权益对比一览</h3><div className="benefit-table-head"><span>功能权益</span><span>普通版</span><strong>会员版</strong></div>{[["商业沙盘推演", "1 次 / 月", "20 次 / 月"], ["竞品全盘数据破解查询", "5 次 / 月", "200 次 / 月"], ["竞品动态监测", "共用查询额度", "共用查询额度"], ["模型切换", "默认单一模型", "支持 GPT / Claude / Grok 模型切换"], ["其他功能", "本版暂不限次", "本版暂不限次"]].map(([name, normal, vip]) => <div key={name}><span>{name}</span><span>{normal}</span><strong>{vip}</strong></div>)}</div>
+    <div className="benefit-table"><h3>权益对比一览</h3><div className="benefit-table-head"><span aria-hidden="true" /><span>普通版</span><strong>会员版</strong></div>{comparisonRows.map(([Icon, name, normal, vip]) => <div className="benefit-table-row" key={name}><span className="benefit-name"><Icon aria-hidden="true" />{name}</span><span>{normal}</span><strong>{vip}</strong></div>)}<p className="benefit-note"><Info aria-hidden="true" />所有次数 / 额度按周期真实重置</p></div>
     <form className="upgrade-redeem" onSubmit={(event) => void redeem(event)}><label><span className="sr-only">兑换码</span><input aria-label="兑换码" onChange={(event) => setCode(event.target.value)} placeholder="已有兑换码？在此输入" value={code} /></label><button disabled={redeeming} type="submit">{redeeming ? "兑换中..." : "立即兑换"}</button>{message && <p className="form-success" role="status">{message}</p>}</form>
-    <footer className="upgrade-footer"><div className="upgrade-contact-qr" aria-hidden="true" /><span><strong>联系企业微信升级权限</strong><small>添加顾问，获取开通帮助</small></span><Link to="/membership">稍后再说</Link><button onClick={() => navigate(`/membership/checkout${paidPlan ? `?plan=${paidPlan.code}` : ""}`)} type="button">立即开通</button></footer>
+    <footer className="upgrade-footer"><div className="upgrade-contact-qr" aria-hidden="true" /><span><strong>联系企业微信升级权限</strong><small>添加顾问，获取开通帮助</small></span><Link to="/membership">稍后再说</Link><button onClick={() => navigate(`/membership/checkout${paidPlan ? `?plan=${paidPlan.code}` : ""}`)} type="button">立即再说</button></footer>
   </section></div>;
+}
+
+function UpgradeBenefitRow({ featured = false, item }: { featured?: boolean; item: string }) {
+  const [label, value] = item.split("：");
+  return <p className={`upgrade-benefit${value ? "" : " full"}`}>
+    {featured ? <span className="upgrade-check"><Check aria-hidden="true" /></span> : <Circle aria-hidden="true" />}
+    <span>{label}{value ? "：" : ""}</span>
+    {value && <strong>{value}</strong>}
+  </p>;
 }
 
 function planName(plans: MembershipPlanOption[], code: string) {
