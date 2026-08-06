@@ -49,6 +49,50 @@
   color: #07142e;
 }
 
+.login-page.public-component-auth .auth-brand .v4-logo {
+  isolation: isolate;
+  overflow: visible;
+  background: none;
+  filter: drop-shadow(0 7px 9px rgba(38, 83, 220, 0.2));
+  mix-blend-mode: normal;
+  animation: auth-brand-mark-glow 4.8s ease-in-out infinite;
+}
+
+.login-page.public-component-auth .auth-brand .v4-logo::before,
+.login-page.public-component-auth .auth-brand .v4-logo::after {
+  position: absolute;
+  top: 2%;
+  display: block;
+  width: 31%;
+  height: 92%;
+  content: "";
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  box-shadow:
+    inset 4px 4px 7px rgba(255, 255, 255, 0.32),
+    inset -3px -5px 8px rgba(27, 54, 174, 0.2),
+    0 5px 8px rgba(39, 78, 194, 0.13);
+  transform-origin: 50% 7%;
+}
+
+.login-page.public-component-auth .auth-brand .v4-logo::before {
+  left: 29%;
+  z-index: 2;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.62), transparent 27%),
+    linear-gradient(165deg, #3fe0ff 0%, #1782f0 39%, #405bef 70%, #7969f5 100%);
+  transform: rotate(24deg);
+}
+
+.login-page.public-component-auth .auth-brand .v4-logo::after {
+  right: 25%;
+  z-index: 1;
+  background:
+    linear-gradient(245deg, rgba(255, 255, 255, 0.5), transparent 26%),
+    linear-gradient(195deg, #1ed4ff 0%, #2865e9 47%, #6849df 77%, #b15ef0 100%);
+  transform: rotate(-24deg);
+}
+
 .login-page.public-component-auth .auth-help {
   position: absolute;
   top: 42px;
@@ -745,6 +789,11 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes auth-brand-mark-glow {
+  0%, 100% { filter: drop-shadow(0 7px 9px rgba(38, 83, 220, 0.2)) brightness(1); }
+  50% { filter: drop-shadow(0 8px 12px rgba(41, 92, 235, 0.3)) brightness(1.08); }
+}
+
 @media (max-height: 830px) and (min-width: 881px) {
   .login-page.public-component-auth .login-story-copy {
     margin-top: 72px;
@@ -960,6 +1009,7 @@
   .login-page.public-component-auth .login-scene-orbit,
   .login-page.public-component-auth .login-scene-cube,
   .login-page.public-component-auth .login-logo-stroke::after,
+  .login-page.public-component-auth .auth-brand .v4-logo,
   .login-page.public-component-auth .login-card {
     animation: none;
   }
@@ -999,7 +1049,6 @@
   .login-page.public-component-auth .auth-brand .v4-logo {
     width: 46px;
     height: 41px;
-    background: url("/home/logo.png") center / contain no-repeat;
   }
 
   .login-page.public-component-auth .auth-brand strong {
