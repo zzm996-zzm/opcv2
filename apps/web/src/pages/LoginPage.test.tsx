@@ -31,6 +31,20 @@ describe("LoginPage", () => {
     expect(screen.getByRole("button", { name: "登录" })).toBeEnabled();
   });
 
+  it("toggles password visibility without submitting the form", () => {
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    const password = screen.getByLabelText("密码");
+    expect(password).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByRole("button", { name: "显示密码" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: "隐藏密码" })).toBeInTheDocument();
+  });
+
   it("logs in with account and password", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

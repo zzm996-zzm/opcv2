@@ -1,4 +1,17 @@
 import { FormEvent, useMemo, useState } from "react";
+import {
+  BarChart3,
+  CircleHelp,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Mail,
+  MessageCircleMore,
+  ShieldCheck,
+  Smartphone,
+  UserRound,
+  Zap
+} from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiRequestError } from "../lib/apiRequest";
@@ -34,6 +47,8 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
   const [phone, setPhone] = useState("");
   const [wechat, setWechat] = useState("");
   const [agreementAccepted, setAgreementAccepted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
   const [error, setError] = useState("");
 
@@ -77,7 +92,7 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
   return (
     <main className="login-page public-component-auth">
       <Link className="auth-help" to="/help">
-        <span aria-hidden="true">?</span>
+        <CircleHelp aria-hidden="true" size={22} />
         帮助中心
       </Link>
 
@@ -94,25 +109,43 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
           <span>智活AI 助力企业打通数据、洞察与执行，驱动可持续增长</span>
         </div>
 
-        <div className="login-orbit" aria-hidden="true" />
+        <div className="login-orbit" aria-hidden="true">
+          <span className="login-scene-orbit orbit-a"><i /></span>
+          <span className="login-scene-orbit orbit-b"><i /></span>
+          <span className="login-scene-cube cube-a" />
+          <span className="login-scene-cube cube-b" />
+          <span className="login-scene-cube cube-c" />
+          <div className="login-scene-stage">
+            <span className="stage-ring stage-ring-back" />
+            <span className="stage-ring stage-ring-mid" />
+            <span className="stage-ring stage-ring-front" />
+            <span className="stage-core" />
+          </div>
+          <div className="login-scene-logo">
+            <span className="login-logo-stroke left" />
+            <span className="login-logo-stroke right" />
+            <i />
+          </div>
+          <span className="login-scene-glow" />
+        </div>
 
         <div className="auth-feature-list">
           <article>
-            <i className="metric-icon chart" aria-hidden="true" />
+            <i className="auth-feature-icon" aria-hidden="true"><BarChart3 size={24} /></i>
             <div>
               <strong>全域数据智能洞察</strong>
               <small>整合多源数据，洞察业务关键机会</small>
             </div>
           </article>
           <article>
-            <i className="metric-icon trend" aria-hidden="true" />
+            <i className="auth-feature-icon" aria-hidden="true"><Zap size={24} /></i>
             <div>
               <strong>AI赋能高效决策</strong>
               <small>智能分析与预测，辅助科学决策</small>
             </div>
           </article>
           <article>
-            <i className="metric-icon inbox" aria-hidden="true" />
+            <i className="auth-feature-icon" aria-hidden="true"><ShieldCheck size={24} /></i>
             <div>
               <strong>业务闭环持续增长</strong>
               <small>从洞察到执行，沉淀增长方法论</small>
@@ -156,26 +189,43 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
               <>
                 <label className="field auth-input">
                   <span>账号 / 用户名</span>
-                  <input
-                    aria-label="账号"
-                    autoComplete="username"
-                    maxLength={32}
-                    onChange={(event) => setAccount(event.target.value)}
-                    placeholder="请输入账号 / 用户名"
-                    value={account}
-                  />
+                  <span className="auth-field-control">
+                    <UserRound aria-hidden="true" size={19} />
+                    <input
+                      aria-label="账号"
+                      autoComplete="username"
+                      maxLength={32}
+                      onChange={(event) => setAccount(event.target.value)}
+                      placeholder="请输入账号 / 用户名"
+                      value={account}
+                    />
+                  </span>
                 </label>
 
                 <label className="field auth-input">
                   <span>密码</span>
-                  <input
-                    aria-label="密码"
-                    autoComplete="current-password"
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="请输入密码"
-                    type="password"
-                    value={password}
-                  />
+                  <span className="auth-field-control has-action">
+                    <LockKeyhole aria-hidden="true" size={19} />
+                    <input
+                      aria-label="密码"
+                      autoComplete="current-password"
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="请输入密码"
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                    />
+                    <button
+                      aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                      className="auth-password-toggle"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setShowPassword((visible) => !visible);
+                      }}
+                      type="button"
+                    >
+                      {showPassword ? <EyeOff aria-hidden="true" size={19} /> : <Eye aria-hidden="true" size={19} />}
+                    </button>
+                  </span>
                 </label>
                 <Link className="forgot-password-link" to="/help">忘记密码</Link>
               </>
@@ -183,76 +233,116 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
               <div className="register-field-grid">
                 <label className="field auth-input">
                   <span>账号 <em>*</em></span>
-                  <input
-                    aria-label="账号"
-                    autoComplete="username"
-                    maxLength={32}
-                    onChange={(event) => setAccount(event.target.value)}
-                    placeholder="请输入账号（4-32位）"
-                    aria-required="true"
-                    required
-                    value={account}
-                  />
+                  <span className="auth-field-control">
+                    <UserRound aria-hidden="true" size={19} />
+                    <input
+                      aria-label="账号"
+                      autoComplete="username"
+                      maxLength={32}
+                      onChange={(event) => setAccount(event.target.value)}
+                      placeholder="请输入账号（4-32位）"
+                      aria-required="true"
+                      required
+                      value={account}
+                    />
+                  </span>
                 </label>
                 <label className="field auth-input">
                   <span>密码 <em>*</em></span>
-                  <input
-                    aria-label="密码"
-                    autoComplete="new-password"
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="请输入密码，至少6位"
-                    type="password"
-                    aria-required="true"
-                    required
-                    value={password}
-                  />
+                  <span className="auth-field-control has-action">
+                    <LockKeyhole aria-hidden="true" size={19} />
+                    <input
+                      aria-label="密码"
+                      autoComplete="new-password"
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="请输入密码，至少6位"
+                      type={showPassword ? "text" : "password"}
+                      aria-required="true"
+                      required
+                      value={password}
+                    />
+                    <button
+                      aria-label={showPassword ? "隐藏密码" : "显示密码"}
+                      className="auth-password-toggle"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setShowPassword((visible) => !visible);
+                      }}
+                      type="button"
+                    >
+                      {showPassword ? <EyeOff aria-hidden="true" size={19} /> : <Eye aria-hidden="true" size={19} />}
+                    </button>
+                  </span>
                 </label>
                 <label className="field auth-input">
                   <span>确认密码 <em>*</em></span>
-                  <input
-                    aria-label="确认密码"
-                    autoComplete="new-password"
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    placeholder="请再次输入密码"
-                    type="password"
-                    aria-required="true"
-                    required
-                    value={confirmPassword}
-                  />
+                  <span className="auth-field-control has-action">
+                    <LockKeyhole aria-hidden="true" size={19} />
+                    <input
+                      aria-label="确认密码"
+                      autoComplete="new-password"
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      placeholder="请再次输入密码"
+                      type={showConfirmPassword ? "text" : "password"}
+                      aria-required="true"
+                      required
+                      value={confirmPassword}
+                    />
+                    <button
+                      aria-label={showConfirmPassword ? "隐藏确认密码" : "显示确认密码"}
+                      className="auth-password-toggle"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setShowConfirmPassword((visible) => !visible);
+                      }}
+                      type="button"
+                    >
+                      {showConfirmPassword ? <EyeOff aria-hidden="true" size={19} /> : <Eye aria-hidden="true" size={19} />}
+                    </button>
+                  </span>
                   {confirmPassword && confirmPassword !== password ? <small className="field-error" role="alert">两次密码不一致</small> : null}
                 </label>
                 <label className="field auth-input">
                   <span>邮箱 <small>（选填）</small></span>
-                  <input
-                    aria-label="邮箱"
-                    autoComplete="email"
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="请输入常用邮箱地址"
-                    type="email"
-                    value={email}
-                  />
+                  <span className="auth-field-control">
+                    <Mail aria-hidden="true" size={19} />
+                    <input
+                      aria-label="邮箱"
+                      autoComplete="email"
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="请输入常用邮箱地址"
+                      type="email"
+                      value={email}
+                    />
+                  </span>
                 </label>
                 <label className="field auth-input">
                   <span>手机号 <small>（选填）</small></span>
-                  <input
-                    aria-label="手机号"
-                    autoComplete="tel"
-                    inputMode="tel"
-                    maxLength={11}
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="请输入手机号（选填）"
-                    value={phone}
-                  />
+                  <span className="auth-field-control">
+                    <Smartphone aria-hidden="true" size={19} />
+                    <input
+                      aria-label="手机号"
+                      autoComplete="tel"
+                      inputMode="tel"
+                      maxLength={11}
+                      onChange={(event) => setPhone(event.target.value)}
+                      placeholder="请输入手机号（选填）"
+                      value={phone}
+                    />
+                  </span>
                 </label>
                 <label className="field auth-input">
                   <span>微信 / 企业微信 <small>（选填）</small></span>
-                  <input
-                    aria-label="微信或企业微信"
-                    autoComplete="off"
-                    onChange={(event) => setWechat(event.target.value)}
-                    placeholder="请输入微信号或企业微信号（选填）"
-                    value={wechat}
-                  />
+                  <span className="auth-field-control">
+                    <MessageCircleMore aria-hidden="true" size={19} />
+                    <input
+                      aria-label="微信或企业微信"
+                      autoComplete="off"
+                      onChange={(event) => setWechat(event.target.value)}
+                      placeholder="请输入微信号或企业微信号（选填）"
+                      value={wechat}
+                    />
+                  </span>
                 </label>
               </div>
             )}
@@ -288,11 +378,11 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
                 <div className="auth-divider">其他登录方式</div>
                 <div className="auth-secondary-actions">
                   <button type="button">
-                    <span className="wechat-mark" aria-hidden="true">●</span>
+                    <MessageCircleMore className="wechat-mark" aria-hidden="true" size={20} />
                     微信快捷登录
                   </button>
                   <button type="button">
-                    <span className="phone-mark" aria-hidden="true" />
+                    <Smartphone className="phone-mark" aria-hidden="true" size={20} />
                     手机号快捷登录
                   </button>
                 </div>

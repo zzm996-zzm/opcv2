@@ -45226,14 +45226,6 @@ a:active {
   background: #edf3ff url("/public-components/avatar.jpg") center / cover no-repeat;
 }
 
-.login-orbit {
-  background: url("/public-components/login-sculpture.jpg") center / contain no-repeat;
-}
-
-.login-orbit > * {
-  display: none !important;
-}
-
 .upgrade-contact-qr {
   width: 52px;
   height: 52px;

@@ -19,6 +19,7 @@ import "./unified-copilot-panel.css";
 import "./membership-reference.css";
 import "./project-market-home-parity.css";
 import "./sandbox-home-parity.css";
+import "./login-reference.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
