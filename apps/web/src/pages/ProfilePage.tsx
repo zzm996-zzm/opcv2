@@ -1,5 +1,19 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  Aperture,
+  Bell,
+  BookOpen,
+  ChevronDown,
+  CircleCheckBig,
+  Globe2,
+  Hexagon,
+  Info,
+  Mail,
+  MessageCircle,
+  Sun,
+  type LucideIcon
+} from "lucide-react";
 
 import AccountSectionNav from "../components/AccountSectionNav";
 import PublicCopilotPanel from "../components/PublicCopilotPanel";
@@ -166,6 +180,15 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
         </div>
         {overlay && <AccountOverlay kind={overlay} onDelete={() => void deleteAccount()} />}
       </section>
+      {mode === "preferences" && (
+        <Link className="v4-page-copilot-mini preference-copilot-mini" to="/copilot" aria-label="打开智活 Copilot">
+          <span className="mini-logo" aria-hidden="true" />
+          <span>
+            <strong>智活 Copilot</strong>
+            <small>输入问题，发送后自动展开回答</small>
+          </span>
+        </Link>
+      )}
     </V4PageShell>
   );
 }
@@ -595,21 +618,28 @@ function MyContent({ items }: { items: AccountContentItem[] }) {
 }
 
 const preferenceModels = [
-  { value: "claude-opus-4.8", label: "Claude Opus 4.8" },
-  { value: "chatgpt-5.5", label: "ChatGPT 5.5" },
-  { value: "grok-4.3", label: "Grok 4.3" }
+  { value: "claude-opus-4.8", label: "Claude Opus 4.8", displayLabel: "Claude opus4.8", icon: Sun },
+  { value: "chatgpt-5.5", label: "ChatGPT 5.5", displayLabel: "Chatgpt 5.5", icon: Aperture },
+  { value: "grok-4.3", label: "Grok 4.3", displayLabel: "Gork4.3", icon: Hexagon }
 ] as const;
 
 const notificationRows = [
-  ["任务提醒", "任务创建、分配、截止时间等提醒", true, true, true],
-  ["系统通知", "系统更新、功能上线等重要通知", true, true, false],
-  ["营销消息", "产品动态、活动信息等推广内容", true, false, false]
+  ["任务提醒", "任务创建、分配、截止时间等提醒", CircleCheckBig, true, true, true],
+  ["系统通知", "系统更新、功能上线等重要通知", Bell, true, true, false],
+  ["营销消息", "产品动态、活动信息等推广内容", BookOpen, true, false, false]
 ] as const;
+
+const notificationChannels: Array<[string, LucideIcon]> = [
+  ["站内通知", Bell],
+  ["邮件通知", Mail],
+  ["企业微信通知", MessageCircle]
+];
 
 function Preferences({ actionFailed, actionMessage, onSave, preferences }: { actionFailed: boolean; actionMessage: string; onSave: (patch: Partial<AccountPreferences>) => Promise<void> | void; preferences: AccountPreferences | null }) {
   const [notificationEnabled, setNotificationEnabled] = useState(preferences?.notifications_enabled ?? true);
-  const [selectedModel, setSelectedModel] = useState(preferences?.default_model ?? preferenceModels[0].value);
+  const [selectedModel, setSelectedModel] = useState(preferences?.default_model ?? "");
   const [saving, setSaving] = useState(false);
+  const effectiveSelectedModel = selectedModel || preferences?.default_model || preferenceModels[0].value;
 
   useEffect(() => {
     if (!preferences) return;
@@ -622,7 +652,7 @@ function Preferences({ actionFailed, actionMessage, onSave, preferences }: { act
     try {
       await onSave({
         notifications_enabled: notificationEnabled,
-        default_model: selectedModel
+        default_model: effectiveSelectedModel
       });
     } finally {
       setSaving(false);
@@ -640,20 +670,23 @@ function Preferences({ actionFailed, actionMessage, onSave, preferences }: { act
         <p>选择接收通知的方式及内容</p>
         <div className="notification-matrix">
           <div className="matrix-head">
-            <strong>通知类型</strong>
-            {["站内通知", "邮件通知", "企业微信通知"].map((item) => (
-              <span key={item}>
-                {item}
-                <button aria-checked={notificationEnabled} aria-label={`切换${item}`} className={`toggle-switch ${notificationEnabled ? "on" : ""}`} onClick={toggleNotifications} role="switch" type="button" />
+            <span aria-hidden="true" />
+            {notificationChannels.map(([label, Icon]) => (
+              <span key={label}>
+                <Icon aria-hidden="true" />
+                {label}
+                <button aria-checked={notificationEnabled} aria-label={`切换${label}`} className={`toggle-switch ${notificationEnabled ? "on" : ""}`} onClick={toggleNotifications} role="switch" type="button" />
               </span>
             ))}
           </div>
-          {notificationRows.map(([title, desc, inApp, email, wechat]) => (
+          {notificationRows.map(([title, desc, RowIcon, inApp, email, wechat]) => (
             <article key={title as string}>
-              <span className="preference-row-icon" aria-hidden="true" />
-              <div>
-                <strong>{title}</strong>
-                <small>{desc}</small>
+              <div className="preference-row-label">
+                <RowIcon aria-hidden="true" />
+                <span>
+                  <strong>{title}</strong>
+                  <small>{desc}</small>
+                </span>
               </div>
               {[inApp, email, wechat].map((enabled, index) => (
                 <button aria-checked={notificationEnabled && enabled} aria-label={`切换${title}的${["站内通知", "邮件通知", "企业微信通知"][index]}`} className={`toggle-switch ${notificationEnabled && enabled ? "on" : ""}`} key={index} onClick={toggleNotifications} role="switch" type="button" />
@@ -671,26 +704,26 @@ function Preferences({ actionFailed, actionMessage, onSave, preferences }: { act
           <span>当前默认模型：{modelLabel(preferences?.default_model)}</span>
           <div aria-label="默认模型" className="model-choice-buttons" role="radiogroup">
             {preferenceModels.map((model, index) => (
-              <button aria-checked={selectedModel === model.value} className={selectedModel === model.value ? "active" : ""} key={model.value} onClick={() => setSelectedModel(model.value)} role="radio" type="button">
-                <span className={`model-mark mark-${index}`} aria-hidden="true" />
-                {model.label}
+              <button aria-checked={effectiveSelectedModel === model.value} aria-label={model.label} className={effectiveSelectedModel === model.value ? "active" : ""} key={model.value} onClick={() => setSelectedModel(model.value)} role="radio" type="button">
+                <model.icon aria-hidden="true" className={`model-mark mark-${index}`} />
+                {model.displayLabel}
               </button>
             ))}
           </div>
         </div>
-        <small className="preference-note">部分模型的可用性可能因你的身份或企业权限而有所不同</small>
+        <small className="preference-note"><Info aria-hidden="true" />部分模型的可用性可能因你的身份或企业权限而有所不同</small>
       </section>
 
       <section className="preference-card split">
         <label>
           <strong>语言设置</strong>
           <small>选择你的界面显示语言</small>
-          <button type="button">{preferences?.language ?? "未设置"} <span aria-hidden="true">⌄</span></button>
+          <button type="button"><span><Globe2 aria-hidden="true" />{preferenceLanguageLabel(preferences?.language)}</span><ChevronDown aria-hidden="true" /></button>
         </label>
         <label>
           <strong>主题设置</strong>
           <small>选择界面主题风格</small>
-          <button type="button">浅色（跟随系统） <span aria-hidden="true">⌄</span></button>
+          <button type="button"><span><Sun aria-hidden="true" />浅色（跟随系统）</span><ChevronDown aria-hidden="true" /></button>
         </label>
       </section>
 
@@ -698,7 +731,7 @@ function Preferences({ actionFailed, actionMessage, onSave, preferences }: { act
         <button disabled={saving} onClick={() => void save()} type="button">{saving ? "保存中..." : "保存设置"}</button>
         {actionMessage
           ? <span className={actionFailed ? "form-error" : "form-success"} role={actionFailed ? "alert" : "status"}>{actionMessage}</span>
-          : <span>修改后点击保存即可生效</span>}
+          : <span>更改将自动保存</span>}
       </section>
     </>
   );
@@ -707,6 +740,11 @@ function Preferences({ actionFailed, actionMessage, onSave, preferences }: { act
 function modelLabel(value: string | undefined) {
   if (!value) return "未设置";
   return preferenceModels.find((model) => model.value === value)?.label || value;
+}
+
+function preferenceLanguageLabel(value: string | undefined) {
+  if (!value || value === "zh-CN") return "简体中文";
+  return value;
 }
 
 function profileTitle(mode: ProfilePageProps["mode"]) {

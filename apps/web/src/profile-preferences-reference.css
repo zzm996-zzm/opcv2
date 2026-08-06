@@ -1,0 +1,582 @@
+/* Preference settings composition, measured against the 1672 x 941 reference. */
+.public-profile-shell:has(.preference-card) {
+  --preference-blue: #1557f0;
+  --preference-ink: #102044;
+  --preference-muted: #7585a7;
+  background: #fafbfe;
+}
+
+.public-profile-shell:has(.preference-card) .v4-page-main {
+  padding: 40px 32px 70px 47px;
+  background: #fafbfe;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) {
+  width: 100%;
+  max-width: none;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .page-title-row {
+  min-height: 72px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .page-title-row h1 {
+  margin: 0 0 6px;
+  color: #101d3b;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 32px;
+  letter-spacing: 0;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .page-title-row p {
+  margin: 0;
+  color: #65779e;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .profile-layout {
+  grid-template-columns: 200px 793px;
+  gap: 42px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs {
+  box-sizing: border-box;
+  width: 200px;
+  gap: 2px;
+  padding: 10px 0;
+  background: rgba(255, 255, 255, 0.88);
+  border: 0;
+  border-radius: 2px;
+  box-shadow: 0 12px 32px rgba(46, 65, 118, 0.035);
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs a {
+  min-height: 48px;
+  padding: 0 17px;
+  gap: 13px;
+  color: #2b3e6a;
+  border-left: 3px solid transparent;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs a svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.7;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs a > b {
+  color: #244272;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs a.active {
+  color: var(--preference-blue);
+  background: #fbfcff;
+  border-left-color: var(--preference-blue);
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .profile-content {
+  width: 793px;
+  gap: 14px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card {
+  box-sizing: border-box;
+  width: 793px;
+  min-width: 0;
+  max-width: none;
+  gap: 8px;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 0;
+  border-radius: 2px;
+  box-shadow: 0 12px 32px rgba(42, 61, 115, 0.035);
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card:first-child {
+  height: 278px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card:nth-child(2) {
+  height: 172px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card h2 {
+  margin: 0;
+  color: var(--preference-ink);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 22px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card > p {
+  margin: 0;
+  color: #7e8dab;
+  font-size: 10px;
+  font-weight: 550;
+  line-height: 17px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .notification-matrix {
+  display: grid;
+  height: 190px;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .matrix-head,
+.public-profile-shell .profile-page:has(.preference-card) .notification-matrix article {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 245px repeat(3, 169px);
+  width: 753px;
+  min-height: 0;
+  padding: 0;
+  gap: 0;
+  align-items: center;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .matrix-head {
+  height: 44px;
+  color: #263b69;
+  background: transparent;
+  border: 0;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .matrix-head > span:not(:first-child) {
+  display: flex;
+  min-width: 0;
+  padding: 0 10px;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .matrix-head svg {
+  width: 17px;
+  height: 17px;
+  color: #29487f;
+  stroke-width: 1.7;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .matrix-head .toggle-switch {
+  margin-left: auto;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .notification-matrix article {
+  height: 48px;
+  border: 0;
+  border-top: 1px solid #f1f3f7;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-row-label {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 9px;
+  padding-right: 10px;
+  align-items: center;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-row-label > svg {
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  color: #38558c;
+  background: #f8f9fc;
+  border-radius: 5px;
+  stroke-width: 1.8;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-row-label strong {
+  color: #223762;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 15px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-row-label small {
+  margin: 1px 0 0;
+  color: #8a98b3;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 12px;
+  white-space: nowrap;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .notification-matrix article > .toggle-switch {
+  justify-self: center;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .toggle-switch {
+  width: 32px;
+  height: 18px;
+  background: #edf1f8;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .toggle-switch::after {
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  box-shadow: 0 1px 4px rgba(34, 61, 118, 0.16);
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .toggle-switch.on {
+  background: var(--preference-blue);
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .toggle-switch.on::after {
+  left: 17px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row {
+  display: grid;
+  grid-template-columns: 282px 178px 122px 122px;
+  width: 753px;
+  min-height: 46px;
+  padding: 0;
+  gap: 8px;
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row > strong {
+  color: #243961;
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 15px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row > strong small {
+  margin-top: 2px;
+  color: #8593ae;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 12px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row > span {
+  display: none;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-buttons {
+  display: contents;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row button {
+  box-sizing: border-box;
+  display: inline-flex;
+  min-width: 0;
+  min-height: 46px;
+  height: 46px;
+  padding: 0 10px;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+  color: #17284e;
+  background: #fff;
+  border: 1px solid #edf0f5;
+  border-radius: 3px;
+  box-shadow: none;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-choice-row button.active {
+  border-color: #2365f2;
+  box-shadow: inset 0 0 0 1px rgba(35, 101, 242, 0.18);
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .model-mark {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+  color: #ef7b38;
+  background: transparent;
+  border-radius: 0;
+  stroke-width: 1.8;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .mark-1 {
+  color: #19b978;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .mark-2 {
+  color: #327ce5;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-note {
+  display: flex;
+  margin: 0;
+  gap: 6px;
+  align-items: center;
+  color: #8996af;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 13px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-note svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 1.7;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 793px;
+  height: 126px;
+  padding: 14px 20px 12px;
+  gap: 18px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split label {
+  display: grid;
+  grid-template-rows: 18px 15px 40px;
+  gap: 3px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split strong {
+  color: #24375d;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 18px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split small {
+  margin: 0;
+  color: #8996af;
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 15px;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split button {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  align-items: center;
+  justify-content: space-between;
+  color: #2b3e6a;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #e9edf4;
+  border-radius: 0;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split button > span {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-card.split button svg {
+  width: 14px;
+  height: 14px;
+  color: #425b8b;
+  stroke-width: 1.7;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-save-card {
+  box-sizing: border-box;
+  display: flex;
+  width: 793px;
+  min-height: 68px;
+  margin-top: 23px;
+  padding: 0;
+  gap: 24px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-save-card button {
+  min-width: 118px;
+  min-height: 44px;
+  padding: 0 18px;
+  color: #fff;
+  background: #1557f0;
+  border: 0;
+  border-radius: 5px;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.public-profile-shell .profile-page:has(.preference-card) .preference-save-card > span {
+  color: #8a97ae;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.public-profile-shell .preference-copilot-mini {
+  top: 676px;
+  right: 32px;
+}
+
+body:has(.public-profile-shell .preference-card) .global-copilot-orb {
+  top: auto !important;
+  right: 38px !important;
+  bottom: 32px !important;
+  left: auto !important;
+}
+
+.public-profile-shell .preference-copilot-mini::after {
+  display: none;
+}
+
+.public-profile-shell .preference-copilot-mini strong::after {
+  float: right;
+  margin-right: 14px;
+  color: #243f7d;
+  content: "⌃";
+  font-size: 13px;
+}
+
+.public-profile-shell .preference-copilot-mini small::after {
+  position: absolute;
+  right: 12px;
+  bottom: 22px;
+  color: #1c72f2;
+  content: "➤";
+  font-size: 13px;
+}
+
+@media (max-width: 1500px) {
+  .public-profile-shell .preference-copilot-mini,
+  body:has(.public-profile-shell .preference-card) .global-copilot-orb {
+    display: none;
+  }
+}
+
+@media (max-width: 1350px) and (min-width: 1181px) {
+  .public-profile-shell .profile-page:has(.preference-card) .profile-layout {
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs {
+    width: 180px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .profile-content,
+  .public-profile-shell .profile-page:has(.preference-card) .preference-card,
+  .public-profile-shell .profile-page:has(.preference-card) .preference-card.split,
+  .public-profile-shell .profile-page:has(.preference-card) .preference-save-card {
+    width: 100%;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .matrix-head,
+  .public-profile-shell .profile-page:has(.preference-card) .notification-matrix article,
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-row {
+    width: 100%;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .matrix-head,
+  .public-profile-shell .profile-page:has(.preference-card) .notification-matrix article {
+    grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(120px, 1fr));
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-row {
+    grid-template-columns: minmax(230px, 1fr) 178px 122px 122px;
+  }
+
+}
+
+@media (max-width: 1180px) {
+  .public-profile-shell:has(.preference-card) .v4-page-main {
+    padding: 24px 20px 56px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .profile-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs {
+    display: flex;
+    width: 100%;
+    padding: 0;
+    overflow-x: auto;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs a {
+    flex: 0 0 auto;
+    border-left: 0;
+    border-bottom: 2px solid transparent;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .profile-side-tabs a.active {
+    border-bottom-color: var(--preference-blue);
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .profile-content,
+  .public-profile-shell .profile-page:has(.preference-card) .preference-card,
+  .public-profile-shell .profile-page:has(.preference-card) .preference-card.split,
+  .public-profile-shell .profile-page:has(.preference-card) .preference-save-card {
+    width: 100%;
+    height: auto;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .notification-matrix {
+    overflow-x: auto;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .matrix-head,
+  .public-profile-shell .profile-page:has(.preference-card) .notification-matrix article,
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-row {
+    width: 753px;
+  }
+
+  .public-profile-shell .preference-copilot-mini {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .public-profile-shell .profile-page:has(.preference-card) .preference-card {
+    padding: 16px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-row,
+  .public-profile-shell .profile-page:has(.preference-card) .preference-card.split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-row {
+    width: 100%;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .model-choice-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .public-profile-shell .profile-page:has(.preference-card) .preference-card.split {
+    gap: 18px;
+  }
+}
