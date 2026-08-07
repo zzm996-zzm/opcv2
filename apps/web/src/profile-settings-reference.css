@@ -1,0 +1,480 @@
+/* Account settings composition measured against the 1672 x 941 reference. */
+.public-profile-shell:has(.profile-info-card) .v4-page-main {
+  padding: 39px 34px 70px 44px;
+  background: #fafbfe;
+  animation: none;
+  transform: none;
+}
+
+.public-profile-shell:has(.profile-info-card) .v4-topnav {
+  gap: 52px;
+  padding-right: 30px;
+  padding-left: 30px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .page-title-row h1,
+.public-profile-shell .profile-page:has(.profile-info-card) .page-title-row p {
+  transform: translateY(4px);
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-layout {
+  grid-template-columns: 192px 790px;
+  gap: 51px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-side-tabs {
+  box-sizing: border-box;
+  width: 192px;
+  gap: 2px;
+  padding: 8px 0;
+  border-radius: 2px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-side-tabs a {
+  min-height: 46px;
+  padding: 0 17px;
+  gap: 13px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-side-tabs a svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.7;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-side-tabs a > b {
+  font-size: 17px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-content {
+  display: grid;
+  width: 998px;
+  grid-template-columns: 538px 441px;
+  column-gap: 19px;
+  row-gap: 8px;
+  margin-left: -207px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card,
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-card {
+  grid-column: 1 / -1;
+  width: 790px;
+  margin-left: 207px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card {
+  display: flex;
+  box-sizing: border-box;
+  height: 92px;
+  min-height: 92px;
+  padding: 11px 24px;
+  gap: 0;
+  align-items: center;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .completion-copy {
+  display: grid;
+  flex: 0 0 350px;
+  gap: 5px;
+  align-content: center;
+  transform: translateY(-4px);
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .completion-copy strong {
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .completion-copy small {
+  color: #7385aa;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .completion-ring {
+  width: 68px;
+  height: 68px;
+  flex: 0 0 68px;
+  margin-left: 24px;
+  border: 0;
+  transform: translateY(-4px);
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .completion-ring i {
+  width: 56px;
+  height: 56px;
+  font-size: 14px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card p {
+  display: grid;
+  width: 90px;
+  flex: 0 0 90px;
+  margin: 0 0 0 64px;
+  gap: 5px;
+  color: #7b8daf;
+  font-size: 11px;
+  line-height: 17px;
+  transform: translateY(-4px);
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card p b {
+  font-size: 12px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card > a {
+  box-sizing: border-box;
+  width: 90px;
+  min-width: 90px;
+  height: 38px;
+  min-height: 38px;
+  margin-left: 56px;
+  padding: 0;
+  border-radius: 8px;
+  font-size: 11px;
+  transform: translateY(-4px);
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-card {
+  box-sizing: border-box;
+  height: 354px;
+  min-height: 354px;
+  grid-template-rows: 22px minmax(0, 1fr);
+  gap: 10px;
+  padding: 20px 20px 2px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-card .settings-card-head {
+  height: 22px;
+  margin: 0;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-card .settings-card-head h2 {
+  margin: 0;
+  color: #102044;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .settings-form-grid {
+  height: 100%;
+  min-height: 0;
+  border-radius: 12px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile {
+  min-height: 0;
+  padding: 12px 14px;
+  gap: 8px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile h3 {
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile dl {
+  gap: 6px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile dl div {
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile dt,
+.public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile dd {
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .account-binding-card {
+  grid-column: 1;
+  box-sizing: border-box;
+  width: 538px;
+  height: 226px;
+  min-height: 226px;
+  padding: 18px 20px;
+  border-radius: 2px;
+  gap: 0;
+  transform: translateY(12px);
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .account-binding-card .settings-card-head {
+  margin: 0 0 8px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .account-binding-card .settings-card-head h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .account-binding-card .settings-card-head p {
+  display: none;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list {
+  gap: 0;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list article {
+  grid-template-columns: 32px 84px 140px minmax(0, 1fr);
+  min-height: 54px;
+  gap: 12px;
+  padding: 0;
+  border-bottom: 1px solid #f0f2f7;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list article > div {
+  display: contents;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list article:last-child {
+  border-bottom: 0;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-icon::before {
+  width: 13px;
+  height: 17px;
+  border-width: 1.7px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-icon.wechat::before {
+  width: 18px;
+  height: 12px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list strong {
+  margin: 0 0 3px;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list small {
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list b {
+  position: relative;
+  padding: 0 0 0 14px;
+  color: #189965;
+  background: transparent;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list b::before {
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  content: "✓";
+  color: #fff;
+  background: #21b875;
+  border-radius: 50%;
+  font-size: 6px;
+  line-height: 8px;
+  text-align: center;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .binding-list button {
+  display: none;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .account-security-grid {
+  grid-column: 2;
+  box-sizing: border-box;
+  display: block;
+  width: 441px;
+  height: 226px;
+  min-height: 226px;
+  padding: 18px 20px;
+  border-radius: 2px;
+  transform: translateY(12px);
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .account-security-grid > header {
+  height: 22px;
+  margin: 0 0 2px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .account-security-grid > header h2 {
+  margin: 0;
+  color: #102044;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list {
+  display: grid;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list > a {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 16px;
+  min-height: 58px;
+  padding: 0;
+  gap: 12px;
+  color: #223867;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid #f0f2f7;
+  border-radius: 0;
+  align-items: center;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list .security-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  background: #f1f5ff;
+  border-radius: 7px;
+  place-items: center;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list .security-icon::before {
+  display: none;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list .security-icon svg {
+  width: 17px;
+  height: 17px;
+  color: #2862d8;
+  stroke-width: 1.8;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list a > span:nth-child(2) {
+  display: grid;
+  gap: 2px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list strong {
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list small {
+  color: #8695b1;
+  font-size: 9px;
+  line-height: 14px;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list > a > svg {
+  width: 16px;
+  height: 16px;
+  color: #31558d;
+  stroke-width: 1.8;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list > a.danger {
+  color: #e24a4a;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list > a.danger .security-icon {
+  background: #fff1f1;
+}
+
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list > a.danger .security-icon svg,
+.public-profile-shell .profile-page:has(.profile-info-card) .security-list > a.danger > svg {
+  color: #e24a4a;
+}
+
+@media (max-width: 1180px) {
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-side-tabs {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-side-tabs a {
+    flex: 0 0 auto;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-content {
+    width: 100%;
+    grid-template-columns: 1fr;
+    margin-left: 0;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card,
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-info-card,
+  .public-profile-shell .profile-page:has(.profile-info-card) .account-binding-card,
+  .public-profile-shell .profile-page:has(.profile-info-card) .account-security-grid {
+    grid-column: 1;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card {
+    height: auto;
+    min-height: 92px;
+  }
+}
+
+@media (max-width: 680px) {
+  .public-profile-shell:has(.profile-info-card) .v4-page-main {
+    padding: 20px 14px 48px;
+  }
+
+  .public-profile-shell:has(.profile-info-card) .settings-copilot-mini {
+    display: none;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card {
+    display: grid;
+    grid-template-columns: 1fr 80px;
+    height: auto;
+    gap: 12px;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .completion-copy {
+    grid-column: 1 / -1;
+    flex: none;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .completion-ring,
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card p,
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card > a {
+    margin-left: 0;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-info-card {
+    height: auto;
+    min-height: 0;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .settings-form-grid {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .profile-info-tile {
+    min-height: 130px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(31, 68, 140, 0.06);
+  }
+
+  .public-profile-shell .profile-page:has(.profile-info-card) .account-binding-card,
+  .public-profile-shell .profile-page:has(.profile-info-card) .account-security-grid {
+    height: auto;
+    min-height: 226px;
+  }
+}

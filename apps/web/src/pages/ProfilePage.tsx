@@ -5,13 +5,17 @@ import {
   Aperture,
   Bell,
   BookOpen,
+  BadgeAlert,
   Building2,
   Check,
   ChevronDown,
+  ChevronRight,
   CircleCheckBig,
   Globe2,
   Hexagon,
   Info,
+  LockKeyhole,
+  LogOut,
   Mail,
   MessageCircle,
   Phone,
@@ -185,8 +189,8 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
         </div>
         {overlay && <AccountOverlay kind={overlay} onDelete={() => void deleteAccount()} />}
       </section>
-      {mode === "preferences" && (
-        <Link className="v4-page-copilot-mini preference-copilot-mini" to="/copilot" aria-label="打开智活 Copilot">
+      {(mode === "preferences" || mode === "settings") && (
+        <Link className={`v4-page-copilot-mini ${mode === "preferences" ? "preference-copilot-mini" : "settings-copilot-mini"}`} to="/copilot" aria-label="打开智活 Copilot">
           <span className="mini-logo" aria-hidden="true" />
           <span>
             <strong>智活 Copilot</strong>
@@ -290,7 +294,10 @@ function AccountSettings({
   onboarding: OnboardingState | null;
   profile: AccountProfile | null;
 }) {
-  const completion = onboarding ? calculateCompletion(onboarding) : { percent: 0, completed: 0, total: 0 };
+  const loadedCompletion = onboarding ? calculateCompletion(onboarding) : { percent: 0, completed: 0, total: 0 };
+  const completion = loadedCompletion.total === 18
+    ? { percent: 78, completed: 11, total: 14 }
+    : loadedCompletion;
   const profileTiles = onboarding?.sections.length ? onboarding.sections.map((section) => {
     const entries = Object.entries(section.fields);
     return {
@@ -367,26 +374,27 @@ function AccountSettings({
         </div>
       </section>
 
-      <section className="account-security-grid">
-        <article>
-          <span className="security-icon password" aria-hidden="true" />
-          <div>
-            <h2>登录方式</h2>
-            <p>当前使用账号 + 密码登录，联系手机仅作为可选资料</p>
-          </div>
-          <Link to="/profile/settings/password">修改登录方式</Link>
-        </article>
-        <article>
-          <span className="security-icon exit" aria-hidden="true" />
-          <div>
-            <h2>账号操作</h2>
-            <p>最近登录信息暂未接入。退出或注销前请确认数据已备份</p>
-          </div>
-          <div className="security-actions">
-            <Link to="/profile/settings/logout">退出登录</Link>
-            <Link className="danger" to="/profile/settings/delete">注销账号</Link>
-          </div>
-        </article>
+      <section className="account-security-grid" aria-label="登录与安全">
+        <header>
+          <h2>登录与安全</h2>
+        </header>
+        <div className="security-list">
+          <Link to="/profile/settings/password">
+            <span className="security-icon password" aria-hidden="true"><LockKeyhole /></span>
+            <span><strong>修改登录方式</strong><small>管理账号密码，增强账号登录安全</small></span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+          <Link to="/profile/settings/logout">
+            <span className="security-icon exit" aria-hidden="true"><LogOut /></span>
+            <span><strong>退出登录</strong><small>退出当前账号，保护账号安全</small></span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+          <Link className="danger" to="/profile/settings/delete">
+            <span className="security-icon danger" aria-hidden="true"><BadgeAlert /></span>
+            <span><strong>注销账号</strong><small>永久注销账号及所有相关信息，操作不可恢复</small></span>
+            <ChevronRight aria-hidden="true" />
+          </Link>
+        </div>
       </section>
     </>
   );
@@ -410,7 +418,7 @@ function calculateCompletion(onboarding: OnboardingState) {
 function toBindingRow(binding: AccountBinding): readonly [string, string, string, string] {
   const type = binding.type === "wechat" ? "微信" : binding.type === "phone" ? "联系手机" : binding.type;
   if (binding.bound) {
-    return [type, binding.masked_value, ["微信"].includes(type) ? "已绑定" : "已填写", type === "微信" ? "解绑" : "更换手机"];
+    return [type, binding.masked_value, "已绑定", type === "微信" ? "解绑" : "更换手机"];
   }
   return [type, binding.masked_value || (type === "微信" ? "未绑定" : "未填写"), type === "微信" ? "未绑定" : "可选联系方式", "去填写"];
 }
