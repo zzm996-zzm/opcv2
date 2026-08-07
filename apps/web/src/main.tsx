@@ -21,6 +21,7 @@ import "./project-market-home-parity.css";
 import "./sandbox-home-parity.css";
 import "./login-reference.css";
 import "./profile-preferences-reference.css";
+import "./profile-complete-reference.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

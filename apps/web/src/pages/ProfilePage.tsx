@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
   Aperture,
   Bell,
   BookOpen,
+  Building2,
+  Check,
   ChevronDown,
   CircleCheckBig,
   Globe2,
@@ -11,7 +14,9 @@ import {
   Info,
   Mail,
   MessageCircle,
+  Phone,
   Sun,
+  X,
   type LucideIcon
 } from "lucide-react";
 
@@ -510,67 +515,94 @@ function DeleteAccountModal({ onDelete }: { onDelete: () => void }) {
 }
 
 function CompleteProfileModal() {
-  const leftFields = [
-    "联系手机",
-    "微信 / 企业微信",
-    "公司名称",
-    "所在行业",
-    "公司规模",
-    "主营产品 / 服务",
-    "产品阶段",
-    "核心客户群"
-  ] as const;
+  const leftFields: Array<{
+    label: string;
+    value: string;
+    icon?: LucideIcon;
+    options?: string[];
+  }> = [
+    { label: "联系手机", value: "138 **** 5678", icon: Phone },
+    { label: "微信 / 企业微信", value: "zhihuo_ai", icon: MessageCircle },
+    { label: "公司名称", value: "智活AI科技有限公司", icon: Building2 },
+    { label: "所在行业", value: "人工智能", options: ["人工智能", "互联网", "企业服务"] },
+    { label: "公司规模", value: "51-200 人", options: ["1-50 人", "51-200 人", "201-500 人"] },
+    { label: "主营产品 / 服务", value: "智活AI企业增长平台" },
+    { label: "产品阶段", value: "成长期", options: ["初创期", "成长期", "成熟期"] },
+    { label: "核心客户群", value: "中大型企业", options: ["初创企业", "中小企业", "中大型企业"] }
+  ];
 
-  return (
-    <div className="ui-modal-scrim" role="dialog" aria-label="完善资料">
+  return createPortal(
+    <div className="ui-modal-scrim complete-profile-scrim" role="dialog" aria-label="完善资料" aria-modal="true">
       <section className="account-modal complete-profile-modal">
-        <Link className="modal-close" to="/profile/settings" aria-label="关闭完善资料">×</Link>
+        <Link className="modal-close" to="/profile/settings" aria-label="关闭完善资料"><X aria-hidden="true" /></Link>
         <header>
           <h2>完善资料</h2>
-          <div>
-            <span className="mini-completion-ring">0%</span>
-            <strong>资料完成度 <b>0%</b></strong>
-            <small>请从后台资料接口读取后编辑</small>
+          <div className="complete-progress-row">
+            <span className="mini-completion-ring"><b>78%</b></span>
+            <div className="complete-progress-copy">
+              <span>资料完成度 <b>78%</b></span>
+              <i aria-hidden="true" />
+              <span>已完成 <b>11</b> / 14 项</span>
+            </div>
           </div>
           <p>请完善以下信息，帮助我们为您提供更精准的服务与推荐</p>
         </header>
+        <div className="complete-legend" aria-label="字段状态说明">
+          <span className="required">为必填项</span>
+          <span className="pending">为待完善项</span>
+        </div>
         <div className="complete-profile-grid">
           <div className="complete-field-list">
-            {leftFields.map((label) => (
+            {leftFields.map(({ label, value, icon: Icon, options }) => (
               <label key={label}>
-                <span>{label} <b>*</b></span>
-                <input />
+                <span><i aria-hidden="true" />{label} <b>*</b></span>
+                <div className={`complete-field-control ${Icon ? "with-icon" : ""} ${options ? "select-control" : ""}`}>
+                  {Icon && <Icon aria-hidden="true" />}
+                  {options ? (
+                    <>
+                      <select aria-label={label} defaultValue={value}>
+                        {options.map((option) => <option key={option}>{option}</option>)}
+                      </select>
+                      <ChevronDown aria-hidden="true" className="select-chevron" />
+                    </>
+                  ) : <input aria-label={label} defaultValue={value} />}
+                </div>
               </label>
             ))}
           </div>
           <div className="complete-choice-panel">
-            <label>
+            <label className="complete-goal-field">
               <span>目标与诉求 <b>*</b></span>
               <div className="tag-select">
                 {["提升客户获取效率", "线索增长", "转化提升"].map((item) => <button key={item} type="button">{item} ×</button>)}
+                <ChevronDown aria-hidden="true" />
               </div>
             </label>
-            <label>
+            <label className="complete-preference-field">
               <span>内容偏好 <b>*</b></span>
               <div className="check-grid">
                 {["案例分析", "实操工具", "行业报告", "AI应用", "方法论", "最新动态"].map((item, index) => (
-                  <button className={index === 0 || index === 1 || index === 3 ? "active" : ""} key={item} type="button">{item}</button>
+                  <button className={index === 0 || index === 1 || index === 3 ? "active" : ""} key={item} type="button">
+                    <span className="choice-check" aria-hidden="true"><Check /></span>
+                    {item}
+                  </button>
                 ))}
               </div>
             </label>
-            <label>
+            <label className="complete-note-field">
               <span>补充说明（选填）</span>
               <textarea placeholder="补充您希望我们了解的内容，帮助我们更好地为您服务..." />
               <small>0 / 200</small>
             </label>
+            <footer>
+              <Link to="/profile/settings">取消</Link>
+              <button type="button">保存并完成</button>
+            </footer>
           </div>
         </div>
-        <footer>
-          <Link to="/profile/settings">取消</Link>
-          <button type="button">保存并完成</button>
-        </footer>
       </section>
-    </div>
+    </div>,
+    document.body
   );
 }
 
