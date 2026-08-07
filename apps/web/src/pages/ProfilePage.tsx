@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
@@ -19,12 +19,15 @@ import {
   Mail,
   MessageCircle,
   Phone,
+  Send,
   Sun,
   X,
   type LucideIcon
 } from "lucide-react";
 
 import AccountSectionNav from "../components/AccountSectionNav";
+import { useCopilotPanelVisibility } from "../components/CopilotPanelVisibility";
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import PublicCopilotPanel from "../components/PublicCopilotPanel";
 import V4PageShell from "../components/V4PageShell";
 import { accountApi, type AccountBinding, type AccountContentItem, type AccountPreferences, type AccountProfile, type AccountQuota, type OnboardingState } from "../lib/accountApi";
@@ -189,7 +192,8 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
         </div>
         {overlay && <AccountOverlay kind={overlay} onDelete={() => void deleteAccount()} />}
       </section>
-      {(mode === "preferences" || mode === "settings") && (
+      {mode === "settings" && <SettingsCopilotMini />}
+      {mode === "preferences" && (
         <Link className={`v4-page-copilot-mini ${mode === "preferences" ? "preference-copilot-mini" : "settings-copilot-mini"}`} to="/copilot" aria-label="打开智活 Copilot">
           <span className="mini-logo" aria-hidden="true" />
           <span>
@@ -199,6 +203,29 @@ function ProfilePage({ mode = "overview", binding = "bound", overlay }: ProfileP
         </Link>
       )}
     </V4PageShell>
+  );
+}
+
+function SettingsCopilotMini() {
+  const copilotPanel = useCopilotPanelVisibility();
+  const registerPanel = copilotPanel?.registerPanel;
+
+  useLayoutEffect(() => registerPanel?.(), [registerPanel]);
+
+  return (
+    <aside className="v4-page-copilot-mini settings-copilot-mini" aria-label="智活 Copilot">
+      <span className="mini-logo" aria-hidden="true" />
+      <span>
+        <strong>智活 Copilot</strong>
+        <MiniCopilotForm
+          className="settings-copilot-form"
+          inputAriaLabel="向智活 Copilot 提问"
+          placeholder="输入问题，发送后自动展开回答"
+          sendIcon={<Send aria-hidden="true" />}
+          threadTitlePrefix="账号设置："
+        />
+      </span>
+    </aside>
   );
 }
 

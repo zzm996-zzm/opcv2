@@ -23,6 +23,8 @@
 }
 
 .public-profile-shell .profile-page:has(.profile-info-card) .profile-side-tabs {
+  position: relative;
+  z-index: 2;
   box-sizing: border-box;
   width: 192px;
   gap: 2px;
@@ -126,6 +128,7 @@
 }
 
 .public-profile-shell .profile-page:has(.profile-info-card) .profile-completion-card > a {
+  display: grid;
   box-sizing: border-box;
   width: 90px;
   min-width: 90px;
@@ -135,7 +138,97 @@
   padding: 0;
   border-radius: 8px;
   font-size: 11px;
+  place-items: center;
   transform: translateY(-4px);
+}
+
+.public-profile-shell .settings-copilot-mini {
+  cursor: default;
+}
+
+.public-profile-shell .settings-copilot-mini:hover {
+  transform: none;
+}
+
+.public-profile-shell .settings-copilot-mini::before {
+  display: none;
+}
+
+.public-profile-shell .settings-copilot-form {
+  display: grid;
+  box-sizing: border-box;
+  width: 280px;
+  height: 64px;
+  margin-left: -46px;
+  grid-template-columns: 42px minmax(0, 1fr) 38px;
+  padding: 0 8px;
+  border-top: 1px solid #edf0f7;
+  align-items: center;
+}
+
+.public-profile-shell .settings-copilot-form input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 4px;
+  color: #263f7b;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.public-profile-shell .settings-copilot-form input::placeholder {
+  color: #9aa6bd;
+  opacity: 1;
+}
+
+.public-profile-shell .settings-copilot-form button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  color: #224aaf;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  place-items: center;
+}
+
+.public-profile-shell .settings-copilot-form button:first-child {
+  font-size: 20px;
+}
+
+.public-profile-shell .settings-copilot-form button:last-child {
+  color: #1c72f2;
+}
+
+.public-profile-shell .settings-copilot-form button:last-child svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+}
+
+.public-profile-shell .settings-copilot-form button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.public-profile-shell .settings-copilot-mini .mini-copilot-live-thread {
+  position: absolute;
+  right: 0;
+  bottom: 118px;
+  box-sizing: border-box;
+  width: 280px;
+  max-height: 250px;
+  margin: 0;
+  padding: 12px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(21, 87, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 18px 48px rgba(29, 74, 164, 0.16);
 }
 
 .public-profile-shell .profile-page:has(.profile-info-card) .profile-info-card {

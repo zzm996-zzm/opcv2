@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -123,6 +123,14 @@ describe("ProfilePage", () => {
     expect(screen.getByText("公司名称：深度科技有限公司")).toBeInTheDocument();
     expect(screen.getByText("138****8000")).toBeInTheDocument();
     expect(screen.getByText("zhihuo_ai")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "偏好设置" })).toHaveAttribute("href", "/profile/preferences");
+    expect(screen.getByRole("link", { name: "完善资料" })).toHaveAttribute("href", "/profile/settings/complete");
+
+    const copilot = screen.getByRole("complementary", { name: "智活 Copilot" });
+    const copilotInput = within(copilot).getByLabelText("向智活 Copilot 提问");
+    fireEvent.change(copilotInput, { target: { value: "测试当前页输入" } });
+    expect(within(copilot).getByRole("button", { name: "发送" })).toBeEnabled();
+    expect(screen.queryByRole("link", { name: "打开智活 Copilot" })).not.toBeInTheDocument();
   });
 
   it("renders unbound account settings state", async () => {
