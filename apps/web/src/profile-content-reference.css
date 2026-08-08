@@ -1,0 +1,276 @@
+/* My-content reference composition: 1672px artboard measurements. */
+.public-profile-shell:has(.content-record-card) .v4-page-main {
+  padding: 38px 27px 64px 44px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-page {
+  width: 100%;
+  max-width: none;
+  gap: 20px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-page .page-title-row {
+  min-height: 72px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-layout.content-mode {
+  grid-template-columns: minmax(0, 1fr) 298px;
+  gap: 48px;
+  align-items: start;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content {
+  width: 100%;
+  min-width: 0;
+}
+
+.public-profile-shell:has(.content-record-card) .content-record-card {
+  width: 100%;
+  min-width: 0;
+  padding: 0 22px 20px;
+  border: 1px solid rgba(31, 68, 140, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 18px 48px rgba(48, 68, 126, 0.06);
+}
+
+.public-profile-shell:has(.content-record-card) .content-tabs {
+  height: 62px;
+  min-height: 62px;
+}
+
+.public-profile-shell:has(.content-record-card) .content-tabs button {
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.public-profile-shell:has(.content-record-card) .content-tabs button.active::after {
+  right: 16px;
+  left: 16px;
+  height: 3px;
+}
+
+.public-profile-shell:has(.content-record-card) .content-filter-row {
+  grid-template-columns: 140px 160px 1fr 276px;
+  gap: 18px;
+  padding: 22px 0;
+}
+
+.public-profile-shell:has(.content-record-card) .content-filter-row button,
+.public-profile-shell:has(.content-record-card) .content-filter-row .date-range,
+.public-profile-shell:has(.content-record-card) .content-filter-row label {
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 780;
+}
+
+.public-profile-shell:has(.content-record-card) .content-filter-row label {
+  gap: 12px;
+}
+
+.public-profile-shell:has(.content-record-card) .content-record-list {
+  padding: 0;
+  grid-template-rows: repeat(5, 88px);
+}
+
+.public-profile-shell:has(.content-record-card) .content-record-list article {
+  grid-template-columns: 72px minmax(0, 1fr) 84px 112px 40px 86px 18px;
+  height: 88px;
+  min-height: 88px;
+  gap: 16px;
+}
+
+.public-profile-shell:has(.content-record-card) .content-icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #7650f5 0%, #b487ff 100%);
+  box-shadow: 0 8px 18px rgba(117, 80, 245, 0.18);
+}
+
+.public-profile-shell:has(.content-record-card) .content-icon::before {
+  position: absolute;
+  inset: 12px 10px 10px;
+  content: "";
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  border-radius: 2px;
+}
+
+.public-profile-shell:has(.content-record-card) .content-icon::after {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  left: 10px;
+  height: 5px;
+  content: "";
+  border: 2px solid rgba(255, 255, 255, 0.94);
+  border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+}
+
+.public-profile-shell:has(.content-record-card) .content-record-list h2 {
+  margin-bottom: 5px;
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.public-profile-shell:has(.content-record-card) .content-record-list p,
+.public-profile-shell:has(.content-record-card) .content-record-list small,
+.public-profile-shell:has(.content-record-card) .content-record-list time {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.public-profile-shell:has(.content-record-card) .content-record-list b {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+.public-profile-shell:has(.content-record-card) .content-record-list a {
+  font-size: 14px;
+}
+
+.public-profile-shell:has(.content-record-card) .content-loaded {
+  padding: 18px 0 20px;
+  font-size: 13px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot {
+  position: sticky;
+  top: 0;
+  width: 298px;
+  min-width: 0;
+  height: 638px !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin-top: -15px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-head {
+  height: 76px;
+  min-height: 76px;
+  box-sizing: border-box;
+  padding: 14px 16px 10px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-head strong {
+  font-size: 18px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-head p {
+  margin-top: 8px;
+  max-width: none;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-thread {
+  padding: 16px 16px 10px;
+  gap: 8px;
+}
+
+/* The billing legacy skin also targets article descendants. Restore the
+   unified conversation geometry for this narrower reference rail. */
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-thread article {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-thread article.user {
+  display: flex;
+  margin: 0;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-thread article p {
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-thread article p strong {
+  margin-bottom: 3px;
+  font-size: 12px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-report {
+  display: grid;
+  margin: 0 0 0 42px;
+  padding: 6px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  border: 1px solid #e7ebf3;
+  border-radius: 7px;
+  background: #fafbfe;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-report i {
+  width: 28px;
+  height: 28px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-report strong {
+  font-size: 10px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-actions {
+  padding: 0 16px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-actions a {
+  min-height: 48px;
+}
+
+.public-profile-shell:has(.content-record-card) .profile-content-copilot .unified-copilot-input {
+  min-height: 48px;
+  margin: 8px 16px 12px;
+}
+
+@media (max-width: 1180px) {
+  .public-profile-shell:has(.content-record-card) .v4-page-main {
+    padding: 28px 24px 48px;
+  }
+
+  .public-profile-shell:has(.content-record-card) .profile-layout.content-mode {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-profile-shell:has(.content-record-card) .profile-content-copilot {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .public-profile-shell:has(.content-record-card) .content-filter-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-filter-row label {
+    grid-column: 1 / -1;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-list article {
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 0;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-list article > b,
+  .public-profile-shell:has(.content-record-card) .content-record-list article > time,
+  .public-profile-shell:has(.content-record-card) .content-record-list article > button,
+  .public-profile-shell:has(.content-record-card) .content-record-list article > a,
+  .public-profile-shell:has(.content-record-card) .content-record-list article > span:last-child {
+    grid-column: 2 / -1;
+    justify-self: start;
+  }
+}
