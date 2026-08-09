@@ -120,10 +120,13 @@ func NewRouter(checks HealthChecks, handlers Handlers) http.Handler {
 		protected.Use(handlers.Auth.RequireAccessToken())
 		handlers.Analysis.Register(protected)
 	}
+	if handlers.Projects != nil {
+		handlers.Projects.RegisterPublic(api)
+	}
 	if handlers.Auth != nil && handlers.Projects != nil {
 		protected := api.Group("")
 		protected.Use(handlers.Auth.RequireAccessToken())
-		handlers.Projects.Register(protected)
+		handlers.Projects.RegisterProtected(protected)
 	}
 	if handlers.Auth != nil && handlers.Leads != nil {
 		protected := api.Group("")

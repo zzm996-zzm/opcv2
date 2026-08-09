@@ -39,10 +39,20 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 }
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
+	h.RegisterPublic(router)
+	h.RegisterProtected(router)
+}
+
+// RegisterPublic mounts catalog and published case reads.
+func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
 	router.GET("/projects/opportunities", h.listOpportunities)
 	router.GET("/projects/opportunities/:slug", h.getOpportunity)
 	router.GET("/projects/cases", h.listCases)
 	router.GET("/projects/cases/:slug", h.getCase)
+}
+
+// RegisterProtected mounts operations that create or read user-owned data.
+func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.POST("/projects/matches", h.createMatch)
 	router.GET("/projects/matches", h.listMatches)
 	router.GET("/projects/matches/:id", h.getMatch)

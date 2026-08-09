@@ -27,6 +27,7 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	t.Setenv("OPCV2_MIGRATIONS_PATH", "")
 	t.Setenv("OPCV2_CORS_ALLOWED_ORIGINS", "")
 	t.Setenv("OPCV2_EXPENSIVE_ENDPOINT_LIMIT", "")
+	t.Setenv("OPCV2_FEATURE_PAYWALL_ENABLED", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -63,6 +64,9 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	if len(cfg.CORSAllowedOrigins) == 0 || cfg.ExpensiveEndpointLimit != 20 {
 		t.Fatalf("security defaults = %+v, want development CORS origins and rate limit", cfg)
 	}
+	if cfg.FeaturePaywallEnabled {
+		t.Fatal("FeaturePaywallEnabled = true, want false by default")
+	}
 }
 
 func TestLoadUsesEnvironmentOverrides(t *testing.T) {
@@ -90,6 +94,7 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	t.Setenv("OPCV2_MIGRATIONS_PATH", "/app/migrations")
 	t.Setenv("OPCV2_CORS_ALLOWED_ORIGINS", "https://app.example.com, https://admin.example.com")
 	t.Setenv("OPCV2_EXPENSIVE_ENDPOINT_LIMIT", "7")
+	t.Setenv("OPCV2_FEATURE_PAYWALL_ENABLED", "true")
 
 	cfg, err := Load()
 	if err != nil {
@@ -122,6 +127,9 @@ func TestLoadUsesEnvironmentOverrides(t *testing.T) {
 	}
 	if len(cfg.CORSAllowedOrigins) != 2 || cfg.CORSAllowedOrigins[0] != "https://app.example.com" || cfg.ExpensiveEndpointLimit != 7 {
 		t.Fatalf("security overrides were not loaded: %+v", cfg)
+	}
+	if !cfg.FeaturePaywallEnabled {
+		t.Fatal("FeaturePaywallEnabled = false, want true from environment")
 	}
 }
 

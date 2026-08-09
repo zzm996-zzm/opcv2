@@ -42,6 +42,7 @@ type Config struct {
 	MigrationsPath            string
 	CORSAllowedOrigins        []string
 	ExpensiveEndpointLimit    int
+	FeaturePaywallEnabled     bool
 }
 
 func Load() (Config, error) {
@@ -76,6 +77,7 @@ func Load() (Config, error) {
 		MigrationsPath:            envOrDefault("OPCV2_MIGRATIONS_PATH", "migrations"),
 		CORSAllowedOrigins:        envCSVOrDefault("OPCV2_CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),
 		ExpensiveEndpointLimit:    envIntOrDefault("OPCV2_EXPENSIVE_ENDPOINT_LIMIT", 20),
+		FeaturePaywallEnabled:     envBoolOrDefault("OPCV2_FEATURE_PAYWALL_ENABLED", false),
 	}
 	if cfg.Environment == "production" {
 		if os.Getenv("OPCV2_JWT_SECRET") == "" {

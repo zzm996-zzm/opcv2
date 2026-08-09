@@ -20,6 +20,7 @@ import (
 	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/notifications"
+	"github.com/zzm/opcv2/internal/projects"
 	"github.com/zzm/opcv2/internal/sandbox"
 	"github.com/zzm/opcv2/internal/tasks"
 )
@@ -522,6 +523,24 @@ func TestRouterAcceptsGroupedHandlers(t *testing.T) {
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestProjectCatalogReadsArePublicAndMatchActionsAreProtected(t *testing.T) {
+	authHTTP := auth.NewHTTPHandler(fakeAuthApp{}, fakeTokenManager{}, false)
+	projectsHTTP := projects.NewHTTPHandler(projects.NewService(nil, nil))
+	router := NewRouter(HealthChecks{}, Handlers{Auth: authHTTP, Projects: projectsHTTP})
+
+	public := httptest.NewRecorder()
+	router.ServeHTTP(public, httptest.NewRequest(http.MethodGet, "/api/v1/projects/opportunities", nil))
+	if public.Code != http.StatusInternalServerError {
+		t.Fatalf("public catalog status = %d, want service response rather than auth rejection", public.Code)
+	}
+
+	protected := httptest.NewRecorder()
+	router.ServeHTTP(protected, httptest.NewRequest(http.MethodPost, "/api/v1/projects/matches", strings.NewReader(`{"intent":"test"}`)))
+	if protected.Code != http.StatusUnauthorized {
+		t.Fatalf("protected match status = %d, want %d", protected.Code, http.StatusUnauthorized)
 	}
 }
 
