@@ -202,10 +202,11 @@ type ProfileContextProvider interface {
 type Option func(*Service)
 
 type Service struct {
-	repository Repository
-	generator  JSONGenerator
-	profile    ProfileContextProvider
-	now        func() time.Time
+	repository            Repository
+	generator             JSONGenerator
+	profile               ProfileContextProvider
+	featurePaywallEnabled bool
+	now                   func() time.Time
 }
 
 func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
@@ -219,6 +220,12 @@ func NewService(repository Repository, generator JSONGenerator, options ...Optio
 func WithProfileContextProvider(provider ProfileContextProvider) Option {
 	return func(service *Service) {
 		service.profile = provider
+	}
+}
+
+func WithFeaturePaywallEnabled(enabled bool) Option {
+	return func(service *Service) {
+		service.featurePaywallEnabled = enabled
 	}
 }
 

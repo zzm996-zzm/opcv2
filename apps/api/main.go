@@ -117,7 +117,12 @@ func main() {
 	analysisService := analysis.NewService(analysisRepository, aiService)
 	analysisHTTP := analysis.NewHTTPHandler(analysisService)
 	projectsRepository := projects.NewPostgresRepository(db)
-	projectsService := projects.NewService(projectsRepository, aiService, projects.WithProfileContextProvider(accountService))
+	projectsService := projects.NewService(
+		projectsRepository,
+		aiService,
+		projects.WithProfileContextProvider(accountService),
+		projects.WithFeaturePaywallEnabled(cfg.FeaturePaywallEnabled),
+	)
 	projectsHTTP := projects.NewHTTPHandler(projectsService)
 	leadsRepository := leads.NewPostgresRepository(db)
 	leadProvider, err := newLeadProvider(cfg)

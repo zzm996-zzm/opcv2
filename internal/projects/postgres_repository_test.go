@@ -49,6 +49,40 @@ func TestPostgresRepositoryGetsOpportunityWithStructuredBlocks(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryListsProjectCatalogPage(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 9, 9, 0, 0, 0, time.UTC)
+	featured := true
+	db.ExpectQuery("SELECT id, slug, title, COALESCE\\(cover_url").
+		WithArgs("AI", "service", "ai", "0-5k", "low", "solo", true, true, 12, 12).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "slug", "title", "cover_url", "category", "track", "difficulty", "invest_cents", "budget_band", "revenue_range", "is_real", "source_url", "summary", "tags", "heat", "is_featured", "resource_requirements", "detail", "published_at", "updated_at", "total",
+		}).AddRow(
+			int64(42), "ai-sales", "AI销售顾问", "", "service", "ai", "low", int64(500000), "0-5k", "1-3万/月", true,
+			"https://example.com/source", "项目摘要", []byte(`["B端"]`), 30, true, []byte(`["solo"]`), []byte(`{"pros_cons":{}}`), &now, now, 15,
+		))
+
+	repository := NewPostgresRepository(db)
+	page, err := repository.ListProjects(context.Background(), ProjectFilters{
+		Keyword: "AI", Category: "service", Track: "ai", Budget: "0-5k", Difficulty: "low", Resource: "solo",
+		Sort: "latest", Featured: &featured, Page: 2, PageSize: 12,
+	})
+	if err != nil {
+		t.Fatalf("ListProjects() error = %v", err)
+	}
+	if page.Total != 15 || len(page.Items) != 1 || page.Items[0].Slug != "ai-sales" || page.Items[0].InvestCents == nil || *page.Items[0].InvestCents != 500000 {
+		t.Fatalf("page = %+v", page)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryListsCasesByOpportunitySlug(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

@@ -45,10 +45,18 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 
 // RegisterPublic mounts catalog and published case reads.
 func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
+	router.GET("/config", h.getPublicConfig)
+	router.GET("/dicts", h.listDictionaryItems)
+	router.GET("/project-categories", h.listProjectCategories)
+	router.GET("/projects/home", h.getProjectHome)
 	router.GET("/projects/opportunities", h.listOpportunities)
 	router.GET("/projects/opportunities/:slug", h.getOpportunity)
 	router.GET("/projects/cases", h.listCases)
 	router.GET("/projects/cases/:slug", h.getCase)
+	router.GET("/project-cases", h.listCases)
+	router.GET("/project-cases/:slug", h.getCase)
+	router.GET("/projects", h.listProjects)
+	router.GET("/projects/:id", h.getProject)
 }
 
 // RegisterProtected mounts operations that create or read user-owned data.
@@ -64,6 +72,134 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.GET("/projects/comparisons/:id", h.getComparison)
 	router.POST("/projects/exports", h.createExport)
 	router.GET("/projects/exports/:id/download", h.downloadExport)
+}
+
+func (h *HTTPHandler) catalogApplication(c *gin.Context) (CatalogApplication, bool) {
+	app, ok := h.app.(CatalogApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) getPublicConfig(c *gin.Context) {
+	app, ok := h.catalogApplication(c)
+	if !ok {
+		return
+	}
+	c.JSON(http.StatusOK, app.GetPublicConfig(c.Request.Context()))
+}
+
+func (h *HTTPHandler) listDictionaryItems(c *gin.Context) {
+	app, ok := h.catalogApplication(c)
+	if !ok {
+		return
+	}
+	items, err := app.ListDictionaryItems(c.Request.Context(), c.Query("kind"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func (h *HTTPHandler) listProjectCategories(c *gin.Context) {
+	app, ok := h.catalogApplication(c)
+	if !ok {
+		return
+	}
+	categories, err := app.ListDictionaryItems(c.Request.Context(), "category")
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	tracks, err := app.ListDictionaryItems(c.Request.Context(), "sector")
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"categories": categories, "tracks": tracks})
+}
+
+func (h *HTTPHandler) getProjectHome(c *gin.Context) {
+	app, ok := h.catalogApplication(c)
+	if !ok {
+		return
+	}
+	home, err := app.GetProjectHome(c.Request.Context())
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, home)
+}
+
+func (h *HTTPHandler) listProjects(c *gin.Context) {
+	app, ok := h.catalogApplication(c)
+	if !ok {
+		return
+	}
+	page, valid := positiveQueryInt(c, "page", 1)
+	if !valid {
+		return
+	}
+	pageSize, valid := positiveQueryInt(c, "page_size", 12)
+	if !valid {
+		return
+	}
+	var featured *bool
+	if raw := strings.TrimSpace(c.Query("is_featured")); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_is_featured"})
+			return
+		}
+		featured = &value
+	}
+	result, err := app.ListProjects(c.Request.Context(), ProjectFilters{
+		Keyword:    c.Query("keyword"),
+		Category:   c.Query("category"),
+		Track:      c.Query("track"),
+		Budget:     c.Query("budget"),
+		Difficulty: c.Query("difficulty"),
+		Resource:   c.Query("resource"),
+		Sort:       c.Query("sort"),
+		Featured:   featured,
+		Page:       page,
+		PageSize:   pageSize,
+	})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *HTTPHandler) getProject(c *gin.Context) {
+	app, ok := h.catalogApplication(c)
+	if !ok {
+		return
+	}
+	project, err := app.GetProject(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, project)
+}
+
+func positiveQueryInt(c *gin.Context, name string, defaultValue int) (int, bool) {
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		return defaultValue, true
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_" + name})
+		return 0, false
+	}
+	return value, true
 }
 
 func (h *HTTPHandler) createExport(c *gin.Context) {
@@ -315,6 +451,8 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "export_not_found"})
 	case errors.Is(err, ErrInvalidExport):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_export"})
+	case errors.Is(err, ErrInvalidDictionaryKind):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_dictionary_kind"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	case errors.Is(err, ErrInvalidAIResult):

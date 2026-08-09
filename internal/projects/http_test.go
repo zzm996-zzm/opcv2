@@ -12,21 +12,40 @@ import (
 )
 
 type fakeApplication struct {
-	input         MatchInput
-	userID        int64
-	matchID       int64
-	result        MatchResult
-	sessions      []MatchSession
-	session       MatchSession
-	favorite      Favorite
-	favorites     []Favorite
-	err           error
-	opportunities []Opportunity
-	opportunity   Opportunity
-	filters       OpportunityFilters
-	cases         []CaseStudy
-	caseStudy     CaseStudy
-	caseFilters   CaseFilters
+	input          MatchInput
+	userID         int64
+	matchID        int64
+	result         MatchResult
+	sessions       []MatchSession
+	session        MatchSession
+	favorite       Favorite
+	favorites      []Favorite
+	err            error
+	opportunities  []Opportunity
+	opportunity    Opportunity
+	filters        OpportunityFilters
+	cases          []CaseStudy
+	caseStudy      CaseStudy
+	caseFilters    CaseFilters
+	publicConfig   PublicConfig
+	dictionaries   []DictionaryItem
+	home           ProjectHome
+	projectPage    ProjectPage
+	catalogProject Project
+	projectFilters ProjectFilters
+}
+
+func (a *fakeApplication) GetPublicConfig(context.Context) PublicConfig { return a.publicConfig }
+func (a *fakeApplication) ListDictionaryItems(_ context.Context, _ string) ([]DictionaryItem, error) {
+	return a.dictionaries, a.err
+}
+func (a *fakeApplication) GetProjectHome(context.Context) (ProjectHome, error) { return a.home, a.err }
+func (a *fakeApplication) ListProjects(_ context.Context, filters ProjectFilters) (ProjectPage, error) {
+	a.projectFilters = filters
+	return a.projectPage, a.err
+}
+func (a *fakeApplication) GetProject(context.Context, string) (Project, error) {
+	return a.catalogProject, a.err
 }
 
 func (a *fakeApplication) ListCases(_ context.Context, filters CaseFilters) ([]CaseStudy, error) {
@@ -168,6 +187,43 @@ func TestOpportunityEndpointsReturnPublishedCatalog(t *testing.T) {
 		!strings.Contains(recorder.Body.String(), `"type":"metrics"`) ||
 		!strings.Contains(recorder.Body.String(), `"progress":72`) {
 		t.Fatalf("structured blocks missing from body = %s", recorder.Body.String())
+	}
+}
+
+func TestProjectMarketPublicEndpoints(t *testing.T) {
+	app := &fakeApplication{
+		publicConfig:   PublicConfig{FeaturePaywallEnabled: false},
+		dictionaries:   []DictionaryItem{{Code: "ai", Kind: "sector", NameZH: "人工智能"}},
+		home:           ProjectHome{Hero: ProjectHero{Title: "项目超市"}, Featured: []Project{}},
+		projectPage:    ProjectPage{Items: []Project{{ID: 42, Slug: "ai-sales", Title: "AI销售顾问"}}, Page: 2, PageSize: 6, Total: 1},
+		catalogProject: Project{ID: 42, Slug: "ai-sales", Title: "AI销售顾问", LockedBlocks: []string{}, IsUnlocked: true},
+	}
+	router := projectTestRouter(app)
+
+	checks := []struct {
+		path string
+		body string
+	}{
+		{path: "/api/v1/config", body: `"feature_paywall_enabled":false`},
+		{path: "/api/v1/dicts?kind=sector", body: `"name_zh":"人工智能"`},
+		{path: "/api/v1/projects/home", body: `"title":"项目超市"`},
+		{path: "/api/v1/projects/42", body: `"slug":"ai-sales"`},
+	}
+	for _, check := range checks {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, check.path, nil))
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), check.body) {
+			t.Fatalf("GET %s status/body = %d/%s", check.path, recorder.Code, recorder.Body.String())
+		}
+	}
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/projects?keyword=AI&category=service&track=ai&budget=0-5k&difficulty=low&resource=solo&sort=latest&is_featured=true&page=2&page_size=6", nil))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("list status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+	if app.projectFilters.Keyword != "AI" || app.projectFilters.Page != 2 || app.projectFilters.PageSize != 6 || app.projectFilters.Featured == nil || !*app.projectFilters.Featured {
+		t.Fatalf("filters = %+v", app.projectFilters)
 	}
 }
 

@@ -341,6 +341,95 @@ Errors:
 - `400 invalid_session_id`
 - `404 session_not_found`
 
+## Project Market Public API
+
+Project catalog reads are public. Matching, favorites, comparisons, and exports
+remain protected because they create or expose user-owned data.
+
+### Public Feature Config
+
+`GET /api/v1/config`
+
+Response `200`:
+
+```json
+{
+  "feature_paywall_enabled": false
+}
+```
+
+The project market returns complete content while this flag is false.
+
+### Project Dictionaries
+
+`GET /api/v1/dicts?kind=sector`
+
+Supported kinds are `category`, `sector`, `product_type`, `antipattern`,
+`country`, and `cn_channel`.
+
+Response `200`:
+
+```json
+{
+  "items": [
+    { "code": "ai", "kind": "sector", "name_zh": "人工智能", "sort": 10 }
+  ]
+}
+```
+
+`GET /api/v1/project-categories` returns both `categories` and `tracks` for
+the existing filter controls.
+
+### Project Market Home
+
+`GET /api/v1/projects/home`
+
+Returns `hero`, six `quick_tags`, three `entries`, and up to eight published
+featured projects. This endpoint never starts AI generation.
+
+### Project Catalog
+
+`GET /api/v1/projects`
+
+Query parameters:
+
+- `keyword`
+- `category`
+- `track`
+- `budget`
+- `difficulty`
+- `resource`
+- `sort=heat|latest`
+- `is_featured=true|false`
+- `page` (default `1`)
+- `page_size` (default `12`, maximum `100`)
+
+Response `200`:
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "page_size": 12,
+  "total": 0
+}
+```
+
+`GET /api/v1/projects/{id-or-slug}` returns the published project detail.
+While the paywall flag is false, `locked_blocks` is always an empty array and
+`is_unlocked` is always true. A project is returned with `is_real=true` only
+when its source is a valid HTTP(S) URL outside `loot-drop.io`.
+
+Compatibility routes remain available:
+
+- `GET /api/v1/projects/opportunities`
+- `GET /api/v1/projects/opportunities/{slug}`
+- `GET /api/v1/projects/cases`
+- `GET /api/v1/projects/cases/{slug}`
+
+The case aliases `GET /api/v1/project-cases` and
+`GET /api/v1/project-cases/{slug}` are also public.
+
 ## Projects
 
 All project endpoints are protected.

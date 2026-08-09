@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type postgresDB interface {
@@ -21,6 +22,102 @@ type PostgresRepository struct {
 
 func NewPostgresRepository(db postgresDB) *PostgresRepository {
 	return &PostgresRepository{db: db}
+}
+
+func (r *PostgresRepository) ListDictionaryItems(ctx context.Context, kind string) ([]DictionaryItem, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT code, kind, name_zh, COALESCE(name_en, ''), sort_order
+		FROM project_dict_items
+		WHERE kind = $1 AND is_active = TRUE
+		ORDER BY sort_order ASC, code ASC
+	`, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]DictionaryItem, 0)
+	for rows.Next() {
+		var item DictionaryItem
+		if err := rows.Scan(&item.Code, &item.Kind, &item.NameZH, &item.NameEN, &item.Sort); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *PostgresRepository) ListProjects(ctx context.Context, filters ProjectFilters) (ProjectPage, error) {
+	orderBy := "heat DESC, published_at DESC, id ASC"
+	if filters.Sort == "latest" {
+		orderBy = "published_at DESC, id ASC"
+	}
+	query := `
+		SELECT id, slug, title, COALESCE(cover_url, ''),
+		       COALESCE(category_code, ''), COALESCE(track_code, industry, ''), difficulty,
+		       invest_cents, budget_band, COALESCE(revenue_range, ''), is_real,
+		       COALESCE(primary_source_url, ''), summary, tags, heat, is_featured,
+		       resource_requirements, detail, published_at, updated_at,
+		       COUNT(*) OVER()
+		FROM project_opportunities
+		WHERE status = 'published'
+		  AND ($1 = '' OR title ILIKE '%' || $1 || '%' OR summary ILIKE '%' || $1 || '%'
+		       OR industry ILIKE '%' || $1 || '%' OR tags::TEXT ILIKE '%' || $1 || '%')
+		  AND ($2 = '' OR category_code = $2)
+		  AND ($3 = '' OR track_code = $3 OR industry = $3)
+		  AND ($4 = '' OR budget_band = $4)
+		  AND ($5 = '' OR difficulty = $5)
+		  AND ($6 = '' OR resource_requirements ? $6)
+		  AND ($7 = FALSE OR is_featured = $8)
+		ORDER BY ` + orderBy + `
+		LIMIT $9 OFFSET $10
+	`
+	featuredSet := filters.Featured != nil
+	featured := false
+	if filters.Featured != nil {
+		featured = *filters.Featured
+	}
+	rows, err := r.db.Query(ctx, query,
+		filters.Keyword,
+		filters.Category,
+		filters.Track,
+		filters.Budget,
+		filters.Difficulty,
+		filters.Resource,
+		featuredSet,
+		featured,
+		filters.PageSize,
+		(filters.Page-1)*filters.PageSize,
+	)
+	if err != nil {
+		return ProjectPage{}, err
+	}
+	defer rows.Close()
+	page := ProjectPage{Items: make([]Project, 0), Page: filters.Page, PageSize: filters.PageSize}
+	for rows.Next() {
+		item, total, err := scanCatalogProjectPageRow(rows)
+		if err != nil {
+			return ProjectPage{}, err
+		}
+		page.Total = total
+		page.Items = append(page.Items, item)
+	}
+	return page, rows.Err()
+}
+
+func (r *PostgresRepository) GetProject(ctx context.Context, ref string) (Project, error) {
+	item, err := scanCatalogProject(r.db.QueryRow(ctx, `
+		SELECT id, slug, title, COALESCE(cover_url, ''),
+		       COALESCE(category_code, ''), COALESCE(track_code, industry, ''), difficulty,
+		       invest_cents, budget_band, COALESCE(revenue_range, ''), is_real,
+		       COALESCE(primary_source_url, ''), summary, tags, heat, is_featured,
+		       resource_requirements, detail, published_at, updated_at
+		FROM project_opportunities
+		WHERE status = 'published' AND (slug = $1 OR id::TEXT = $1)
+	`, ref))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Project{}, ErrOpportunityNotFound
+	}
+	return item, err
 }
 
 func (r *PostgresRepository) ListOpportunities(ctx context.Context, filters OpportunityFilters) ([]Opportunity, error) {
@@ -309,6 +406,61 @@ func (r *PostgresRepository) DeleteFavorite(ctx context.Context, userID, session
 
 type sessionScanner interface {
 	Scan(dest ...any) error
+}
+
+func scanCatalogProject(scanner sessionScanner) (Project, error) {
+	var item Project
+	var tags, resources, detail []byte
+	var investCents pgtype.Int8
+	if err := scanner.Scan(
+		&item.ID, &item.Slug, &item.Title, &item.CoverURL,
+		&item.Category, &item.Track, &item.Difficulty,
+		&investCents, &item.BudgetBand, &item.RevenueRange, &item.IsReal,
+		&item.SourceURL, &item.Summary, &tags, &item.Heat, &item.IsFeatured,
+		&resources, &detail, &item.PublishedAt, &item.UpdatedAt,
+	); err != nil {
+		return Project{}, err
+	}
+	if err := json.Unmarshal(tags, &item.Tags); err != nil {
+		return Project{}, err
+	}
+	if err := json.Unmarshal(resources, &item.ResourceRequirements); err != nil {
+		return Project{}, err
+	}
+	if investCents.Valid {
+		value := investCents.Int64
+		item.InvestCents = &value
+	}
+	item.Detail = append(item.Detail[:0], detail...)
+	return item, nil
+}
+
+func scanCatalogProjectPageRow(scanner sessionScanner) (Project, int, error) {
+	var item Project
+	var tags, resources, detail []byte
+	var investCents pgtype.Int8
+	var total int
+	if err := scanner.Scan(
+		&item.ID, &item.Slug, &item.Title, &item.CoverURL,
+		&item.Category, &item.Track, &item.Difficulty,
+		&investCents, &item.BudgetBand, &item.RevenueRange, &item.IsReal,
+		&item.SourceURL, &item.Summary, &tags, &item.Heat, &item.IsFeatured,
+		&resources, &detail, &item.PublishedAt, &item.UpdatedAt, &total,
+	); err != nil {
+		return Project{}, 0, err
+	}
+	if err := json.Unmarshal(tags, &item.Tags); err != nil {
+		return Project{}, 0, err
+	}
+	if err := json.Unmarshal(resources, &item.ResourceRequirements); err != nil {
+		return Project{}, 0, err
+	}
+	if investCents.Valid {
+		value := investCents.Int64
+		item.InvestCents = &value
+	}
+	item.Detail = append(item.Detail[:0], detail...)
+	return item, total, nil
 }
 
 func scanOpportunity(scanner sessionScanner) (Opportunity, error) {
