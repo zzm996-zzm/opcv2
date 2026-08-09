@@ -53,8 +53,8 @@ func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
 	router.GET("/projects/opportunities/:slug", h.getOpportunity)
 	router.GET("/projects/cases", h.listCases)
 	router.GET("/projects/cases/:slug", h.getCase)
-	router.GET("/project-cases", h.listCases)
-	router.GET("/project-cases/:slug", h.getCase)
+	router.GET("/project-cases", h.listEvidenceCases)
+	router.GET("/project-cases/:slug", h.getEvidenceCase)
 	router.GET("/projects", h.listProjects)
 	router.GET("/projects/:id", h.getProject)
 }
@@ -81,6 +81,51 @@ func (h *HTTPHandler) catalogApplication(c *gin.Context) (CatalogApplication, bo
 		return nil, false
 	}
 	return app, true
+}
+
+func (h *HTTPHandler) evidenceCaseApplication(c *gin.Context) (EvidenceCaseApplication, bool) {
+	app, ok := h.app.(EvidenceCaseApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) listEvidenceCases(c *gin.Context) {
+	app, ok := h.evidenceCaseApplication(c)
+	if !ok {
+		return
+	}
+	page, valid := positiveQueryInt(c, "page", 1)
+	if !valid {
+		return
+	}
+	pageSize, valid := positiveQueryInt(c, "page_size", 20)
+	if !valid {
+		return
+	}
+	items, err := app.ListEvidenceCases(c.Request.Context(), EvidenceCaseFilters{
+		CaseType: c.Query("type"), Industry: c.Query("industry"), Scale: c.Query("scale"), Page: page, PageSize: pageSize,
+	})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *HTTPHandler) getEvidenceCase(c *gin.Context) {
+	app, ok := h.evidenceCaseApplication(c)
+	if !ok {
+		return
+	}
+	item, err := app.GetEvidenceCase(c.Request.Context(), c.Param("slug"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
 }
 
 func (h *HTTPHandler) getPublicConfig(c *gin.Context) {

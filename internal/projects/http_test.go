@@ -12,27 +12,30 @@ import (
 )
 
 type fakeApplication struct {
-	input          MatchInput
-	userID         int64
-	matchID        int64
-	result         MatchResult
-	sessions       []MatchSession
-	session        MatchSession
-	favorite       Favorite
-	favorites      []Favorite
-	err            error
-	opportunities  []Opportunity
-	opportunity    Opportunity
-	filters        OpportunityFilters
-	cases          []CaseStudy
-	caseStudy      CaseStudy
-	caseFilters    CaseFilters
-	publicConfig   PublicConfig
-	dictionaries   []DictionaryItem
-	home           ProjectHome
-	projectPage    ProjectPage
-	catalogProject Project
-	projectFilters ProjectFilters
+	input            MatchInput
+	userID           int64
+	matchID          int64
+	result           MatchResult
+	sessions         []MatchSession
+	session          MatchSession
+	favorite         Favorite
+	favorites        []Favorite
+	err              error
+	opportunities    []Opportunity
+	opportunity      Opportunity
+	filters          OpportunityFilters
+	cases            []CaseStudy
+	caseStudy        CaseStudy
+	caseFilters      CaseFilters
+	publicConfig     PublicConfig
+	dictionaries     []DictionaryItem
+	home             ProjectHome
+	projectPage      ProjectPage
+	catalogProject   Project
+	projectFilters   ProjectFilters
+	evidenceCasePage EvidenceCasePage
+	evidenceCase     EvidenceCaseDetail
+	evidenceFilters  EvidenceCaseFilters
 }
 
 func (a *fakeApplication) GetPublicConfig(context.Context) PublicConfig { return a.publicConfig }
@@ -46,6 +49,13 @@ func (a *fakeApplication) ListProjects(_ context.Context, filters ProjectFilters
 }
 func (a *fakeApplication) GetProject(context.Context, string) (Project, error) {
 	return a.catalogProject, a.err
+}
+func (a *fakeApplication) ListEvidenceCases(_ context.Context, filters EvidenceCaseFilters) (EvidenceCasePage, error) {
+	a.evidenceFilters = filters
+	return a.evidenceCasePage, a.err
+}
+func (a *fakeApplication) GetEvidenceCase(context.Context, string) (EvidenceCaseDetail, error) {
+	return a.evidenceCase, a.err
 }
 
 func (a *fakeApplication) ListCases(_ context.Context, filters CaseFilters) ([]CaseStudy, error) {
@@ -251,6 +261,33 @@ func TestListCasesEndpointFiltersByOpportunitySlug(t *testing.T) {
 		!strings.Contains(recorder.Body.String(), `"opportunity_title":"AI短视频脚本工作室"`) ||
 		!strings.Contains(recorder.Body.String(), `"industry":"内容服务"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestEvidenceCaseEndpointsUseIndependentPRDContract(t *testing.T) {
+	app := &fakeApplication{
+		evidenceCasePage: EvidenceCasePage{Items: []EvidenceCaseItem{{ID: 81, Title: "失败案例", Type: "fail"}}, Page: 2, PageSize: 10, Total: 1},
+		evidenceCase: EvidenceCaseDetail{
+			EvidenceCaseItem: EvidenceCaseItem{ID: 81, Title: "失败案例", Type: "fail"},
+			Facts:            []EvidenceFact{{Field: "died_year", Value: "2024", SourceRefs: []int64{91}}},
+			Sources:          []EvidenceSource{{ID: 91, URL: "https://example.com/case"}},
+		},
+	}
+	router := projectTestRouter(app)
+
+	list := httptest.NewRecorder()
+	router.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/api/v1/project-cases?type=fail&industry=AI&scale=solo&page=2&page_size=10", nil))
+	if list.Code != http.StatusOK || !strings.Contains(list.Body.String(), `"items"`) || !strings.Contains(list.Body.String(), `"title":"失败案例"`) {
+		t.Fatalf("list status/body = %d/%s", list.Code, list.Body.String())
+	}
+	if app.evidenceFilters.CaseType != "fail" || app.evidenceFilters.Page != 2 || app.evidenceFilters.PageSize != 10 {
+		t.Fatalf("filters = %+v", app.evidenceFilters)
+	}
+
+	detail := httptest.NewRecorder()
+	router.ServeHTTP(detail, httptest.NewRequest(http.MethodGet, "/api/v1/project-cases/81", nil))
+	if detail.Code != http.StatusOK || !strings.Contains(detail.Body.String(), `"facts"`) || !strings.Contains(detail.Body.String(), `"source_refs":[91]`) {
+		t.Fatalf("detail status/body = %d/%s", detail.Code, detail.Body.String())
 	}
 }
 

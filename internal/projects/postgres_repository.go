@@ -120,6 +120,183 @@ func (r *PostgresRepository) GetProject(ctx context.Context, ref string) (Projec
 	return item, err
 }
 
+func (r *PostgresRepository) ListEvidenceCases(ctx context.Context, filters EvidenceCaseFilters) (EvidenceCasePage, error) {
+	query := `
+		SELECT c.id, c.title, COALESCE(c.cover_url, ''), COALESCE(c.result_summary, c.outcome),
+		       COALESCE(o.industry, ''), COALESCE(c.scale, ''),
+		       CASE WHEN c.case_type = 'failure' THEN 'fail' ELSE c.case_type END,
+		       COALESCE(MAX(ws.url) FILTER (WHERE cs.is_primary), ''), COUNT(DISTINCT ws.id),
+		       c.last_verified_at, c.published_at, c.project_id, c.evidence_status, c.has_conflict,
+		       COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('primary', 'authority')),
+		       COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('research', 'media', 'vertical')),
+		       COUNT(*) OVER()
+		FROM project_cases c
+		LEFT JOIN project_opportunities o ON o.id = c.project_id
+		LEFT JOIN project_case_sources cs ON cs.case_id = c.id
+		LEFT JOIN web_sources ws ON ws.id = cs.web_source_id
+		WHERE c.status = 'published' AND c.evidence_status = 'verified'
+		  AND ($1 = '' OR c.case_type = $1)
+		  AND ($2 = '' OR o.industry = $2)
+		  AND ($3 = '' OR c.scale = $3)
+		GROUP BY c.id, c.title, c.cover_url, c.result_summary, c.outcome, o.industry, c.scale,
+		         c.case_type, c.last_verified_at, c.published_at, c.project_id, c.evidence_status,
+		         c.has_conflict
+		HAVING c.has_conflict = FALSE
+		   AND (COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('primary', 'authority')) > 0
+		        OR COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('research', 'media', 'vertical')) >= 2)
+		ORDER BY c.published_at DESC NULLS LAST, c.id ASC
+		LIMIT $4 OFFSET $5
+	`
+	rows, err := r.db.Query(ctx, query, filters.CaseType, filters.Industry, filters.Scale, filters.PageSize, (filters.Page-1)*filters.PageSize)
+	if err != nil {
+		return EvidenceCasePage{}, err
+	}
+	defer rows.Close()
+	page := EvidenceCasePage{Items: make([]EvidenceCaseItem, 0), Page: filters.Page, PageSize: filters.PageSize}
+	for rows.Next() {
+		item, total, err := scanEvidenceCaseItem(rows)
+		if err != nil {
+			return EvidenceCasePage{}, err
+		}
+		page.Total = total
+		page.Items = append(page.Items, item)
+	}
+	return page, rows.Err()
+}
+
+func (r *PostgresRepository) GetEvidenceCase(ctx context.Context, ref string) (EvidenceCaseDetail, error) {
+	var detail EvidenceCaseDetail
+	item, _, err := scanEvidenceCaseItem(r.db.QueryRow(ctx, `
+		SELECT c.id, c.title, COALESCE(c.cover_url, ''), COALESCE(c.result_summary, c.outcome),
+		       COALESCE(o.industry, ''), COALESCE(c.scale, ''),
+		       CASE WHEN c.case_type = 'failure' THEN 'fail' ELSE c.case_type END,
+		       COALESCE(MAX(ws.url) FILTER (WHERE cs.is_primary), ''), COUNT(DISTINCT ws.id),
+		       c.last_verified_at, c.published_at, c.project_id, c.evidence_status, c.has_conflict,
+		       COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('primary', 'authority')),
+		       COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('research', 'media', 'vertical')),
+		       1
+		FROM project_cases c
+		LEFT JOIN project_opportunities o ON o.id = c.project_id
+		LEFT JOIN project_case_sources cs ON cs.case_id = c.id
+		LEFT JOIN web_sources ws ON ws.id = cs.web_source_id
+		WHERE c.status = 'published' AND c.evidence_status = 'verified'
+		  AND (c.slug = $1 OR c.id::TEXT = $1)
+		GROUP BY c.id, c.title, c.cover_url, c.result_summary, c.outcome, o.industry, c.scale,
+		         c.case_type, c.last_verified_at, c.published_at, c.project_id, c.evidence_status,
+		         c.has_conflict
+		HAVING c.has_conflict = FALSE
+		   AND (COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('primary', 'authority')) > 0
+		        OR COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('research', 'media', 'vertical')) >= 2)
+	`, ref))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return EvidenceCaseDetail{}, ErrCaseNotFound
+	}
+	if err != nil {
+		return EvidenceCaseDetail{}, err
+	}
+	detail.EvidenceCaseItem = item
+	if err := r.db.QueryRow(ctx, `SELECT COALESCE(content_md, '') FROM project_cases WHERE id = $1`, item.ID).Scan(&detail.ContentMD); err != nil {
+		return EvidenceCaseDetail{}, err
+	}
+
+	claimsRows, err := r.db.Query(ctx, `
+		SELECT id, claim_type, field_name, value_text, COALESCE(detail, ''), is_model_generated
+		FROM project_case_claims
+		WHERE case_id = $1
+		ORDER BY claim_type ASC, sort_order ASC, id ASC
+	`, item.ID)
+	if err != nil {
+		return EvidenceCaseDetail{}, err
+	}
+	defer claimsRows.Close()
+	for claimsRows.Next() {
+		var id int64
+		var claimType, fieldName, value, claimDetail string
+		var modelGenerated bool
+		if err := claimsRows.Scan(&id, &claimType, &fieldName, &value, &claimDetail, &modelGenerated); err != nil {
+			return EvidenceCaseDetail{}, err
+		}
+		var refs []int64
+		refRows, err := r.db.Query(ctx, `SELECT web_source_id FROM project_case_claim_sources WHERE claim_id = $1 ORDER BY web_source_id`, id)
+		if err != nil {
+			return EvidenceCaseDetail{}, err
+		}
+		for refRows.Next() {
+			var sourceID int64
+			if err := refRows.Scan(&sourceID); err != nil {
+				refRows.Close()
+				return EvidenceCaseDetail{}, err
+			}
+			refs = append(refs, sourceID)
+		}
+		refErr := refRows.Err()
+		refRows.Close()
+		if refErr != nil {
+			return EvidenceCaseDetail{}, refErr
+		}
+		if claimType == "fact" {
+			detail.Facts = append(detail.Facts, EvidenceFact{Field: fieldName, Value: value, SourceRefs: refs})
+		} else {
+			detail.Analyses = append(detail.Analyses, EvidenceAnalysis{Point: value, Detail: claimDetail, IsModelGenerated: modelGenerated, SourceRefs: refs})
+		}
+	}
+	if err := claimsRows.Err(); err != nil {
+		return EvidenceCaseDetail{}, err
+	}
+
+	sourceRows, err := r.db.Query(ctx, `
+		SELECT ws.id, COALESCE(ws.title, ''), COALESCE(ws.publisher, ''), ws.url,
+		       ws.published_at, ws.fetched_at, ws.quality_score, ws.source_kind,
+		       COALESCE(ARRAY(SELECT DISTINCT c.field_name FROM project_case_sources c WHERE c.case_id = $1 AND c.web_source_id = ws.id), '{}'),
+		       COALESCE((SELECT BOOL_OR(c.is_primary) FROM project_case_sources c WHERE c.case_id = $1 AND c.web_source_id = ws.id), FALSE)
+		FROM web_sources ws
+		WHERE ws.id IN (
+			SELECT web_source_id FROM project_case_sources WHERE case_id = $1
+			UNION
+			SELECT cs.web_source_id FROM project_case_claim_sources cs
+			JOIN project_case_claims c ON c.id = cs.claim_id
+			WHERE c.case_id = $1
+		)
+		ORDER BY ws.quality_score DESC NULLS LAST, ws.id ASC
+	`, item.ID)
+	if err != nil {
+		return EvidenceCaseDetail{}, err
+	}
+	defer sourceRows.Close()
+	for sourceRows.Next() {
+		var source EvidenceSource
+		var quality pgtype.Float8
+		if err := sourceRows.Scan(&source.ID, &source.Title, &source.Publisher, &source.URL, &source.PublishedAt, &source.FetchedAt, &quality, &source.Kind, &source.ClaimFields, &source.IsPrimary); err != nil {
+			return EvidenceCaseDetail{}, err
+		}
+		if quality.Valid {
+			value := quality.Float64
+			source.Quality = &value
+		}
+		detail.Sources = append(detail.Sources, source)
+	}
+	return detail, sourceRows.Err()
+}
+
+func scanEvidenceCaseItem(scanner sessionScanner) (EvidenceCaseItem, int, error) {
+	var item EvidenceCaseItem
+	var projectID pgtype.Int8
+	var total int
+	if err := scanner.Scan(
+		&item.ID, &item.Title, &item.CoverURL, &item.ResultSummary, &item.Industry, &item.Scale,
+		&item.Type, &item.PrimarySourceURL, &item.SourceCount, &item.VerifiedAt, &item.PublishedAt,
+		&projectID, &item.EvidenceStatus, &item.HasConflict, &item.PrimarySourceCount,
+		&item.ReliableSecondaryCount, &total,
+	); err != nil {
+		return EvidenceCaseItem{}, 0, err
+	}
+	if projectID.Valid {
+		value := projectID.Int64
+		item.ProjectID = &value
+	}
+	return item, total, nil
+}
+
 func (r *PostgresRepository) ListOpportunities(ctx context.Context, filters OpportunityFilters) ([]Opportunity, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, slug, title, summary, industry, tags, budget_band, difficulty, resource_requirements, sections, status, published_at, updated_at

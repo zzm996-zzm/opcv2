@@ -136,6 +136,90 @@ func TestPostgresRepositoryListsCasesByOpportunitySlug(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryListsOnlyEvidenceQualifiedCases(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 9, 9, 0, 0, 0, time.UTC)
+	db.ExpectQuery("SELECT c.id, c.title, COALESCE\\(c.cover_url").
+		WithArgs("failure", "AI", "solo", 20, 0).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "title", "cover_url", "result_summary", "industry", "scale", "type", "primary_source_url", "source_count",
+			"verified_at", "published_at", "project_id", "evidence_status", "has_conflict", "primary_source_count", "secondary_count", "total",
+		}).AddRow(
+			int64(81), "可追溯失败案例", "", "已核验结果", "AI", "solo", "fail", "https://authority.example/case", 2,
+			&now, &now, int64(42), EvidenceStatusVerified, false, 1, 0, 1,
+		))
+
+	repository := NewPostgresRepository(db)
+	page, err := repository.ListEvidenceCases(context.Background(), EvidenceCaseFilters{CaseType: "failure", Industry: "AI", Scale: "solo", Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatalf("ListEvidenceCases() error = %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Type != "fail" || page.Items[0].PrimarySourceCount != 1 {
+		t.Fatalf("page = %+v", page)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryLoadsCaseClaimsAndSourceRefs(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 9, 9, 0, 0, 0, time.UTC)
+	db.ExpectQuery("SELECT c.id, c.title, COALESCE\\(c.cover_url").
+		WithArgs("81").
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "title", "cover_url", "result_summary", "industry", "scale", "type", "primary_source_url", "source_count",
+			"verified_at", "published_at", "project_id", "evidence_status", "has_conflict", "primary_source_count", "secondary_count", "total",
+		}).AddRow(
+			int64(81), "可追溯失败案例", "", "已核验结果", "AI", "solo", "fail", "https://authority.example/case", 1,
+			&now, &now, nil, EvidenceStatusVerified, false, 1, 0, 1,
+		))
+	db.ExpectQuery("SELECT COALESCE\\(content_md").
+		WithArgs(int64(81)).
+		WillReturnRows(pgxmock.NewRows([]string{"content_md"}).AddRow("# 复盘"))
+	db.ExpectQuery("SELECT id, claim_type, field_name").
+		WithArgs(int64(81)).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "claim_type", "field_name", "value_text", "detail", "is_model_generated"}).
+			AddRow(int64(91), "fact", "died_year", "2024", "", false).
+			AddRow(int64(92), "analysis", "lesson", "控制获客成本", "避免规模错觉", true))
+	db.ExpectQuery("SELECT web_source_id FROM project_case_claim_sources").
+		WithArgs(int64(91)).
+		WillReturnRows(pgxmock.NewRows([]string{"web_source_id"}).AddRow(int64(101)))
+	db.ExpectQuery("SELECT web_source_id FROM project_case_claim_sources").
+		WithArgs(int64(92)).
+		WillReturnRows(pgxmock.NewRows([]string{"web_source_id"}).AddRow(int64(101)))
+	db.ExpectQuery("SELECT ws.id, COALESCE\\(ws.title").
+		WithArgs(int64(81)).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "title", "publisher", "url", "published_at", "fetched_at", "quality_score", "source_kind", "claim_fields", "is_primary",
+		}).AddRow(int64(101), "公告", "权威机构", "https://authority.example/case", &now, now, 0.95, "primary", []string{"died_year", "lesson"}, true))
+
+	repository := NewPostgresRepository(db)
+	detail, err := repository.GetEvidenceCase(context.Background(), "81")
+	if err != nil {
+		t.Fatalf("GetEvidenceCase() error = %v", err)
+	}
+	if detail.ContentMD != "# 复盘" || len(detail.Facts) != 1 || len(detail.Analyses) != 1 || len(detail.Facts[0].SourceRefs) != 1 || detail.Facts[0].SourceRefs[0] != 101 {
+		t.Fatalf("detail = %+v", detail)
+	}
+	if len(detail.Sources) != 1 || detail.Sources[0].Quality == nil || *detail.Sources[0].Quality != 0.95 {
+		t.Fatalf("sources = %+v", detail.Sources)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryGetsCaseWithOpportunityMetadata(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

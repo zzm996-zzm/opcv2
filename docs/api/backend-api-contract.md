@@ -427,12 +427,49 @@ Compatibility routes remain available:
 - `GET /api/v1/projects/cases`
 - `GET /api/v1/projects/cases/{slug}`
 
-The case aliases `GET /api/v1/project-cases` and
-`GET /api/v1/project-cases/{slug}` are also public.
+### Evidence-backed Project Cases
+
+`GET /api/v1/project-cases?type=success|fail&industry=&scale=&page=1&page_size=20`
+
+This public endpoint is independent from the legacy case response. It returns
+only published cases that have no unresolved conflict and meet one of these
+evidence thresholds:
+
+- at least one `primary` or `authority` source;
+- at least two independent `research`, `media`, or `vertical` sources.
+
+Response `200`:
+
+```json
+{
+  "items": [{
+    "id": 81,
+    "title": "案例标题",
+    "result_summary": "已核验的结果摘要",
+    "industry": "AI",
+    "scale": "solo",
+    "type": "fail",
+    "primary_source_url": "https://example.com/source",
+    "source_count": 2,
+    "verified_at": "2026-08-09T09:00:00Z",
+    "published_at": "2026-08-09T09:00:00Z",
+    "project_id": 42
+  }],
+  "page": 1,
+  "page_size": 20,
+  "total": 1
+}
+```
+
+`GET /api/v1/project-cases/{id-or-slug}` returns `content_md`, field-level
+`facts`, model-generated `analyses`, and normalized `sources`. Every fact has
+one or more `source_refs` that resolve to an item in `sources`. Invalid URLs and
+`loot-drop.io` URLs never qualify as public evidence. A conflict or insufficient
+evidence is returned as `404 case_not_found` rather than leaking review data.
 
 ## Projects
 
-All project endpoints are protected.
+The following project endpoints operate on user-owned data and are protected.
 
 Project match status values:
 
