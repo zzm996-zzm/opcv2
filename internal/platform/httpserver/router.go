@@ -300,6 +300,8 @@ func isExpensiveEndpoint(method, fullPath, requestPath string) bool {
 	}
 	switch path {
 	case "/api/v1/analysis/direction",
+		"/api/v1/project-matches",
+		"/api/v1/project-matches/:id/answer",
 		"/api/v1/projects/matches",
 		"/api/v1/leads/tasks",
 		"/api/v1/crm/customers/:id/follow-up-copy",

@@ -464,7 +464,7 @@ func (r *PostgresRepository) ListSessions(ctx context.Context, userID int64, lim
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, intent, answers, status, questions, result, created_at, updated_at
 		FROM project_match_sessions
-		WHERE user_id = $1
+		WHERE user_id = $1 AND COALESCE(workflow_version, 1) = 1
 		ORDER BY created_at DESC
 		LIMIT $2
 	`, userID, limit)
@@ -491,12 +491,219 @@ func (r *PostgresRepository) GetSession(ctx context.Context, userID, id int64) (
 	session, err := scanSession(r.db.QueryRow(ctx, `
 		SELECT id, user_id, intent, answers, status, questions, result, created_at, updated_at
 		FROM project_match_sessions
-		WHERE user_id = $1 AND id = $2
+		WHERE user_id = $1 AND id = $2 AND COALESCE(workflow_version, 1) = 1
 	`, userID, id))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MatchSession{}, ErrSessionNotFound
 	}
 	return session, err
+}
+
+func (r *PostgresRepository) FindMatchRunByIdempotency(ctx context.Context, userID int64, key string) (MatchRun, error) {
+	if key == "" {
+		return MatchRun{}, ErrSessionNotFound
+	}
+	run, err := scanMatchRun(r.db.QueryRow(ctx, `
+		SELECT id, user_id, workflow_version, COALESCE(name, ''), intent, input_snapshot, parsed_profile,
+		       field_sources, COALESCE(analysis_summary, ''), completeness, missing_fields,
+		       clarification_questions, question_count, rounds, answer_events, assumptions,
+		       revision, skipped_at, status, idempotency_key, created_at, updated_at
+		FROM project_match_sessions
+		WHERE user_id = $1 AND workflow_version = 2 AND idempotency_key = $2
+	`, userID, key))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MatchRun{}, ErrSessionNotFound
+	}
+	return run, err
+}
+
+func (r *PostgresRepository) CreateMatchRun(ctx context.Context, run MatchRun) (MatchRun, bool, error) {
+	inputSnapshot, err := json.Marshal(run.InputSnapshot)
+	if err != nil {
+		return MatchRun{}, false, err
+	}
+	profile, err := json.Marshal(nonNilMap(run.ParsedProfile))
+	if err != nil {
+		return MatchRun{}, false, err
+	}
+	fieldSources, err := json.Marshal(nonNilFieldSources(run.FieldSources))
+	if err != nil {
+		return MatchRun{}, false, err
+	}
+	questions, err := json.Marshal(nonNilQuestions(run.Questions))
+	if err != nil {
+		return MatchRun{}, false, err
+	}
+	missing, err := json.Marshal(nonNilStrings(run.MissingFields))
+	if err != nil {
+		return MatchRun{}, false, err
+	}
+	answerEvents, err := json.Marshal(nonNilAnswerEvents(run.AnswerEvents))
+	if err != nil {
+		return MatchRun{}, false, err
+	}
+	assumptions, err := json.Marshal(nonNilStrings(run.Assumptions))
+	if err != nil {
+		return MatchRun{}, false, err
+	}
+	err = r.db.QueryRow(ctx, `
+		INSERT INTO project_match_sessions
+			(user_id, workflow_version, intent, input_snapshot, parsed_profile, field_sources,
+			 analysis_summary, completeness, missing_fields, clarification_questions,
+			 question_count, rounds, answer_events, assumptions, revision, skipped_at,
+			 status, idempotency_key, created_at, updated_at)
+		VALUES ($1, 2, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $18)
+		ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL AND idempotency_key <> ''
+		DO NOTHING
+		RETURNING id
+	`, run.UserID, run.Need, inputSnapshot, profile, fieldSources, run.AnalysisSummary, run.Completeness,
+		missing, questions, run.QuestionCount, run.Rounds, answerEvents, assumptions, run.Revision, run.SkippedAt,
+		run.Status, nullableString(run.IdempotencyKey), run.CreatedAt).Scan(&run.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		existing, findErr := r.FindMatchRunByIdempotency(ctx, run.UserID, run.IdempotencyKey)
+		if findErr != nil {
+			return MatchRun{}, false, findErr
+		}
+		return existing, false, nil
+	}
+	return run, true, err
+}
+
+func (r *PostgresRepository) GetMatchRun(ctx context.Context, userID, id int64) (MatchRun, error) {
+	run, err := scanMatchRun(r.db.QueryRow(ctx, `
+		SELECT id, user_id, workflow_version, COALESCE(name, ''), intent, input_snapshot, parsed_profile,
+		       field_sources, COALESCE(analysis_summary, ''), completeness, missing_fields,
+		       clarification_questions, question_count, rounds, answer_events, assumptions,
+		       revision, skipped_at, status, idempotency_key, created_at, updated_at
+		FROM project_match_sessions
+		WHERE user_id = $1 AND id = $2 AND workflow_version = 2
+	`, userID, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MatchRun{}, ErrSessionNotFound
+	}
+	return run, err
+}
+
+func (r *PostgresRepository) UpdateMatchRun(ctx context.Context, run MatchRun, expectedRevision int) (MatchRun, error) {
+	inputSnapshot, err := json.Marshal(run.InputSnapshot)
+	if err != nil {
+		return MatchRun{}, err
+	}
+	profile, err := json.Marshal(nonNilMap(run.ParsedProfile))
+	if err != nil {
+		return MatchRun{}, err
+	}
+	fieldSources, err := json.Marshal(nonNilFieldSources(run.FieldSources))
+	if err != nil {
+		return MatchRun{}, err
+	}
+	questions, err := json.Marshal(nonNilQuestions(run.Questions))
+	if err != nil {
+		return MatchRun{}, err
+	}
+	missing, err := json.Marshal(nonNilStrings(run.MissingFields))
+	if err != nil {
+		return MatchRun{}, err
+	}
+	answerEvents, err := json.Marshal(nonNilAnswerEvents(run.AnswerEvents))
+	if err != nil {
+		return MatchRun{}, err
+	}
+	assumptions, err := json.Marshal(nonNilStrings(run.Assumptions))
+	if err != nil {
+		return MatchRun{}, err
+	}
+	updated, err := scanMatchRun(r.db.QueryRow(ctx, `
+		UPDATE project_match_sessions
+		SET input_snapshot = $3, parsed_profile = $4, field_sources = $5, analysis_summary = $6,
+		    completeness = $7, missing_fields = $8, clarification_questions = $9,
+		    question_count = $10, rounds = $11, answer_events = $12, assumptions = $13,
+		    revision = revision + 1, skipped_at = $14, status = $15, updated_at = $16
+		WHERE user_id = $1 AND id = $2 AND workflow_version = 2 AND revision = $17
+		RETURNING id, user_id, workflow_version, COALESCE(name, ''), intent, input_snapshot, parsed_profile,
+		          field_sources, COALESCE(analysis_summary, ''), completeness, missing_fields,
+		          clarification_questions, question_count, rounds, answer_events, assumptions,
+		          revision, skipped_at, status, idempotency_key, created_at, updated_at
+	`, run.UserID, run.ID, inputSnapshot, profile, fieldSources, run.AnalysisSummary, run.Completeness,
+		missing, questions, run.QuestionCount, run.Rounds, answerEvents, assumptions, run.SkippedAt,
+		run.Status, run.UpdatedAt, expectedRevision))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return MatchRun{}, ErrMatchRevisionConflict
+	}
+	return updated, err
+}
+
+func scanMatchRun(scanner sessionScanner) (MatchRun, error) {
+	var run MatchRun
+	var inputSnapshot, profile, fieldSources, missing, questions, answerEvents, assumptions []byte
+	var key pgtype.Text
+	if err := scanner.Scan(&run.ID, &run.UserID, &run.WorkflowVersion, &run.Name, &run.Need, &inputSnapshot, &profile,
+		&fieldSources, &run.AnalysisSummary, &run.Completeness, &missing, &questions, &run.QuestionCount, &run.Rounds,
+		&answerEvents, &assumptions, &run.Revision, &run.SkippedAt, &run.Status, &key, &run.CreatedAt, &run.UpdatedAt); err != nil {
+		return MatchRun{}, err
+	}
+	if key.Valid {
+		run.IdempotencyKey = key.String
+	}
+	if err := json.Unmarshal(inputSnapshot, &run.InputSnapshot); err != nil {
+		return MatchRun{}, err
+	}
+	if err := json.Unmarshal(profile, &run.ParsedProfile); err != nil {
+		return MatchRun{}, err
+	}
+	if err := json.Unmarshal(fieldSources, &run.FieldSources); err != nil {
+		return MatchRun{}, err
+	}
+	if err := json.Unmarshal(missing, &run.MissingFields); err != nil {
+		return MatchRun{}, err
+	}
+	if err := json.Unmarshal(questions, &run.Questions); err != nil {
+		return MatchRun{}, err
+	}
+	if err := json.Unmarshal(answerEvents, &run.AnswerEvents); err != nil {
+		return MatchRun{}, err
+	}
+	if err := json.Unmarshal(assumptions, &run.Assumptions); err != nil {
+		return MatchRun{}, err
+	}
+	return run, nil
+}
+
+func nonNilMap(value map[string]any) map[string]any {
+	if value == nil {
+		return map[string]any{}
+	}
+	return value
+}
+func nonNilFieldSources(value map[string][]MatchFieldSource) map[string][]MatchFieldSource {
+	if value == nil {
+		return map[string][]MatchFieldSource{}
+	}
+	return value
+}
+func nonNilQuestions(value []ClarificationQuestion) []ClarificationQuestion {
+	if value == nil {
+		return []ClarificationQuestion{}
+	}
+	return value
+}
+func nonNilAnswerEvents(value []MatchAnswerEvent) []MatchAnswerEvent {
+	if value == nil {
+		return []MatchAnswerEvent{}
+	}
+	return value
+}
+func nonNilStrings(value []string) []string {
+	if value == nil {
+		return []string{}
+	}
+	return value
+}
+func nullableString(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func (r *PostgresRepository) UpdateSession(ctx context.Context, session MatchSession) (MatchSession, error) {

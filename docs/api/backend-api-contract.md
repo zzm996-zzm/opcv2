@@ -467,9 +467,48 @@ one or more `source_refs` that resolve to an item in `sources`. Invalid URLs and
 `loot-drop.io` URLs never qualify as public evidence. A conflict or insufficient
 evidence is returned as `404 case_not_found` rather than leaking review data.
 
-## Projects
+## Project Match Clarification Workflow
 
-The following project endpoints operate on user-owned data and are protected.
+The following v2 endpoints are protected and user-scoped. Mutating requests
+accept an `Idempotency-Key` header. Clients should persist the returned
+`revision` and send it with each answer command.
+
+`POST /api/v1/project-matches`
+
+```json
+{
+  "need": "我会内容创作，想做一人公司",
+  "profile_patch": { "team_size": 1 }
+}
+```
+
+`POST /api/v1/project-matches/{id}/answer`
+
+```json
+{
+  "revision": 1,
+  "answers": [
+    { "question_id": "budget", "field": "budget_band", "value": "0-5k" }
+  ],
+  "skip": false
+}
+```
+
+`GET /api/v1/project-matches/{id}` returns the current persisted snapshot.
+Responses contain `status` (`clarifying` or `ready`), `analysis_summary`,
+`parsed_profile`, `field_sources`, `completeness`, `missing_fields`, up to three
+current `questions`, recorded `assumptions`, and `revision`. A stale revision
+returns `409 match_revision_conflict`; another user's match returns
+`404 match_not_found`.
+
+Clarification is bounded to three questions per round, eight total questions,
+and three rounds. Completeness at or above `0.8`, skipping, or reaching a bound
+ends clarification. Skipping records unresolved fields as assumptions.
+
+## Legacy Project Matches
+
+The following compatibility endpoints operate on user-owned workflow v1 data
+and remain protected for existing clients.
 
 Project match status values:
 

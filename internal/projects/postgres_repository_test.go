@@ -315,7 +315,7 @@ func TestPostgresRepositoryListsMatchSessionsForUser(t *testing.T) {
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT id, user_id, intent, answers, status, questions, result, created_at, updated_at
 		FROM project_match_sessions
-		WHERE user_id = $1
+		WHERE user_id = $1 AND COALESCE(workflow_version, 1) = 1
 		ORDER BY created_at DESC
 		LIMIT $2
 	`)).
@@ -357,7 +357,7 @@ func TestPostgresRepositoryReturnsEmptyMatchSessionList(t *testing.T) {
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT id, user_id, intent, answers, status, questions, result, created_at, updated_at
 		FROM project_match_sessions
-		WHERE user_id = $1
+		WHERE user_id = $1 AND COALESCE(workflow_version, 1) = 1
 		ORDER BY created_at DESC
 		LIMIT $2
 	`)).
@@ -390,7 +390,7 @@ func TestPostgresRepositoryGetsMatchSessionForUser(t *testing.T) {
 	db.ExpectQuery(regexp.QuoteMeta(`
 		SELECT id, user_id, intent, answers, status, questions, result, created_at, updated_at
 		FROM project_match_sessions
-		WHERE user_id = $1 AND id = $2
+		WHERE user_id = $1 AND id = $2 AND COALESCE(workflow_version, 1) = 1
 	`)).
 		WithArgs(int64(42), int64(99)).
 		WillReturnRows(pgxmock.NewRows([]string{

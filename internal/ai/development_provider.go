@@ -1,6 +1,9 @@
 package ai
 
-import "context"
+import (
+	"context"
+	"strings"
+)
 
 type DevelopmentProvider struct {
 	Response []byte
@@ -11,23 +14,23 @@ func NewDevelopmentProvider() *DevelopmentProvider {
 }
 
 func (p *DevelopmentProvider) Generate(_ context.Context, request ProviderRequest) (ProviderResponse, error) {
-	response := p.responseFor(request.Feature)
+	response := p.responseFor(request)
 	return ProviderResponse{Content: response}, nil
 }
 
 func (p *DevelopmentProvider) Stream(_ context.Context, request ProviderRequest, onDelta func([]byte) error) (ProviderResponse, error) {
-	content := p.responseFor(request.Feature)
+	content := p.responseFor(request)
 	if err := onDelta(content); err != nil {
 		return ProviderResponse{}, err
 	}
 	return ProviderResponse{Content: content}, nil
 }
 
-func (p *DevelopmentProvider) responseFor(feature string) []byte {
+func (p *DevelopmentProvider) responseFor(request ProviderRequest) []byte {
 	if len(p.Response) > 0 {
 		return p.Response
 	}
-	switch feature {
+	switch request.Feature {
 	case "copilot.chat_stream":
 		return []byte("我会先明确目标客户，再验证最高频痛点，最后做一个低成本样板。")
 	case "analysis.direction":
@@ -68,6 +71,29 @@ func (p *DevelopmentProvider) responseFor(feature string) []byte {
 					"reasons":["交付标准化","复购机会多","适合轻量试跑"],
 					"risk":"需控制需求边界和交付周期"
 				}
+			]
+		}`)
+	case "projects.match_analysis":
+		if strings.Contains(request.UserPrompt, `"budget_band"`) && strings.Contains(request.UserPrompt, `"time_per_week"`) && strings.Contains(request.UserPrompt, `"risk_preference"`) {
+			return []byte(`{
+				"analysis_summary":"信息完整，可以开始生成匹配结果。",
+				"parsed_profile":{"skills":["内容创作"],"team_size":1},
+				"field_sources":{"budget_band":[{"type":"answer","locator":"budget"}],"time_per_week":[{"type":"answer","locator":"time"}],"risk_preference":[{"type":"answer","locator":"risk"}]},
+				"completeness":0.9,
+				"missing_fields":[],
+				"questions":[]
+			}`)
+		}
+		return []byte(`{
+			"analysis_summary":"已识别项目方向和个人能力，仍需确认预算、时间投入和风险偏好。",
+			"parsed_profile":{"skills":["内容创作"],"team_size":1},
+			"field_sources":{"skills":[{"type":"text","locator":"need"}],"team_size":[{"type":"inference","locator":"need"}]},
+			"completeness":0.55,
+			"missing_fields":["budget_band","time_per_week","risk_preference"],
+			"questions":[
+				{"id":"budget","field":"budget_band","type":"single","question":"你的启动预算范围是多少？","options":["0-5k","5k-2w","2w以上"],"required":true,"reason":"预算决定可行的项目范围"},
+				{"id":"time","field":"time_per_week","type":"single","question":"每周可以投入多少时间？","options":["5小时以内","5-20小时","20小时以上"],"required":true,"reason":"时间投入影响项目复杂度"},
+				{"id":"risk","field":"risk_preference","type":"single","question":"你的风险偏好是什么？","options":["低","中","高"],"required":true,"reason":"风险偏好影响匹配排序"}
 			]
 		}`)
 	case "sandbox.intake":

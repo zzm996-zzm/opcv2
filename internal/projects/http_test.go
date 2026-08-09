@@ -36,6 +36,9 @@ type fakeApplication struct {
 	evidenceCasePage EvidenceCasePage
 	evidenceCase     EvidenceCaseDetail
 	evidenceFilters  EvidenceCaseFilters
+	workflowCreate   CreateProjectMatchInput
+	workflowAnswer   AnswerProjectMatchInput
+	workflowResponse MatchWorkflowResponse
 }
 
 func (a *fakeApplication) GetPublicConfig(context.Context) PublicConfig { return a.publicConfig }
@@ -124,6 +127,21 @@ func (a *fakeApplication) UnfavoriteMatch(_ context.Context, userID, id int64) e
 	return a.err
 }
 
+func (a *fakeApplication) CreateProjectMatch(_ context.Context, input CreateProjectMatchInput) (MatchWorkflowResponse, error) {
+	a.workflowCreate = input
+	return a.workflowResponse, a.err
+}
+
+func (a *fakeApplication) AnswerProjectMatch(_ context.Context, input AnswerProjectMatchInput) (MatchWorkflowResponse, error) {
+	a.workflowAnswer = input
+	return a.workflowResponse, a.err
+}
+
+func (a *fakeApplication) GetProjectMatch(_ context.Context, userID, id int64) (MatchWorkflowResponse, error) {
+	a.userID, a.matchID = userID, id
+	return a.workflowResponse, a.err
+}
+
 func projectTestRouter(app Application) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -161,6 +179,47 @@ func TestCreateMatchEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"title":"AI短视频脚本工作室"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestProjectMatchWorkflowEndpointsUseAuthenticatedUserAndIdempotency(t *testing.T) {
+	app := &fakeApplication{workflowResponse: MatchWorkflowResponse{MatchID: 200, Status: MatchStatusClarifying, Revision: 1}}
+	router := projectTestRouter(app)
+
+	create := httptest.NewRequest(http.MethodPost, "/api/v1/project-matches", strings.NewReader(`{"need":"做内容项目","profile_patch":{"team_size":1}}`))
+	create.Header.Set("Content-Type", "application/json")
+	create.Header.Set("Idempotency-Key", "create-42-1")
+	createRecorder := httptest.NewRecorder()
+	router.ServeHTTP(createRecorder, create)
+	if createRecorder.Code != http.StatusOK || app.workflowCreate.UserID != 42 || app.workflowCreate.IdempotencyKey != "create-42-1" {
+		t.Fatalf("create status/input = %d/%+v body=%s", createRecorder.Code, app.workflowCreate, createRecorder.Body.String())
+	}
+
+	answer := httptest.NewRequest(http.MethodPost, "/api/v1/project-matches/200/answer", strings.NewReader(`{"revision":1,"answers":[{"question_id":"budget","field":"budget_band","value":"0-5k"}]}`))
+	answer.Header.Set("Content-Type", "application/json")
+	answer.Header.Set("Idempotency-Key", "answer-200-1")
+	answerRecorder := httptest.NewRecorder()
+	router.ServeHTTP(answerRecorder, answer)
+	if answerRecorder.Code != http.StatusOK || app.workflowAnswer.UserID != 42 || app.workflowAnswer.MatchID != 200 || app.workflowAnswer.Revision != 1 || app.workflowAnswer.IdempotencyKey != "answer-200-1" {
+		t.Fatalf("answer status/input = %d/%+v body=%s", answerRecorder.Code, app.workflowAnswer, answerRecorder.Body.String())
+	}
+
+	getRecorder := httptest.NewRecorder()
+	router.ServeHTTP(getRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/project-matches/200", nil))
+	if getRecorder.Code != http.StatusOK || app.userID != 42 || app.matchID != 200 {
+		t.Fatalf("get status/user/match = %d/%d/%d", getRecorder.Code, app.userID, app.matchID)
+	}
+}
+
+func TestProjectMatchWorkflowReturnsRevisionConflict(t *testing.T) {
+	app := &fakeApplication{err: ErrMatchRevisionConflict}
+	router := projectTestRouter(app)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/project-matches/200/answer", strings.NewReader(`{"revision":1,"skip":true}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), "match_revision_conflict") {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }
 

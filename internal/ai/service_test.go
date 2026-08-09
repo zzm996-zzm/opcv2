@@ -391,6 +391,26 @@ func TestDevelopmentProviderReturnsFeatureSpecificProjectMatchJSON(t *testing.T)
 	}
 }
 
+func TestDevelopmentProviderReturnsProjectMatchAnalysisJSON(t *testing.T) {
+	provider := NewDevelopmentProvider()
+	response, err := provider.Generate(context.Background(), ProviderRequest{Feature: "projects.match_analysis"})
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	var payload struct {
+		Completeness float64 `json:"completeness"`
+		Questions    []struct {
+			ID string `json:"id"`
+		} `json:"questions"`
+	}
+	if err := json.Unmarshal(response.Content, &payload); err != nil {
+		t.Fatalf("project match analysis response is not JSON: %v", err)
+	}
+	if payload.Completeness <= 0 || len(payload.Questions) == 0 || payload.Questions[0].ID == "" {
+		t.Fatalf("payload = %+v", payload)
+	}
+}
+
 func TestDevelopmentProviderReturnsFeatureSpecificAnalysisJSON(t *testing.T) {
 	provider := NewDevelopmentProvider()
 

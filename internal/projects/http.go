@@ -30,6 +30,12 @@ type Application interface {
 	UnfavoriteMatch(ctx context.Context, userID, id int64) error
 }
 
+type MatchWorkflowApplication interface {
+	CreateProjectMatch(context.Context, CreateProjectMatchInput) (MatchWorkflowResponse, error)
+	AnswerProjectMatch(context.Context, AnswerProjectMatchInput) (MatchWorkflowResponse, error)
+	GetProjectMatch(context.Context, int64, int64) (MatchWorkflowResponse, error)
+}
+
 type HTTPHandler struct {
 	app Application
 }
@@ -61,6 +67,9 @@ func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
 
 // RegisterProtected mounts operations that create or read user-owned data.
 func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
+	router.POST("/project-matches", h.createProjectMatch)
+	router.POST("/project-matches/:id/answer", h.answerProjectMatch)
+	router.GET("/project-matches/:id", h.getProjectMatch)
 	router.POST("/projects/matches", h.createMatch)
 	router.GET("/projects/matches", h.listMatches)
 	router.GET("/projects/matches/:id", h.getMatch)
@@ -72,6 +81,76 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.GET("/projects/comparisons/:id", h.getComparison)
 	router.POST("/projects/exports", h.createExport)
 	router.GET("/projects/exports/:id/download", h.downloadExport)
+}
+
+func (h *HTTPHandler) matchWorkflowApplication(c *gin.Context) (MatchWorkflowApplication, bool) {
+	app, ok := h.app.(MatchWorkflowApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) createProjectMatch(c *gin.Context) {
+	app, ok := h.matchWorkflowApplication(c)
+	if !ok {
+		return
+	}
+	var request CreateProjectMatchInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.IdempotencyKey = strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	result, err := app.CreateProjectMatch(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *HTTPHandler) answerProjectMatch(c *gin.Context) {
+	app, ok := h.matchWorkflowApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := matchID(c)
+	if !valid {
+		return
+	}
+	var request AnswerProjectMatchInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	request.UserID, request.MatchID = c.GetInt64(auth.UserIDContextKey), id
+	request.IdempotencyKey = strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	result, err := app.AnswerProjectMatch(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *HTTPHandler) getProjectMatch(c *gin.Context) {
+	app, ok := h.matchWorkflowApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := matchID(c)
+	if !valid {
+		return
+	}
+	result, err := app.GetProjectMatch(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *HTTPHandler) catalogApplication(c *gin.Context) (CatalogApplication, bool) {
@@ -488,6 +567,10 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "case_not_found"})
 	case errors.Is(err, ErrInvalidMatchAnswers):
 		c.JSON(http.StatusConflict, gin.H{"error": "invalid_match_answers"})
+	case errors.Is(err, ErrInvalidMatchRequest):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_match_request"})
+	case errors.Is(err, ErrMatchRevisionConflict):
+		c.JSON(http.StatusConflict, gin.H{"error": "match_revision_conflict"})
 	case errors.Is(err, ErrComparisonNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "comparison_not_found"})
 	case errors.Is(err, ErrInvalidComparison):
