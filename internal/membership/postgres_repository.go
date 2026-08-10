@@ -219,7 +219,7 @@ func (r *PostgresRepository) CheckAndConsume(ctx context.Context, input ConsumeI
 		return usage, nil
 	}
 
-	if usage.Used+input.Amount > quota.Limit {
+	if quota.Limit >= 0 && usage.Used+input.Amount > quota.Limit {
 		return UsageItem{}, ErrQuotaExceeded
 	}
 	usedAfter := usage.Used + input.Amount

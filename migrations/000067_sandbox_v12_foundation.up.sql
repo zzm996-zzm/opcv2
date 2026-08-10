@@ -18,6 +18,22 @@ ALTER TABLE sandbox_sessions
     ADD COLUMN IF NOT EXISTS v2_started_at TIMESTAMPTZ,
     ADD COLUMN IF NOT EXISTS v2_finished_at TIMESTAMPTZ;
 
+ALTER TABLE membership_plan_quotas
+    DROP CONSTRAINT IF EXISTS membership_plan_quotas_limit_value_check,
+    ADD CONSTRAINT membership_plan_quotas_limit_value_check CHECK (limit_value >= -1);
+
+ALTER TABLE membership_usage
+    DROP CONSTRAINT IF EXISTS membership_usage_limit_value_check,
+    ADD CONSTRAINT membership_usage_limit_value_check CHECK (limit_value >= -1);
+
+UPDATE membership_plan_quotas
+SET limit_value = -1
+WHERE key = 'sandbox_runs';
+
+UPDATE membership_usage
+SET limit_value = -1
+WHERE key = 'sandbox_runs';
+
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'sandbox_sessions_v2_mode_check') THEN

@@ -121,8 +121,52 @@ func (s *Service) ProcessV2Run(ctx context.Context, userID, runID int64, revisio
 			_ = repository.FailV2Role(ctx, userID, runID, role.RoleCode, "run_timeout")
 		}
 	}
+	return s.finishV2Run(ctx, repository, userID, runID)
+}
 
-	run, err = repository.GetV2Run(ctx, userID, runID)
+func (s *Service) ProcessV2RoleRetry(ctx context.Context, userID, runID int64, revision int, roleCode string) error {
+	repository, ok := s.repository.(V2OrchestrationRepository)
+	if !ok || repository == nil || s.generator == nil {
+		return ErrServiceNotReady
+	}
+	run, err := repository.GetV2Run(ctx, userID, runID)
+	if err != nil || run.Status != V2StatusRunning || run.Revision != revision {
+		return err
+	}
+	var role V2RunRole
+	found := false
+	for _, candidate := range run.RunRoles {
+		if candidate.RoleCode == roleCode {
+			role = candidate
+			found = true
+			break
+		}
+	}
+	if !found {
+		return ErrV2InvalidRoles
+	}
+	configs, err := repository.ListV2RoleConfigs(ctx)
+	if err != nil {
+		return err
+	}
+	var config V2RoleConfig
+	configFound := false
+	for _, candidate := range configs {
+		if candidate.Code == roleCode {
+			config = candidate
+			configFound = true
+			break
+		}
+	}
+	if !configFound {
+		return ErrV2InvalidRoles
+	}
+	s.processV2Role(ctx, repository, run, role, config)
+	return s.finishV2Run(ctx, repository, userID, runID)
+}
+
+func (s *Service) finishV2Run(ctx context.Context, repository V2OrchestrationRepository, userID, runID int64) error {
+	run, err := repository.GetV2Run(ctx, userID, runID)
 	if err != nil || run.Status != V2StatusRunning {
 		return err
 	}

@@ -3679,6 +3679,7 @@ All endpoints are protected. V1.2 runs use isolated role sessions; legacy
 | `POST` | `/api/v1/sandbox-runs/{id}/start` | Idempotently freeze and enqueue the run |
 | `GET` | `/api/v1/sandbox-runs/{id}/stream` | Replayable SSE; supports `Last-Event-ID` |
 | `POST` | `/api/v1/sandbox-runs/{id}/stop` | Stop and preserve completed role output |
+| `POST` | `/api/v1/sandbox-runs/{id}/roles/{role}/retry` | Retry one failed role |
 | `GET` | `/api/v1/sandbox-runs/{id}` | Run, role, and report snapshot |
 | `POST/GET` | `/api/v1/sandbox-runs/{id}/report` | Read the idempotent synthesized report |
 | `POST` | `/api/v1/sandbox-runs/{id}/report/export` | Create a seven-day export |

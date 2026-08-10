@@ -56,6 +56,7 @@ type V2ExecutionApplication interface {
 	ListV2Events(ctx context.Context, userID, runID, afterID int64, limit int) ([]V2ProgressEvent, error)
 	GetV2Report(ctx context.Context, userID, runID int64) (V2SandboxReport, error)
 	GenerateV2Report(ctx context.Context, userID, runID int64) (V2SandboxReport, error)
+	RetryV2Role(ctx context.Context, userID, runID int64, roleCode string) (V2SandboxRun, error)
 }
 
 type V2ExportApplication interface {
@@ -106,6 +107,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.PATCH("/sandbox-runs/:id", h.renameV2Run)
 	router.POST("/sandbox-runs/:id/start", h.startV2Run)
 	router.POST("/sandbox-runs/:id/stop", h.stopV2Run)
+	router.POST("/sandbox-runs/:id/roles/:role/retry", h.retryV2Role)
 	router.GET("/sandbox-runs/:id/events", h.streamV2Events)
 	router.GET("/sandbox-runs/:id/stream", h.streamV2Events)
 	router.GET("/sandbox-runs/:id/report", h.getV2Report)
@@ -452,6 +454,28 @@ func (h *HTTPHandler) stopV2Run(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, run)
+}
+
+func (h *HTTPHandler) retryV2Role(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	roleCode := strings.TrimSpace(c.Param("role"))
+	if roleCode == "" {
+		httpapi.BadRequest(c, "invalid_role")
+		return
+	}
+	app, ok := h.v2ExecutionApplication(c)
+	if !ok {
+		return
+	}
+	run, err := app.RetryV2Role(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, roleCode)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, run)
 }
 
 func (h *HTTPHandler) getV2Report(c *gin.Context) {

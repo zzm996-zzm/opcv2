@@ -19,6 +19,7 @@ type V2ExecutionRepository interface {
 	StopV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error)
 	AppendV2Event(ctx context.Context, event V2ProgressEvent, userID int64) (V2ProgressEvent, error)
 	ListV2Events(ctx context.Context, userID, runID, afterID int64, limit int) ([]V2ProgressEvent, error)
+	PrepareV2RoleRetry(ctx context.Context, run V2SandboxRun, role V2RunRole) (V2SandboxRun, error)
 }
 
 func (s *Service) StartV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error) {
@@ -114,6 +115,49 @@ func (s *Service) StopV2Run(ctx context.Context, userID, runID int64) (V2Sandbox
 		RunID: runID, Event: V2EventRunDone, Payload: map[string]any{"status": run.Status, "stopped": true}, CreatedAt: s.now(),
 	}, userID)
 	return repository.GetV2Run(ctx, userID, runID)
+}
+
+func (s *Service) RetryV2Role(ctx context.Context, userID, runID int64, roleCode string) (V2SandboxRun, error) {
+	repository, err := s.v2ExecutionRepository()
+	if err != nil || s.queue == nil {
+		return V2SandboxRun{}, ErrServiceNotReady
+	}
+	run, err := repository.GetV2Run(ctx, userID, runID)
+	if err != nil {
+		return V2SandboxRun{}, err
+	}
+	if run.Status != V2StatusPartial && run.Status != V2StatusFailed && run.Status != V2StatusNoResult {
+		return V2SandboxRun{}, ErrV2StartConflict
+	}
+	var retryRole V2RunRole
+	found := false
+	for _, role := range run.RunRoles {
+		if role.RoleCode == roleCode && (role.Status == "failed" || role.Status == "cancelled") {
+			retryRole = role
+			found = true
+			break
+		}
+	}
+	if !found {
+		return V2SandboxRun{}, ErrV2InvalidRoles
+	}
+	retryRole.RoleSessionID = v2RoleSessionID(run, roleCode, run.InputContextHash)
+	retryRole.Status = "queued"
+	retryRole.Output = nil
+	retryRole.Stance = ""
+	run, err = repository.PrepareV2RoleRetry(ctx, run, retryRole)
+	if err != nil {
+		return V2SandboxRun{}, err
+	}
+	if err := s.queue.Enqueue(ctx, jobs.Job{
+		Type: jobs.TypeSandboxV2Run, IdempotencyKey: fmt.Sprintf("sandbox-v2-run-%d-role-%s-revision-%d", run.ID, roleCode, run.Revision),
+		Payload:  map[string]any{"user_id": userID, "run_id": run.ID, "revision": run.Revision, "role_code": roleCode},
+		MaxRetry: 1, Timeout: 3 * time.Minute,
+	}); err != nil {
+		_ = repository.FailV2RunStart(ctx, userID, runID, "queue_unavailable")
+		return V2SandboxRun{}, err
+	}
+	return run, nil
 }
 
 func (s *Service) ListV2Events(ctx context.Context, userID, runID, afterID int64, limit int) ([]V2ProgressEvent, error) {

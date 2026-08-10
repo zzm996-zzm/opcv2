@@ -17,6 +17,7 @@ type Processor interface {
 
 type V2Processor interface {
 	ProcessV2Run(ctx context.Context, userID, runID int64, revision int) error
+	ProcessV2RoleRetry(ctx context.Context, userID, runID int64, revision int, roleCode string) error
 }
 
 type WorkerHandler struct {
@@ -51,6 +52,9 @@ func (h *WorkerHandler) HandleV2(ctx context.Context, envelope jobs.Envelope) er
 	revision, revisionOK := numberPayload(envelope.Payload["revision"])
 	if !userOK || !runOK || !revisionOK || userID <= 0 || runID <= 0 || revision <= 0 {
 		return ErrInvalidJobPayload
+	}
+	if roleCode, ok := envelope.Payload["role_code"].(string); ok && roleCode != "" {
+		return h.v2Processor.ProcessV2RoleRetry(ctx, userID, runID, int(revision), roleCode)
 	}
 	return h.v2Processor.ProcessV2Run(ctx, userID, runID, int(revision))
 }
