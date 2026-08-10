@@ -99,6 +99,17 @@ func (s *Service) StopV2Run(ctx context.Context, userID, runID int64) (V2Sandbox
 	if err != nil {
 		return V2SandboxRun{}, err
 	}
+	if run.Status == V2StatusPartial {
+		if orchestrator, ok := s.repository.(V2OrchestrationRepository); ok && s.generator != nil {
+			fullRun, getErr := orchestrator.GetV2Run(ctx, userID, runID)
+			if getErr == nil {
+				completed, failed := v2RoleResults(fullRun.RunRoles)
+				_, _ = orchestrator.AppendV2Event(ctx, V2ProgressEvent{RunID: runID, Event: V2EventReportStart, Payload: map[string]any{"stopped": true}}, userID)
+				report, reportSessionID, inputTokens, outputTokens, modelGenerated := s.synthesizeV2Report(ctx, fullRun, completed, failed)
+				_ = orchestrator.SaveV2Report(ctx, userID, runID, reportSessionID, report, completed, failed, inputTokens, outputTokens, modelGenerated)
+			}
+		}
+	}
 	_, _ = repository.AppendV2Event(ctx, V2ProgressEvent{
 		RunID: runID, Event: V2EventRunDone, Payload: map[string]any{"status": run.Status, "stopped": true}, CreatedAt: s.now(),
 	}, userID)

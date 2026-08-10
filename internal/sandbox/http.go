@@ -45,6 +45,7 @@ type V2Application interface {
 	SetV2Roles(ctx context.Context, input SetV2RolesInput) (V2SandboxRun, error)
 	GetV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error)
 	ListV2Runs(ctx context.Context, userID int64, limit int) ([]V2SandboxRun, error)
+	ListV2RunHistory(ctx context.Context, input V2RunListInput) (V2RunListResult, error)
 	DeleteV2Run(ctx context.Context, userID, runID int64) error
 	RenameV2Run(ctx context.Context, input RenameV2RunInput) (V2SandboxRun, error)
 }
@@ -54,6 +55,7 @@ type V2ExecutionApplication interface {
 	StopV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error)
 	ListV2Events(ctx context.Context, userID, runID, afterID int64, limit int) ([]V2ProgressEvent, error)
 	GetV2Report(ctx context.Context, userID, runID int64) (V2SandboxReport, error)
+	GenerateV2Report(ctx context.Context, userID, runID int64) (V2SandboxReport, error)
 }
 
 type V2ExportApplication interface {
@@ -107,7 +109,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/sandbox-runs/:id/events", h.streamV2Events)
 	router.GET("/sandbox-runs/:id/stream", h.streamV2Events)
 	router.GET("/sandbox-runs/:id/report", h.getV2Report)
-	router.POST("/sandbox-runs/:id/report", h.getV2Report)
+	router.POST("/sandbox-runs/:id/report", h.generateV2Report)
 	router.POST("/sandbox-runs/:id/exports", h.createV2Export)
 	router.POST("/sandbox-runs/:id/report/export", h.createV2Export)
 	router.GET("/sandbox-runs/:id/exports/:export_id/download", h.downloadV2Export)
@@ -357,12 +359,25 @@ func (h *HTTPHandler) listV2Runs(c *gin.Context) {
 	if !ok {
 		return
 	}
-	runs, err := app.ListV2Runs(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	page := 1
+	if value := strings.TrimSpace(c.Query("page")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed <= 0 {
+			httpapi.BadRequest(c, "invalid_page")
+			return
+		}
+		page = parsed
+	}
+	result, err := app.ListV2RunHistory(c.Request.Context(), V2RunListInput{
+		UserID: c.GetInt64(auth.UserIDContextKey), Page: page, Limit: limit,
+		Status: c.Query("status"), Product: c.Query("product"),
+	})
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"runs": httpapi.EnsureSlice(runs)})
+	result.Runs = httpapi.EnsureSlice(result.Runs)
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *HTTPHandler) deleteV2Run(c *gin.Context) {
@@ -449,6 +464,23 @@ func (h *HTTPHandler) getV2Report(c *gin.Context) {
 		return
 	}
 	report, err := app.GetV2Report(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, report)
+}
+
+func (h *HTTPHandler) generateV2Report(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.v2ExecutionApplication(c)
+	if !ok {
+		return
+	}
+	report, err := app.GenerateV2Report(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
 	if err != nil {
 		writeError(c, err)
 		return

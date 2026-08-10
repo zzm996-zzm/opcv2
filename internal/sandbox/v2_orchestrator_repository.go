@@ -71,12 +71,12 @@ func (r *PostgresRepository) SaveV2Report(ctx context.Context, userID, runID int
 			prompt_version, input_tokens, output_tokens, is_model_generated
 		)
 		SELECT $1,$2,$3,$4,$5,'sandbox_report_v1',$6,$7,$8
-		WHERE EXISTS(SELECT 1 FROM sandbox_sessions WHERE id = $1 AND user_id = $9 AND v2_status = $10)
+		WHERE EXISTS(SELECT 1 FROM sandbox_sessions WHERE id = $1 AND user_id = $9 AND v2_status IN ($10, $11, $12))
 		ON CONFLICT (run_id) DO UPDATE SET
 			report = EXCLUDED.report, completed_roles = EXCLUDED.completed_roles,
 			failed_roles = EXCLUDED.failed_roles, input_tokens = EXCLUDED.input_tokens,
 			output_tokens = EXCLUDED.output_tokens, is_model_generated = EXCLUDED.is_model_generated
-	`, runID, reportSessionID, reportJSON, completedJSON, failedJSON, inputTokens, outputTokens, modelGenerated, userID, V2StatusRunning)
+	`, runID, reportSessionID, reportJSON, completedJSON, failedJSON, inputTokens, outputTokens, modelGenerated, userID, V2StatusRunning, V2StatusPartial, V2StatusDone)
 	if err != nil {
 		return err
 	}

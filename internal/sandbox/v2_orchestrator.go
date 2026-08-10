@@ -22,6 +22,7 @@ type V2OrchestrationRepository interface {
 	FailV2Role(ctx context.Context, userID, runID int64, roleCode, errorCode string) error
 	SaveV2Report(ctx context.Context, userID, runID int64, reportSessionID string, report V2SandboxReport, completedRoles, failedRoles []string, inputTokens, outputTokens int, modelGenerated bool) error
 	CompleteV2Run(ctx context.Context, userID, runID int64, status string) error
+	GetV2Report(ctx context.Context, userID, runID int64) (V2SandboxReport, error)
 }
 
 type v2StreamingGenerator interface {
@@ -36,6 +37,32 @@ func (s *Service) GetV2Report(ctx context.Context, userID, runID int64) (V2Sandb
 		return V2SandboxReport{}, ErrServiceNotReady
 	}
 	return repository.GetV2Report(ctx, userID, runID)
+}
+
+func (s *Service) GenerateV2Report(ctx context.Context, userID, runID int64) (V2SandboxReport, error) {
+	repository, ok := s.repository.(V2OrchestrationRepository)
+	if !ok || repository == nil || s.generator == nil {
+		return V2SandboxReport{}, ErrServiceNotReady
+	}
+	if report, err := repository.GetV2Report(ctx, userID, runID); err == nil {
+		return report, nil
+	}
+	run, err := repository.GetV2Run(ctx, userID, runID)
+	if err != nil {
+		return V2SandboxReport{}, err
+	}
+	if run.Status != V2StatusDone && run.Status != V2StatusPartial {
+		return V2SandboxReport{}, ErrV2InvalidRequest
+	}
+	completed, failed := v2RoleResults(run.RunRoles)
+	if len(completed) == 0 {
+		return V2SandboxReport{}, ErrV2InvalidRequest
+	}
+	report, reportSessionID, inputTokens, outputTokens, modelGenerated := s.synthesizeV2Report(ctx, run, completed, failed)
+	if err := repository.SaveV2Report(ctx, userID, runID, reportSessionID, report, completed, failed, inputTokens, outputTokens, modelGenerated); err != nil {
+		return V2SandboxReport{}, err
+	}
+	return report, nil
 }
 
 func (s *Service) ProcessV2Run(ctx context.Context, userID, runID int64, revision int) error {

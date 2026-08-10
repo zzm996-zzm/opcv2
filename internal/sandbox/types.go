@@ -493,6 +493,20 @@ type RenameV2RunInput struct {
 	Revision int    `json:"revision,omitempty"`
 }
 
+type V2RunListInput struct {
+	UserID  int64
+	Page    int
+	Limit   int
+	Status  string
+	Product string
+}
+
+type V2RunListResult struct {
+	Runs  []V2SandboxRun `json:"runs"`
+	Page  int            `json:"page"`
+	Limit int            `json:"limit"`
+}
+
 type V2Export struct {
 	ID          int64     `json:"id"`
 	RunID       int64     `json:"run_id"`

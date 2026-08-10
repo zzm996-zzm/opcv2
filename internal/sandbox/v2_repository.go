@@ -116,7 +116,18 @@ func (r *PostgresRepository) UpdateV2RunDraft(ctx context.Context, run V2Sandbox
 }
 
 func (r *PostgresRepository) ListV2Runs(ctx context.Context, userID int64, limit int) ([]V2SandboxRun, error) {
-	rows, err := r.db.Query(ctx, `SELECT `+v2RunColumns+` FROM sandbox_sessions WHERE user_id = $1 AND sandbox_version = 2 ORDER BY created_at DESC LIMIT $2`, userID, limit)
+	return r.ListV2RunsFiltered(ctx, V2RunListInput{UserID: userID, Page: 1, Limit: limit})
+}
+
+func (r *PostgresRepository) ListV2RunsFiltered(ctx context.Context, input V2RunListInput) ([]V2SandboxRun, error) {
+	offset := (input.Page - 1) * input.Limit
+	rows, err := r.db.Query(ctx, `
+		SELECT `+v2RunColumns+` FROM sandbox_sessions
+		WHERE user_id = $1 AND sandbox_version = 2
+		  AND ($2 = '' OR v2_status = $2)
+		  AND ($3 = '' OR v2_name ILIKE '%' || $3 || '%' OR v2_product->>'name' ILIKE '%' || $3 || '%')
+		ORDER BY created_at DESC LIMIT $4 OFFSET $5
+	`, input.UserID, input.Status, input.Product, input.Limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +140,18 @@ func (r *PostgresRepository) ListV2Runs(ctx context.Context, userID int64, limit
 		}
 		runs = append(runs, run)
 	}
-	return runs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range runs {
+		report, reportErr := r.getV2Report(ctx, runs[i].ID)
+		if reportErr == nil {
+			runs[i].Report = &report
+		} else if !errors.Is(reportErr, pgx.ErrNoRows) {
+			return nil, reportErr
+		}
+	}
+	return runs, nil
 }
 
 func (r *PostgresRepository) DeleteV2Run(ctx context.Context, userID, runID int64) error {

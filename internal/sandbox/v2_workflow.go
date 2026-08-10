@@ -13,6 +13,7 @@ type V2Repository interface {
 	GetV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error)
 	UpdateV2RunDraft(ctx context.Context, run V2SandboxRun, expectedRevision int) (V2SandboxRun, error)
 	ListV2Runs(ctx context.Context, userID int64, limit int) ([]V2SandboxRun, error)
+	ListV2RunsFiltered(ctx context.Context, input V2RunListInput) ([]V2SandboxRun, error)
 	DeleteV2Run(ctx context.Context, userID, runID int64) error
 }
 
@@ -89,8 +90,10 @@ func (s *Service) CreateV2Run(ctx context.Context, input CreateV2RunInput) (V2Sa
 	} else {
 		run.Status = V2StatusClarifying
 	}
-	run.NextQuestions = append([]V2Question(nil), run.Questions...)
 	run.Done = run.Status == V2StatusReady
+	if !run.Done {
+		run.NextQuestions = append([]V2Question(nil), run.Questions...)
+	}
 	return repository.CreateV2Run(ctx, run)
 }
 
@@ -184,7 +187,8 @@ func (s *Service) GetV2Run(ctx context.Context, userID, runID int64) (V2SandboxR
 	if err != nil {
 		return V2SandboxRun{}, err
 	}
-	return repository.GetV2Run(ctx, userID, runID)
+	run, err := repository.GetV2Run(ctx, userID, runID)
+	return decorateV2Run(run), err
 }
 
 func (s *Service) RenameV2Run(ctx context.Context, input RenameV2RunInput) (V2SandboxRun, error) {
@@ -218,7 +222,34 @@ func (s *Service) ListV2Runs(ctx context.Context, userID int64, limit int) ([]V2
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	return repository.ListV2Runs(ctx, userID, limit)
+	runs, err := repository.ListV2Runs(ctx, userID, limit)
+	for i := range runs {
+		runs[i] = decorateV2Run(runs[i])
+	}
+	return runs, err
+}
+
+func (s *Service) ListV2RunHistory(ctx context.Context, input V2RunListInput) (V2RunListResult, error) {
+	repository, err := s.v2Repository()
+	if err != nil {
+		return V2RunListResult{}, err
+	}
+	if input.Page <= 0 {
+		input.Page = 1
+	}
+	if input.Limit <= 0 || input.Limit > 100 {
+		input.Limit = 20
+	}
+	input.Status = strings.TrimSpace(input.Status)
+	input.Product = strings.TrimSpace(input.Product)
+	if input.Status != "" && !isKnownV2Status(input.Status) {
+		return V2RunListResult{}, ErrV2InvalidRequest
+	}
+	runs, err := repository.ListV2RunsFiltered(ctx, input)
+	for i := range runs {
+		runs[i] = decorateV2Run(runs[i])
+	}
+	return V2RunListResult{Runs: runs, Page: input.Page, Limit: input.Limit}, err
 }
 
 func (s *Service) DeleteV2Run(ctx context.Context, userID, runID int64) error {
@@ -394,4 +425,23 @@ func appendUniqueString(values []string, value string) []string {
 		}
 	}
 	return append(values, value)
+}
+
+func decorateV2Run(run V2SandboxRun) V2SandboxRun {
+	run.Done = run.Status != V2StatusDraft && run.Status != V2StatusClarifying
+	if run.Status == V2StatusClarifying {
+		run.NextQuestions = append([]V2Question(nil), run.Questions...)
+	} else {
+		run.NextQuestions = []V2Question{}
+	}
+	return run
+}
+
+func isKnownV2Status(status string) bool {
+	switch status {
+	case V2StatusDraft, V2StatusClarifying, V2StatusReady, V2StatusRunning, V2StatusPartial, V2StatusDone, V2StatusFailed, V2StatusNoResult:
+		return true
+	default:
+		return false
+	}
 }

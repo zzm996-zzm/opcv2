@@ -50,6 +50,10 @@ func (r *fakeV2Repository) ListV2Runs(_ context.Context, userID int64, _ int) ([
 	return []V2SandboxRun{r.run}, nil
 }
 
+func (r *fakeV2Repository) ListV2RunsFiltered(_ context.Context, input V2RunListInput) ([]V2SandboxRun, error) {
+	return r.ListV2Runs(context.Background(), input.UserID, input.Limit)
+}
+
 func (r *fakeV2Repository) DeleteV2Run(_ context.Context, userID, runID int64) error {
 	if r.run.UserID != userID || r.run.ID != runID {
 		return ErrV2RunNotFound
