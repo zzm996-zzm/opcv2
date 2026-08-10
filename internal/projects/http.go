@@ -2,11 +2,13 @@ package projects
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
@@ -34,6 +36,12 @@ type MatchWorkflowApplication interface {
 	CreateProjectMatch(context.Context, CreateProjectMatchInput) (MatchWorkflowResponse, error)
 	AnswerProjectMatch(context.Context, AnswerProjectMatchInput) (MatchWorkflowResponse, error)
 	GetProjectMatch(context.Context, int64, int64) (MatchWorkflowResponse, error)
+}
+
+type MatchGenerationApplication interface {
+	GenerateProjectMatch(context.Context, int64, int64) (MatchGenerationResponse, error)
+	CancelProjectMatch(context.Context, int64, int64) (MatchGenerationResponse, error)
+	ListProjectMatchProgress(context.Context, int64, int64, int64) ([]MatchProgressEvent, error)
 }
 
 type HTTPHandler struct {
@@ -70,6 +78,9 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.POST("/project-matches", h.createProjectMatch)
 	router.POST("/project-matches/:id/answer", h.answerProjectMatch)
 	router.GET("/project-matches/:id", h.getProjectMatch)
+	router.POST("/project-matches/:id/generate", h.generateProjectMatch)
+	router.GET("/project-matches/:id/stream", h.streamProjectMatch)
+	router.POST("/project-matches/:id/cancel", h.cancelProjectMatch)
 	router.POST("/projects/matches", h.createMatch)
 	router.GET("/projects/matches", h.listMatches)
 	router.GET("/projects/matches/:id", h.getMatch)
@@ -81,6 +92,105 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.GET("/projects/comparisons/:id", h.getComparison)
 	router.POST("/projects/exports", h.createExport)
 	router.GET("/projects/exports/:id/download", h.downloadExport)
+}
+
+func (h *HTTPHandler) matchGenerationApplication(c *gin.Context) (MatchGenerationApplication, bool) {
+	app, ok := h.app.(MatchGenerationApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) generateProjectMatch(c *gin.Context) {
+	app, ok := h.matchGenerationApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := matchID(c)
+	if !valid {
+		return
+	}
+	result, err := app.GenerateProjectMatch(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, result)
+}
+
+func (h *HTTPHandler) cancelProjectMatch(c *gin.Context) {
+	app, ok := h.matchGenerationApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := matchID(c)
+	if !valid {
+		return
+	}
+	result, err := app.CancelProjectMatch(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *HTTPHandler) streamProjectMatch(c *gin.Context) {
+	app, ok := h.matchGenerationApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := matchID(c)
+	if !valid {
+		return
+	}
+	afterID := int64(0)
+	if raw := strings.TrimSpace(c.GetHeader("Last-Event-ID")); raw != "" {
+		parsed, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || parsed < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_last_event_id"})
+			return
+		}
+		afterID = parsed
+	}
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Status(http.StatusOK)
+	flusher, canFlush := c.Writer.(http.Flusher)
+	for cycle := 0; cycle < 120; cycle++ {
+		events, err := app.ListProjectMatchProgress(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, afterID)
+		if err != nil {
+			return
+		}
+		for _, event := range events {
+			writeSSEEvent(c, event)
+			afterID = event.ID
+			if canFlush {
+				flusher.Flush()
+			}
+			if event.Event == MatchStepDone || event.Event == MatchStepPartial || event.Event == MatchStepError || event.Event == MatchStepCanceled {
+				return
+			}
+		}
+		if cycle == 0 && len(events) == 0 && canFlush {
+			flusher.Flush()
+		}
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+func writeSSEEvent(c *gin.Context, event MatchProgressEvent) {
+	payload, _ := json.Marshal(event.Payload)
+	_, _ = c.Writer.WriteString("id: " + strconv.FormatInt(event.ID, 10) + "\n")
+	_, _ = c.Writer.WriteString("event: " + event.Event + "\n")
+	_, _ = c.Writer.WriteString("data: " + string(payload) + "\n\n")
 }
 
 func (h *HTTPHandler) matchWorkflowApplication(c *gin.Context) (MatchWorkflowApplication, bool) {
@@ -571,6 +681,10 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_match_request"})
 	case errors.Is(err, ErrMatchRevisionConflict):
 		c.JSON(http.StatusConflict, gin.H{"error": "match_revision_conflict"})
+	case errors.Is(err, ErrMatchNotReady):
+		c.JSON(http.StatusConflict, gin.H{"error": "match_not_ready"})
+	case errors.Is(err, ErrStaleMatchGeneration):
+		c.JSON(http.StatusConflict, gin.H{"error": "stale_match_generation"})
 	case errors.Is(err, ErrComparisonNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "comparison_not_found"})
 	case errors.Is(err, ErrInvalidComparison):

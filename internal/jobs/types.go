@@ -6,10 +6,11 @@ import (
 )
 
 const (
-	TypeLeadSearch     = "leads.search"
-	TypeGeoAnalysis    = "geo.analysis"
-	TypeCompetitorScan = "competitor.scan"
-	TypeSandboxRun     = "sandbox.run"
+	TypeLeadSearch           = "leads.search"
+	TypeGeoAnalysis          = "geo.analysis"
+	TypeCompetitorScan       = "competitor.scan"
+	TypeSandboxRun           = "sandbox.run"
+	TypeProjectMatchGenerate = "projects.match_generate"
 )
 
 var (

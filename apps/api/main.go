@@ -122,6 +122,7 @@ func main() {
 		aiService,
 		projects.WithProfileContextProvider(accountService),
 		projects.WithFeaturePaywallEnabled(cfg.FeaturePaywallEnabled),
+		projects.WithProjectMatchQueue(taskqueue.NewClient(cfg.RedisAddr)),
 	)
 	projectsHTTP := projects.NewHTTPHandler(projectsService)
 	leadsRepository := leads.NewPostgresRepository(db)

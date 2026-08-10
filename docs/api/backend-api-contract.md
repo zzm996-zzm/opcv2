@@ -505,6 +505,22 @@ Clarification is bounded to three questions per round, eight total questions,
 and three rounds. Completeness at or above `0.8`, skipping, or reaching a bound
 ends clarification. Skipping records unresolved fields as assumptions.
 
+After clarification reaches `ready`, generation uses these protected endpoints:
+
+- `POST /api/v1/project-matches/{id}/generate` returns `202` with the queued or
+  existing generation attempt. Duplicate calls do not enqueue another active
+  attempt.
+- `GET /api/v1/project-matches/{id}/stream` returns persisted SSE progress. Send
+  `Last-Event-ID` to replay only newer events. Event names are `queued`,
+  `analyzing`, `retrieving_kb`, `researching_web`, `merging`, `generating`,
+  `done`, `partial`, `error`, and `canceled`.
+- `POST /api/v1/project-matches/{id}/cancel` cancels an active attempt and is
+  idempotent after the match reaches `canceled`.
+
+Generation status values are `queued`, `running`, `completed`, `partial`,
+`failed`, and `canceled`. A `partial` result contains catalog-backed candidates
+when personalized model generation is unavailable.
+
 ## Legacy Project Matches
 
 The following compatibility endpoints operate on user-owned workflow v1 data

@@ -17,6 +17,7 @@ import (
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/postgres"
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
+	"github.com/zzm/opcv2/internal/projects"
 	"github.com/zzm/opcv2/internal/sandbox"
 	"github.com/zzm/opcv2/internal/tasks"
 )
@@ -71,6 +72,7 @@ func main() {
 	}
 	competitorService := competitor.NewService(competitorRepository, competitorOptions...)
 	sandboxService := sandbox.NewService(sandbox.NewPostgresRepository(db), aiService, sandbox.WithQuotaConsumer(membershipService), sandbox.WithProfileContextProvider(accountService))
+	projectsService := projects.NewService(projects.NewPostgresRepository(db), aiService, projects.WithProjectMatchQueue(taskqueue.NewClient(cfg.RedisAddr)))
 	tasksRepository := tasks.NewPostgresRepository(db)
 	tasksService := tasks.NewService(tasksRepository)
 	go tasks.RunReminderWorker(context.Background(), tasksService, time.Minute, func(err error) {
@@ -82,6 +84,7 @@ func main() {
 	geo.RegisterWorker(mux, geoService)
 	competitor.RegisterWorker(mux, competitorService)
 	sandbox.RegisterWorker(mux, sandboxService)
+	projects.RegisterWorker(mux, projectsService)
 	logger.Info("worker starting", "redis_addr", cfg.RedisAddr)
 	if err := server.Run(mux); err != nil {
 		logger.Error("run worker", "error", err)

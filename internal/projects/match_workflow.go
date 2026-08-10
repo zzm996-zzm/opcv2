@@ -57,28 +57,34 @@ type MatchAnswerEvent struct {
 }
 
 type MatchRun struct {
-	ID              int64                         `json:"match_id"`
-	UserID          int64                         `json:"-"`
-	WorkflowVersion int                           `json:"workflow_version"`
-	Name            string                        `json:"name,omitempty"`
-	Need            string                        `json:"need"`
-	IdempotencyKey  string                        `json:"-"`
-	Status          string                        `json:"status"`
-	InputSnapshot   MatchInputSnapshot            `json:"input_snapshot"`
-	ParsedProfile   map[string]any                `json:"parsed_profile"`
-	FieldSources    map[string][]MatchFieldSource `json:"field_sources"`
-	AnalysisSummary string                        `json:"analysis_summary,omitempty"`
-	Completeness    float64                       `json:"completeness"`
-	MissingFields   []string                      `json:"missing_fields,omitempty"`
-	Questions       []ClarificationQuestion       `json:"questions,omitempty"`
-	QuestionCount   int                           `json:"question_count"`
-	Rounds          int                           `json:"rounds"`
-	AnswerEvents    []MatchAnswerEvent            `json:"answer_events,omitempty"`
-	Assumptions     []string                      `json:"assumptions,omitempty"`
-	Revision        int                           `json:"revision"`
-	SkippedAt       *time.Time                    `json:"skipped_at,omitempty"`
-	CreatedAt       time.Time                     `json:"created_at"`
-	UpdatedAt       time.Time                     `json:"updated_at"`
+	ID                int64                         `json:"match_id"`
+	UserID            int64                         `json:"-"`
+	WorkflowVersion   int                           `json:"workflow_version"`
+	Name              string                        `json:"name,omitempty"`
+	Need              string                        `json:"need"`
+	IdempotencyKey    string                        `json:"-"`
+	Status            string                        `json:"status"`
+	InputSnapshot     MatchInputSnapshot            `json:"input_snapshot"`
+	ParsedProfile     map[string]any                `json:"parsed_profile"`
+	FieldSources      map[string][]MatchFieldSource `json:"field_sources"`
+	AnalysisSummary   string                        `json:"analysis_summary,omitempty"`
+	Completeness      float64                       `json:"completeness"`
+	MissingFields     []string                      `json:"missing_fields,omitempty"`
+	Questions         []ClarificationQuestion       `json:"questions,omitempty"`
+	QuestionCount     int                           `json:"question_count"`
+	Rounds            int                           `json:"rounds"`
+	AnswerEvents      []MatchAnswerEvent            `json:"answer_events,omitempty"`
+	Assumptions       []string                      `json:"assumptions,omitempty"`
+	Revision          int                           `json:"revision"`
+	SkippedAt         *time.Time                    `json:"skipped_at,omitempty"`
+	GenerationAttempt int                           `json:"generation_attempt"`
+	ProgressPercent   int                           `json:"progress_percent"`
+	CurrentStep       string                        `json:"current_step,omitempty"`
+	Result            MatchResult                   `json:"result,omitempty"`
+	ErrorCode         string                        `json:"error_code,omitempty"`
+	CanceledAt        *time.Time                    `json:"canceled_at,omitempty"`
+	CreatedAt         time.Time                     `json:"created_at"`
+	UpdatedAt         time.Time                     `json:"updated_at"`
 }
 
 type CreateProjectMatchInput struct {
@@ -108,6 +114,7 @@ type MatchWorkflowResponse struct {
 	Questions       []ClarificationQuestion       `json:"questions,omitempty"`
 	Assumptions     []string                      `json:"assumptions,omitempty"`
 	Revision        int                           `json:"revision"`
+	Generation      *MatchGenerationResponse      `json:"generation,omitempty"`
 }
 
 type MatchWorkflowRepository interface {
@@ -361,7 +368,12 @@ func (s *Service) generateWorkflowAnalysis(ctx context.Context, userID int64, ne
 }
 
 func matchWorkflowResponse(run MatchRun) MatchWorkflowResponse {
-	return MatchWorkflowResponse{MatchID: run.ID, Status: run.Status, AnalysisSummary: run.AnalysisSummary, ParsedProfile: cloneMap(run.ParsedProfile), FieldSources: cloneFieldSources(run.FieldSources), Completeness: run.Completeness, MissingFields: append([]string(nil), run.MissingFields...), Questions: append([]ClarificationQuestion(nil), run.Questions...), Assumptions: append([]string(nil), run.Assumptions...), Revision: run.Revision}
+	response := MatchWorkflowResponse{MatchID: run.ID, Status: run.Status, AnalysisSummary: run.AnalysisSummary, ParsedProfile: cloneMap(run.ParsedProfile), FieldSources: cloneFieldSources(run.FieldSources), Completeness: run.Completeness, MissingFields: append([]string(nil), run.MissingFields...), Questions: append([]ClarificationQuestion(nil), run.Questions...), Assumptions: append([]string(nil), run.Assumptions...), Revision: run.Revision}
+	if run.GenerationAttempt > 0 {
+		generation := matchGenerationResponse(run)
+		response.Generation = &generation
+	}
+	return response
 }
 
 func normalizeQuestions(questions []ClarificationQuestion, limit int) []ClarificationQuestion {

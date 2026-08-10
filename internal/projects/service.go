@@ -204,9 +204,16 @@ type Option func(*Service)
 type Service struct {
 	repository            Repository
 	generator             JSONGenerator
+	matchQueue            ProjectMatchQueue
 	profile               ProfileContextProvider
 	featurePaywallEnabled bool
 	now                   func() time.Time
+}
+
+func WithProjectMatchQueue(queue ProjectMatchQueue) Option {
+	return func(service *Service) {
+		service.matchQueue = queue
+	}
 }
 
 func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {

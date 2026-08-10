@@ -12,33 +12,36 @@ import (
 )
 
 type fakeApplication struct {
-	input            MatchInput
-	userID           int64
-	matchID          int64
-	result           MatchResult
-	sessions         []MatchSession
-	session          MatchSession
-	favorite         Favorite
-	favorites        []Favorite
-	err              error
-	opportunities    []Opportunity
-	opportunity      Opportunity
-	filters          OpportunityFilters
-	cases            []CaseStudy
-	caseStudy        CaseStudy
-	caseFilters      CaseFilters
-	publicConfig     PublicConfig
-	dictionaries     []DictionaryItem
-	home             ProjectHome
-	projectPage      ProjectPage
-	catalogProject   Project
-	projectFilters   ProjectFilters
-	evidenceCasePage EvidenceCasePage
-	evidenceCase     EvidenceCaseDetail
-	evidenceFilters  EvidenceCaseFilters
-	workflowCreate   CreateProjectMatchInput
-	workflowAnswer   AnswerProjectMatchInput
-	workflowResponse MatchWorkflowResponse
+	input              MatchInput
+	userID             int64
+	matchID            int64
+	result             MatchResult
+	sessions           []MatchSession
+	session            MatchSession
+	favorite           Favorite
+	favorites          []Favorite
+	err                error
+	opportunities      []Opportunity
+	opportunity        Opportunity
+	filters            OpportunityFilters
+	cases              []CaseStudy
+	caseStudy          CaseStudy
+	caseFilters        CaseFilters
+	publicConfig       PublicConfig
+	dictionaries       []DictionaryItem
+	home               ProjectHome
+	projectPage        ProjectPage
+	catalogProject     Project
+	projectFilters     ProjectFilters
+	evidenceCasePage   EvidenceCasePage
+	evidenceCase       EvidenceCaseDetail
+	evidenceFilters    EvidenceCaseFilters
+	workflowCreate     CreateProjectMatchInput
+	workflowAnswer     AnswerProjectMatchInput
+	workflowResponse   MatchWorkflowResponse
+	generationResponse MatchGenerationResponse
+	progressEvents     []MatchProgressEvent
+	afterEventID       int64
 }
 
 func (a *fakeApplication) GetPublicConfig(context.Context) PublicConfig { return a.publicConfig }
@@ -142,6 +145,21 @@ func (a *fakeApplication) GetProjectMatch(_ context.Context, userID, id int64) (
 	return a.workflowResponse, a.err
 }
 
+func (a *fakeApplication) GenerateProjectMatch(_ context.Context, userID, id int64) (MatchGenerationResponse, error) {
+	a.userID, a.matchID = userID, id
+	return a.generationResponse, a.err
+}
+
+func (a *fakeApplication) CancelProjectMatch(_ context.Context, userID, id int64) (MatchGenerationResponse, error) {
+	a.userID, a.matchID = userID, id
+	return a.generationResponse, a.err
+}
+
+func (a *fakeApplication) ListProjectMatchProgress(_ context.Context, userID, id, afterID int64) ([]MatchProgressEvent, error) {
+	a.userID, a.matchID, a.afterEventID = userID, id, afterID
+	return a.progressEvents, a.err
+}
+
 func projectTestRouter(app Application) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -220,6 +238,33 @@ func TestProjectMatchWorkflowReturnsRevisionConflict(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), "match_revision_conflict") {
 		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestProjectMatchGenerationAndCancellationEndpoints(t *testing.T) {
+	app := &fakeApplication{generationResponse: MatchGenerationResponse{MatchID: 200, Status: MatchStatusQueued, Attempt: 1}}
+	router := projectTestRouter(app)
+	generate := httptest.NewRecorder()
+	router.ServeHTTP(generate, httptest.NewRequest(http.MethodPost, "/api/v1/project-matches/200/generate", nil))
+	if generate.Code != http.StatusAccepted || app.userID != 42 || app.matchID != 200 {
+		t.Fatalf("generate status/user/match = %d/%d/%d", generate.Code, app.userID, app.matchID)
+	}
+	cancel := httptest.NewRecorder()
+	router.ServeHTTP(cancel, httptest.NewRequest(http.MethodPost, "/api/v1/project-matches/200/cancel", nil))
+	if cancel.Code != http.StatusOK || app.userID != 42 || app.matchID != 200 {
+		t.Fatalf("cancel status/user/match = %d/%d/%d", cancel.Code, app.userID, app.matchID)
+	}
+}
+
+func TestProjectMatchStreamReplaysAfterLastEventID(t *testing.T) {
+	app := &fakeApplication{progressEvents: []MatchProgressEvent{{ID: 8, MatchID: 200, Event: MatchStepDone, ProgressPercent: 100, Payload: map[string]any{"status": "completed"}}}}
+	router := projectTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/project-matches/200/stream", nil)
+	request.Header.Set("Last-Event-ID", "7")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || app.afterEventID != 7 || !strings.Contains(recorder.Body.String(), "id: 8\nevent: done\n") || !strings.Contains(recorder.Header().Get("Content-Type"), "text/event-stream") {
+		t.Fatalf("status/after/body = %d/%d/%s", recorder.Code, app.afterEventID, recorder.Body.String())
 	}
 }
 

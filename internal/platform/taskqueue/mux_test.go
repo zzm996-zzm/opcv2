@@ -32,4 +32,7 @@ func TestDefaultRegistryIncludesKnownJobTypes(t *testing.T) {
 	if !registry[jobs.TypeSandboxRun] {
 		t.Fatalf("DefaultRegistry() = %+v, want sandbox run type", registry)
 	}
+	if !registry[jobs.TypeProjectMatchGenerate] {
+		t.Fatalf("DefaultRegistry() = %+v, want project match generation type", registry)
+	}
 }

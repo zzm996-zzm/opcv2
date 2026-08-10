@@ -507,7 +507,8 @@ func (r *PostgresRepository) FindMatchRunByIdempotency(ctx context.Context, user
 		SELECT id, user_id, workflow_version, COALESCE(name, ''), intent, input_snapshot, parsed_profile,
 		       field_sources, COALESCE(analysis_summary, ''), completeness, missing_fields,
 		       clarification_questions, question_count, rounds, answer_events, assumptions,
-		       revision, skipped_at, status, idempotency_key, created_at, updated_at
+		       revision, skipped_at, generation_attempt, progress_percent, current_step, result,
+		       COALESCE(error_code, ''), cancelled_at, status, idempotency_key, created_at, updated_at
 		FROM project_match_sessions
 		WHERE user_id = $1 AND workflow_version = 2 AND idempotency_key = $2
 	`, userID, key))
@@ -574,7 +575,8 @@ func (r *PostgresRepository) GetMatchRun(ctx context.Context, userID, id int64) 
 		SELECT id, user_id, workflow_version, COALESCE(name, ''), intent, input_snapshot, parsed_profile,
 		       field_sources, COALESCE(analysis_summary, ''), completeness, missing_fields,
 		       clarification_questions, question_count, rounds, answer_events, assumptions,
-		       revision, skipped_at, status, idempotency_key, created_at, updated_at
+		       revision, skipped_at, generation_attempt, progress_percent, current_step, result,
+		       COALESCE(error_code, ''), cancelled_at, status, idempotency_key, created_at, updated_at
 		FROM project_match_sessions
 		WHERE user_id = $1 AND id = $2 AND workflow_version = 2
 	`, userID, id))
@@ -623,7 +625,8 @@ func (r *PostgresRepository) UpdateMatchRun(ctx context.Context, run MatchRun, e
 		RETURNING id, user_id, workflow_version, COALESCE(name, ''), intent, input_snapshot, parsed_profile,
 		          field_sources, COALESCE(analysis_summary, ''), completeness, missing_fields,
 		          clarification_questions, question_count, rounds, answer_events, assumptions,
-		          revision, skipped_at, status, idempotency_key, created_at, updated_at
+		          revision, skipped_at, generation_attempt, progress_percent, current_step, result,
+		          COALESCE(error_code, ''), cancelled_at, status, idempotency_key, created_at, updated_at
 	`, run.UserID, run.ID, inputSnapshot, profile, fieldSources, run.AnalysisSummary, run.Completeness,
 		missing, questions, run.QuestionCount, run.Rounds, answerEvents, assumptions, run.SkippedAt,
 		run.Status, run.UpdatedAt, expectedRevision))
@@ -635,11 +638,12 @@ func (r *PostgresRepository) UpdateMatchRun(ctx context.Context, run MatchRun, e
 
 func scanMatchRun(scanner sessionScanner) (MatchRun, error) {
 	var run MatchRun
-	var inputSnapshot, profile, fieldSources, missing, questions, answerEvents, assumptions []byte
+	var inputSnapshot, profile, fieldSources, missing, questions, answerEvents, assumptions, result []byte
 	var key pgtype.Text
 	if err := scanner.Scan(&run.ID, &run.UserID, &run.WorkflowVersion, &run.Name, &run.Need, &inputSnapshot, &profile,
 		&fieldSources, &run.AnalysisSummary, &run.Completeness, &missing, &questions, &run.QuestionCount, &run.Rounds,
-		&answerEvents, &assumptions, &run.Revision, &run.SkippedAt, &run.Status, &key, &run.CreatedAt, &run.UpdatedAt); err != nil {
+		&answerEvents, &assumptions, &run.Revision, &run.SkippedAt, &run.GenerationAttempt, &run.ProgressPercent,
+		&run.CurrentStep, &result, &run.ErrorCode, &run.CanceledAt, &run.Status, &key, &run.CreatedAt, &run.UpdatedAt); err != nil {
 		return MatchRun{}, err
 	}
 	if key.Valid {
@@ -664,6 +668,9 @@ func scanMatchRun(scanner sessionScanner) (MatchRun, error) {
 		return MatchRun{}, err
 	}
 	if err := json.Unmarshal(assumptions, &run.Assumptions); err != nil {
+		return MatchRun{}, err
+	}
+	if err := json.Unmarshal(result, &run.Result); err != nil {
 		return MatchRun{}, err
 	}
 	return run, nil
