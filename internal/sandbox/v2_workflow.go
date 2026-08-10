@@ -47,6 +47,21 @@ func (s *Service) ListV2Roles(ctx context.Context) ([]V2RoleConfig, error) {
 	return repository.ListV2RoleConfigs(ctx)
 }
 
+func (s *Service) GetV2Home(ctx context.Context, userID int64) (V2SandboxHome, error) {
+	roles, err := s.ListV2Roles(ctx)
+	if err != nil {
+		return V2SandboxHome{}, err
+	}
+	runs, err := s.ListV2Runs(ctx, userID, 5)
+	if err != nil {
+		return V2SandboxHome{}, err
+	}
+	return V2SandboxHome{
+		Roles: roles, RecentRuns: runs,
+		Capabilities: []string{"isolated_role_sessions", "streaming_progress", "structured_report", "report_export"},
+	}, nil
+}
+
 func (s *Service) CreateV2Run(ctx context.Context, input CreateV2RunInput) (V2SandboxRun, error) {
 	repository, err := s.v2Repository()
 	if err != nil {
@@ -74,6 +89,8 @@ func (s *Service) CreateV2Run(ctx context.Context, input CreateV2RunInput) (V2Sa
 	} else {
 		run.Status = V2StatusClarifying
 	}
+	run.NextQuestions = append([]V2Question(nil), run.Questions...)
+	run.Done = run.Status == V2StatusReady
 	return repository.CreateV2Run(ctx, run)
 }
 
@@ -127,7 +144,16 @@ func (s *Service) AnswerV2Run(ctx context.Context, input AnswerV2RunInput) (V2Sa
 		run.Status = V2StatusClarifying
 		run.Questions = buildV2Questions(run, answered)
 	}
-	return repository.UpdateV2RunDraft(ctx, run, run.Revision)
+	updated, err := repository.UpdateV2RunDraft(ctx, run, run.Revision)
+	if err == nil {
+		updated.Done = updated.Status == V2StatusReady
+		if updated.Done {
+			updated.NextQuestions = []V2Question{}
+		} else {
+			updated.NextQuestions = append([]V2Question(nil), updated.Questions...)
+		}
+	}
+	return updated, err
 }
 
 func (s *Service) SetV2Roles(ctx context.Context, input SetV2RolesInput) (V2SandboxRun, error) {
@@ -159,6 +185,29 @@ func (s *Service) GetV2Run(ctx context.Context, userID, runID int64) (V2SandboxR
 		return V2SandboxRun{}, err
 	}
 	return repository.GetV2Run(ctx, userID, runID)
+}
+
+func (s *Service) RenameV2Run(ctx context.Context, input RenameV2RunInput) (V2SandboxRun, error) {
+	repository, err := s.v2Repository()
+	if err != nil {
+		return V2SandboxRun{}, err
+	}
+	name := strings.TrimSpace(input.Name)
+	if input.UserID <= 0 || input.RunID <= 0 || name == "" || len([]rune(name)) > 100 {
+		return V2SandboxRun{}, ErrV2InvalidRequest
+	}
+	run, err := repository.GetV2Run(ctx, input.UserID, input.RunID)
+	if err != nil {
+		return V2SandboxRun{}, err
+	}
+	if input.Revision > 0 && input.Revision != run.Revision {
+		return V2SandboxRun{}, ErrV2Revision
+	}
+	if run.Status == V2StatusRunning {
+		return V2SandboxRun{}, ErrV2InvalidRequest
+	}
+	run.Name = name
+	return repository.UpdateV2RunDraft(ctx, run, run.Revision)
 }
 
 func (s *Service) ListV2Runs(ctx context.Context, userID int64, limit int) ([]V2SandboxRun, error) {
@@ -196,7 +245,7 @@ func (s *Service) v2Repository() (V2Repository, error) {
 }
 
 func normalizeV2Roles(input []string) ([]string, error) {
-	if len(input) == 0 || len(input) > len(V2RoleCodes) {
+	if len(input) < 3 || len(input) > len(V2RoleCodes) {
 		return nil, ErrV2InvalidRoles
 	}
 	allowed := make(map[string]bool, len(V2RoleCodes))

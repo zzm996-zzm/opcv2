@@ -2,10 +2,13 @@ package sandbox
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
@@ -43,6 +46,23 @@ type V2Application interface {
 	GetV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error)
 	ListV2Runs(ctx context.Context, userID int64, limit int) ([]V2SandboxRun, error)
 	DeleteV2Run(ctx context.Context, userID, runID int64) error
+	RenameV2Run(ctx context.Context, input RenameV2RunInput) (V2SandboxRun, error)
+}
+
+type V2ExecutionApplication interface {
+	StartV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error)
+	StopV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error)
+	ListV2Events(ctx context.Context, userID, runID, afterID int64, limit int) ([]V2ProgressEvent, error)
+	GetV2Report(ctx context.Context, userID, runID int64) (V2SandboxReport, error)
+}
+
+type V2ExportApplication interface {
+	CreateV2Export(ctx context.Context, input CreateV2ExportInput) (V2Export, error)
+	GetV2Export(ctx context.Context, userID, exportID int64) (V2Export, []byte, error)
+}
+
+type V2HomeApplication interface {
+	GetV2Home(ctx context.Context, userID int64) (V2SandboxHome, error)
 }
 
 type HTTPHandler struct {
@@ -57,6 +77,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/sandbox/options", h.options)
 	router.GET("/sandbox/examples", h.listExamples)
 	router.GET("/sandbox/roles", h.listRoles)
+	router.GET("/sandbox/home", h.v2Home)
 	router.POST("/sandbox/sessions/intake", h.createIntake)
 	router.POST("/sandbox/intake", h.createIntake)
 	router.POST("/sandbox/sessions", h.createSession)
@@ -80,6 +101,16 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/sandbox-runs", h.listV2Runs)
 	router.GET("/sandbox-runs/:id", h.getV2Run)
 	router.DELETE("/sandbox-runs/:id", h.deleteV2Run)
+	router.PATCH("/sandbox-runs/:id", h.renameV2Run)
+	router.POST("/sandbox-runs/:id/start", h.startV2Run)
+	router.POST("/sandbox-runs/:id/stop", h.stopV2Run)
+	router.GET("/sandbox-runs/:id/events", h.streamV2Events)
+	router.GET("/sandbox-runs/:id/stream", h.streamV2Events)
+	router.GET("/sandbox-runs/:id/report", h.getV2Report)
+	router.POST("/sandbox-runs/:id/report", h.getV2Report)
+	router.POST("/sandbox-runs/:id/exports", h.createV2Export)
+	router.POST("/sandbox-runs/:id/report/export", h.createV2Export)
+	router.GET("/sandbox-runs/:id/exports/:export_id/download", h.downloadV2Export)
 }
 
 func (h *HTTPHandler) listExamples(c *gin.Context) {
@@ -197,11 +228,27 @@ func (h *HTTPHandler) askRole(c *gin.Context) {
 }
 
 func (h *HTTPHandler) listRoles(c *gin.Context) {
-	if c.Query("version") == "2" {
-		h.listV2Roles(c)
-		return
+	if c.Query("version") != "1" {
+		if _, ok := h.app.(V2Application); ok {
+			h.listV2Roles(c)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"roles": httpapi.EnsureSlice(h.app.ListRoles())})
+}
+
+func (h *HTTPHandler) v2Home(c *gin.Context) {
+	app, ok := h.app.(V2HomeApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	home, err := app.GetV2Home(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, home)
 }
 
 func (h *HTTPHandler) listV2Roles(c *gin.Context) {
@@ -332,6 +379,209 @@ func (h *HTTPHandler) deleteV2Run(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (h *HTTPHandler) renameV2Run(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request RenameV2RunInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.RunID = id
+	app, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	run, err := app.RenameV2Run(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, run)
+}
+
+func (h *HTTPHandler) startV2Run(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.v2ExecutionApplication(c)
+	if !ok {
+		return
+	}
+	run, err := app.StartV2Run(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, run)
+}
+
+func (h *HTTPHandler) stopV2Run(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.v2ExecutionApplication(c)
+	if !ok {
+		return
+	}
+	run, err := app.StopV2Run(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, run)
+}
+
+func (h *HTTPHandler) getV2Report(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.v2ExecutionApplication(c)
+	if !ok {
+		return
+	}
+	report, err := app.GetV2Report(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, report)
+}
+
+func (h *HTTPHandler) createV2Export(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request CreateV2ExportInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.RunID = id
+	app, ok := h.v2ExportApplication(c)
+	if !ok {
+		return
+	}
+	export, err := app.CreateV2Export(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, export)
+}
+
+func (h *HTTPHandler) downloadV2Export(c *gin.Context) {
+	runID, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	exportID, err := strconv.ParseInt(c.Param("export_id"), 10, 64)
+	if err != nil || exportID <= 0 {
+		httpapi.BadRequest(c, "invalid_export_id")
+		return
+	}
+	app, ok := h.v2ExportApplication(c)
+	if !ok {
+		return
+	}
+	export, payload, err := app.GetV2Export(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), exportID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	if export.RunID != runID {
+		httpapi.Error(c, http.StatusNotFound, "sandbox_run_not_found")
+		return
+	}
+	filename := fmt.Sprintf("sandbox-export-%d.%s", export.ID, export.Format)
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
+}
+
+func (h *HTTPHandler) streamV2Events(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	workflow, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	execution, ok := h.v2ExecutionApplication(c)
+	if !ok {
+		return
+	}
+	userID := c.GetInt64(auth.UserIDContextKey)
+	run, err := workflow.GetV2Run(c.Request.Context(), userID, id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	afterID := int64(0)
+	if value := strings.TrimSpace(c.GetHeader("Last-Event-ID")); value != "" {
+		parsed, parseErr := strconv.ParseInt(value, 10, 64)
+		if parseErr != nil || parsed < 0 {
+			httpapi.BadRequest(c, "invalid_last_event_id")
+			return
+		}
+		afterID = parsed
+	}
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "stream_not_supported")
+		return
+	}
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Status(http.StatusOK)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	keepAlive := time.NewTicker(15 * time.Second)
+	defer keepAlive.Stop()
+	for {
+		events, err := execution.ListV2Events(c.Request.Context(), userID, id, afterID, 200)
+		if err != nil {
+			return
+		}
+		for _, event := range events {
+			data, _ := json.Marshal(event)
+			_, _ = fmt.Fprintf(c.Writer, "id: %d\nevent: %s\ndata: %s\n\n", event.ID, event.Event, data)
+			afterID = event.ID
+		}
+		if len(events) > 0 {
+			flusher.Flush()
+		}
+		if isV2TerminalStatus(run.Status) {
+			return
+		}
+		select {
+		case <-c.Request.Context().Done():
+			return
+		case <-ticker.C:
+			run, err = workflow.GetV2Run(c.Request.Context(), userID, id)
+			if err != nil {
+				return
+			}
+		case <-keepAlive.C:
+			_, _ = c.Writer.Write([]byte(": keep-alive\n\n"))
+			flusher.Flush()
+		}
+	}
+}
+
+func isV2TerminalStatus(status string) bool {
+	return status == V2StatusDone || status == V2StatusPartial || status == V2StatusFailed || status == V2StatusNoResult
 }
 
 func (h *HTTPHandler) createSession(c *gin.Context) {
@@ -484,6 +734,24 @@ func (h *HTTPHandler) flowApplication(c *gin.Context) (FlowApplication, bool) {
 
 func (h *HTTPHandler) v2Application(c *gin.Context) (V2Application, bool) {
 	app, ok := h.app.(V2Application)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) v2ExecutionApplication(c *gin.Context) (V2ExecutionApplication, bool) {
+	app, ok := h.app.(V2ExecutionApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) v2ExportApplication(c *gin.Context) (V2ExportApplication, bool) {
+	app, ok := h.app.(V2ExportApplication)
 	if !ok {
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 		return nil, false

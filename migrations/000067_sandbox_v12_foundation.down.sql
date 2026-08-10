@@ -5,6 +5,7 @@ DROP TABLE IF EXISTS sandbox_run_messages;
 DROP TABLE IF EXISTS sandbox_run_roles;
 DROP TABLE IF EXISTS sandbox_role_configs;
 DROP INDEX IF EXISTS sandbox_sessions_v2_user_idx;
+DROP INDEX IF EXISTS sandbox_sessions_v2_one_active_user_idx;
 ALTER TABLE sandbox_sessions
     DROP CONSTRAINT IF EXISTS sandbox_sessions_v2_mode_check,
     DROP CONSTRAINT IF EXISTS sandbox_sessions_v2_status_check,

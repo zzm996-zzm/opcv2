@@ -11,6 +11,7 @@ func DefaultRegistry() jobs.Registry {
 		jobs.TypeGeoAnalysis:          true,
 		jobs.TypeCompetitorScan:       true,
 		jobs.TypeSandboxRun:           true,
+		jobs.TypeSandboxV2Run:         true,
 		jobs.TypeProjectMatchGenerate: true,
 	}
 }

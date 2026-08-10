@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 )
 
@@ -126,6 +127,24 @@ func (p *DevelopmentProvider) responseFor(request ProviderRequest) []byte {
 		return []byte(`{
 			"answer":"从当前推演结果看，我会优先关注付费客户留存、单店交付成本和获客回收周期。建议先用 3 家教培机构做 4 周试点，并用真实的响应时长、有效线索率和续费意愿决定是否扩大投入。"
 		}`)
+	case "sandbox.role":
+		return sandboxV2RoleDevelopmentResponse(request.UserPrompt)
+	case "sandbox.report":
+		return []byte(`{
+			"summary":"当前方案具备明确使用场景，建议用小范围付费试点验证需求强度、交付成本和复购意愿。",
+			"feasibility":{"score":72,"level":"mid","basis":"多数角色认可场景价值，但对获客和交付成本仍有保留。"},
+			"purchase_probability":{"value_pct":63,"basis":"基于角色模拟，不代表真实市场统计。","is_model_generated":true},
+			"opportunity":[{"point":"高频流程可被标准化","reason":"目标客户存在重复且可量化的业务动作。"}],
+			"risk":[{"point":"早期定制需求过多","severity":"high","reason":"不同客户流程存在差异。","mitigation":"限定首期场景和配置边界。"}],
+			"advice":[{"action":"完成3家付费试点","why":"用真实成交和交付数据替代主观判断。","priority":1,"effort":"medium"}],
+			"role_takeaways":[],
+			"dimension_summary":[],
+			"disagreements":[{"topic":"是否立即扩大投入","views":[{"role":"investor","point":"先验证单位经济模型"},{"role":"customer","point":"先证明使用价值"}],"decision_needed":"达到试点续费标准后再扩大投入"}],
+			"missing_roles":[],
+			"scenarios":{"base":{"desc":"小范围试点后逐步复制","condition":"3家试点中至少2家续费"}},
+			"assumptions":["当前输入能够代表首批目标客户"],
+			"is_model_generated":true
+		}`)
 	case "sandbox.run":
 		return []byte(`{
 			"report_version":"sandbox_report_v3",
@@ -217,4 +236,42 @@ func (p *DevelopmentProvider) responseFor(request ProviderRequest) []byte {
 	default:
 		return []byte(`{"ok":true}`)
 	}
+}
+
+func sandboxV2RoleDevelopmentResponse(prompt string) []byte {
+	var input struct {
+		RoleCode   string   `json:"role_code"`
+		Dimensions []string `json:"analysis_dimensions"`
+	}
+	if err := json.Unmarshal([]byte(prompt), &input); err != nil || input.RoleCode == "" {
+		return []byte(`{"role_code":"unknown","stance":"neutral","verdict":"需要补充信息","content":"当前输入不足。","dimension_scores":[]}`)
+	}
+	scores := make([]map[string]any, 0, len(input.Dimensions))
+	for index, dimension := range input.Dimensions {
+		scores = append(scores, map[string]any{
+			"code": dimension, "score": 62 + index%12, "basis": "基于当前项目输入的开发环境模拟判断",
+			"confidence": 0.62, "evidence_refs": []string{},
+		})
+	}
+	risks := []map[string]any{{"point": "缺少真实付费样本", "severity": "high", "basis": "当前结论主要来自用户输入"}}
+	if input.RoleCode == "skeptic" {
+		risks = append(risks,
+			map[string]any{"point": "获客成本可能超过毛利", "severity": "high", "basis": "尚无真实渠道数据"},
+			map[string]any{"point": "定制交付可能无法规模化", "severity": "high", "basis": "尚无标准交付样本"},
+		)
+	}
+	response := map[string]any{
+		"role_code": input.RoleCode, "stance": "neutral", "verdict": "建议先做小范围验证",
+		"content":               "当前方案具备可验证的使用场景，但付费意愿、获客成本和交付边界仍需要真实样本支持。",
+		"dimension_scores":      scores,
+		"key_findings":          []string{"存在明确业务场景", "关键经营指标尚未验证"},
+		"risks":                 risks,
+		"recommendations":       []map[string]any{{"action": "完成3家付费试点", "why": "验证需求和交付成本"}},
+		"questions_to_validate": []string{"客户是否愿意按目标价格持续付费？"},
+		"assumptions":           []string{"用户输入的目标客户描述准确"},
+		"kill_criteria":         []string{"连续10次有效访谈均无付费意愿"},
+		"is_model_generated":    true,
+	}
+	data, _ := json.Marshal(response)
+	return data
 }

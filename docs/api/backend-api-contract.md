@@ -3664,6 +3664,33 @@ Optional populated item shapes:
 }
 ```
 
+## Commercial Sandbox V1.2
+
+All endpoints are protected. V1.2 runs use isolated role sessions; legacy
+`/api/v1/sandbox/sessions` endpoints remain available.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/sandbox/home` | Roles, capabilities, and five recent runs |
+| `GET` | `/api/v1/sandbox/roles` | Eight stable role definitions and defaults |
+| `POST` | `/api/v1/sandbox-runs` | Create a structured draft |
+| `POST` | `/api/v1/sandbox-runs/{id}/answer` | Answer up to three clarification questions |
+| `POST` | `/api/v1/sandbox-runs/{id}/roles` | Select 3-8 roles; `skeptic` is required |
+| `POST` | `/api/v1/sandbox-runs/{id}/start` | Idempotently freeze and enqueue the run |
+| `GET` | `/api/v1/sandbox-runs/{id}/stream` | Replayable SSE; supports `Last-Event-ID` |
+| `POST` | `/api/v1/sandbox-runs/{id}/stop` | Stop and preserve completed role output |
+| `GET` | `/api/v1/sandbox-runs/{id}` | Run, role, and report snapshot |
+| `POST/GET` | `/api/v1/sandbox-runs/{id}/report` | Read the idempotent synthesized report |
+| `POST` | `/api/v1/sandbox-runs/{id}/report/export` | Create a seven-day export |
+| `GET` | `/api/v1/sandbox-runs` | List run history |
+| `PATCH` | `/api/v1/sandbox-runs/{id}` | Rename a non-running run |
+| `DELETE` | `/api/v1/sandbox-runs/{id}` | Delete a non-running run |
+
+`POST /api/v1/sandbox-runs/{id}/start` records usage but never rejects the run
+for quota exhaustion. One active run per user, a 40k token budget, 60-second
+role timeout, 300-second run timeout, and three-role concurrency limit remain
+active as cost and reliability guards.
+
 ### Create GEO Analysis Request
 
 `POST /api/v1/geo/analysis-requests`

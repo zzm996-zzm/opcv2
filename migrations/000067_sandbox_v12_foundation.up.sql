@@ -32,6 +32,10 @@ CREATE INDEX IF NOT EXISTS sandbox_sessions_v2_user_idx
     ON sandbox_sessions (user_id, created_at DESC)
     WHERE sandbox_version = 2;
 
+CREATE UNIQUE INDEX IF NOT EXISTS sandbox_sessions_v2_one_active_user_idx
+    ON sandbox_sessions (user_id)
+    WHERE sandbox_version = 2 AND v2_status = 'running';
+
 CREATE TABLE IF NOT EXISTS sandbox_role_configs (
     role_code TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
@@ -52,6 +56,7 @@ CREATE TABLE IF NOT EXISTS sandbox_run_roles (
     role_code TEXT NOT NULL REFERENCES sandbox_role_configs(role_code),
     seq INTEGER NOT NULL CHECK (seq > 0),
     role_session_id TEXT NOT NULL UNIQUE,
+    system_prompt TEXT NOT NULL DEFAULT '',
     model_provider TEXT NOT NULL DEFAULT '',
     model_name TEXT NOT NULL DEFAULT '',
     model_route TEXT NOT NULL DEFAULT 'role_default',

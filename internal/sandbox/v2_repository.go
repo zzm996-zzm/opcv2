@@ -17,7 +17,7 @@ const v2RunColumns = `
 func (r *PostgresRepository) ListV2RoleConfigs(ctx context.Context) ([]V2RoleConfig, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT role_code, display_name, description, analysis_dimensions, default_selected,
-		       is_required, default_model_route, prompt_version
+		       is_required, default_model_route, prompt_version, system_prompt
 		FROM sandbox_role_configs
 		WHERE is_active = TRUE
 		ORDER BY CASE role_code
@@ -33,7 +33,7 @@ func (r *PostgresRepository) ListV2RoleConfigs(ctx context.Context) ([]V2RoleCon
 	for rows.Next() {
 		var role V2RoleConfig
 		var dimensions []byte
-		if err := rows.Scan(&role.Code, &role.DisplayName, &role.Description, &dimensions, &role.DefaultSelected, &role.Required, &role.DefaultModelRoute, &role.PromptVersion); err != nil {
+		if err := rows.Scan(&role.Code, &role.DisplayName, &role.Description, &dimensions, &role.DefaultSelected, &role.Required, &role.DefaultModelRoute, &role.PromptVersion, &role.SystemPrompt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(dimensions, &role.Dimensions); err != nil {
@@ -201,8 +201,9 @@ func scanV2Run(scanner sessionScanner) (V2SandboxRun, error) {
 func (r *PostgresRepository) listV2RunRoles(ctx context.Context, runID int64) ([]V2RunRole, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT run_id, role_code, seq, role_session_id, model_provider, model_name, model_route,
-		       prompt_version, analysis_dimensions, input_context_hash, status, COALESCE(stance, ''),
-		       output_json, retry_count, error_code, started_at, finished_at
+		       prompt_version, system_prompt, analysis_dimensions, input_context_hash, status, COALESCE(stance, ''),
+		       output_json, input_tokens, output_tokens, COALESCE(latency_ms, 0), retry_count,
+		       error_code, started_at, finished_at
 		FROM sandbox_run_roles WHERE run_id = $1 ORDER BY seq
 	`, runID)
 	if err != nil {
@@ -214,8 +215,9 @@ func (r *PostgresRepository) listV2RunRoles(ctx context.Context, runID int64) ([
 		var role V2RunRole
 		var dimensions, output []byte
 		if err := rows.Scan(&role.RunID, &role.RoleCode, &role.Seq, &role.RoleSessionID, &role.ModelProvider,
-			&role.ModelName, &role.ModelRoute, &role.PromptVersion, &dimensions, &role.InputHash,
-			&role.Status, &role.Stance, &output, &role.RetryCount, &role.ErrorCode, &role.StartedAt, &role.FinishedAt); err != nil {
+			&role.ModelName, &role.ModelRoute, &role.PromptVersion, &role.SystemPrompt, &dimensions, &role.InputHash,
+			&role.Status, &role.Stance, &output, &role.InputTokens, &role.OutputTokens, &role.LatencyMS,
+			&role.RetryCount, &role.ErrorCode, &role.StartedAt, &role.FinishedAt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(dimensions, &role.Dimensions); err != nil {

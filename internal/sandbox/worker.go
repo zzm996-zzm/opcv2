@@ -15,12 +15,21 @@ type Processor interface {
 	ProcessSession(ctx context.Context, userID, sessionID int64, attempt int) error
 }
 
+type V2Processor interface {
+	ProcessV2Run(ctx context.Context, userID, runID int64, revision int) error
+}
+
 type WorkerHandler struct {
-	processor Processor
+	processor   Processor
+	v2Processor V2Processor
 }
 
 func NewWorkerHandler(processor Processor) *WorkerHandler {
-	return &WorkerHandler{processor: processor}
+	handler := &WorkerHandler{processor: processor}
+	if v2Processor, ok := processor.(V2Processor); ok {
+		handler.v2Processor = v2Processor
+	}
+	return handler
 }
 
 func (h *WorkerHandler) Handle(ctx context.Context, envelope jobs.Envelope) error {
@@ -33,9 +42,23 @@ func (h *WorkerHandler) Handle(ctx context.Context, envelope jobs.Envelope) erro
 	return h.processor.ProcessSession(ctx, userID, sessionID, int(attempt))
 }
 
+func (h *WorkerHandler) HandleV2(ctx context.Context, envelope jobs.Envelope) error {
+	if h.v2Processor == nil {
+		return ErrServiceNotReady
+	}
+	userID, userOK := numberPayload(envelope.Payload["user_id"])
+	runID, runOK := numberPayload(envelope.Payload["run_id"])
+	revision, revisionOK := numberPayload(envelope.Payload["revision"])
+	if !userOK || !runOK || !revisionOK || userID <= 0 || runID <= 0 || revision <= 0 {
+		return ErrInvalidJobPayload
+	}
+	return h.v2Processor.ProcessV2Run(ctx, userID, runID, int(revision))
+}
+
 func RegisterWorker(mux *asynq.ServeMux, processor Processor) {
 	handler := NewWorkerHandler(processor)
 	jobs.Register(mux, jobs.Handler{Type: jobs.TypeSandboxRun, Handle: handler.Handle})
+	jobs.Register(mux, jobs.Handler{Type: jobs.TypeSandboxV2Run, Handle: handler.HandleV2})
 }
 
 func numberPayload(value any) (int64, bool) {

@@ -293,6 +293,7 @@ type V2RoleConfig struct {
 	Required          bool     `json:"is_required"`
 	DefaultModelRoute string   `json:"default_model_route"`
 	PromptVersion     string   `json:"prompt_version"`
+	SystemPrompt      string   `json:"-"`
 }
 
 type V2RoleOutput struct {
@@ -338,11 +339,15 @@ type V2RunRole struct {
 	ModelName     string        `json:"model_name,omitempty"`
 	ModelRoute    string        `json:"model_route"`
 	PromptVersion string        `json:"prompt_version"`
+	SystemPrompt  string        `json:"-"`
 	Dimensions    []string      `json:"analysis_dimensions"`
 	InputHash     string        `json:"input_context_hash"`
 	Status        string        `json:"status"`
 	Stance        string        `json:"stance,omitempty"`
 	Output        *V2RoleOutput `json:"output,omitempty"`
+	InputTokens   int           `json:"input_tokens"`
+	OutputTokens  int           `json:"output_tokens"`
+	LatencyMS     int           `json:"latency_ms,omitempty"`
 	RetryCount    int           `json:"retry_count"`
 	ErrorCode     string        `json:"error_code,omitempty"`
 	StartedAt     *time.Time    `json:"started_at,omitempty"`
@@ -372,6 +377,8 @@ type V2SandboxRun struct {
 	Report               *V2SandboxReport `json:"report,omitempty"`
 	CreatedAt            time.Time        `json:"created_at"`
 	UpdatedAt            time.Time        `json:"updated_at"`
+	NextQuestions        []V2Question     `json:"next_questions,omitempty"`
+	Done                 bool             `json:"done"`
 }
 
 type V2SandboxReport struct {
@@ -479,6 +486,13 @@ type SetV2RolesInput struct {
 	Revision int      `json:"revision,omitempty"`
 }
 
+type RenameV2RunInput struct {
+	UserID   int64  `json:"-"`
+	RunID    int64  `json:"-"`
+	Name     string `json:"name"`
+	Revision int    `json:"revision,omitempty"`
+}
+
 type V2Export struct {
 	ID          int64     `json:"id"`
 	RunID       int64     `json:"run_id"`
@@ -486,6 +500,18 @@ type V2Export struct {
 	DownloadURL string    `json:"download_url"`
 	ExpiresAt   time.Time `json:"expires_at"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type V2SandboxHome struct {
+	Roles        []V2RoleConfig `json:"roles"`
+	RecentRuns   []V2SandboxRun `json:"recent_runs"`
+	Capabilities []string       `json:"capabilities"`
+}
+
+type CreateV2ExportInput struct {
+	UserID int64  `json:"-"`
+	RunID  int64  `json:"-"`
+	Format string `json:"format"`
 }
 
 type ReportInsight struct {

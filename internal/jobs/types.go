@@ -10,6 +10,7 @@ const (
 	TypeGeoAnalysis          = "geo.analysis"
 	TypeCompetitorScan       = "competitor.scan"
 	TypeSandboxRun           = "sandbox.run"
+	TypeSandboxV2Run         = "sandbox.v2.run"
 	TypeProjectMatchGenerate = "projects.match_generate"
 )
 
