@@ -17,6 +17,9 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	t.Setenv("OPCV2_AI_TIMEOUT_SECONDS", "")
 	t.Setenv("OPCV2_LEAD_PROVIDER", "")
 	t.Setenv("OPCV2_COMPETITOR_SCANNER_PROVIDER", "")
+	t.Setenv("OPCV2_PROJECT_FILE_PROVIDER", "")
+	t.Setenv("OPCV2_PROJECT_RETRIEVAL_PROVIDER", "")
+	t.Setenv("OPCV2_PROJECT_RESEARCH_PROVIDER", "")
 	t.Setenv("OPCV2_TYC_API_KEY", "")
 	t.Setenv("OPCV2_TYC_BASE_URL", "")
 	t.Setenv("OPCV2_TYC_TIMEOUT_SECONDS", "")
@@ -60,6 +63,9 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	}
 	if cfg.CompetitorScannerProvider != "" {
 		t.Fatalf("CompetitorScannerProvider = %q, want empty default", cfg.CompetitorScannerProvider)
+	}
+	if cfg.ProjectFileProvider != "development" || cfg.ProjectRetrievalProvider != "development" || cfg.ProjectResearchProvider != "development" {
+		t.Fatalf("project providers = %q/%q/%q", cfg.ProjectFileProvider, cfg.ProjectRetrievalProvider, cfg.ProjectResearchProvider)
 	}
 	if len(cfg.CORSAllowedOrigins) == 0 || cfg.ExpensiveEndpointLimit != 20 {
 		t.Fatalf("security defaults = %+v, want development CORS origins and rate limit", cfg)
@@ -176,6 +182,9 @@ func TestLoadDefaultsProductionSMSToDisabled(t *testing.T) {
 	t.Setenv("OPCV2_LEAD_PROVIDER", "tianyancha")
 	t.Setenv("OPCV2_TYC_API_KEY", "production-tyc-key")
 	t.Setenv("OPCV2_CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("OPCV2_PROJECT_FILE_PROVIDER", "s3")
+	t.Setenv("OPCV2_PROJECT_RETRIEVAL_PROVIDER", "postgres")
+	t.Setenv("OPCV2_PROJECT_RESEARCH_PROVIDER", "serper")
 
 	cfg, err := Load()
 	if err != nil {
@@ -311,5 +320,21 @@ func TestLoadRejectsProductionDevelopmentCompetitorScanner(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want production competitor scanner provider error")
+	}
+}
+
+func TestLoadRejectsProductionDevelopmentProjectProviders(t *testing.T) {
+	t.Setenv("OPCV2_ENV", "production")
+	t.Setenv("OPCV2_JWT_SECRET", "production-secret")
+	t.Setenv("OPCV2_SMS_PROVIDER", "disabled")
+	t.Setenv("OPCV2_AI_PROVIDER", "openai")
+	t.Setenv("OPCV2_AI_MODEL", "gpt-production")
+	t.Setenv("OPCV2_AI_API_KEY", "production-ai-key")
+	t.Setenv("OPCV2_LEAD_PROVIDER", "tianyancha")
+	t.Setenv("OPCV2_TYC_API_KEY", "production-tyc-key")
+	t.Setenv("OPCV2_CORS_ALLOWED_ORIGINS", "https://app.example.com")
+	t.Setenv("OPCV2_PROJECT_FILE_PROVIDER", "development")
+	if _, err := Load(); err == nil {
+		t.Fatal("Load() error = nil, want project provider safety error")
 	}
 }

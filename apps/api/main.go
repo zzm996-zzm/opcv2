@@ -33,6 +33,7 @@ import (
 	"github.com/zzm/opcv2/internal/platform/httpserver"
 	"github.com/zzm/opcv2/internal/platform/migrations"
 	"github.com/zzm/opcv2/internal/platform/postgres"
+	"github.com/zzm/opcv2/internal/platform/projectprovider"
 	"github.com/zzm/opcv2/internal/platform/rediscache"
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
 	"github.com/zzm/opcv2/internal/projects"
@@ -117,12 +118,20 @@ func main() {
 	analysisService := analysis.NewService(analysisRepository, aiService)
 	analysisHTTP := analysis.NewHTTPHandler(analysisService)
 	projectsRepository := projects.NewPostgresRepository(db)
+	projectProviders, err := projectprovider.New(cfg)
+	if err != nil {
+		logger.Error("configure project providers", "error", err)
+		os.Exit(1)
+	}
 	projectsService := projects.NewService(
 		projectsRepository,
 		aiService,
 		projects.WithProfileContextProvider(accountService),
 		projects.WithFeaturePaywallEnabled(cfg.FeaturePaywallEnabled),
 		projects.WithProjectMatchQueue(taskqueue.NewClient(cfg.RedisAddr)),
+		projects.WithProjectFileManager(projectProviders.Files),
+		projects.WithProjectRetrievalProvider(projectProviders.Retrieval),
+		projects.WithProjectResearchService(projectProviders.Research),
 	)
 	projectsHTTP := projects.NewHTTPHandler(projectsService)
 	leadsRepository := leads.NewPostgresRepository(db)

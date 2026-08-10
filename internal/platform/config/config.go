@@ -32,6 +32,9 @@ type Config struct {
 	AIModelRoutes             []AIModelRoute
 	LeadProvider              string
 	CompetitorScannerProvider string
+	ProjectFileProvider       string
+	ProjectRetrievalProvider  string
+	ProjectResearchProvider   string
 	TianyanchaAPIKey          string
 	TianyanchaBaseURL         string
 	TianyanchaTimeoutSeconds  int
@@ -67,6 +70,9 @@ func Load() (Config, error) {
 		AIModelRoutes:             envAIModelRoutes("OPCV2_AI_MODEL_ROUTES"),
 		LeadProvider:              envOrDefault("OPCV2_LEAD_PROVIDER", "development"),
 		CompetitorScannerProvider: strings.TrimSpace(os.Getenv("OPCV2_COMPETITOR_SCANNER_PROVIDER")),
+		ProjectFileProvider:       envOrDefault("OPCV2_PROJECT_FILE_PROVIDER", "development"),
+		ProjectRetrievalProvider:  envOrDefault("OPCV2_PROJECT_RETRIEVAL_PROVIDER", "development"),
+		ProjectResearchProvider:   envOrDefault("OPCV2_PROJECT_RESEARCH_PROVIDER", "development"),
 		TianyanchaAPIKey:          os.Getenv("OPCV2_TYC_API_KEY"),
 		TianyanchaBaseURL:         os.Getenv("OPCV2_TYC_BASE_URL"),
 		TianyanchaTimeoutSeconds:  envIntOrDefault("OPCV2_TYC_TIMEOUT_SECONDS", 10),
@@ -106,6 +112,15 @@ func Load() (Config, error) {
 		}
 		if cfg.CompetitorScannerProvider == "development" {
 			return Config{}, errors.New("OPCV2_COMPETITOR_SCANNER_PROVIDER=development is not allowed in production")
+		}
+		if cfg.ProjectFileProvider == "development" || cfg.ProjectFileProvider == "" {
+			return Config{}, errors.New("OPCV2_PROJECT_FILE_PROVIDER=development is not allowed in production")
+		}
+		if cfg.ProjectRetrievalProvider == "development" || cfg.ProjectRetrievalProvider == "" {
+			return Config{}, errors.New("OPCV2_PROJECT_RETRIEVAL_PROVIDER=development is not allowed in production")
+		}
+		if cfg.ProjectResearchProvider == "development" || cfg.ProjectResearchProvider == "" {
+			return Config{}, errors.New("OPCV2_PROJECT_RESEARCH_PROVIDER=development is not allowed in production")
 		}
 		if cfg.LeadProvider == "tianyancha" && cfg.TianyanchaAPIKey == "" {
 			return Config{}, errors.New("OPCV2_TYC_API_KEY is required in production")

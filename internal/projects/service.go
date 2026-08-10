@@ -11,6 +11,9 @@ import (
 
 	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
+	projectfiles "github.com/zzm/opcv2/internal/projects/files"
+	projectresearch "github.com/zzm/opcv2/internal/projects/research"
+	projectretrieval "github.com/zzm/opcv2/internal/projects/retrieval"
 )
 
 type Repository interface {
@@ -206,6 +209,9 @@ type Service struct {
 	generator             JSONGenerator
 	matchQueue            ProjectMatchQueue
 	profile               ProfileContextProvider
+	fileManager           *projectfiles.Manager
+	retrieval             projectretrieval.Provider
+	research              *projectresearch.Service
 	featurePaywallEnabled bool
 	now                   func() time.Time
 }
@@ -233,6 +239,24 @@ func WithProfileContextProvider(provider ProfileContextProvider) Option {
 func WithFeaturePaywallEnabled(enabled bool) Option {
 	return func(service *Service) {
 		service.featurePaywallEnabled = enabled
+	}
+}
+
+func WithProjectFileManager(manager *projectfiles.Manager) Option {
+	return func(service *Service) {
+		service.fileManager = manager
+	}
+}
+
+func WithProjectRetrievalProvider(provider projectretrieval.Provider) Option {
+	return func(service *Service) {
+		service.retrieval = provider
+	}
+}
+
+func WithProjectResearchService(researchService *projectresearch.Service) Option {
+	return func(service *Service) {
+		service.research = researchService
 	}
 }
 

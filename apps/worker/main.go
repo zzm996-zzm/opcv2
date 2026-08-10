@@ -16,6 +16,7 @@ import (
 	"github.com/zzm/opcv2/internal/platform/aiprovider"
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/platform/postgres"
+	"github.com/zzm/opcv2/internal/platform/projectprovider"
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
 	"github.com/zzm/opcv2/internal/projects"
 	"github.com/zzm/opcv2/internal/sandbox"
@@ -72,7 +73,17 @@ func main() {
 	}
 	competitorService := competitor.NewService(competitorRepository, competitorOptions...)
 	sandboxService := sandbox.NewService(sandbox.NewPostgresRepository(db), aiService, sandbox.WithQuotaConsumer(membershipService), sandbox.WithProfileContextProvider(accountService))
-	projectsService := projects.NewService(projects.NewPostgresRepository(db), aiService, projects.WithProjectMatchQueue(taskqueue.NewClient(cfg.RedisAddr)))
+	projectProviders, err := projectprovider.New(cfg)
+	if err != nil {
+		logger.Error("configure project providers", "error", err)
+		os.Exit(1)
+	}
+	projectsService := projects.NewService(projects.NewPostgresRepository(db), aiService,
+		projects.WithProjectMatchQueue(taskqueue.NewClient(cfg.RedisAddr)),
+		projects.WithProjectFileManager(projectProviders.Files),
+		projects.WithProjectRetrievalProvider(projectProviders.Retrieval),
+		projects.WithProjectResearchService(projectProviders.Research),
+	)
 	tasksRepository := tasks.NewPostgresRepository(db)
 	tasksService := tasks.NewService(tasksRepository)
 	go tasks.RunReminderWorker(context.Background(), tasksService, time.Minute, func(err error) {
