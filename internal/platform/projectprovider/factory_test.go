@@ -25,19 +25,31 @@ func TestNewBuildsDevelopmentBundle(t *testing.T) {
 	}
 }
 
-func TestNewRejectsUnimplementedProductionProviders(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		cfg  config.Config
-	}{
-		{name: "s3", cfg: config.Config{ProjectFileProvider: "s3", ProjectRetrievalProvider: "development", ProjectResearchProvider: "development"}},
-		{name: "pgvector", cfg: config.Config{ProjectFileProvider: "development", ProjectRetrievalProvider: "pgvector", ProjectResearchProvider: "development"}},
-		{name: "serper", cfg: config.Config{ProjectFileProvider: "development", ProjectRetrievalProvider: "development", ProjectResearchProvider: "serper"}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			if _, err := New(test.cfg); err == nil {
-				t.Fatal("New() error = nil, want unsupported provider")
+func TestNewRejectsDevelopmentProvidersInProduction(t *testing.T) {
+	for _, field := range []string{"file", "retrieval", "research"} {
+		t.Run(field, func(t *testing.T) {
+			cfg := config.Config{Environment: "production", ProjectFileProvider: "s3", ProjectRetrievalProvider: "pgvector", ProjectResearchProvider: "serper"}
+			switch field {
+			case "file":
+				cfg.ProjectFileProvider = "development"
+			case "retrieval":
+				cfg.ProjectRetrievalProvider = "development"
+			case "research":
+				cfg.ProjectResearchProvider = "development"
+			}
+			if _, err := New(cfg); err == nil {
+				t.Fatal("New() error = nil, want production development provider error")
 			}
 		})
+	}
+}
+
+func TestNewBuildsUnavailableAdaptersForNamedProductionProviders(t *testing.T) {
+	bundle, err := New(config.Config{Environment: "production", ProjectFileProvider: "s3", ProjectRetrievalProvider: "pgvector", ProjectResearchProvider: "serper"})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	if bundle.Files == nil || bundle.Retrieval == nil || bundle.Research == nil {
+		t.Fatal("production bundle contains nil dependencies")
 	}
 }

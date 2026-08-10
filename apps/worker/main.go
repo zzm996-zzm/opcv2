@@ -83,6 +83,7 @@ func main() {
 		projects.WithProjectFileManager(projectProviders.Files),
 		projects.WithProjectRetrievalProvider(projectProviders.Retrieval),
 		projects.WithProjectResearchService(projectProviders.Research),
+		projects.WithProjectUsageConsumer(membershipService),
 	)
 	tasksRepository := tasks.NewPostgresRepository(db)
 	tasksService := tasks.NewService(tasksRepository)

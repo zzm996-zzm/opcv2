@@ -148,6 +148,11 @@ func (s *Service) CreateProjectMatch(ctx context.Context, input CreateProjectMat
 	if s.generator == nil {
 		return MatchWorkflowResponse{}, ErrServiceNotReady
 	}
+	usageKey := input.IdempotencyKey
+	if usageKey == "" {
+		usageKey = fmt.Sprintf("%d", s.now().UnixNano())
+	}
+	s.countProjectAIUsage(ctx, input.UserID, "project-match-analysis-"+usageKey)
 	if input.IdempotencyKey != "" {
 		if existing, findErr := repository.FindMatchRunByIdempotency(ctx, input.UserID, input.IdempotencyKey); findErr == nil {
 			return matchWorkflowResponse(existing), nil

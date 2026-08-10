@@ -467,6 +467,39 @@ one or more `source_refs` that resolve to an item in `sources`. Invalid URLs and
 `loot-drop.io` URLs never qualify as public evidence. A conflict or insufficient
 evidence is returned as `404 case_not_found` rather than leaking review data.
 
+### Project Diagnosis
+
+`POST /api/v1/projects/{id-or-slug}/diagnose` is protected and user-scoped. It
+accepts an optional `profile_patch` and returns `fit_score` (0-100), `verdict`
+(`recommended`, `conditional`, or `not_recommended`), `reasons`,
+`prerequisites`, and `next_steps`. The response is marked
+`is_model_generated=true` with the disclaimer `AI 生成，仅供参考`. Usage is
+counted under `ai_chat`, but quota exhaustion never blocks this endpoint.
+
+### Project Favorites and Compare List
+
+Protected project actions are available at:
+
+- `POST|DELETE /api/v1/projects/{id-or-slug}/favorite`
+- `GET /api/v1/projects/project-favorites`
+- `GET /api/v1/projects/compare`
+- `POST /api/v1/projects/compare-items` with `{ "project_id": "slug-or-id" }`
+- `DELETE /api/v1/projects/compare-items/{id-or-slug}`
+
+The compare list is user-scoped and has a hard maximum of five projects;
+the sixth add returns `409 compare_limit_reached`.
+
+### Export and Corrections
+
+`POST /api/v1/project-matches/{id}/export` accepts `format` (`json`, `pdf`, or
+`link`) and optional `includes`. Export records include an `expires_at` seven
+days after creation. Expired downloads return `410 export_expired`; export is
+not quota-gated.
+
+`POST /api/v1/content-corrections` is public and writes a pending correction
+for `failure`, `plan`, `case`, or `project` content after validating the reason
+and optional HTTP(S) evidence URL.
+
 ## Project Match Clarification Workflow
 
 The following v2 endpoints are protected and user-scoped. Mutating requests

@@ -69,6 +69,7 @@ func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
 	router.GET("/projects/cases/:slug", h.getCase)
 	router.GET("/project-cases", h.listEvidenceCases)
 	router.GET("/project-cases/:slug", h.getEvidenceCase)
+	router.POST("/content-corrections", h.submitContentCorrection)
 	router.GET("/projects", h.listProjects)
 	router.GET("/projects/:id", h.getProject)
 }
@@ -81,6 +82,7 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.POST("/project-matches/:id/generate", h.generateProjectMatch)
 	router.GET("/project-matches/:id/stream", h.streamProjectMatch)
 	router.POST("/project-matches/:id/cancel", h.cancelProjectMatch)
+	router.POST("/project-matches/:id/export", h.exportProjectMatch)
 	router.POST("/projects/matches", h.createMatch)
 	router.GET("/projects/matches", h.listMatches)
 	router.GET("/projects/matches/:id", h.getMatch)
@@ -88,8 +90,15 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.POST("/projects/matches/:id/favorite", h.favoriteMatch)
 	router.DELETE("/projects/matches/:id/favorite", h.unfavoriteMatch)
 	router.GET("/projects/favorites", h.listFavoriteMatches)
+	router.POST("/projects/:id/favorite", h.favoriteProject)
+	router.DELETE("/projects/:id/favorite", h.unfavoriteProject)
+	router.GET("/projects/project-favorites", h.listFavoriteProjects)
+	router.POST("/projects/:id/diagnose", h.diagnoseProject)
 	router.POST("/projects/comparisons", h.createComparison)
 	router.GET("/projects/comparisons/:id", h.getComparison)
+	router.GET("/projects/compare", h.listProjectCompare)
+	router.POST("/projects/compare-items", h.addProjectCompareItem)
+	router.DELETE("/projects/compare-items/:id", h.removeProjectCompareItem)
 	router.POST("/projects/exports", h.createExport)
 	router.GET("/projects/exports/:id/download", h.downloadExport)
 }
@@ -304,6 +313,25 @@ func (h *HTTPHandler) listEvidenceCases(c *gin.Context) {
 	c.JSON(http.StatusOK, items)
 }
 
+func (h *HTTPHandler) submitContentCorrection(c *gin.Context) {
+	app, ok := h.app.(ContentCorrectionApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	var request ContentCorrectionInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	item, err := app.SubmitContentCorrection(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, item)
+}
+
 func (h *HTTPHandler) getEvidenceCase(c *gin.Context) {
 	app, ok := h.evidenceCaseApplication(c)
 	if !ok {
@@ -450,6 +478,149 @@ func (h *HTTPHandler) createExport(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, item)
 }
+
+func (h *HTTPHandler) exportProjectMatch(c *gin.Context) {
+	id, ok := matchID(c)
+	if !ok {
+		return
+	}
+	var request struct {
+		Format   string   `json:"format,omitempty"`
+		Includes []string `json:"includes,omitempty"`
+	}
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+			return
+		}
+	}
+	item, err := h.app.CreateExport(c.Request.Context(), CreateExportInput{UserID: c.GetInt64(auth.UserIDContextKey), SourceType: ExportSourceMatch, SourceID: id, Format: request.Format, Includes: request.Includes})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, item)
+}
+
+func (h *HTTPHandler) diagnoseProject(c *gin.Context) {
+	app, ok := h.app.(ProjectDiagnosisApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	var request ProjectDiagnosisInput
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+			return
+		}
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	result, err := app.DiagnoseProject(c.Request.Context(), request, c.Param("id"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *HTTPHandler) favoriteProject(c *gin.Context) {
+	app, ok := h.app.(ProjectFavoriteApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	item, err := app.FavoriteProject(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), c.Param("id"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *HTTPHandler) unfavoriteProject(c *gin.Context) {
+	app, ok := h.app.(ProjectFavoriteApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	if err := app.UnfavoriteProject(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), c.Param("id")); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *HTTPHandler) listFavoriteProjects(c *gin.Context) {
+	app, ok := h.app.(ProjectFavoriteApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	limit := 20
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_limit"})
+			return
+		}
+		limit = parsed
+	}
+	items, err := app.ListFavoriteProjects(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"favorites": items})
+}
+
+func (h *HTTPHandler) addProjectCompareItem(c *gin.Context) {
+	app, ok := h.app.(ProjectCompareApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	var request struct {
+		ProjectID string `json:"project_id"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.ProjectID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
+		return
+	}
+	item, err := app.AddProjectCompareItem(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), request.ProjectID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *HTTPHandler) removeProjectCompareItem(c *gin.Context) {
+	app, ok := h.app.(ProjectCompareApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	if err := app.RemoveProjectCompareItem(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), c.Param("id")); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *HTTPHandler) listProjectCompare(c *gin.Context) {
+	app, ok := h.app.(ProjectCompareApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	items, err := app.ListProjectCompareItems(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
 func (h *HTTPHandler) downloadExport(c *gin.Context) {
 	id, ok := matchID(c)
 	if !ok {
@@ -460,7 +631,11 @@ func (h *HTTPHandler) downloadExport(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="project-export-%d.json"`, item.ID))
+	ext := "json"
+	if item.Format != "" {
+		ext = item.Format
+	}
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="project-export-%d.%s"`, item.ID, ext))
 	c.Data(http.StatusOK, "application/json; charset=utf-8", item.Payload)
 }
 
@@ -693,6 +868,12 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "export_not_found"})
 	case errors.Is(err, ErrInvalidExport):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_export"})
+	case errors.Is(err, ErrInvalidCorrection):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_content_correction"})
+	case errors.Is(err, ErrExportExpired):
+		c.JSON(http.StatusGone, gin.H{"error": "export_expired"})
+	case errors.Is(err, ErrCompareLimit):
+		c.JSON(http.StatusConflict, gin.H{"error": "compare_limit_reached", "max": maxProjectCollectionItems})
 	case errors.Is(err, ErrInvalidDictionaryKind):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_dictionary_kind"})
 	case errors.Is(err, ErrServiceNotReady):

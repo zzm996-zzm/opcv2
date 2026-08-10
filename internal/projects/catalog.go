@@ -79,6 +79,38 @@ type ProjectPage struct {
 	Total    int       `json:"total"`
 }
 
+type ProjectDiagnosisInput struct {
+	UserID       int64          `json:"-"`
+	ProfilePatch map[string]any `json:"profile_patch,omitempty"`
+}
+
+type ProjectDiagnosis struct {
+	ProjectID        int64          `json:"project_id"`
+	FitScore         int            `json:"fit_score"`
+	Verdict          string         `json:"verdict"`
+	Reasons          []string       `json:"reasons"`
+	Prerequisites    []string       `json:"prerequisites"`
+	NextSteps        []string       `json:"next_steps"`
+	Profile          map[string]any `json:"profile,omitempty"`
+	IsModelGenerated bool           `json:"is_model_generated"`
+	Disclaimer       string         `json:"disclaimer"`
+}
+
+type ProjectFavorite struct {
+	UserID    int64     `json:"-"`
+	ProjectID int64     `json:"project_id"`
+	Slug      string    `json:"slug"`
+	Title     string    `json:"title"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectCompareItem struct {
+	ProjectID int64     `json:"project_id"`
+	Slug      string    `json:"slug"`
+	Title     string    `json:"title"`
+	AddedAt   time.Time `json:"added_at"`
+}
+
 type ProjectHero struct {
 	Title    string `json:"title"`
 	Subtitle string `json:"subtitle"`
@@ -120,6 +152,31 @@ type CatalogApplication interface {
 	GetProjectHome(context.Context) (ProjectHome, error)
 	ListProjects(context.Context, ProjectFilters) (ProjectPage, error)
 	GetProject(context.Context, string) (Project, error)
+}
+
+type ProjectDiagnosisApplication interface {
+	DiagnoseProject(context.Context, ProjectDiagnosisInput, string) (ProjectDiagnosis, error)
+}
+
+type ProjectFavoriteApplication interface {
+	FavoriteProject(context.Context, int64, string) (ProjectFavorite, error)
+	ListFavoriteProjects(context.Context, int64, int) ([]ProjectFavorite, error)
+	UnfavoriteProject(context.Context, int64, string) error
+}
+
+type ProjectCompareApplication interface {
+	AddProjectCompareItem(context.Context, int64, string) (ProjectCompareItem, error)
+	ListProjectCompareItems(context.Context, int64) ([]ProjectCompareItem, error)
+	RemoveProjectCompareItem(context.Context, int64, string) error
+}
+
+type ProjectActionRepository interface {
+	SaveProjectFavorite(context.Context, ProjectFavorite) (ProjectFavorite, error)
+	ListProjectFavorites(context.Context, int64, int) ([]ProjectFavorite, error)
+	DeleteProjectFavorite(context.Context, int64, int64) error
+	AddProjectCompareItem(context.Context, ProjectCompareItem, int64) (ProjectCompareItem, error)
+	ListProjectCompareItems(context.Context, int64) ([]ProjectCompareItem, error)
+	DeleteProjectCompareItem(context.Context, int64, int64) error
 }
 
 func (s *Service) GetPublicConfig(context.Context) PublicConfig {

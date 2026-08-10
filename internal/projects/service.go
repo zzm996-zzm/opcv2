@@ -11,6 +11,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/membership"
 	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 	projectresearch "github.com/zzm/opcv2/internal/projects/research"
 	projectretrieval "github.com/zzm/opcv2/internal/projects/retrieval"
@@ -41,6 +42,13 @@ func (s *Service) CreateExport(ctx context.Context, input CreateExportInput) (Ex
 	if input.SourceID <= 0 {
 		return Export{}, ErrInvalidExport
 	}
+	input.Format = strings.ToLower(strings.TrimSpace(input.Format))
+	if input.Format == "" {
+		input.Format = "json"
+	}
+	if input.Format != "json" && input.Format != "pdf" && input.Format != "link" {
+		return Export{}, ErrInvalidExport
+	}
 	var source any
 	switch input.SourceType {
 	case ExportSourceMatch:
@@ -62,7 +70,7 @@ func (s *Service) CreateExport(ctx context.Context, input CreateExportInput) (Ex
 	if err != nil {
 		return Export{}, err
 	}
-	item, err := s.repository.CreateExport(ctx, Export{UserID: input.UserID, SourceType: input.SourceType, SourceID: input.SourceID, Status: "ready", Payload: payload, CreatedAt: s.now()})
+	item, err := s.repository.CreateExport(ctx, Export{UserID: input.UserID, SourceType: input.SourceType, SourceID: input.SourceID, Status: "ready", Payload: payload, Format: input.Format, Includes: append([]string(nil), input.Includes...), ExpiresAt: s.now().Add(7 * 24 * time.Hour), CreatedAt: s.now()})
 	if err != nil {
 		return Export{}, err
 	}
@@ -73,7 +81,14 @@ func (s *Service) GetExport(ctx context.Context, userID, id int64) (Export, erro
 	if s.repository == nil {
 		return Export{}, ErrServiceNotReady
 	}
-	return s.repository.GetExport(ctx, userID, id)
+	item, err := s.repository.GetExport(ctx, userID, id)
+	if err != nil {
+		return Export{}, err
+	}
+	if !item.ExpiresAt.IsZero() && !s.now().Before(item.ExpiresAt) {
+		return Export{}, ErrExportExpired
+	}
+	return item, nil
 }
 
 func (s *Service) CreateComparison(ctx context.Context, input CreateComparisonInput) (Comparison, error) {
@@ -89,7 +104,7 @@ func (s *Service) CreateComparison(ctx context.Context, input CreateComparisonIn
 			slugs = append(slugs, slug)
 		}
 	}
-	if len(slugs) < 2 || len(slugs) > 4 {
+	if len(slugs) < 2 || len(slugs) > 5 {
 		return Comparison{}, ErrInvalidComparison
 	}
 	items := make([]Opportunity, 0, len(slugs))
@@ -212,8 +227,13 @@ type Service struct {
 	fileManager           *projectfiles.Manager
 	retrieval             projectretrieval.Provider
 	research              *projectresearch.Service
+	usage                 projectUsageConsumer
 	featurePaywallEnabled bool
 	now                   func() time.Time
+}
+
+type projectUsageConsumer interface {
+	CheckAndConsume(context.Context, membership.ConsumeInput) (membership.UsageItem, error)
 }
 
 func WithProjectMatchQueue(queue ProjectMatchQueue) Option {
@@ -258,6 +278,19 @@ func WithProjectResearchService(researchService *projectresearch.Service) Option
 	return func(service *Service) {
 		service.research = researchService
 	}
+}
+
+func WithProjectUsageConsumer(consumer projectUsageConsumer) Option {
+	return func(service *Service) {
+		service.usage = consumer
+	}
+}
+
+func (s *Service) countProjectAIUsage(ctx context.Context, userID int64, operation string) {
+	if s.usage == nil || userID <= 0 {
+		return
+	}
+	_, _ = s.usage.CheckAndConsume(ctx, membership.ConsumeInput{UserID: userID, FeatureKey: membership.FeatureAIChat, Amount: 1, IdempotencyKey: operation})
 }
 
 func (s *Service) CreateMatch(ctx context.Context, input MatchInput) (MatchResult, error) {

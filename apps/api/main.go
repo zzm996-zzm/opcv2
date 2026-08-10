@@ -132,6 +132,7 @@ func main() {
 		projects.WithProjectFileManager(projectProviders.Files),
 		projects.WithProjectRetrievalProvider(projectProviders.Retrieval),
 		projects.WithProjectResearchService(projectProviders.Research),
+		projects.WithProjectUsageConsumer(membershipService),
 	)
 	projectsHTTP := projects.NewHTTPHandler(projectsService)
 	leadsRepository := leads.NewPostgresRepository(db)

@@ -27,12 +27,16 @@ var (
 	ErrInvalidComparison   = errors.New("invalid project comparison")
 	ErrExportNotFound      = errors.New("project export not found")
 	ErrInvalidExport       = errors.New("invalid project export")
+	ErrExportExpired       = errors.New("project export expired")
+	ErrCompareLimit        = errors.New("project comparison limit reached")
 )
 
 type CreateExportInput struct {
-	UserID     int64  `json:"-"`
-	SourceType string `json:"source_type"`
-	SourceID   int64  `json:"source_id"`
+	UserID     int64    `json:"-"`
+	SourceType string   `json:"source_type"`
+	SourceID   int64    `json:"source_id"`
+	Format     string   `json:"format,omitempty"`
+	Includes   []string `json:"includes,omitempty"`
 }
 type Export struct {
 	ID          int64     `json:"id"`
@@ -42,6 +46,9 @@ type Export struct {
 	Status      string    `json:"status"`
 	Payload     []byte    `json:"-"`
 	DownloadURL string    `json:"download_url"`
+	Format      string    `json:"format"`
+	Includes    []string  `json:"includes,omitempty"`
+	ExpiresAt   time.Time `json:"expires_at"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 

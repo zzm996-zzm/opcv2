@@ -22,6 +22,7 @@ const (
 	FeatureCopilotFileAnalysis = "copilot_file_analysis"
 	FeatureGeoAcquisition      = "geo_acquisition"
 	FeatureAILeadDevelopment   = "ai_lead_development"
+	FeatureAIChat              = "ai_chat"
 	FeatureDashboard           = "dashboard"
 	FeatureCRM                 = "crm"
 )

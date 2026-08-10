@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -415,15 +416,146 @@ func (r *PostgresRepository) GetComparison(ctx context.Context, userID, id int64
 }
 
 func (r *PostgresRepository) CreateExport(ctx context.Context, item Export) (Export, error) {
-	err := r.db.QueryRow(ctx, `INSERT INTO project_exports (user_id, source_type, source_id, status, payload, created_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, item.UserID, item.SourceType, item.SourceID, item.Status, item.Payload, item.CreatedAt).Scan(&item.ID)
+	if item.ExpiresAt.IsZero() {
+		item.ExpiresAt = item.CreatedAt.Add(7 * 24 * time.Hour)
+	}
+	if item.Format == "" {
+		item.Format = "json"
+	}
+	includes, err := json.Marshal(nonNilStrings(item.Includes))
+	if err != nil {
+		return Export{}, err
+	}
+	err = r.db.QueryRow(ctx, `INSERT INTO project_exports (user_id, source_type, source_id, status, payload, format, includes, expires_at, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, item.UserID, item.SourceType, item.SourceID, item.Status, item.Payload, item.Format, includes, item.ExpiresAt, item.CreatedAt).Scan(&item.ID)
 	return item, err
 }
 func (r *PostgresRepository) GetExport(ctx context.Context, userID, id int64) (Export, error) {
 	var item Export
-	err := r.db.QueryRow(ctx, `SELECT id, user_id, source_type, source_id, status, payload, created_at FROM project_exports WHERE user_id = $1 AND id = $2`, userID, id).Scan(&item.ID, &item.UserID, &item.SourceType, &item.SourceID, &item.Status, &item.Payload, &item.CreatedAt)
+	var includes []byte
+	err := r.db.QueryRow(ctx, `SELECT id, user_id, source_type, source_id, status, payload, format, includes, expires_at, created_at FROM project_exports WHERE user_id = $1 AND id = $2`, userID, id).Scan(&item.ID, &item.UserID, &item.SourceType, &item.SourceID, &item.Status, &item.Payload, &item.Format, &includes, &item.ExpiresAt, &item.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Export{}, ErrExportNotFound
 	}
+	if err == nil && len(includes) > 0 {
+		if unmarshalErr := json.Unmarshal(includes, &item.Includes); unmarshalErr != nil {
+			return Export{}, unmarshalErr
+		}
+	}
+	return item, err
+}
+
+func (r *PostgresRepository) SaveProjectFavorite(ctx context.Context, favorite ProjectFavorite) (ProjectFavorite, error) {
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO project_favorites (user_id, project_id, created_at)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id, project_id) DO UPDATE SET project_id = EXCLUDED.project_id
+		RETURNING created_at
+	`, favorite.UserID, favorite.ProjectID, favorite.CreatedAt).Scan(&favorite.CreatedAt)
+	if err != nil {
+		return ProjectFavorite{}, err
+	}
+	return r.getProjectFavorite(ctx, favorite.UserID, favorite.ProjectID)
+}
+
+func (r *PostgresRepository) getProjectFavorite(ctx context.Context, userID, projectID int64) (ProjectFavorite, error) {
+	var favorite ProjectFavorite
+	err := r.db.QueryRow(ctx, `
+		SELECT f.user_id, f.project_id, p.slug, p.title, f.created_at
+		FROM project_favorites f JOIN project_opportunities p ON p.id = f.project_id
+		WHERE f.user_id = $1 AND f.project_id = $2
+	`, userID, projectID).Scan(&favorite.UserID, &favorite.ProjectID, &favorite.Slug, &favorite.Title, &favorite.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProjectFavorite{}, ErrOpportunityNotFound
+	}
+	return favorite, err
+}
+
+func (r *PostgresRepository) ListProjectFavorites(ctx context.Context, userID int64, limit int) ([]ProjectFavorite, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT f.user_id, f.project_id, p.slug, p.title, f.created_at
+		FROM project_favorites f JOIN project_opportunities p ON p.id = f.project_id
+		WHERE f.user_id = $1 AND p.status = 'published'
+		ORDER BY f.created_at DESC, f.project_id DESC LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]ProjectFavorite, 0)
+	for rows.Next() {
+		var item ProjectFavorite
+		if err := rows.Scan(&item.UserID, &item.ProjectID, &item.Slug, &item.Title, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *PostgresRepository) DeleteProjectFavorite(ctx context.Context, userID, projectID int64) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM project_favorites WHERE user_id = $1 AND project_id = $2`, userID, projectID)
+	return err
+}
+
+func (r *PostgresRepository) AddProjectCompareItem(ctx context.Context, item ProjectCompareItem, userID int64) (ProjectCompareItem, error) {
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO project_compare_items (user_id, project_id, added_at)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id, project_id) DO UPDATE SET added_at = project_compare_items.added_at
+		RETURNING added_at
+	`, userID, item.ProjectID, item.AddedAt).Scan(&item.AddedAt)
+	if err != nil {
+		return ProjectCompareItem{}, err
+	}
+	return r.getProjectCompareItem(ctx, userID, item.ProjectID)
+}
+
+func (r *PostgresRepository) getProjectCompareItem(ctx context.Context, userID, projectID int64) (ProjectCompareItem, error) {
+	var item ProjectCompareItem
+	err := r.db.QueryRow(ctx, `
+		SELECT c.project_id, p.slug, p.title, c.added_at
+		FROM project_compare_items c JOIN project_opportunities p ON p.id = c.project_id
+		WHERE c.user_id = $1 AND c.project_id = $2
+	`, userID, projectID).Scan(&item.ProjectID, &item.Slug, &item.Title, &item.AddedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProjectCompareItem{}, ErrOpportunityNotFound
+	}
+	return item, err
+}
+
+func (r *PostgresRepository) ListProjectCompareItems(ctx context.Context, userID int64) ([]ProjectCompareItem, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT c.project_id, p.slug, p.title, c.added_at
+		FROM project_compare_items c JOIN project_opportunities p ON p.id = c.project_id
+		WHERE c.user_id = $1 AND p.status = 'published'
+		ORDER BY c.added_at ASC, c.project_id ASC
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]ProjectCompareItem, 0)
+	for rows.Next() {
+		var item ProjectCompareItem
+		if err := rows.Scan(&item.ProjectID, &item.Slug, &item.Title, &item.AddedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func (r *PostgresRepository) DeleteProjectCompareItem(ctx context.Context, userID, projectID int64) error {
+	_, err := r.db.Exec(ctx, `DELETE FROM project_compare_items WHERE user_id = $1 AND project_id = $2`, userID, projectID)
+	return err
+}
+
+func (r *PostgresRepository) CreateContentCorrection(ctx context.Context, item ContentCorrection) (ContentCorrection, error) {
+	err := r.db.QueryRow(ctx, `
+		INSERT INTO content_corrections (target_type, target_id, reason, evidence_url, contact, status, created_at)
+		VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6, $7)
+		RETURNING id, status, created_at
+	`, item.TargetType, item.TargetID, item.Reason, item.EvidenceURL, item.Contact, item.Status, item.CreatedAt).Scan(&item.ID, &item.Status, &item.CreatedAt)
 	return item, err
 }
 
