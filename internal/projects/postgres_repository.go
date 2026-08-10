@@ -304,7 +304,13 @@ func (r *PostgresRepository) ListOpportunities(ctx context.Context, filters Oppo
 		FROM project_opportunities
 		WHERE status = 'published'
 		  AND ($1 = '' OR industry = $1)
-		  AND ($2 = '' OR title ILIKE '%' || $2 || '%' OR summary ILIKE '%' || $2 || '%')
+		  AND ($2 = ''
+		    OR title ILIKE '%' || $2 || '%'
+		    OR summary ILIKE '%' || $2 || '%'
+		    OR industry ILIKE '%' || $2 || '%'
+		    OR tags::TEXT ILIKE '%' || $2 || '%'
+		    OR resource_requirements::TEXT ILIKE '%' || $2 || '%'
+		    OR sections::TEXT ILIKE '%' || $2 || '%')
 		ORDER BY sort_order ASC, published_at DESC, id ASC
 		LIMIT $3
 	`, filters.Industry, filters.Query, filters.Limit)

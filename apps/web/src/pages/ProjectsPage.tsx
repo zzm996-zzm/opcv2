@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronUp } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -408,10 +408,12 @@ function MatchRequest() {
 }
 
 function OpportunityExplore() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const submittedQuery = searchParams.get("q") ?? "";
   const [items, setItems] = useState<ProjectOpportunity[]>([]);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState(() => searchParams.get("q") ?? "");
+  const [query, setQuery] = useState(submittedQuery);
+  const [loading, setLoading] = useState(true);
   const [industry, setIndustry] = useState("");
   const [budget, setBudget] = useState("");
   const [difficulty, setDifficulty] = useState("");
@@ -419,23 +421,49 @@ function OpportunityExplore() {
   const [sortMode, setSortMode] = useState<"recommend" | "latest" | "match">("recommend");
   const [activeDirection, setActiveDirection] = useState("高潜力机会");
   const [page, setPage] = useState(1);
+  const requestID = useRef(0);
 
-  async function loadOpportunities(search = "") {
+  const loadOpportunities = useCallback(async (search = "") => {
+    const currentRequest = ++requestID.current;
+    setLoading(true);
     try {
       const payload = await projectsApi.listOpportunities({ query: search.trim() || undefined });
+      if (currentRequest !== requestID.current) return;
       setItems(payload.opportunities);
       setError("");
     } catch (loadError) {
+      if (currentRequest !== requestID.current) return;
       setItems([]);
       setError(apiErrorMessage(loadError, "暂时无法读取项目机会"));
+    } finally {
+      if (currentRequest === requestID.current) setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void loadOpportunities(searchParams.get("q") ?? "");
-  }, [searchParams]);
+    setQuery(submittedQuery);
+    void loadOpportunities(submittedQuery);
+  }, [loadOpportunities, submittedQuery]);
 
-  const usingReferenceCatalog = items.length === 0;
+  function submitQuery(value: string) {
+    const normalized = value.trim();
+    setQuery(normalized);
+    if (normalized === submittedQuery) {
+      void loadOpportunities(normalized);
+      return;
+    }
+    const nextParams = new URLSearchParams(searchParams);
+    if (normalized) nextParams.set("q", normalized);
+    else nextParams.delete("q");
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    submitQuery(query);
+  }
+
+  const usingReferenceCatalog = !error && items.length === 0;
   const catalogItems = usingReferenceCatalog ? referenceExploreOpportunities : items;
   const filterOptions = useMemo(() => ({
     industries: [...new Set(catalogItems.map((item) => item.industry).filter(Boolean))],
@@ -445,7 +473,7 @@ function OpportunityExplore() {
   }), [catalogItems]);
 
   const visibleItems = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN");
+    const normalizedQuery = submittedQuery.trim().toLocaleLowerCase("zh-CN");
     const filtered = catalogItems.filter((item) => {
       const matchesDirection = activeDirection === "高潜力机会"
         || (activeDirection === "低竞争蓝海" && /较低|低/.test(item.difficulty))
@@ -471,16 +499,18 @@ function OpportunityExplore() {
       return [...filtered].sort((left, right) => difficultyRank(left.difficulty) - difficultyRank(right.difficulty));
     }
     return filtered;
-  }, [activeDirection, budget, catalogItems, difficulty, industry, query, resource, sortMode]);
+  }, [activeDirection, budget, catalogItems, difficulty, industry, resource, sortMode, submittedQuery]);
 
   const directions = ["高潜力机会", "低竞争蓝海", "小成本启动", "近期爆发", "一人公司", "可复制案例"];
   const pageSize = 8;
-  const pageCount = usingReferenceCatalog ? 20 : Math.max(1, Math.ceil(visibleItems.length / pageSize));
-  const pagedItems = usingReferenceCatalog ? visibleItems.slice(0, pageSize) : visibleItems.slice((page - 1) * pageSize, page * pageSize);
+  const hasActiveFilters = Boolean(submittedQuery || industry || budget || difficulty || resource || activeDirection !== "高潜力机会");
+  const totalCount = usingReferenceCatalog && !hasActiveFilters ? 120 : visibleItems.length;
+  const pageCount = usingReferenceCatalog && !hasActiveFilters ? 20 : Math.max(1, Math.ceil(totalCount / pageSize));
+  const pagedItems = usingReferenceCatalog && !hasActiveFilters ? visibleItems.slice(0, pageSize) : visibleItems.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [activeDirection, budget, difficulty, industry, query, resource, sortMode]);
+  }, [activeDirection, budget, difficulty, industry, resource, sortMode, submittedQuery]);
 
   return (
     <>
@@ -488,14 +518,14 @@ function OpportunityExplore() {
         <div className="pm-catalog-hero-copy">
           <h1>机会探索</h1>
           <p>浏览真实案例、赛道数据和增长路径，发现最适合你的项目机会</p>
-          <div className="pm-catalog-search">
+          <form aria-busy={loading} className="pm-catalog-search" onSubmit={handleSearch}>
             <span aria-hidden="true">⌕</span>
-            <input aria-label="搜索机会赛道" onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void loadOpportunities(query); }} placeholder="搜索项目名称、行业、关键词或痛点" value={query} />
-            <button type="button" aria-label="搜索机会" onClick={() => void loadOpportunities(query)}>⌕</button>
-          </div>
+            <input aria-label="搜索机会赛道" onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目名称、行业、关键词或痛点" value={query} />
+            <button aria-label="搜索机会" disabled={loading} type="submit"><span aria-hidden="true">{loading ? "…" : "⌕"}</span></button>
+          </form>
           <small>AI 智能推荐词</small>
           <div className="pm-hero-chip-row" aria-label="AI 智能推荐词">
-            {["一人公司", "低成本启动", "可复制项目", "副业变现", "AI应用", "出海机会"].map((item) => <button key={item} onClick={() => setQuery(item)} type="button">{item}</button>)}
+            {["一人公司", "低成本启动", "可复制项目", "副业变现", "AI应用", "出海机会"].map((item) => <button key={item} onClick={() => submitQuery(item)} type="button">{item}</button>)}
           </div>
         </div>
         <div className="pm-catalog-hero-art" aria-hidden="true" />
@@ -536,10 +566,11 @@ function OpportunityExplore() {
         </div>
       </section>
 
-      <section className="pm-explore-grid" aria-label="项目机会列表">
-        {error && !usingReferenceCatalog ? <p className="form-error" role="alert">{error}</p> : null}
-        {visibleItems.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布项目机会</div> : null}
-        {pagedItems.map((item) => (
+      <section aria-busy={loading} className="pm-explore-grid" aria-label="项目机会列表">
+        {loading ? <div className="module-empty-state" role="status">正在搜索项目机会…</div> : null}
+        {!loading && error ? <p className="form-error" role="alert">{error}</p> : null}
+        {!loading && !error && visibleItems.length === 0 ? <div className="module-empty-state" role="status">{submittedQuery ? `未找到“${submittedQuery}”相关的已发布项目机会` : "暂无符合条件的已发布项目机会"}</div> : null}
+        {!loading && !error && pagedItems.map((item) => (
           <article className={`pm-explore-card pm-project-${item.slug} ${item.id < 0 ? `pm-reference-card pm-reference-card-${Math.abs(item.id)}` : ""}`} key={item.id}>
             <div className="pm-thumb" />
             <h2>{item.title}</h2>
@@ -554,13 +585,13 @@ function OpportunityExplore() {
         ))}
       </section>
 
-      <nav className="pm-pagination" aria-label="项目机会分页">
+      {!loading && !error && visibleItems.length > 0 ? <nav className="pm-pagination" aria-label="项目机会分页">
         <button aria-label="上一页" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} type="button">‹</button>
         {Array.from({ length: Math.min(pageCount, 5) }, (_, index) => index + 1).map((item) => <button aria-current={page === item ? "page" : undefined} className={page === item ? "active" : ""} key={item} onClick={() => setPage(item)} type="button">{item}</button>)}
         {pageCount > 5 ? <span>… {pageCount}</span> : null}
         <button aria-label="下一页" disabled={page === pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} type="button">›</button>
-        <small>共 {usingReferenceCatalog ? 120 : visibleItems.length} 条</small>
-      </nav>
+        <small>共 {totalCount} 条</small>
+      </nav> : null}
     </>
   );
 }

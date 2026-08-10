@@ -9,6 +9,49 @@ import (
 	pgxmock "github.com/pashagolub/pgxmock/v4"
 )
 
+func TestPostgresRepositorySearchesOpportunityKeywordFields(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 10, 9, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, slug, title, summary, industry, tags, budget_band, difficulty, resource_requirements, sections, status, published_at, updated_at
+		FROM project_opportunities
+		WHERE status = 'published'
+		  AND ($1 = '' OR industry = $1)
+		  AND ($2 = ''
+		    OR title ILIKE '%' || $2 || '%'
+		    OR summary ILIKE '%' || $2 || '%'
+		    OR industry ILIKE '%' || $2 || '%'
+		    OR tags::TEXT ILIKE '%' || $2 || '%'
+		    OR resource_requirements::TEXT ILIKE '%' || $2 || '%'
+		    OR sections::TEXT ILIKE '%' || $2 || '%')
+		ORDER BY sort_order ASC, published_at DESC, id ASC
+		LIMIT $3
+	`)).
+		WithArgs("", "低成本启动", 20).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "slug", "title", "summary", "industry", "tags", "budget_band", "difficulty", "resource_requirements", "sections", "status", "published_at", "updated_at",
+		}).AddRow(
+			int64(42), "ai-service", "AI服务", "企业提效", "企业服务", []byte(`["低成本启动"]`), "1万元", "较低", []byte(`["AI工具"]`), []byte(`[]`), OpportunityStatusPublished, &now, now,
+		))
+
+	repository := NewPostgresRepository(db)
+	items, err := repository.ListOpportunities(context.Background(), OpportunityFilters{Query: "低成本启动", Limit: 20})
+	if err != nil {
+		t.Fatalf("ListOpportunities() error = %v", err)
+	}
+	if len(items) != 1 || items[0].Slug != "ai-service" {
+		t.Fatalf("items = %+v", items)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryGetsOpportunityWithStructuredBlocks(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

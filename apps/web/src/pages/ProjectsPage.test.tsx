@@ -164,6 +164,40 @@ describe("ProjectsPage", () => {
     expect(screen.queryByText("暂无符合条件的已发布项目机会")).not.toBeInTheDocument();
   });
 
+  it("submits opportunity search on click instead of filtering while typing", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ opportunities: [] }), { status: 200 })));
+    renderProjectRoute("/projects/explore");
+
+    expect(await screen.findByRole("heading", { name: "Excel自动化报表定制" })).toBeInTheDocument();
+    const input = screen.getByRole("textbox", { name: "搜索机会赛道" });
+    fireEvent.change(input, { target: { value: "AI应用" } });
+
+    expect(screen.getByRole("heading", { name: "Excel自动化报表定制" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "搜索机会" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/opportunities?q=AI%E5%BA%94%E7%94%A8",
+      expect.objectContaining({ method: "GET" })
+    ));
+    expect(await screen.findByText("共 2 条")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Excel自动化报表定制" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI智能简历优化服务" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "AI绘画定制服务" })).toBeInTheDocument();
+  });
+
+  it("shows a query-specific empty state after search form submission", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ opportunities: [] }), { status: 200 })));
+    renderProjectRoute("/projects/explore");
+
+    await screen.findByRole("heading", { name: "AI智能简历优化服务" });
+    const input = screen.getByRole("textbox", { name: "搜索机会赛道" });
+    fireEvent.change(input, { target: { value: "不存在的机会" } });
+    fireEvent.submit(input.closest("form")!);
+
+    expect(await screen.findByText("未找到“不存在的机会”相关的已发布项目机会")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "项目机会分页" })).not.toBeInTheDocument();
+  });
+
   it("renders real case library from API evidence", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ cases: [{
       id: 81, slug: "ai-sales-pilot", title: "AI销售试点", summary: "从单一销售场景开始验证",
