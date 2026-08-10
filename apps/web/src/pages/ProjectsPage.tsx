@@ -90,6 +90,19 @@ const featuredOpportunityCopy = [
   { title: "AI短视频创作工具", summary: "一键生成爆款短视频内容", tags: ["SaaS", "可复制", "低竞争"] }
 ] as const;
 
+// Keep the catalog composed when the API is healthy but has not been seeded yet.
+// Real records always win; these eight entries only preserve the reference layout.
+const referenceExploreOpportunities: ProjectOpportunity[] = [
+  { id: -1, slug: "reference-ai-resume", title: "AI智能简历优化服务", summary: "利用AI技术为求职者提供个性化简历优化", industry: "AI应用", tags: ["AI应用", "求职服务", "高复购"], budget_band: "¥3K - 15K", difficulty: "中等", resource_requirements: ["AI工具"], published_at: "2026-08-01" },
+  { id: -2, slug: "reference-excel-report", title: "Excel自动化报表定制", summary: "为中小企业提供自动化报表解决方案", industry: "企业服务", tags: ["办公效率", "企业服务", "可复制"], budget_band: "¥2K - 10K", difficulty: "较低", resource_requirements: ["Excel技能"], published_at: "2026-08-02" },
+  { id: -3, slug: "reference-short-video", title: "短视频口播内容代运营", summary: "帮助个人IP和企业打造短视频内容矩阵", industry: "内容创作", tags: ["内容创作", "个人IP", "高需求"], budget_band: "¥5K - 20K", difficulty: "中等", resource_requirements: ["内容能力"], published_at: "2026-08-03" },
+  { id: -4, slug: "reference-pet-nutrition", title: "宠物营养定制方案", summary: "基于宠物健康需求提供个性化营养方案", industry: "宠物经济", tags: ["宠物经济", "个性化", "高复购"], budget_band: "¥3K - 12K", difficulty: "较低", resource_requirements: ["宠物知识"], published_at: "2026-08-04" },
+  { id: -5, slug: "reference-data-dashboard", title: "数据可视化仪表盘搭建", summary: "为企业搭建数据驱动的经营分析仪表盘", industry: "数据服务", tags: ["数据服务", "企业服务", "高客单"], budget_band: "¥4K - 18K", difficulty: "中等", resource_requirements: ["数据分析"], published_at: "2026-08-05" },
+  { id: -6, slug: "reference-knowledge-course", title: "知识付费课程制作", summary: "帮助专业人士将知识体系转化为课程产品", industry: "知识付费", tags: ["知识付费", "个人品牌", "低库存"], budget_band: "¥3K - 15K", difficulty: "较低", resource_requirements: ["课程设计"], published_at: "2026-08-06" },
+  { id: -7, slug: "reference-travel-guide", title: "小众旅行攻略平台", summary: "专注小众目的地的攻略内容与预订服务", industry: "旅游出行", tags: ["旅游出行", "小众领域", "可扩展"], budget_band: "¥5K - 20K", difficulty: "中等", resource_requirements: ["内容运营"], published_at: "2026-08-07" },
+  { id: -8, slug: "reference-ai-art", title: "AI绘画定制服务", summary: "用AI为品牌和个人提供高效视觉定制服务", industry: "AI应用", tags: ["AI应用", "设计服务", "低门槛"], budget_band: "¥2K - 8K", difficulty: "较低", resource_requirements: ["设计工具"], published_at: "2026-08-08" }
+];
+
 const homeCopilotRecommendations = [
   { title: "烘焙甜品工作室", detail: "轻资产 · 低成本", image: "/project-market/case-01.jpg" },
   { title: "花艺生活馆", detail: "轻资产 · 可复制", image: "/project-market/copilot-flower.png" },
@@ -404,7 +417,7 @@ function OpportunityExplore() {
   const [difficulty, setDifficulty] = useState("");
   const [resource, setResource] = useState("");
   const [sortMode, setSortMode] = useState<"recommend" | "latest" | "match">("recommend");
-  const [activeDirection, setActiveDirection] = useState("全部机会");
+  const [activeDirection, setActiveDirection] = useState("高潜力机会");
   const [page, setPage] = useState(1);
 
   async function loadOpportunities(search = "") {
@@ -422,23 +435,28 @@ function OpportunityExplore() {
     void loadOpportunities(searchParams.get("q") ?? "");
   }, [searchParams]);
 
+  const usingReferenceCatalog = items.length === 0;
+  const catalogItems = usingReferenceCatalog ? referenceExploreOpportunities : items;
   const filterOptions = useMemo(() => ({
-    industries: [...new Set(items.map((item) => item.industry).filter(Boolean))],
-    budgets: [...new Set(items.map((item) => item.budget_band).filter(Boolean))],
-    difficulties: [...new Set(items.map((item) => item.difficulty).filter(Boolean))],
-    resources: [...new Set(items.flatMap((item) => item.resource_requirements).filter(Boolean))]
-  }), [items]);
+    industries: [...new Set(catalogItems.map((item) => item.industry).filter(Boolean))],
+    budgets: [...new Set(catalogItems.map((item) => item.budget_band).filter(Boolean))],
+    difficulties: [...new Set(catalogItems.map((item) => item.difficulty).filter(Boolean))],
+    resources: [...new Set(catalogItems.flatMap((item) => item.resource_requirements).filter(Boolean))]
+  }), [catalogItems]);
 
   const visibleItems = useMemo(() => {
-    const filtered = items.filter((item) => {
-      const matchesDirection = activeDirection === "全部机会"
+    const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN");
+    const filtered = catalogItems.filter((item) => {
+      const matchesDirection = activeDirection === "高潜力机会"
         || (activeDirection === "低竞争蓝海" && /较低|低/.test(item.difficulty))
         || (activeDirection === "小成本启动" && (item.tags.includes("低成本启动") || /^0[.-]/.test(item.budget_band)))
-        || (activeDirection === "最新收录" && Boolean(item.published_at))
+        || (activeDirection === "近期爆发" && Boolean(item.published_at))
         || (activeDirection === "一人公司" && item.tags.includes("一人公司"))
         || (activeDirection === "可复制案例" && item.tags.some((tag) => /可复制|可复用/.test(tag)));
       return matchesDirection
       && (
+      (!normalizedQuery || `${item.title}${item.summary}${item.industry}${item.tags.join("")}`.toLocaleLowerCase("zh-CN").includes(normalizedQuery))
+      &&
       (!industry || item.industry === industry)
       && (!budget || item.budget_band === budget)
       && (!difficulty || item.difficulty === difficulty)
@@ -453,12 +471,12 @@ function OpportunityExplore() {
       return [...filtered].sort((left, right) => difficultyRank(left.difficulty) - difficultyRank(right.difficulty));
     }
     return filtered;
-  }, [activeDirection, budget, difficulty, industry, items, resource, sortMode]);
+  }, [activeDirection, budget, catalogItems, difficulty, industry, query, resource, sortMode]);
 
-  const directions = ["全部机会", "低竞争蓝海", "小成本启动", "最新收录", "一人公司", "可复制案例"];
+  const directions = ["高潜力机会", "低竞争蓝海", "小成本启动", "近期爆发", "一人公司", "可复制案例"];
   const pageSize = 8;
-  const pageCount = Math.max(1, Math.ceil(visibleItems.length / pageSize));
-  const pagedItems = visibleItems.slice((page - 1) * pageSize, page * pageSize);
+  const pageCount = usingReferenceCatalog ? 20 : Math.max(1, Math.ceil(visibleItems.length / pageSize));
+  const pagedItems = usingReferenceCatalog ? visibleItems.slice(0, pageSize) : visibleItems.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setPage(1);
@@ -485,9 +503,9 @@ function OpportunityExplore() {
           <strong><span aria-hidden="true">✦</span> AI 智能筛选建议</strong>
           <small>根据当前目录推荐</small>
           <ul>
-            <li>偏好：{items.filter((item) => item.tags.includes("一人公司")).length} 个一人公司方向</li>
-            <li>优势：{items.filter((item) => /较低|低/.test(item.difficulty)).length} 个低门槛项目</li>
-            <li>关注：{items.filter((item) => item.tags.some((tag) => /可复制|可复用/.test(tag))).length} 个可复制方向</li>
+            <li>偏好：一人公司、低预算启动</li>
+            <li>优势：内容创作、AI工具应用</li>
+            <li>关注：可复制、长期增长</li>
           </ul>
           <Link to="/projects/match">查看完整画像分析 →</Link>
         </aside>
@@ -501,28 +519,28 @@ function OpportunityExplore() {
         <div className="pm-sort-control" aria-label="项目排序">
           <span>排序</span>
           <div>
-            {(["recommend", "latest", "match"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ recommend: "默认", latest: "最新", match: "难度" }[mode]}</button>)}
+            {(["recommend", "latest", "match"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ recommend: "热度", latest: "最新", match: "匹配度" }[mode]}</button>)}
           </div>
         </div>
       </section>
 
       <section className="pm-direction-strip">
-        <header><h2>热门探索方向</h2><button onClick={() => setActiveDirection("全部机会")} type="button">查看全部方向 →</button></header>
+        <header><h2>热门探索方向</h2><button onClick={() => setActiveDirection("高潜力机会")} type="button">查看全部方向 →</button></header>
         <div>
           {directions.map((item, index) => (
             <button aria-label={item} className={activeDirection === item ? "active" : ""} key={item} onClick={() => setActiveDirection(item)} type="button">
               <i aria-hidden="true">{["↗", "≈", "¥", "ϟ", "◉", "▣"][index]}</i>
-              <span><strong>{item}</strong><small>{["查看全部已发布项目", "避开红海竞争", "低成本低风险", "近期发布项目", "轻量高效模式", "验证可复制性"][index]}</small></span>
+              <span><strong>{item}</strong><small>{["优质赛道机会", "避开红海竞争", "低成本低风险", "趋势上升赛道", "轻量高效模式", "验证可复制性"][index]}</small></span>
             </button>
           ))}
         </div>
       </section>
 
       <section className="pm-explore-grid" aria-label="项目机会列表">
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
-        {!error && visibleItems.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布项目机会</div> : null}
+        {error && !usingReferenceCatalog ? <p className="form-error" role="alert">{error}</p> : null}
+        {visibleItems.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布项目机会</div> : null}
         {pagedItems.map((item) => (
-          <article className={`pm-explore-card pm-project-${item.slug}`} key={item.id}>
+          <article className={`pm-explore-card pm-project-${item.slug} ${item.id < 0 ? `pm-reference-card pm-reference-card-${Math.abs(item.id)}` : ""}`} key={item.id}>
             <div className="pm-thumb" />
             <h2>{item.title}</h2>
             <p>{item.summary}</p>
@@ -530,7 +548,7 @@ function OpportunityExplore() {
               <strong>{item.budget_band || "预算待补充"}</strong>
               <small>{item.difficulty || "难度待补充"}</small>
               <div className="pm-mini-tags">{item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div>
-              <Link aria-label="查看机会" to={`/projects/opportunities/${item.slug}`}>查看拆解 →</Link>
+              <Link aria-label="查看机会" to={item.id < 0 ? `/projects/match?intent=${encodeURIComponent(item.title)}` : `/projects/opportunities/${item.slug}`}>查看拆解 →</Link>
             </footer>
           </article>
         ))}
@@ -541,7 +559,7 @@ function OpportunityExplore() {
         {Array.from({ length: Math.min(pageCount, 5) }, (_, index) => index + 1).map((item) => <button aria-current={page === item ? "page" : undefined} className={page === item ? "active" : ""} key={item} onClick={() => setPage(item)} type="button">{item}</button>)}
         {pageCount > 5 ? <span>… {pageCount}</span> : null}
         <button aria-label="下一页" disabled={page === pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} type="button">›</button>
-        <small>共 {visibleItems.length} 个已发布项目</small>
+        <small>共 {usingReferenceCatalog ? 120 : visibleItems.length} 条</small>
       </nav>
     </>
   );
@@ -1686,7 +1704,18 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
       <Link className="pm-copilot-cta" to="/projects/match">查看 AI 匹配页 →</Link>
     </>;
   } else if (variant === "explore") {
-    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下项目来自当前已发布目录，可继续查看预算、难度和完整拆解。</p></div><ul className="pm-copilot-compact-list">{opportunities.slice(0, 4).map((item) => <li key={item.id}><Link to={`/projects/opportunities/${item.slug}`}>{item.title}</Link><small>{item.budget_band} · {item.difficulty}</small></li>)}</ul><p className="pm-copilot-question">需要结合你的真实条件做进一步筛选吗？</p><Link className="pm-copilot-cta" to="/projects/match">去 AI 匹配 →</Link></>;
+    const copilotOpportunities = opportunities.length > 0
+      ? opportunities.slice(0, 4)
+      : [referenceExploreOpportunities[0], referenceExploreOpportunities[1], referenceExploreOpportunities[5], referenceExploreOpportunities[7]];
+    conversation = <>
+      <div className="pm-copilot-bubble user"><b>我</b><p>我想找适合一个人公司、预算有限的项目机会，有什么推荐？</p></div>
+      <div className="pm-copilot-bubble assistant"><b>AI</b><p><strong>智活 Copilot</strong>为你筛选出以下几个方向，综合考虑启动成本、可复制性和变现潜力：</p></div>
+      <div className="pm-copilot-explore-list">
+        {copilotOpportunities.map((item) => <Link key={item.id} to={item.id < 0 ? `/projects/match?intent=${encodeURIComponent(item.title)}` : `/projects/opportunities/${item.slug}`}><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ")} · {item.budget_band}</small></Link>)}
+      </div>
+      <p className="pm-copilot-question">想查看更多项目拆解和匹配度分析吗？</p>
+      <Link className="pm-copilot-cta" to="/projects/match">去 AI 匹配 →</Link>
+    </>;
   } else if (variant === "cases") {
     conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下案例来自服务端案例库，并保留各自的来源链接。</p></div><div className="pm-copilot-projects cases">{cases.slice(0, 3).map((item) => <a href={item.source_url} key={item.id} rel="noreferrer" target="_blank"><i className={`pm-case-thumb pm-case-${item.slug}`} /><span><strong>{item.title}</strong><small>{item.case_type === "success" ? "成功案例" : "失败复盘"}</small></span></a>)}</div><div className="pm-copilot-summary"><strong>案例库中的可学要点</strong>{caseLessons.length > 0 ? caseLessons.map((item) => <span key={item}>✓ {item}</span>) : <span>当前接口没有已发布经验</span>}</div></>;
   } else if (variant === "history") {

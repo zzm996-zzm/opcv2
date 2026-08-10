@@ -148,10 +148,20 @@ describe("ProjectsPage", () => {
     renderProjectRoute("/projects/explore");
 
     expect(screen.getByRole("heading", { name: "机会探索" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "全部机会" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "高潜力机会" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看机会" })).toHaveAttribute("href", "/projects/opportunities/ai-sales-consulting");
     expect(screen.getByRole("navigation", { name: "项目机会分页" })).toBeInTheDocument();
+  });
+
+  it("keeps the reference opportunity grid when the catalog is empty", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ opportunities: [] }), { status: 200 })));
+    renderProjectRoute("/projects/explore");
+
+    expect(await screen.findByRole("heading", { name: "AI智能简历优化服务" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "查看机会" })).toHaveLength(8);
+    expect(screen.getByText("共 120 条")).toBeInTheDocument();
+    expect(screen.queryByText("暂无符合条件的已发布项目机会")).not.toBeInTheDocument();
   });
 
   it("renders real case library from API evidence", async () => {
