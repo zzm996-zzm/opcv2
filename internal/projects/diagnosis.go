@@ -2,9 +2,13 @@ package projects
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/zzm/opcv2/internal/ai"
 )
 
 func (s *Service) DiagnoseProject(ctx context.Context, input ProjectDiagnosisInput, ref string) (ProjectDiagnosis, error) {
@@ -37,6 +41,34 @@ func (s *Service) DiagnoseProject(ctx context.Context, input ProjectDiagnosisInp
 	for key, value := range input.ProfilePatch {
 		if strings.TrimSpace(fmt.Sprint(value)) != "" {
 			profile[strings.TrimSpace(key)] = value
+		}
+	}
+	if s.generator != nil {
+		requestPayload := map[string]any{"project": project, "profile": profile}
+		payload, marshalErr := json.Marshal(requestPayload)
+		if marshalErr == nil {
+			aiResult, generateErr := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
+				UserID: input.UserID, Feature: "projects.diagnose", PromptVersion: "project_diagnose_v1",
+				SystemPrompt: "你是项目可行性诊断助手。只根据项目和用户画像输出 JSON，不输出思维链。fit_score 必须是 0 到 100，verdict 只能是 recommended、conditional、not_recommended。",
+				UserPrompt:   string(payload), SchemaName: "project_diagnosis", RepairAttempts: 1,
+				Validate: func(content []byte) error {
+					var result ProjectDiagnosis
+					if err := json.Unmarshal(content, &result); err != nil {
+						return err
+					}
+					if result.FitScore < 0 || result.FitScore > 100 || result.Verdict == "" {
+						return errors.New("invalid project diagnosis")
+					}
+					return nil
+				},
+			})
+			if generateErr == nil {
+				var result ProjectDiagnosis
+				if json.Unmarshal(aiResult.Content, &result) == nil && result.FitScore >= 0 && result.FitScore <= 100 && result.Verdict != "" {
+					result.ProjectID, result.Profile, result.IsModelGenerated, result.Disclaimer = project.ID, profile, true, "AI 生成，仅供参考"
+					return result, nil
+				}
+			}
 		}
 	}
 

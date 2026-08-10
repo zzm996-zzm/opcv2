@@ -96,6 +96,14 @@ func (p *DevelopmentProvider) responseFor(request ProviderRequest) []byte {
 				{"id":"risk","field":"risk_preference","type":"single","question":"你的风险偏好是什么？","options":["低","中","高"],"required":true,"reason":"风险偏好影响匹配排序"}
 			]
 		}`)
+	case "projects.diagnose":
+		return []byte(`{
+			"fit_score":78,
+			"verdict":"recommended",
+			"reasons":["项目启动成本可控","方向与用户目标一致"],
+			"prerequisites":["明确首批目标客户","完成最小可行方案"],
+			"next_steps":["访谈3位目标用户","完成一次付费意向验证"]
+		}`)
 	case "sandbox.intake":
 		return []byte(`{
 			"goal":"验证面向本地教培机构的 AI 客服与企微转化助手是否值得投入开发和推广",
