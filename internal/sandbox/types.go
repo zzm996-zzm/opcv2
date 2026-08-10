@@ -21,6 +21,25 @@ const (
 
 	OutputStyleStructured = "structured_report"
 	OutputStyleConcise    = "concise_report"
+
+	V2StatusDraft      = "draft"
+	V2StatusClarifying = "clarifying"
+	V2StatusReady      = "ready"
+	V2StatusRunning    = "running"
+	V2StatusPartial    = "partial"
+	V2StatusDone       = "done"
+	V2StatusFailed     = "failed"
+	V2StatusNoResult   = "ai_no_result"
+
+	V2EventRunQueued   = "run_queued"
+	V2EventRoleQueued  = "role_queued"
+	V2EventRoleStart   = "role_start"
+	V2EventToken       = "token"
+	V2EventRoleDone    = "role_done"
+	V2EventRoleFailed  = "role_failed"
+	V2EventReportStart = "report_start"
+	V2EventRunDone     = "run_done"
+	V2EventError       = "error"
 )
 
 var (
@@ -31,7 +50,16 @@ var (
 	ErrStaleRun         = errors.New("stale sandbox run")
 	ErrInvalidIntake    = errors.New("invalid sandbox intake")
 	ErrIntakeIncomplete = errors.New("sandbox intake is incomplete")
+	ErrV2RunNotFound    = errors.New("sandbox run not found")
+	ErrV2InvalidRequest = errors.New("invalid sandbox v2 request")
+	ErrV2InvalidRoles   = errors.New("invalid sandbox roles")
+	ErrV2ActiveRun      = errors.New("sandbox user already has an active run")
+	ErrV2StartConflict  = errors.New("sandbox run start conflict")
+	ErrV2Revision       = errors.New("sandbox run revision conflict")
+	ErrV2ExportExpired  = errors.New("sandbox export expired")
 )
+
+var V2RoleCodes = []string{"customer", "investor", "competitor", "channel", "supply", "expert", "skeptic", "partner"}
 
 type Role struct {
 	Key         string `json:"key"`
@@ -228,6 +256,236 @@ type Report struct {
 	GrowthPath          []GrowthPathItem   `json:"growth_path,omitempty"`
 	ValidationMetrics   []ValidationMetric `json:"validation_metrics,omitempty"`
 	Timeline            []TimelineItem     `json:"timeline,omitempty"`
+}
+
+type V2Product struct {
+	Name         string `json:"name,omitempty"`
+	PriceCents   int64  `json:"price_cents,omitempty"`
+	SellingPoint string `json:"selling_point,omitempty"`
+	Cost         string `json:"cost,omitempty"`
+	Stage        string `json:"stage,omitempty"`
+}
+
+type V2RunContext struct {
+	TargetCustomer string `json:"target_customer,omitempty"`
+	Channel        string `json:"channel,omitempty"`
+	Market         string `json:"market,omitempty"`
+	Extra          string `json:"extra,omitempty"`
+}
+
+type V2Question struct {
+	Key      string   `json:"key"`
+	Field    string   `json:"field"`
+	Type     string   `json:"type"`
+	Question string   `json:"question"`
+	Options  []string `json:"options,omitempty"`
+	Required bool     `json:"required"`
+	Answer   string   `json:"answer,omitempty"`
+	Skipped  bool     `json:"skipped,omitempty"`
+}
+
+type V2RoleConfig struct {
+	Code              string   `json:"role_code"`
+	DisplayName       string   `json:"display_name"`
+	Description       string   `json:"description"`
+	Dimensions        []string `json:"analysis_dimensions"`
+	DefaultSelected   bool     `json:"default_selected"`
+	Required          bool     `json:"is_required"`
+	DefaultModelRoute string   `json:"default_model_route"`
+	PromptVersion     string   `json:"prompt_version"`
+}
+
+type V2RoleOutput struct {
+	RoleCode          string             `json:"role_code"`
+	Stance            string             `json:"stance"`
+	Verdict           string             `json:"verdict"`
+	Content           string             `json:"content"`
+	DimensionScores   []V2DimensionScore `json:"dimension_scores"`
+	KeyFindings       []string           `json:"key_findings"`
+	Risks             []V2RoleRisk       `json:"risks"`
+	Recommendations   []V2Recommendation `json:"recommendations"`
+	QuestionsToVerify []string           `json:"questions_to_validate"`
+	Assumptions       []string           `json:"assumptions"`
+	KillCriteria      []string           `json:"kill_criteria,omitempty"`
+	IsModelGenerated  bool               `json:"is_model_generated"`
+}
+
+type V2DimensionScore struct {
+	Code        string   `json:"code"`
+	Score       int      `json:"score"`
+	Basis       string   `json:"basis"`
+	Confidence  float64  `json:"confidence"`
+	EvidenceRef []string `json:"evidence_refs"`
+}
+
+type V2RoleRisk struct {
+	Point    string `json:"point"`
+	Severity string `json:"severity"`
+	Basis    string `json:"basis"`
+}
+
+type V2Recommendation struct {
+	Action string `json:"action"`
+	Why    string `json:"why"`
+}
+
+type V2RunRole struct {
+	RunID         int64         `json:"run_id"`
+	RoleCode      string        `json:"role_code"`
+	Seq           int           `json:"seq"`
+	RoleSessionID string        `json:"role_session_id"`
+	ModelProvider string        `json:"model_provider,omitempty"`
+	ModelName     string        `json:"model_name,omitempty"`
+	ModelRoute    string        `json:"model_route"`
+	PromptVersion string        `json:"prompt_version"`
+	Dimensions    []string      `json:"analysis_dimensions"`
+	InputHash     string        `json:"input_context_hash"`
+	Status        string        `json:"status"`
+	Stance        string        `json:"stance,omitempty"`
+	Output        *V2RoleOutput `json:"output,omitempty"`
+	RetryCount    int           `json:"retry_count"`
+	ErrorCode     string        `json:"error_code,omitempty"`
+	StartedAt     *time.Time    `json:"started_at,omitempty"`
+	FinishedAt    *time.Time    `json:"finished_at,omitempty"`
+}
+
+type V2SandboxRun struct {
+	ID                   int64            `json:"id"`
+	UserID               int64            `json:"-"`
+	Name                 string           `json:"name,omitempty"`
+	Product              V2Product        `json:"product"`
+	Context              V2RunContext     `json:"context"`
+	Questions            []V2Question     `json:"questions,omitempty"`
+	Assumptions          []string         `json:"assumptions,omitempty"`
+	Roles                []string         `json:"roles"`
+	OrchestrationMode    string           `json:"orchestration_mode"`
+	ModelRoutingSnapshot map[string]any   `json:"model_routing_snapshot,omitempty"`
+	EvidencePack         []map[string]any `json:"evidence_pack,omitempty"`
+	InputContextHash     string           `json:"input_context_hash,omitempty"`
+	Completeness         float64          `json:"completeness"`
+	Rounds               int              `json:"rounds"`
+	Status               string           `json:"status"`
+	StartedAt            *time.Time       `json:"started_at,omitempty"`
+	FinishedAt           *time.Time       `json:"finished_at,omitempty"`
+	Revision             int              `json:"revision"`
+	RunRoles             []V2RunRole      `json:"run_roles,omitempty"`
+	Report               *V2SandboxReport `json:"report,omitempty"`
+	CreatedAt            time.Time        `json:"created_at"`
+	UpdatedAt            time.Time        `json:"updated_at"`
+}
+
+type V2SandboxReport struct {
+	Summary             string                `json:"summary"`
+	Feasibility         V2Feasibility         `json:"feasibility"`
+	PurchaseProbability V2PurchaseProbability `json:"purchase_probability"`
+	Opportunity         []V2Insight           `json:"opportunity"`
+	Risk                []V2ReportRisk        `json:"risk"`
+	Advice              []V2Advice            `json:"advice"`
+	RoleTakeaways       []V2RoleTakeaway      `json:"role_takeaways"`
+	DimensionSummary    []V2DimensionSummary  `json:"dimension_summary"`
+	Disagreements       []V2Disagreement      `json:"disagreements"`
+	MissingRoles        []string              `json:"missing_roles"`
+	Scenarios           map[string]V2Scenario `json:"scenarios"`
+	Assumptions         []string              `json:"assumptions"`
+	IsModelGenerated    bool                  `json:"is_model_generated"`
+}
+
+type V2Feasibility struct {
+	Score int    `json:"score"`
+	Level string `json:"level"`
+	Basis string `json:"basis"`
+}
+type V2PurchaseProbability struct {
+	ValuePct         int    `json:"value_pct"`
+	Basis            string `json:"basis"`
+	IsModelGenerated bool   `json:"is_model_generated"`
+}
+type V2Insight struct {
+	Point  string `json:"point"`
+	Reason string `json:"reason"`
+}
+type V2ReportRisk struct {
+	Point      string `json:"point"`
+	Severity   string `json:"severity"`
+	Reason     string `json:"reason"`
+	Mitigation string `json:"mitigation"`
+}
+type V2Advice struct {
+	Action   string `json:"action"`
+	Why      string `json:"why"`
+	Priority int    `json:"priority"`
+	Effort   string `json:"effort"`
+}
+type V2RoleTakeaway struct {
+	Role            string             `json:"role"`
+	Stance          string             `json:"stance"`
+	KeyPoints       []string           `json:"key_points"`
+	DimensionScores []V2DimensionScore `json:"dimension_scores"`
+}
+type V2DimensionSummary struct {
+	Dimension       string   `json:"dimension"`
+	Score           int      `json:"score"`
+	Consensus       string   `json:"consensus"`
+	SupportingRoles []string `json:"supporting_roles"`
+	OpposingRoles   []string `json:"opposing_roles"`
+}
+type V2Disagreement struct {
+	Topic          string       `json:"topic"`
+	Views          []V2RoleView `json:"views"`
+	DecisionNeeded string       `json:"decision_needed"`
+}
+type V2RoleView struct {
+	Role  string `json:"role"`
+	Point string `json:"point"`
+}
+type V2Scenario struct {
+	Desc      string `json:"desc"`
+	Condition string `json:"condition"`
+}
+
+type V2ProgressEvent struct {
+	ID        int64          `json:"id"`
+	RunID     int64          `json:"run_id"`
+	RoleCode  string         `json:"role,omitempty"`
+	Event     string         `json:"event"`
+	Payload   map[string]any `json:"payload,omitempty"`
+	CreatedAt time.Time      `json:"created_at"`
+}
+
+type CreateV2RunInput struct {
+	UserID  int64        `json:"-"`
+	Name    string       `json:"name,omitempty"`
+	Product V2Product    `json:"product"`
+	Context V2RunContext `json:"context"`
+}
+
+type AnswerV2RunInput struct {
+	UserID   int64              `json:"-"`
+	RunID    int64              `json:"-"`
+	Answers  []V2QuestionAnswer `json:"answers,omitempty"`
+	Skip     bool               `json:"skip,omitempty"`
+	Revision int                `json:"revision,omitempty"`
+}
+
+type V2QuestionAnswer struct {
+	Key     string `json:"key"`
+	Value   string `json:"value"`
+	Skipped bool   `json:"skipped,omitempty"`
+}
+type SetV2RolesInput struct {
+	UserID   int64    `json:"-"`
+	RunID    int64    `json:"-"`
+	Roles    []string `json:"roles"`
+	Revision int      `json:"revision,omitempty"`
+}
+
+type V2Export struct {
+	ID          int64     `json:"id"`
+	RunID       int64     `json:"run_id"`
+	Format      string    `json:"format"`
+	DownloadURL string    `json:"download_url"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type ReportInsight struct {

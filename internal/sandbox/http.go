@@ -35,6 +35,16 @@ type FlowApplication interface {
 	UpdateSessionSettings(ctx context.Context, userID, id int64, settings RunSettings) (Session, error)
 }
 
+type V2Application interface {
+	ListV2Roles(ctx context.Context) ([]V2RoleConfig, error)
+	CreateV2Run(ctx context.Context, input CreateV2RunInput) (V2SandboxRun, error)
+	AnswerV2Run(ctx context.Context, input AnswerV2RunInput) (V2SandboxRun, error)
+	SetV2Roles(ctx context.Context, input SetV2RolesInput) (V2SandboxRun, error)
+	GetV2Run(ctx context.Context, userID, runID int64) (V2SandboxRun, error)
+	ListV2Runs(ctx context.Context, userID int64, limit int) ([]V2SandboxRun, error)
+	DeleteV2Run(ctx context.Context, userID, runID int64) error
+}
+
 type HTTPHandler struct {
 	app Application
 }
@@ -63,6 +73,13 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/sandbox/sessions/:id/messages", h.askRole)
 	router.GET("/sandbox/sessions", h.listSessions)
 	router.GET("/sandbox/sessions/:id", h.getSession)
+	router.GET("/sandbox-runs/roles", h.listV2Roles)
+	router.POST("/sandbox-runs", h.createV2Run)
+	router.POST("/sandbox-runs/:id/answer", h.answerV2Run)
+	router.POST("/sandbox-runs/:id/roles", h.setV2Roles)
+	router.GET("/sandbox-runs", h.listV2Runs)
+	router.GET("/sandbox-runs/:id", h.getV2Run)
+	router.DELETE("/sandbox-runs/:id", h.deleteV2Run)
 }
 
 func (h *HTTPHandler) listExamples(c *gin.Context) {
@@ -180,7 +197,141 @@ func (h *HTTPHandler) askRole(c *gin.Context) {
 }
 
 func (h *HTTPHandler) listRoles(c *gin.Context) {
+	if c.Query("version") == "2" {
+		h.listV2Roles(c)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"roles": httpapi.EnsureSlice(h.app.ListRoles())})
+}
+
+func (h *HTTPHandler) listV2Roles(c *gin.Context) {
+	app, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	roles, err := app.ListV2Roles(c.Request.Context())
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"roles": httpapi.EnsureSlice(roles)})
+}
+
+func (h *HTTPHandler) createV2Run(c *gin.Context) {
+	var request CreateV2RunInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	app, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	run, err := app.CreateV2Run(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, run)
+}
+
+func (h *HTTPHandler) answerV2Run(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request AnswerV2RunInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.RunID = id
+	app, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	run, err := app.AnswerV2Run(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, run)
+}
+
+func (h *HTTPHandler) setV2Roles(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request SetV2RolesInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.RunID = id
+	app, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	run, err := app.SetV2Roles(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, run)
+}
+
+func (h *HTTPHandler) getV2Run(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	run, err := app.GetV2Run(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, run)
+}
+
+func (h *HTTPHandler) listV2Runs(c *gin.Context) {
+	limit, ok := httpapi.QueryLimit(c, 20, 100)
+	if !ok {
+		return
+	}
+	app, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	runs, err := app.ListV2Runs(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"runs": httpapi.EnsureSlice(runs)})
+}
+
+func (h *HTTPHandler) deleteV2Run(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.v2Application(c)
+	if !ok {
+		return
+	}
+	if err := app.DeleteV2Run(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *HTTPHandler) createSession(c *gin.Context) {
@@ -331,8 +482,31 @@ func (h *HTTPHandler) flowApplication(c *gin.Context) (FlowApplication, bool) {
 	return app, true
 }
 
+func (h *HTTPHandler) v2Application(c *gin.Context) (V2Application, bool) {
+	app, ok := h.app.(V2Application)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return nil, false
+	}
+	return app, true
+}
+
 func writeError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, ErrV2RunNotFound):
+		httpapi.Error(c, http.StatusNotFound, "sandbox_run_not_found")
+	case errors.Is(err, ErrV2InvalidRequest):
+		httpapi.BadRequest(c, "invalid_request")
+	case errors.Is(err, ErrV2InvalidRoles):
+		httpapi.BadRequest(c, "invalid_roles")
+	case errors.Is(err, ErrV2ActiveRun):
+		httpapi.Error(c, http.StatusConflict, "active_run_exists")
+	case errors.Is(err, ErrV2StartConflict):
+		httpapi.Error(c, http.StatusConflict, "run_start_conflict")
+	case errors.Is(err, ErrV2Revision):
+		httpapi.Error(c, http.StatusConflict, "revision_conflict")
+	case errors.Is(err, ErrV2ExportExpired):
+		httpapi.Error(c, http.StatusGone, "export_expired")
 	case errors.Is(err, ErrSessionNotFound):
 		httpapi.Error(c, http.StatusNotFound, "session_not_found")
 	case errors.Is(err, ErrServiceNotReady):
