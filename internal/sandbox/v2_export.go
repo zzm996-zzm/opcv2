@@ -30,7 +30,15 @@ func (s *Service) CreateV2Export(ctx context.Context, input CreateV2ExportInput)
 	if run.Report == nil || !isV2TerminalStatus(run.Status) {
 		return V2Export{}, ErrV2InvalidRequest
 	}
-	payload, err := json.Marshal(map[string]any{"run": run, "report": run.Report, "format": format})
+	var payload []byte
+	if format == "pdf" {
+		if s.renderPDF == nil {
+			return V2Export{}, ErrServiceNotReady
+		}
+		payload, err = s.renderPDF(run)
+	} else {
+		payload, err = json.Marshal(map[string]any{"run": run, "report": run.Report, "format": format})
+	}
 	if err != nil {
 		return V2Export{}, err
 	}

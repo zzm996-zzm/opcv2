@@ -561,7 +561,11 @@ func (h *HTTPHandler) downloadV2Export(c *gin.Context) {
 	}
 	filename := fmt.Sprintf("sandbox-export-%d.%s", export.ID, export.Format)
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
+	contentType := "application/json; charset=utf-8"
+	if export.Format == "pdf" {
+		contentType = "application/pdf"
+	}
+	c.Data(http.StatusOK, contentType, payload)
 }
 
 func (h *HTTPHandler) streamV2Events(c *gin.Context) {

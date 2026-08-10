@@ -21,7 +21,7 @@ ARG ALPINE_REPOSITORY=
 RUN if [ -n "$ALPINE_REPOSITORY" ]; then \
       sed -i "s|https://dl-cdn.alpinelinux.org/alpine|$ALPINE_REPOSITORY|g" /etc/apk/repositories; \
     fi && \
-    apk add --no-cache ca-certificates tzdata
+    apk add --no-cache ca-certificates tzdata font-wqy-zenhei
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 USER app

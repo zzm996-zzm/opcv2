@@ -72,6 +72,8 @@ type ProfileContextProvider interface {
 	GetProfileContext(ctx context.Context, userID int64) (account.ProfileContext, error)
 }
 
+type V2PDFRenderer func(run V2SandboxRun) ([]byte, error)
+
 type Option func(*Service)
 
 type Service struct {
@@ -80,15 +82,22 @@ type Service struct {
 	quota      QuotaConsumer
 	queue      Queue
 	profile    ProfileContextProvider
+	renderPDF  V2PDFRenderer
 	now        func() time.Time
 }
 
 func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
-	service := &Service{repository: repository, generator: generator, now: time.Now}
+	service := &Service{repository: repository, generator: generator, renderPDF: RenderV2SandboxPDF, now: time.Now}
 	for _, option := range options {
 		option(service)
 	}
 	return service
+}
+
+func WithV2PDFRenderer(renderer V2PDFRenderer) Option {
+	return func(service *Service) {
+		service.renderPDF = renderer
+	}
 }
 
 func WithQuotaConsumer(quota QuotaConsumer) Option {
