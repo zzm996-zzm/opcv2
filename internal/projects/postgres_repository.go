@@ -111,7 +111,12 @@ func (r *PostgresRepository) GetProject(ctx context.Context, ref string) (Projec
 		       COALESCE(category_code, ''), COALESCE(track_code, industry, ''), difficulty,
 		       invest_cents, budget_band, COALESCE(revenue_range, ''), is_real,
 		       COALESCE(primary_source_url, ''), summary, tags, heat, is_featured,
-		       resource_requirements, detail, published_at, updated_at
+		       resource_requirements,
+		       CASE
+		           WHEN detail = '{}'::jsonb THEN jsonb_build_object('sections', sections)
+		           ELSE detail
+		       END AS detail,
+		       published_at, updated_at
 		FROM project_opportunities
 		WHERE status = 'published' AND (slug = $1 OR id::TEXT = $1)
 	`, ref))
@@ -127,12 +132,12 @@ func (r *PostgresRepository) ListEvidenceCases(ctx context.Context, filters Evid
 		       COALESCE(o.industry, ''), COALESCE(c.scale, ''),
 		       CASE WHEN c.case_type = 'failure' THEN 'fail' ELSE c.case_type END,
 		       COALESCE(MAX(ws.url) FILTER (WHERE cs.is_primary), ''), COUNT(DISTINCT ws.id),
-		       c.last_verified_at, c.published_at, c.project_id, c.evidence_status, c.has_conflict,
+		       c.last_verified_at, c.published_at, c.opportunity_id, c.evidence_status, c.has_conflict,
 		       COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('primary', 'authority')),
 		       COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('research', 'media', 'vertical')),
 		       COUNT(*) OVER()
 		FROM project_cases c
-		LEFT JOIN project_opportunities o ON o.id = c.project_id
+		LEFT JOIN project_opportunities o ON o.id = c.opportunity_id
 		LEFT JOIN project_case_sources cs ON cs.case_id = c.id
 		LEFT JOIN web_sources ws ON ws.id = cs.web_source_id
 		WHERE c.status = 'published' AND c.evidence_status = 'verified'
@@ -140,7 +145,7 @@ func (r *PostgresRepository) ListEvidenceCases(ctx context.Context, filters Evid
 		  AND ($2 = '' OR o.industry = $2)
 		  AND ($3 = '' OR c.scale = $3)
 		GROUP BY c.id, c.title, c.cover_url, c.result_summary, c.outcome, o.industry, c.scale,
-		         c.case_type, c.last_verified_at, c.published_at, c.project_id, c.evidence_status,
+		         c.case_type, c.last_verified_at, c.published_at, c.opportunity_id, c.evidence_status,
 		         c.has_conflict
 		HAVING c.has_conflict = FALSE
 		   AND (COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('primary', 'authority')) > 0
@@ -172,18 +177,18 @@ func (r *PostgresRepository) GetEvidenceCase(ctx context.Context, ref string) (E
 		       COALESCE(o.industry, ''), COALESCE(c.scale, ''),
 		       CASE WHEN c.case_type = 'failure' THEN 'fail' ELSE c.case_type END,
 		       COALESCE(MAX(ws.url) FILTER (WHERE cs.is_primary), ''), COUNT(DISTINCT ws.id),
-		       c.last_verified_at, c.published_at, c.project_id, c.evidence_status, c.has_conflict,
+		       c.last_verified_at, c.published_at, c.opportunity_id, c.evidence_status, c.has_conflict,
 		       COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('primary', 'authority')),
 		       COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('research', 'media', 'vertical')),
 		       1
 		FROM project_cases c
-		LEFT JOIN project_opportunities o ON o.id = c.project_id
+		LEFT JOIN project_opportunities o ON o.id = c.opportunity_id
 		LEFT JOIN project_case_sources cs ON cs.case_id = c.id
 		LEFT JOIN web_sources ws ON ws.id = cs.web_source_id
 		WHERE c.status = 'published' AND c.evidence_status = 'verified'
 		  AND (c.slug = $1 OR c.id::TEXT = $1)
 		GROUP BY c.id, c.title, c.cover_url, c.result_summary, c.outcome, o.industry, c.scale,
-		         c.case_type, c.last_verified_at, c.published_at, c.project_id, c.evidence_status,
+		         c.case_type, c.last_verified_at, c.published_at, c.opportunity_id, c.evidence_status,
 		         c.has_conflict
 		HAVING c.has_conflict = FALSE
 		   AND (COUNT(DISTINCT ws.id) FILTER (WHERE ws.source_kind IN ('primary', 'authority')) > 0

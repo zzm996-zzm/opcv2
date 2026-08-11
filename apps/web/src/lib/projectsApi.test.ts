@@ -45,22 +45,42 @@ describe("projectsApi", () => {
     );
   });
 
-  it("lists and gets published opportunities", async () => {
+  it("loads the V1.4 project home, catalog, and detail contracts", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(JSON.stringify({ opportunities: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ featured: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], page: 2, page_size: 8, total: 0 }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ slug: "ai-sales" }), { status: 200 }));
 
-    await projectsApi.listOpportunities({ query: "AI销售" });
-    await projectsApi.getOpportunity("ai-sales");
+    await projectsApi.getHome();
+    await projectsApi.listProjects({
+      keyword: "AI销售",
+      category: "service",
+      track: "ai",
+      budget: "1-3万",
+      difficulty: "中等",
+      resource: "销售经验",
+      sort: "latest",
+      isFeatured: true,
+      page: 2,
+      pageSize: 8
+    });
+    await projectsApi.getProject("ai-sales");
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/projects/opportunities?q=AI%E9%94%80%E5%94%AE", expect.objectContaining({ method: "GET" }));
-    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/projects/opportunities/ai-sales", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/projects/home", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/projects?keyword=AI%E9%94%80%E5%94%AE&category=service&track=ai&budget=1-3%E4%B8%87&difficulty=%E4%B8%AD%E7%AD%89&resource=%E9%94%80%E5%94%AE%E7%BB%8F%E9%AA%8C&sort=latest&is_featured=true&page=2&page_size=8", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/projects/ai-sales", expect.objectContaining({ method: "GET" }));
   });
 
-  it("lists published project cases", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ cases: [] }), { status: 200 }));
-    await projectsApi.listCases({ caseType: "success" });
-    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/cases?type=success", expect.objectContaining({ method: "GET" }));
+  it("lists and gets V1.4 evidence cases", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], page: 2, page_size: 10, total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 81, title: "AI销售试点" }), { status: 200 }));
+
+    await projectsApi.listEvidenceCases({ caseType: "failure", industry: "AI", scale: "solo", page: 2, pageSize: 10 });
+    await projectsApi.getEvidenceCase("81");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/project-cases?type=failure&industry=AI&scale=solo&page=2&page_size=10", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/project-cases/81", expect.objectContaining({ method: "GET" }));
   });
 
   it("gets project match detail", async () => {

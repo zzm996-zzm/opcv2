@@ -49,12 +49,22 @@ export type ProjectOpportunity = {
   slug: string;
   title: string;
   summary: string;
-  industry: string;
+  industry?: string;
+  category?: string;
+  track?: string;
+  cover_url?: string;
   tags: string[];
   budget_band: string;
   difficulty: string;
   resource_requirements: string[];
   sections?: ProjectOpportunitySection[];
+  detail?: { sections?: ProjectOpportunitySection[] } & Record<string, unknown>;
+  heat?: number;
+  is_featured?: boolean;
+  is_favorited?: boolean;
+  is_unlocked?: boolean;
+  locked_blocks?: string[];
+  source_url?: string;
   published_at?: string;
   updated_at?: string;
 };
@@ -102,7 +112,116 @@ export type ProjectCase = {
 };
 export type ProjectComparison = { id:number; user_id:number; items:ProjectOpportunity[]; created_at:string };
 
+export type ProjectHome = {
+  hero: { title: string; subtitle: string; desc: string; image_url?: string };
+  quick_tags: { code: string; name: string; filters: Record<string, unknown> }[];
+  entries: { code: string; title: string; desc: string; image_url?: string; route: string; is_recommended: boolean }[];
+  featured: ProjectOpportunity[];
+};
+
+export type ProjectPage = {
+  items: ProjectOpportunity[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
+export type EvidenceCaseItem = {
+  id: number;
+  title: string;
+  cover_url?: string;
+  result_summary: string;
+  industry?: string;
+  scale?: string;
+  type: "success" | "fail";
+  primary_source_url: string;
+  source_count: number;
+  verified_at?: string;
+  published_at?: string;
+  project_id?: number;
+};
+
+export type EvidenceSource = {
+  id: number;
+  title?: string;
+  publisher?: string;
+  url: string;
+  published_at?: string;
+  fetched_at: string;
+  quality?: number;
+  kind: string;
+  is_primary: boolean;
+  claim_fields: string[];
+};
+
+export type EvidenceCaseDetail = EvidenceCaseItem & {
+  content_md: string;
+  facts: { field: string; value: string; source_refs: number[] }[];
+  analyses: { point: string; detail?: string; is_model_generated: boolean; source_refs: number[] }[];
+  sources: EvidenceSource[];
+};
+
+export type EvidenceCasePage = {
+  items: EvidenceCaseItem[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
 export const projectsApi = {
+  getHome() {
+    return apiRequest<ProjectHome>("/api/v1/projects/home", { method: "GET" });
+  },
+
+  listProjects(filters: {
+    keyword?: string;
+    category?: string;
+    track?: string;
+    budget?: string;
+    difficulty?: string;
+    resource?: string;
+    sort?: "latest" | "heat";
+    isFeatured?: boolean;
+    page?: number;
+    pageSize?: number;
+  } = {}) {
+    const query = new URLSearchParams();
+    if (filters.keyword) query.set("keyword", filters.keyword);
+    if (filters.category) query.set("category", filters.category);
+    if (filters.track) query.set("track", filters.track);
+    if (filters.budget) query.set("budget", filters.budget);
+    if (filters.difficulty) query.set("difficulty", filters.difficulty);
+    if (filters.resource) query.set("resource", filters.resource);
+    if (filters.sort) query.set("sort", filters.sort);
+    if (filters.isFeatured !== undefined) query.set("is_featured", String(filters.isFeatured));
+    if (filters.page) query.set("page", String(filters.page));
+    if (filters.pageSize) query.set("page_size", String(filters.pageSize));
+    const suffix = query.toString();
+    return apiRequest<ProjectPage>(`/api/v1/projects${suffix ? `?${suffix}` : ""}`, { method: "GET" });
+  },
+
+  async getProject(ref: string) {
+    const project = await apiRequest<ProjectOpportunity>(`/api/v1/projects/${encodeURIComponent(ref)}`, { method: "GET" });
+    if (!project.sections && project.detail?.sections) project.sections = project.detail.sections;
+    if (!project.industry) project.industry = project.track ?? project.category ?? "";
+    return project;
+  },
+
+  listEvidenceCases(filters: { caseType?: string; industry?: string; scale?: string; page?: number; pageSize?: number } = {}) {
+    const query = new URLSearchParams();
+    if (filters.caseType) query.set("type", filters.caseType);
+    if (filters.industry) query.set("industry", filters.industry);
+    if (filters.scale) query.set("scale", filters.scale);
+    if (filters.page) query.set("page", String(filters.page));
+    if (filters.pageSize) query.set("page_size", String(filters.pageSize));
+    const suffix = query.toString();
+    return apiRequest<EvidenceCasePage>(`/api/v1/project-cases${suffix ? `?${suffix}` : ""}`, { method: "GET" });
+  },
+
+  getEvidenceCase(ref: string) {
+    return apiRequest<EvidenceCaseDetail>(`/api/v1/project-cases/${encodeURIComponent(ref)}`, { method: "GET" });
+  },
+
   listOpportunities(filters: { query?: string; industry?: string } = {}) {
     const query = new URLSearchParams();
     if (filters.query) query.set("q", filters.query);

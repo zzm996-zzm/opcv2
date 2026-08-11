@@ -3,6 +3,7 @@ package projects
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -126,6 +127,36 @@ func TestPostgresRepositoryListsProjectCatalogPage(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryGetsProjectWithLegacySectionsInDetail(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 11, 9, 0, 0, 0, time.UTC)
+	db.ExpectQuery("CASE[[:space:]]+WHEN detail = '\\{\\}'::jsonb THEN jsonb_build_object\\('sections', sections\\)").
+		WithArgs("ai-sales").
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "slug", "title", "cover_url", "category", "track", "difficulty", "invest_cents", "budget_band", "revenue_range", "is_real", "source_url", "summary", "tags", "heat", "is_featured", "resource_requirements", "detail", "published_at", "updated_at",
+		}).AddRow(
+			int64(42), "ai-sales", "AI销售顾问", "", "service", "ai", "中等", nil, "1-3万", "", false,
+			"", "项目摘要", []byte(`["B端"]`), 30, true, []byte(`["销售经验"]`), []byte(`{"sections":[{"key":"path","title":"成功路径","body":"先验证","items":[]}]}`), &now, now,
+		))
+
+	repository := NewPostgresRepository(db)
+	project, err := repository.GetProject(context.Background(), "ai-sales")
+	if err != nil {
+		t.Fatalf("GetProject() error = %v", err)
+	}
+	if !strings.Contains(string(project.Detail), `"sections"`) {
+		t.Fatalf("detail = %s", project.Detail)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryListsCasesByOpportunitySlug(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {
@@ -187,7 +218,7 @@ func TestPostgresRepositoryListsOnlyEvidenceQualifiedCases(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 8, 9, 9, 0, 0, 0, time.UTC)
-	db.ExpectQuery("SELECT c.id, c.title, COALESCE\\(c.cover_url").
+	db.ExpectQuery("(?s)SELECT c.id, c.title, COALESCE\\(c.cover_url.*c\\.opportunity_id").
 		WithArgs("failure", "AI", "solo", 20, 0).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "title", "cover_url", "result_summary", "industry", "scale", "type", "primary_source_url", "source_count",
@@ -218,7 +249,7 @@ func TestPostgresRepositoryLoadsCaseClaimsAndSourceRefs(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 8, 9, 9, 0, 0, 0, time.UTC)
-	db.ExpectQuery("SELECT c.id, c.title, COALESCE\\(c.cover_url").
+	db.ExpectQuery("(?s)SELECT c.id, c.title, COALESCE\\(c.cover_url.*c\\.opportunity_id").
 		WithArgs("81").
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "title", "cover_url", "result_summary", "industry", "scale", "type", "primary_source_url", "source_count",

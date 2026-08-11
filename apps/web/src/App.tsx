@@ -503,6 +503,14 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
+            <ProjectsPage variant="caseDetail" />
+          </RequireAuth>
+        }
+        path="/project-cases/:caseRef"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <Navigate replace to="/projects/match" />
           </RequireAuth>
         }
@@ -563,6 +571,14 @@ function AppRoutes() {
           </RequireAuth>
         }
         path="/projects/opportunities/:opportunitySlug"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="detail" />
+          </RequireAuth>
+        }
+        path="/projects/:projectRef"
       />
       <Route
         element={

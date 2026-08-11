@@ -35,13 +35,21 @@ describe("ProjectsPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders the project market home from the design reference", () => {
+  it("renders the project market home from the V1.4 home contract", async () => {
+    const featured = { id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", track: "企业服务", tags: ["B端"], budget_band: "1万", difficulty: "中等", resource_requirements: [] };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/projects/home") return Promise.resolve(new Response(JSON.stringify({ hero: { title: "项目超市", subtitle: "发现机会", desc: "真实项目" }, quick_tags: [], entries: [], featured: [featured] }), { status: 200 }));
+      if (String(input) === "/api/v1/projects?page_size=20") return Promise.resolve(new Response(JSON.stringify({ items: [featured], page: 1, page_size: 20, total: 1 }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${String(input)}`));
+    });
     renderProjectRoute("/projects");
 
     expect(screen.getByRole("heading", { name: "项目超市" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "发现下一个可落地机会" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "去匹配" })).toHaveAttribute("href", "/projects/match");
     expect(screen.getByRole("heading", { name: "精选机会" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "查看机会" }).find((link) => link.getAttribute("href") === "/projects/ai-sales")).toBeTruthy();
     expect(screen.getByRole("complementary", { name: "智活 Copilot" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "全部页面" })).not.toBeInTheDocument();
   });
@@ -134,7 +142,7 @@ describe("ProjectsPage", () => {
   });
 
   it("renders opportunity exploration from API", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ opportunities: [{
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ items: [{
       id: 42,
       slug: "ai-sales-consulting",
       title: "AI销售顾问",
@@ -144,28 +152,36 @@ describe("ProjectsPage", () => {
       budget_band: "1-3万",
       difficulty: "中等",
       resource_requirements: ["销售经验"]
-    }] }), { status: 200 }));
+    }], page: 1, page_size: 8, total: 1 }), { status: 200 }));
     renderProjectRoute("/projects/explore");
 
     expect(screen.getByRole("heading", { name: "机会探索" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "高潜力机会" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "查看机会" })).toHaveAttribute("href", "/projects/opportunities/ai-sales-consulting");
+    expect(screen.getByRole("link", { name: "查看机会" })).toHaveAttribute("href", "/projects/ai-sales-consulting");
     expect(screen.getByRole("navigation", { name: "项目机会分页" })).toBeInTheDocument();
   });
 
-  it("keeps the reference opportunity grid when the catalog is empty", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ opportunities: [] }), { status: 200 })));
+  it("shows the real empty catalog without demo records or fake totals", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 8, total: 0 }), { status: 200 })));
     renderProjectRoute("/projects/explore");
 
-    expect(await screen.findByRole("heading", { name: "AI智能简历优化服务" })).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "查看机会" })).toHaveLength(8);
-    expect(screen.getByText("共 120 条")).toBeInTheDocument();
-    expect(screen.queryByText("暂无符合条件的已发布项目机会")).not.toBeInTheDocument();
+    expect(await screen.findByText("暂无符合条件的已发布项目机会")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "查看机会" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/共 120 条/)).not.toBeInTheDocument();
   });
 
   it("submits opportunity search on click instead of filtering while typing", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ opportunities: [] }), { status: 200 })));
+    const catalog = [
+      { id: 1, slug: "excel", title: "Excel自动化报表定制", summary: "企业报表", track: "企业服务", tags: [], budget_band: "1万", difficulty: "中等", resource_requirements: [] },
+      { id: 2, slug: "ai-resume", title: "AI智能简历优化服务", summary: "简历优化", track: "AI应用", tags: ["AI应用"], budget_band: "5000", difficulty: "较低", resource_requirements: [] },
+      { id: 3, slug: "ai-art", title: "AI绘画定制服务", summary: "视觉服务", track: "AI应用", tags: ["AI应用"], budget_band: "5000", difficulty: "较低", resource_requirements: [] }
+    ];
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      const items = url.includes("keyword=") ? catalog.slice(1) : catalog;
+      return Promise.resolve(new Response(JSON.stringify({ items, page: 1, page_size: 8, total: items.length }), { status: 200 }));
+    });
     renderProjectRoute("/projects/explore");
 
     expect(await screen.findByRole("heading", { name: "Excel自动化报表定制" })).toBeInTheDocument();
@@ -176,7 +192,7 @@ describe("ProjectsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "搜索机会" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/projects/opportunities?q=AI%E5%BA%94%E7%94%A8",
+      "/api/v1/projects?keyword=AI%E5%BA%94%E7%94%A8&sort=heat&page=1&page_size=8",
       expect.objectContaining({ method: "GET" })
     ));
     expect(await screen.findByText("共 2 条")).toBeInTheDocument();
@@ -186,7 +202,13 @@ describe("ProjectsPage", () => {
   });
 
   it("shows a query-specific empty state after search form submission", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ opportunities: [] }), { status: 200 })));
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const empty = String(input).includes("keyword=");
+      return Promise.resolve(new Response(JSON.stringify({
+        items: empty ? [] : [{ id: 1, slug: "ai-resume", title: "AI智能简历优化服务", summary: "简历优化", track: "AI应用", tags: [], budget_band: "5000", difficulty: "较低", resource_requirements: [] }],
+        page: 1, page_size: 8, total: empty ? 0 : 1
+      }), { status: 200 }));
+    });
     renderProjectRoute("/projects/explore");
 
     await screen.findByRole("heading", { name: "AI智能简历优化服务" });
@@ -198,19 +220,68 @@ describe("ProjectsPage", () => {
     expect(screen.queryByRole("navigation", { name: "项目机会分页" })).not.toBeInTheDocument();
   });
 
+  it("restores catalog filters and pagination from the URL", async () => {
+    const item = { id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程", track: "企业服务", tags: ["B端"], budget_band: "1万", difficulty: "中等", resource_requirements: ["销售经验"] };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ items: [item], page: 2, page_size: 8, total: 24 }), { status: 200 }));
+
+    renderProjectRoute("/projects/explore?q=AI&track=%E4%BC%81%E4%B8%9A%E6%9C%8D%E5%8A%A1&budget=1%E4%B8%87&difficulty=%E4%B8%AD%E7%AD%89&resource=%E9%94%80%E5%94%AE%E7%BB%8F%E9%AA%8C&sort=latest&page=2");
+
+    expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "搜索机会赛道" })).toHaveValue("AI");
+    expect(screen.getByRole("combobox", { name: "按行业筛选" })).toHaveValue("企业服务");
+    expect(screen.getByText("共 24 条")).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects?keyword=AI&track=%E4%BC%81%E4%B8%9A%E6%9C%8D%E5%8A%A1&budget=1%E4%B8%87&difficulty=%E4%B8%AD%E7%AD%89&resource=%E9%94%80%E5%94%AE%E7%BB%8F%E9%AA%8C&sort=latest&page=2&page_size=8",
+      expect.objectContaining({ method: "GET" })
+    ));
+  });
+
+  it("retries a failed catalog request without losing the current route", async () => {
+    let catalogAttempts = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes("page_size=20")) return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 20, total: 0 }), { status: 200 }));
+      catalogAttempts += 1;
+      if (catalogAttempts === 1) return Promise.resolve(new Response(JSON.stringify({ error: "service_unavailable" }), { status: 503 }));
+      return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 8, total: 0 }), { status: 200 }));
+    });
+
+    renderProjectRoute("/projects/explore?q=AI");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("请求失败，请稍后重试");
+    fireEvent.click(screen.getByRole("button", { name: "重新加载" }));
+    expect(await screen.findByText("未找到“AI”相关的已发布项目机会")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "搜索机会赛道" })).toHaveValue("AI");
+  });
+
   it("renders real case library from API evidence", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ cases: [{
-      id: 81, slug: "ai-sales-pilot", title: "AI销售试点", summary: "从单一销售场景开始验证",
-      case_type: "success", outcome: "完成首轮流程验证", key_actions: ["先限定客户范围"], pitfalls: ["不要承诺未验证收益"],
-      source_title: "企业公开复盘", source_url: "https://example.com/case", captured_at: "2026-07-01T08:00:00Z"
-    }] }), { status: 200 }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ items: [{
+      id: 81, title: "AI销售试点", result_summary: "完成首轮流程验证", industry: "企业服务", scale: "solo",
+      type: "success", primary_source_url: "https://example.com/case", source_count: 2, published_at: "2026-07-01T08:00:00Z"
+    }], page: 1, page_size: 12, total: 1 }), { status: 200 }));
     renderProjectRoute("/projects/cases");
 
     expect(screen.getByRole("heading", { name: "真实案例库" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "成功案例" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "AI销售试点" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "企业公开复盘" })).toHaveAttribute("href", "https://example.com/case");
+    expect(screen.getByRole("link", { name: "查看首要来源" })).toHaveAttribute("href", "https://example.com/case");
     expect(screen.getByRole("heading", { name: "案例共性" })).toBeInTheDocument();
+  });
+
+  it("renders a directly addressable evidence case detail", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      id: 81, title: "AI销售试点", result_summary: "完成首轮流程验证", type: "success",
+      primary_source_url: "https://example.com/case", source_count: 1, content_md: "# 复盘",
+      facts: [{ field: "验证周期", value: "两周", source_refs: [101] }],
+      analyses: [{ point: "先限定场景", detail: "降低验证成本", is_model_generated: true, source_refs: [101] }],
+      sources: [{ id: 101, title: "企业公开复盘", url: "https://example.com/case", fetched_at: "2026-07-01T08:00:00Z", kind: "primary", is_primary: true, claim_fields: ["验证周期"] }]
+    }), { status: 200 }));
+
+    renderProjectRoute("/project-cases/81");
+
+    expect(await screen.findByRole("heading", { name: "AI销售试点" })).toBeInTheDocument();
+    expect(screen.getByText("两周")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /企业公开复盘/ })).toHaveAttribute("href", "https://example.com/case");
   });
 
   it("answers persisted AI follow-up questions and enables result generation", async () => {
@@ -402,7 +473,7 @@ describe("ProjectsPage", () => {
   });
 
   it("redirects the legacy detail route to opportunity exploration", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ opportunities: [] }), { status: 200 }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ items: [], page: 1, page_size: 8, total: 0 }), { status: 200 }));
     renderProjectRoute("/projects/detail");
 
     expect(await screen.findByRole("heading", { name: "机会探索" })).toBeInTheDocument();
@@ -411,27 +482,27 @@ describe("ProjectsPage", () => {
 
   it("renders opportunity sections with traceable case evidence", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      if (String(input) === "/api/v1/projects/opportunities/ai-sales") return Promise.resolve(new Response(JSON.stringify({
+      if (String(input) === "/api/v1/projects/ai-sales") return Promise.resolve(new Response(JSON.stringify({
         id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", industry: "企业服务", tags: ["B端"], budget_band: "1万", difficulty: "中等", resource_requirements: [],
         sections: [{ title: "验证路径", body: "先验证单一销售环节", items: ["记录人工基线"] }]
       }), { status: 200 }));
-      if (String(input) === "/api/v1/projects/cases?opportunity_slug=ai-sales") return Promise.resolve(new Response(JSON.stringify({ cases: [{
-        id: 81, slug: "sales-pilot", title: "销售试点复盘", summary: "公开试点记录", case_type: "success", outcome: "完成验证", key_actions: [], lessons: [], pitfalls: [], source_title: "企业公开复盘", source_url: "https://example.com/case", captured_at: "2026-07-01T08:00:00Z"
-      }] }), { status: 200 }));
+      if (String(input) === "/api/v1/project-cases?page_size=100") return Promise.resolve(new Response(JSON.stringify({ items: [{
+        id: 81, project_id: 42, title: "销售试点复盘", result_summary: "完成验证", type: "success", primary_source_url: "https://example.com/case", source_count: 1, verified_at: "2026-07-01T08:00:00Z"
+      }], page: 1, page_size: 100, total: 1 }), { status: 200 }));
       return Promise.reject(new Error(`unexpected ${String(input)}`));
     });
-    renderProjectRoute("/projects/opportunities/ai-sales");
+    renderProjectRoute("/projects/ai-sales");
 
     expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "验证路径" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "来源与证据" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "企业公开复盘" })).toHaveAttribute("href", "https://example.com/case");
+    expect(screen.getByRole("link", { name: "查看首要来源" })).toHaveAttribute("href", "https://example.com/case");
   });
 
   it("keeps opportunity detail visible when the cases API fails", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
-      if (url === "/api/v1/projects/opportunities/ai-sales") return Promise.resolve(new Response(JSON.stringify({
+      if (url === "/api/v1/projects/ai-sales") return Promise.resolve(new Response(JSON.stringify({
         id: 42,
         slug: "ai-sales",
         title: "AI销售顾问",
@@ -443,17 +514,17 @@ describe("ProjectsPage", () => {
         resource_requirements: [],
         sections: [{ title: "验证路径", body: "先验证单一销售环节", items: ["记录人工基线"] }]
       }), { status: 200 }));
-      if (url === "/api/v1/projects/cases?opportunity_slug=ai-sales") return Promise.resolve(new Response(JSON.stringify({ message: "cases unavailable" }), { status: 503 }));
+      if (url === "/api/v1/project-cases?page_size=100") return Promise.resolve(new Response(JSON.stringify({ message: "cases unavailable" }), { status: 503 }));
       return Promise.reject(new Error(`unexpected ${url}`));
     });
 
-    renderProjectRoute("/projects/opportunities/ai-sales");
+    renderProjectRoute("/projects/ai-sales");
 
     expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "验证路径" })).toBeInTheDocument();
     expect(screen.getByText("先验证单一销售环节")).toBeInTheDocument();
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/projects/cases?opportunity_slug=ai-sales",
+      "/api/v1/project-cases?page_size=100",
       expect.objectContaining({ method: "GET" })
     ));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -461,7 +532,7 @@ describe("ProjectsPage", () => {
 
   it("opens a directly addressable detail tab backed by API sections", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      if (String(input) === "/api/v1/projects/opportunities/ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({
+      if (String(input) === "/api/v1/projects/ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({
         id: 42,
         slug: "ai-short-video-studio",
         title: "AI短视频脚本工作室",
@@ -476,11 +547,11 @@ describe("ProjectsPage", () => {
           { title: "优劣势", body: "启动成本低，但需要建立差异化。", items: ["优势：交付快", "短板：同质化竞争"] }
         ]
       }), { status: 200 }));
-      if (String(input) === "/api/v1/projects/cases?opportunity_slug=ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({ cases: [] }), { status: 200 }));
+      if (String(input) === "/api/v1/project-cases?page_size=100") return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 100, total: 0 }), { status: 200 }));
       return Promise.reject(new Error(`unexpected ${String(input)}`));
     });
 
-    renderProjectRoute("/projects/opportunities/ai-short-video-studio?section=swot");
+    renderProjectRoute("/projects/ai-short-video-studio?section=swot");
 
     expect(await screen.findByRole("heading", { name: "AI短视频脚本工作室" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "优劣势" })).toHaveClass("active");
@@ -490,11 +561,11 @@ describe("ProjectsPage", () => {
 
   it("renders the project diagnosis as a closeable route state", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      if (String(input) === "/api/v1/projects/opportunities/ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({
+      if (String(input) === "/api/v1/projects/ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({
         id: 42, slug: "ai-short-video-studio", title: "AI短视频脚本工作室", summary: "短视频脚本服务",
         industry: "内容服务", tags: [], budget_band: "0.8-3万元", difficulty: "中等", resource_requirements: [], sections: []
       }), { status: 200 }));
-      if (String(input) === "/api/v1/projects/cases?opportunity_slug=ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({ cases: [] }), { status: 200 }));
+      if (String(input) === "/api/v1/project-cases?page_size=100") return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 100, total: 0 }), { status: 200 }));
       return Promise.reject(new Error(`unexpected ${String(input)}`));
     });
 
@@ -518,7 +589,7 @@ describe("ProjectsPage", () => {
         { id: 1, slug: "ai-sales", title: "AI销售", summary: "销售流程", industry: "企业服务", tags: [], budget_band: "1万", difficulty: "中等", resource_requirements: [] },
         { id: 2, slug: "ai-content", title: "AI内容", summary: "内容生产", industry: "内容", tags: [], budget_band: "5000", difficulty: "低", resource_requirements: [] }
       ];
-      if (url === "/api/v1/projects/opportunities") return Promise.resolve(new Response(JSON.stringify({ opportunities: items }), { status: 200 }));
+      if (url === "/api/v1/projects?page_size=100" || url === "/api/v1/projects?page_size=20") return Promise.resolve(new Response(JSON.stringify({ items, page: 1, page_size: 100, total: items.length }), { status: 200 }));
       if (url === "/api/v1/projects/comparisons" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 61, items }), { status: 200 }));
       if (url === "/api/v1/projects/exports" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 72, status: "ready", download_url: "/api/v1/projects/exports/72/download" }), { status: 200 }));
       if (url === "/api/v1/projects/exports/72/download" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({ source_type: "comparison", source_id: 61 }), { status: 200 }));

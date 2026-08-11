@@ -9,7 +9,7 @@ import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
-import { projectsApi, type ProjectCase, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
+import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
@@ -17,6 +17,7 @@ type ProjectMarketVariant =
   | "match"
   | "explore"
   | "cases"
+  | "caseDetail"
   | "questions"
   | "results"
   | "history"
@@ -88,25 +89,6 @@ const featuredOpportunityCopy = [
   { title: "功效护肤品电商", summary: "专注科学功效护肤的DTC品牌", tags: ["轻资产", "SaaS", "可复制"] },
   { title: "智能健身房", summary: "AI+硬件驱动的智能健身新模式", tags: ["轻资产", "可复制", "低竞争"] },
   { title: "AI短视频创作工具", summary: "一键生成爆款短视频内容", tags: ["SaaS", "可复制", "低竞争"] }
-] as const;
-
-// Keep the catalog composed when the API is healthy but has not been seeded yet.
-// Real records always win; these eight entries only preserve the reference layout.
-const referenceExploreOpportunities: ProjectOpportunity[] = [
-  { id: -1, slug: "reference-ai-resume", title: "AI智能简历优化服务", summary: "利用AI技术为求职者提供个性化简历优化", industry: "AI应用", tags: ["AI应用", "求职服务", "高复购"], budget_band: "¥3K - 15K", difficulty: "中等", resource_requirements: ["AI工具"], published_at: "2026-08-01" },
-  { id: -2, slug: "reference-excel-report", title: "Excel自动化报表定制", summary: "为中小企业提供自动化报表解决方案", industry: "企业服务", tags: ["办公效率", "企业服务", "可复制"], budget_band: "¥2K - 10K", difficulty: "较低", resource_requirements: ["Excel技能"], published_at: "2026-08-02" },
-  { id: -3, slug: "reference-short-video", title: "短视频口播内容代运营", summary: "帮助个人IP和企业打造短视频内容矩阵", industry: "内容创作", tags: ["内容创作", "个人IP", "高需求"], budget_band: "¥5K - 20K", difficulty: "中等", resource_requirements: ["内容能力"], published_at: "2026-08-03" },
-  { id: -4, slug: "reference-pet-nutrition", title: "宠物营养定制方案", summary: "基于宠物健康需求提供个性化营养方案", industry: "宠物经济", tags: ["宠物经济", "个性化", "高复购"], budget_band: "¥3K - 12K", difficulty: "较低", resource_requirements: ["宠物知识"], published_at: "2026-08-04" },
-  { id: -5, slug: "reference-data-dashboard", title: "数据可视化仪表盘搭建", summary: "为企业搭建数据驱动的经营分析仪表盘", industry: "数据服务", tags: ["数据服务", "企业服务", "高客单"], budget_band: "¥4K - 18K", difficulty: "中等", resource_requirements: ["数据分析"], published_at: "2026-08-05" },
-  { id: -6, slug: "reference-knowledge-course", title: "知识付费课程制作", summary: "帮助专业人士将知识体系转化为课程产品", industry: "知识付费", tags: ["知识付费", "个人品牌", "低库存"], budget_band: "¥3K - 15K", difficulty: "较低", resource_requirements: ["课程设计"], published_at: "2026-08-06" },
-  { id: -7, slug: "reference-travel-guide", title: "小众旅行攻略平台", summary: "专注小众目的地的攻略内容与预订服务", industry: "旅游出行", tags: ["旅游出行", "小众领域", "可扩展"], budget_band: "¥5K - 20K", difficulty: "中等", resource_requirements: ["内容运营"], published_at: "2026-08-07" },
-  { id: -8, slug: "reference-ai-art", title: "AI绘画定制服务", summary: "用AI为品牌和个人提供高效视觉定制服务", industry: "AI应用", tags: ["AI应用", "设计服务", "低门槛"], budget_band: "¥2K - 8K", difficulty: "较低", resource_requirements: ["设计工具"], published_at: "2026-08-08" }
-];
-
-const homeCopilotRecommendations = [
-  { title: "烘焙甜品工作室", detail: "轻资产 · 低成本", image: "/project-market/case-01.jpg" },
-  { title: "花艺生活馆", detail: "轻资产 · 可复制", image: "/project-market/copilot-flower.png" },
-  { title: "宠物美容服务", detail: "轻资产 · 低竞争", image: "/project-market/case-04.jpg" }
 ] as const;
 
 const detailTabs = [
@@ -202,6 +184,7 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
             {variant === "match" && <MatchRequest />}
             {variant === "explore" && <OpportunityExplore />}
             {variant === "cases" && <CaseLibrary />}
+            {variant === "caseDetail" && <CaseDetail />}
             {variant === "questions" && <MatchQuestions />}
             {variant === "results" && <MatchResults />}
             {variant === "history" && <MatchHistory />}
@@ -241,8 +224,8 @@ function MarketHome() {
 
   useEffect(() => {
     let active = true;
-    projectsApi.listOpportunities().then((payload) => {
-      if (active) setFeatured(payload.opportunities.slice(0, 4));
+    projectsApi.getHome().then((payload) => {
+      if (active) setFeatured(payload.featured.slice(0, 4));
     }).catch(() => {
       if (active) setFeatured([]);
     }).finally(() => {
@@ -299,24 +282,21 @@ function MarketHome() {
         </div>
         {featuredLoading ? <div aria-label="正在加载精选机会" className="ref-project-opportunity-grid pm-skeleton-grid" role="status">
           {featuredOpportunityCopy.map((display) => <article className="pm-skeleton-card" key={display.title}><span /><b /><i /><i /><em /></article>)}
-        </div> : <div className="ref-project-opportunity-grid">
-          {featuredOpportunityCopy.map((display, index) => {
-            const item = featured[index];
-            return (
-            <article className={item ? `pm-project-${item.slug}` : undefined} key={display.title}>
+        </div> : featured.length === 0 ? <div className="module-empty-state" role="status">暂无精选项目，去机会探索查看全部已发布项目</div> : <div className="ref-project-opportunity-grid">
+          {featured.map((item, index) => (
+            <article className={`pm-project-${item.slug}`} key={item.id}>
               <div
                 className="pm-thumb"
                 style={{ "--featured-art": `url(${featuredOpportunityArt[index] ?? featuredOpportunityArt[0]})` } as CSSProperties}
               />
-              <h3>{display.title}</h3>
-              <p>{display.summary}</p>
+              <h3>{item.title}</h3>
+              <p>{item.summary}</p>
               <div>
-                {display.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                {item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
               </div>
-              <Link to={item ? `/projects/opportunities/${item.slug}` : "/projects/explore"}>查看机会</Link>
+              <Link to={`/projects/${item.slug}`}>查看机会</Link>
             </article>
-            );
-          })}
+          ))}
         </div>}
       </section>
 
@@ -411,51 +391,79 @@ function OpportunityExplore() {
   const [searchParams, setSearchParams] = useSearchParams();
   const submittedQuery = searchParams.get("q") ?? "";
   const [items, setItems] = useState<ProjectOpportunity[]>([]);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [query, setQuery] = useState(submittedQuery);
   const [loading, setLoading] = useState(true);
-  const [industry, setIndustry] = useState("");
-  const [budget, setBudget] = useState("");
-  const [difficulty, setDifficulty] = useState("");
-  const [resource, setResource] = useState("");
-  const [sortMode, setSortMode] = useState<"recommend" | "latest" | "match">("recommend");
-  const [activeDirection, setActiveDirection] = useState("高潜力机会");
-  const [page, setPage] = useState(1);
+  const [reloadToken, setReloadToken] = useState(0);
   const requestID = useRef(0);
+  const track = searchParams.get("track") ?? "";
+  const budget = searchParams.get("budget") ?? "";
+  const difficulty = searchParams.get("difficulty") ?? "";
+  const resource = searchParams.get("resource") ?? "";
+  const sortMode = searchParams.get("sort") === "latest" ? "latest" : "heat";
+  const activeDirection = searchParams.get("direction") ?? "高潜力机会";
+  const requestedPage = Number(searchParams.get("page") ?? "1");
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const pageSize = 8;
+  const directions = ["高潜力机会", "低竞争蓝海", "小成本启动", "近期爆发", "一人公司", "可复制案例"];
+  const directionKeyword: Record<string, string> = {
+    "小成本启动": "低成本启动",
+    "一人公司": "一人公司",
+    "可复制案例": "可复制"
+  };
+  const effectiveKeyword = submittedQuery.trim() || directionKeyword[activeDirection] || "";
+  const effectiveDifficulty = difficulty || (activeDirection === "低竞争蓝海" ? "较低" : "");
+  const effectiveSort = activeDirection === "近期爆发" ? "latest" : sortMode;
 
-  const loadOpportunities = useCallback(async (search = "") => {
-    const currentRequest = ++requestID.current;
-    setLoading(true);
-    try {
-      const payload = await projectsApi.listOpportunities({ query: search.trim() || undefined });
-      if (currentRequest !== requestID.current) return;
-      setItems(payload.opportunities);
-      setError("");
-    } catch (loadError) {
-      if (currentRequest !== requestID.current) return;
-      setItems([]);
-      setError(apiErrorMessage(loadError, "暂时无法读取项目机会"));
-    } finally {
-      if (currentRequest === requestID.current) setLoading(false);
-    }
-  }, []);
+  const updateParams = useCallback((updates: Record<string, string>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    });
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     setQuery(submittedQuery);
-    void loadOpportunities(submittedQuery);
-  }, [loadOpportunities, submittedQuery]);
+  }, [submittedQuery]);
+
+  useEffect(() => {
+    const currentRequest = ++requestID.current;
+    setLoading(true);
+    projectsApi.listProjects({
+      keyword: effectiveKeyword || undefined,
+      track: track || undefined,
+      budget: budget || undefined,
+      difficulty: effectiveDifficulty || undefined,
+      resource: resource || undefined,
+      sort: effectiveSort,
+      page,
+      pageSize
+    }).then((payload) => {
+      if (currentRequest !== requestID.current) return;
+      setItems(payload.items ?? []);
+      setTotal(Number.isFinite(payload.total) ? payload.total : 0);
+      setError("");
+    }).catch((loadError) => {
+      if (currentRequest !== requestID.current) return;
+      setItems([]);
+      setTotal(0);
+      setError(apiErrorMessage(loadError, "暂时无法读取项目机会"));
+    }).finally(() => {
+      if (currentRequest === requestID.current) setLoading(false);
+    });
+  }, [budget, effectiveDifficulty, effectiveKeyword, effectiveSort, page, reloadToken, resource, track]);
 
   function submitQuery(value: string) {
     const normalized = value.trim();
     setQuery(normalized);
     if (normalized === submittedQuery) {
-      void loadOpportunities(normalized);
+      setReloadToken((current) => current + 1);
       return;
     }
-    const nextParams = new URLSearchParams(searchParams);
-    if (normalized) nextParams.set("q", normalized);
-    else nextParams.delete("q");
-    setSearchParams(nextParams, { replace: true });
+    updateParams({ q: normalized, page: "" });
   }
 
   function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -463,54 +471,13 @@ function OpportunityExplore() {
     submitQuery(query);
   }
 
-  const usingReferenceCatalog = !error && items.length === 0;
-  const catalogItems = usingReferenceCatalog ? referenceExploreOpportunities : items;
   const filterOptions = useMemo(() => ({
-    industries: [...new Set(catalogItems.map((item) => item.industry).filter(Boolean))],
-    budgets: [...new Set(catalogItems.map((item) => item.budget_band).filter(Boolean))],
-    difficulties: [...new Set(catalogItems.map((item) => item.difficulty).filter(Boolean))],
-    resources: [...new Set(catalogItems.flatMap((item) => item.resource_requirements).filter(Boolean))]
-  }), [catalogItems]);
-
-  const visibleItems = useMemo(() => {
-    const normalizedQuery = submittedQuery.trim().toLocaleLowerCase("zh-CN");
-    const filtered = catalogItems.filter((item) => {
-      const matchesDirection = activeDirection === "高潜力机会"
-        || (activeDirection === "低竞争蓝海" && /较低|低/.test(item.difficulty))
-        || (activeDirection === "小成本启动" && (item.tags.includes("低成本启动") || /^0[.-]/.test(item.budget_band)))
-        || (activeDirection === "近期爆发" && Boolean(item.published_at))
-        || (activeDirection === "一人公司" && item.tags.includes("一人公司"))
-        || (activeDirection === "可复制案例" && item.tags.some((tag) => /可复制|可复用/.test(tag)));
-      return matchesDirection
-      && (
-      (!normalizedQuery || `${item.title}${item.summary}${item.industry}${item.tags.join("")}`.toLocaleLowerCase("zh-CN").includes(normalizedQuery))
-      &&
-      (!industry || item.industry === industry)
-      && (!budget || item.budget_band === budget)
-      && (!difficulty || item.difficulty === difficulty)
-      && (!resource || item.resource_requirements.includes(resource))
-      );
-    });
-    if (sortMode === "latest") {
-      return [...filtered].sort((left, right) => Date.parse(right.published_at ?? "") - Date.parse(left.published_at ?? ""));
-    }
-    if (sortMode === "match") {
-      const difficultyRank = (value: string) => /较低|低/.test(value) ? 0 : /较高|高/.test(value) ? 2 : 1;
-      return [...filtered].sort((left, right) => difficultyRank(left.difficulty) - difficultyRank(right.difficulty));
-    }
-    return filtered;
-  }, [activeDirection, budget, catalogItems, difficulty, industry, resource, sortMode, submittedQuery]);
-
-  const directions = ["高潜力机会", "低竞争蓝海", "小成本启动", "近期爆发", "一人公司", "可复制案例"];
-  const pageSize = 8;
-  const hasActiveFilters = Boolean(submittedQuery || industry || budget || difficulty || resource || activeDirection !== "高潜力机会");
-  const totalCount = usingReferenceCatalog && !hasActiveFilters ? 120 : visibleItems.length;
-  const pageCount = usingReferenceCatalog && !hasActiveFilters ? 20 : Math.max(1, Math.ceil(totalCount / pageSize));
-  const pagedItems = usingReferenceCatalog && !hasActiveFilters ? visibleItems.slice(0, pageSize) : visibleItems.slice((page - 1) * pageSize, page * pageSize);
-
-  useEffect(() => {
-    setPage(1);
-  }, [activeDirection, budget, difficulty, industry, resource, sortMode, submittedQuery]);
+    tracks: [...new Set([track, ...items.map((item) => item.track || item.industry || "")].filter(Boolean))],
+    budgets: [...new Set([budget, ...items.map((item) => item.budget_band)].filter(Boolean))],
+    difficulties: [...new Set([difficulty, ...items.map((item) => item.difficulty)].filter(Boolean))],
+    resources: [...new Set([resource, ...items.flatMap((item) => item.resource_requirements)].filter(Boolean))]
+  }), [budget, difficulty, items, resource, track]);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <>
@@ -542,23 +509,23 @@ function OpportunityExplore() {
       </section>
 
       <section className="pm-catalog-filter" aria-label="项目机会筛选">
-        <label><span>行业</span><select aria-label="按行业筛选" onChange={(event) => setIndustry(event.target.value)} value={industry}><option value="">全部行业</option>{filterOptions.industries.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><span>预算区间</span><select aria-label="按预算筛选" onChange={(event) => setBudget(event.target.value)} value={budget}><option value="">全部预算</option>{filterOptions.budgets.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><span>难度</span><select aria-label="按难度筛选" onChange={(event) => setDifficulty(event.target.value)} value={difficulty}><option value="">全部难度</option>{filterOptions.difficulties.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><span>资源要求</span><select aria-label="按资源要求筛选" onChange={(event) => setResource(event.target.value)} value={resource}><option value="">全部资源</option>{filterOptions.resources.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>行业</span><select aria-label="按行业筛选" onChange={(event) => updateParams({ track: event.target.value, page: "" })} value={track}><option value="">全部行业</option>{filterOptions.tracks.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>预算区间</span><select aria-label="按预算筛选" onChange={(event) => updateParams({ budget: event.target.value, page: "" })} value={budget}><option value="">全部预算</option>{filterOptions.budgets.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>难度</span><select aria-label="按难度筛选" onChange={(event) => updateParams({ difficulty: event.target.value, page: "" })} value={difficulty}><option value="">全部难度</option>{filterOptions.difficulties.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>资源要求</span><select aria-label="按资源要求筛选" onChange={(event) => updateParams({ resource: event.target.value, page: "" })} value={resource}><option value="">全部资源</option>{filterOptions.resources.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <div className="pm-sort-control" aria-label="项目排序">
           <span>排序</span>
           <div>
-            {(["recommend", "latest", "match"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ recommend: "热度", latest: "最新", match: "匹配度" }[mode]}</button>)}
+            {(["heat", "latest"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => updateParams({ sort: mode === "heat" ? "" : mode, page: "" })} type="button">{{ heat: "热度", latest: "最新" }[mode]}</button>)}
           </div>
         </div>
       </section>
 
       <section className="pm-direction-strip">
-        <header><h2>热门探索方向</h2><button onClick={() => setActiveDirection("高潜力机会")} type="button">查看全部方向 →</button></header>
+        <header><h2>热门探索方向</h2><button onClick={() => updateParams({ direction: "", page: "" })} type="button">查看全部方向 →</button></header>
         <div>
           {directions.map((item, index) => (
-            <button aria-label={item} className={activeDirection === item ? "active" : ""} key={item} onClick={() => setActiveDirection(item)} type="button">
+            <button aria-label={item} className={activeDirection === item ? "active" : ""} key={item} onClick={() => updateParams({ direction: item === "高潜力机会" ? "" : item, page: "" })} type="button">
               <i aria-hidden="true">{["↗", "≈", "¥", "ϟ", "◉", "▣"][index]}</i>
               <span><strong>{item}</strong><small>{["优质赛道机会", "避开红海竞争", "低成本低风险", "趋势上升赛道", "轻量高效模式", "验证可复制性"][index]}</small></span>
             </button>
@@ -568,10 +535,10 @@ function OpportunityExplore() {
 
       <section aria-busy={loading} className="pm-explore-grid" aria-label="项目机会列表">
         {loading ? <div className="module-empty-state" role="status">正在搜索项目机会…</div> : null}
-        {!loading && error ? <p className="form-error" role="alert">{error}</p> : null}
-        {!loading && !error && visibleItems.length === 0 ? <div className="module-empty-state" role="status">{submittedQuery ? `未找到“${submittedQuery}”相关的已发布项目机会` : "暂无符合条件的已发布项目机会"}</div> : null}
-        {!loading && !error && pagedItems.map((item) => (
-          <article className={`pm-explore-card pm-project-${item.slug} ${item.id < 0 ? `pm-reference-card pm-reference-card-${Math.abs(item.id)}` : ""}`} key={item.id}>
+        {!loading && error ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
+        {!loading && !error && items.length === 0 ? <div className="module-empty-state" role="status">{effectiveKeyword ? `未找到“${effectiveKeyword}”相关的已发布项目机会` : "暂无符合条件的已发布项目机会"}</div> : null}
+        {!loading && !error && items.map((item) => (
+          <article className={`pm-explore-card pm-project-${item.slug}`} key={item.id}>
             <div className="pm-thumb" />
             <h2>{item.title}</h2>
             <p>{item.summary}</p>
@@ -579,80 +546,87 @@ function OpportunityExplore() {
               <strong>{item.budget_band || "预算待补充"}</strong>
               <small>{item.difficulty || "难度待补充"}</small>
               <div className="pm-mini-tags">{item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div>
-              <Link aria-label="查看机会" to={item.id < 0 ? `/projects/match?intent=${encodeURIComponent(item.title)}` : `/projects/opportunities/${item.slug}`}>查看拆解 →</Link>
+              <Link aria-label="查看机会" to={`/projects/${item.slug}`}>查看拆解 →</Link>
             </footer>
           </article>
         ))}
       </section>
 
-      {!loading && !error && visibleItems.length > 0 ? <nav className="pm-pagination" aria-label="项目机会分页">
-        <button aria-label="上一页" disabled={page === 1} onClick={() => setPage((current) => Math.max(1, current - 1))} type="button">‹</button>
-        {Array.from({ length: Math.min(pageCount, 5) }, (_, index) => index + 1).map((item) => <button aria-current={page === item ? "page" : undefined} className={page === item ? "active" : ""} key={item} onClick={() => setPage(item)} type="button">{item}</button>)}
+      {!loading && !error && items.length > 0 ? <nav className="pm-pagination" aria-label="项目机会分页">
+        <button aria-label="上一页" disabled={page === 1} onClick={() => updateParams({ page: String(Math.max(1, page - 1)) })} type="button">‹</button>
+        {Array.from({ length: Math.min(pageCount, 5) }, (_, index) => index + 1).map((item) => <button aria-current={page === item ? "page" : undefined} className={page === item ? "active" : ""} key={item} onClick={() => updateParams({ page: item === 1 ? "" : String(item) })} type="button">{item}</button>)}
         {pageCount > 5 ? <span>… {pageCount}</span> : null}
-        <button aria-label="下一页" disabled={page === pageCount} onClick={() => setPage((current) => Math.min(pageCount, current + 1))} type="button">›</button>
-        <small>共 {totalCount} 条</small>
+        <button aria-label="下一页" disabled={page >= pageCount} onClick={() => updateParams({ page: String(Math.min(pageCount, page + 1)) })} type="button">›</button>
+        <small>共 {total} 条</small>
       </nav> : null}
     </>
   );
 }
 
 function CaseLibrary() {
-  const [cases, setCases] = useState<ProjectCase[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [cases, setCases] = useState<EvidenceCaseItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [caseType, setCaseType] = useState("");
-  const [sortMode, setSortMode] = useState<"latest" | "popular" | "saved">("latest");
-  const [caseIndustry, setCaseIndustry] = useState("");
-  const [caseSource, setCaseSource] = useState("");
-  const [caseOutcome, setCaseOutcome] = useState("");
-  const [caseAction, setCaseAction] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [sortMode, setSortMode] = useState<"latest" | "sources">("latest");
+  const caseType = searchParams.get("type") ?? "";
+  const caseIndustry = searchParams.get("industry") ?? "";
+  const caseScale = searchParams.get("scale") ?? "";
+  const requestedPage = Number(searchParams.get("page") ?? "1");
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const pageSize = 12;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
-  async function loadCases(nextType = caseType) {
-    try {
-      const payload = await projectsApi.listCases({ caseType: nextType === "success" || nextType === "failure" ? nextType : undefined });
-      setCases(payload.cases);
-      setError("");
-    } catch (loadError) {
-      setCases([]);
-      setError(apiErrorMessage(loadError, "暂时无法读取项目案例"));
-    }
-  }
+  const updateCaseParams = useCallback((updates: Record<string, string>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    });
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     let active = true;
-    projectsApi.listCases().then((payload) => { if (active) { setCases(payload.cases); setError(""); } })
-      .catch((loadError) => { if (active) { setCases([]); setError(apiErrorMessage(loadError, "暂时无法读取项目案例")); } });
+    setLoading(true);
+    projectsApi.listEvidenceCases({
+      caseType: caseType || undefined,
+      industry: caseIndustry || undefined,
+      scale: caseScale || undefined,
+      page,
+      pageSize
+    }).then((payload) => {
+      if (active) {
+        setCases(payload.items ?? []);
+        setTotal(Number.isFinite(payload.total) ? payload.total : 0);
+        setError("");
+      }
+    }).catch((loadError) => {
+      if (active) {
+        setCases([]);
+        setTotal(0);
+        setError(apiErrorMessage(loadError, "暂时无法读取项目案例"));
+      }
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
     return () => { active = false; };
-  }, []);
+  }, [caseIndustry, caseScale, caseType, page, reloadToken]);
 
   const visibleCases = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("zh-CN");
-    const typed = caseType === "track" ? cases.filter((item) => Boolean(item.opportunity_slug)) : cases;
     const searched = normalized
-      ? typed.filter((item) => `${item.title}${item.summary}${item.outcome}`.toLocaleLowerCase("zh-CN").includes(normalized))
-      : typed;
-    const filtered = searched.filter((item) => (
-      (!caseIndustry || item.industry === caseIndustry)
-      && (!caseSource || item.source_title === caseSource)
-      && (!caseOutcome || item.outcome === caseOutcome)
-      && (!caseAction || (item.key_actions ?? []).includes(caseAction))
-    ));
-    if (sortMode === "latest") return [...filtered].sort((left, right) => Date.parse(right.captured_at) - Date.parse(left.captured_at));
-    if (sortMode === "popular") return [...filtered].sort((left, right) => (right.key_actions ?? []).length - (left.key_actions ?? []).length);
-    return [...filtered].sort((left, right) => (right.lessons ?? []).length - (left.lessons ?? []).length);
-  }, [caseAction, caseIndustry, caseOutcome, caseSource, caseType, cases, query, sortMode]);
+      ? cases.filter((item) => `${item.title}${item.result_summary}${item.industry ?? ""}${item.scale ?? ""}`.toLocaleLowerCase("zh-CN").includes(normalized))
+      : cases;
+    if (sortMode === "sources") return [...searched].sort((left, right) => right.source_count - left.source_count);
+    return [...searched].sort((left, right) => Date.parse(right.published_at ?? "") - Date.parse(left.published_at ?? ""));
+  }, [cases, query, sortMode]);
 
-  const lessons = cases.flatMap((item) => (item.lessons ?? []).map((lesson) => ({ lesson, source: item.source_title }))).slice(0, 4);
-  const pitfalls = cases.flatMap((item) => (item.pitfalls ?? []).map((pitfall) => ({ pitfall, source: item.source_title }))).slice(0, 3);
-  const caseIndustries = [...new Set(cases.map((item) => item.industry).filter(Boolean))] as string[];
-  const caseSources = [...new Set(cases.map((item) => item.source_title).filter(Boolean))];
-  const caseOutcomes = [...new Set(cases.map((item) => item.outcome).filter(Boolean))];
-  const caseActions = [...new Set(cases.flatMap((item) => item.key_actions ?? []).filter(Boolean))];
-
-  async function selectCaseType(nextType: string) {
-    setCaseType(nextType);
-    await loadCases(nextType);
-  }
+  const caseIndustries = [...new Set([caseIndustry, ...cases.map((item) => item.industry ?? "")].filter(Boolean))];
+  const caseScales = [...new Set([caseScale, ...cases.map((item) => item.scale ?? "")].filter(Boolean))];
 
   return (
     <>
@@ -665,15 +639,14 @@ function CaseLibrary() {
             <div className="pm-catalog-search compact">
               <span aria-hidden="true">⌕</span>
               <input aria-label="搜索真实案例" onChange={(event) => setQuery(event.target.value)} placeholder="搜索案例名称、行业、关键词" value={query} />
-              <button aria-label="搜索案例" onClick={() => void loadCases()} type="button">⌕</button>
+              <button aria-label="搜索案例" type="button">⌕</button>
             </div>
             <div className="pm-case-tabs" aria-label="案例分类">
               {[
                 ["全部", ""],
                 ["成功案例", "success"],
                 ["失败案例", "failure"],
-                ["赛道样本", "track"]
-              ].map(([label, value]) => <button className={caseType === value ? "active" : ""} key={label} onClick={() => void selectCaseType(value)} type="button">{label}</button>)}
+              ].map(([label, value]) => <button className={caseType === value ? "active" : ""} key={label} onClick={() => updateCaseParams({ type: value, page: "" })} type="button">{label}</button>)}
             </div>
           </div>
         </div>
@@ -681,19 +654,17 @@ function CaseLibrary() {
         <aside className="pm-hero-assurance" aria-label="案例来源保障">
           <strong><span aria-hidden="true">◆</span> 全部案例均标注来源，可追溯</strong>
           <ul><li>来源清晰可靠</li><li>数据真实可查</li><li>方法可复现</li></ul>
-          <small>已收录案例 <b>{cases.length.toLocaleString("zh-CN")}</b> 个</small>
+          <small>已收录案例 <b>{total.toLocaleString("zh-CN")}</b> 个</small>
         </aside>
       </section>
 
       <section className="pm-catalog-filter cases" aria-label="真实案例筛选">
-        <label><span>行业</span><select aria-label="案例行业" onChange={(event) => setCaseIndustry(event.target.value)} value={caseIndustry}><option value="">全部行业</option>{caseIndustries.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label><span>来源</span><select aria-label="案例来源" onChange={(event) => setCaseSource(event.target.value)} value={caseSource}><option value="">全部来源</option>{caseSources.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label><span>结果</span><select aria-label="案例结果" onChange={(event) => setCaseOutcome(event.target.value)} value={caseOutcome}><option value="">全部结果</option>{caseOutcomes.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label><span>关键动作</span><select aria-label="案例关键动作" onChange={(event) => setCaseAction(event.target.value)} value={caseAction}><option value="">全部动作</option>{caseActions.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>行业</span><select aria-label="案例行业" onChange={(event) => updateCaseParams({ industry: event.target.value, page: "" })} value={caseIndustry}><option value="">全部行业</option>{caseIndustries.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>规模</span><select aria-label="案例规模" onChange={(event) => updateCaseParams({ scale: event.target.value, page: "" })} value={caseScale}><option value="">全部规模</option>{caseScales.map((item) => <option key={item}>{item}</option>)}</select></label>
         <div className="pm-sort-control" aria-label="案例排序">
           <span>排序</span>
           <div>
-            {(["latest", "popular", "saved"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ latest: "最新发布", popular: "动作丰富", saved: "经验最多" }[mode]}</button>)}
+            {(["latest", "sources"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ latest: "最新发布", sources: "证据最多" }[mode]}</button>)}
           </div>
         </div>
       </section>
@@ -701,22 +672,23 @@ function CaseLibrary() {
       <section className="pm-case-featured">
         <header><h2>精选案例</h2><span>全部案例均带来源记录</span></header>
         <div className="pm-case-grid">
-          {error ? <p className="form-error" role="alert">{error}</p> : null}
-          {!error && visibleCases.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布案例</div> : null}
+          {loading ? <div className="module-empty-state" role="status">正在读取证据案例…</div> : null}
+          {error ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
+          {!loading && !error && visibleCases.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布案例</div> : null}
           {visibleCases.slice(0, 4).map((item) => (
-            <article className={`pm-case-card pm-case-${item.slug}`} key={item.id}>
+            <article className={`pm-case-card pm-case-${item.id}`} key={item.id}>
               <div className="pm-thumb" />
               <span className="pm-case-save" aria-hidden="true">☆</span>
               <div>
                 <h2>{item.title}</h2>
-                <strong>{item.outcome}</strong>
-                <div className="pm-mini-tags"><span>{item.case_type === "success" ? "成功案例" : "失败复盘"}</span><span>{(item.key_actions ?? []).length} 个关键动作</span></div>
-                <p>{item.summary}</p>
+                <strong>{item.result_summary}</strong>
+                <div className="pm-mini-tags"><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span><span>{item.source_count} 条证据</span></div>
+                <p>{[item.industry, item.scale].filter(Boolean).join(" · ") || "已核验证据案例"}</p>
               </div>
               <footer>
-                <a href={item.source_url} rel="noreferrer" target="_blank">查看案例</a>
-                <Link to={item.opportunity_slug ? `/projects/opportunities/${item.opportunity_slug}` : "/projects/explore"}>查看拆解</Link>
-                <a href={item.source_url} rel="noreferrer" target="_blank">{item.source_title}</a>
+                <Link to={`/project-cases/${item.id}`}>查看案例</Link>
+                {item.project_id ? <Link to={`/projects/${item.project_id}`}>查看项目</Link> : <Link to="/projects/explore">浏览项目</Link>}
+                <a href={item.primary_source_url} rel="noreferrer" target="_blank">查看首要来源</a>
               </footer>
             </article>
           ))}
@@ -725,14 +697,84 @@ function CaseLibrary() {
 
       <section className="pm-case-learning-grid">
         <article>
-          <header><h2 aria-label="案例共性">可学要点</h2><span>查看全部 →</span></header>
-          {lessons.length === 0 ? <div className="module-empty-state">暂无已发布经验</div> : lessons.map((item, index) => <div key={`${item.lesson}-${index}`}><b aria-hidden="true">{index + 1}</b><span><strong>{item.lesson}</strong><small>来源：{item.source}</small></span></div>)}
+          <header><h2 aria-label="案例共性">案例共性</h2><span>来自当前筛选结果</span></header>
+          {visibleCases.length === 0 ? <div className="module-empty-state">暂无已发布经验</div> : visibleCases.slice(0, 4).map((item, index) => <div key={item.id}><b aria-hidden="true">{index + 1}</b><span><strong>{item.result_summary}</strong><small>{item.source_count} 条可追溯证据</small></span></div>)}
         </article>
         <article className="failure">
           <header><h2>失败教训</h2><span>查看全部 →</span></header>
-          {pitfalls.length === 0 ? <div className="module-empty-state">暂无失败教训</div> : pitfalls.map((item, index) => <div key={`${item.pitfall}-${index}`}><b aria-hidden="true">!</b><span><strong>{item.pitfall}</strong><small>来源：{item.source}</small></span></div>)}
+          {visibleCases.filter((item) => item.type === "fail").length === 0 ? <div className="module-empty-state">暂无失败教训</div> : visibleCases.filter((item) => item.type === "fail").slice(0, 3).map((item) => <div key={item.id}><b aria-hidden="true">!</b><span><strong>{item.result_summary}</strong><small><Link to={`/project-cases/${item.id}`}>查看证据明细</Link></small></span></div>)}
         </article>
       </section>
+      {!loading && !error && cases.length > 0 ? <nav className="pm-pagination" aria-label="案例分页">
+        <button aria-label="上一页" disabled={page === 1} onClick={() => updateCaseParams({ page: String(Math.max(1, page - 1)) })} type="button">‹</button>
+        <span>第 {page} / {pageCount} 页</span>
+        <button aria-label="下一页" disabled={page >= pageCount} onClick={() => updateCaseParams({ page: String(Math.min(pageCount, page + 1)) })} type="button">›</button>
+        <small>共 {total} 个案例</small>
+      </nav> : null}
+    </>
+  );
+}
+
+function CaseDetail() {
+  const { caseRef } = useParams();
+  const [caseDetail, setCaseDetail] = useState<EvidenceCaseDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!caseRef) {
+      setError("案例地址无效");
+      setLoading(false);
+      return;
+    }
+    let active = true;
+    setLoading(true);
+    projectsApi.getEvidenceCase(caseRef).then((payload) => {
+      if (active) {
+        setCaseDetail(payload);
+        setError("");
+      }
+    }).catch((loadError) => {
+      if (active) setError(apiErrorMessage(loadError, "暂时无法读取案例详情"));
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [caseRef]);
+
+  return (
+    <>
+      <section className="pm-catalog-hero cases">
+        <div className="pm-catalog-hero-copy">
+          <p>项目超市&nbsp;&nbsp;/&nbsp;&nbsp;真实案例库&nbsp;&nbsp;/&nbsp;&nbsp;案例详情</p>
+          <h1>{caseDetail?.title ?? "案例详情"}</h1>
+          <strong>{caseDetail?.result_summary ?? "查看经过核验的事实、分析与来源"}</strong>
+          <Link to="/projects/cases">返回案例库</Link>
+        </div>
+        <div className="pm-catalog-hero-art" aria-hidden="true" />
+      </section>
+      {loading ? <div className="module-empty-state" role="status">正在读取案例详情…</div> : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {!loading && !error && caseDetail ? <section className="pm-detail-content pm-structured-content">
+        <article className="pm-structured-block type-cards">
+          <h2>核验事实</h2>
+          <div className="pm-structured-grid" style={{ "--pm-columns": 2 } as CSSProperties}>
+            {caseDetail.facts.map((fact) => <section key={fact.field}><div><strong>{fact.field}</strong><p>{fact.value}</p><small>来源编号：{fact.source_refs.join("、")}</small></div></section>)}
+          </div>
+        </article>
+        <article className="pm-structured-block type-cards">
+          <h2>分析判断</h2>
+          <div className="pm-structured-grid" style={{ "--pm-columns": 2 } as CSSProperties}>
+            {caseDetail.analyses.map((analysis, index) => <section key={`${analysis.point}-${index}`}><div><strong>{analysis.point}</strong>{analysis.detail ? <p>{analysis.detail}</p> : null}<small>AI 辅助分析 · 来源编号：{analysis.source_refs.join("、") || "未单独引用"}</small></div></section>)}
+          </div>
+        </article>
+        <article className="pm-structured-block type-sources">
+          <h2>来源与证据</h2>
+          <div className="pm-structured-grid" style={{ "--pm-columns": 3 } as CSSProperties}>
+            {caseDetail.sources.map((source) => <a href={source.url} key={source.id} rel="noreferrer" target="_blank"><strong>{source.title || source.publisher || "公开来源"}</strong><small>{source.kind}{source.is_primary ? " · 首要来源" : ""}</small><span>查看出处 →</span></a>)}
+          </div>
+        </article>
+      </section> : null}
     </>
   );
 }
@@ -990,7 +1032,7 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
                 {project.reasons.map((reason) => <li key={reason}>{reason}</li>)}
               </ul>
               <div className="pm-result-actions">
-                <Link to={project.opportunitySlug ? `/projects/opportunities/${project.opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看拆解</Link>
+                <Link to={project.opportunitySlug ? `/projects/${project.opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看拆解</Link>
                 <Link aria-label={`加入对比 ${project.title}`} to={project.opportunitySlug ? `/projects/compare?items=${project.opportunitySlug}` : "/projects/compare"}>加入对比</Link>
                 <button disabled={!persistedSessionId || favoritePending} onClick={() => void toggleFavorite()} type="button">{favorited ? "取消收藏" : "收藏结果"}</button>
               </div>
@@ -1007,7 +1049,7 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
             ))}
           </div>
           <small>来源：匹配记录 #{persistedSessionId} · 模型推演内容需结合已发布项目资料验证</small>
-          <Link to={persistedProjects[0]?.opportunitySlug ? `/projects/opportunities/${persistedProjects[0].opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看项目完整拆解</Link>
+          <Link to={persistedProjects[0]?.opportunitySlug ? `/projects/${persistedProjects[0].opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看项目完整拆解</Link>
           <Link className="pm-unlock-report" to={persistedSessionId ? `/projects/matches/${persistedSessionId}/results/paywall` : "/projects/results/paywall"}>解锁完整报告</Link>
           <button disabled={!persistedSessionId} onClick={() => void generateTasks()} type="button">生成落地任务</button>
         </aside>
@@ -1140,34 +1182,54 @@ function MatchHistory() {
   );
 }
 
+function toProjectCase(item: EvidenceCaseItem): ProjectCase {
+  return {
+    id: item.id,
+    slug: String(item.id),
+    opportunity_id: item.project_id,
+    title: item.title,
+    summary: item.result_summary,
+    industry: item.industry,
+    case_type: item.type === "success" ? "success" : "failure",
+    outcome: item.result_summary,
+    key_actions: [],
+    lessons: [],
+    pitfalls: [],
+    source_title: "查看首要来源",
+    source_url: item.primary_source_url,
+    captured_at: item.verified_at ?? item.published_at ?? ""
+  };
+}
+
 function ProjectDetail() {
-  const { matchId, opportunitySlug } = useParams();
+  const { matchId, opportunitySlug, projectRef } = useParams();
+  const activeProjectRef = projectRef ?? opportunitySlug;
   const [searchParams] = useSearchParams();
   const [session, setSession] = useState<ProjectMatchSession | null>(null);
   const [opportunity, setOpportunity] = useState<ProjectOpportunity | null>(null);
   const [evidence, setEvidence] = useState<ProjectCase[]>([]);
-  const [loading, setLoading] = useState(Boolean(matchId || opportunitySlug));
+  const [loading, setLoading] = useState(Boolean(matchId || activeProjectRef));
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (opportunitySlug) {
+    if (activeProjectRef) {
       let active = true;
       setLoading(true);
       setError("");
-      projectsApi.getOpportunity(opportunitySlug).then((payload) => {
+      projectsApi.getProject(activeProjectRef).then((payload) => {
         if (active) {
           setOpportunity(payload);
           setError("");
         }
+        projectsApi.listEvidenceCases({ pageSize: 100 }).then((casesPayload) => {
+          if (active) setEvidence(casesPayload.items.filter((item) => item.project_id === payload.id).map(toProjectCase));
+        }).catch(() => {
+          if (active) setEvidence([]);
+        });
       }).catch((loadError) => {
         if (active) setError(apiErrorMessage(loadError, "暂时无法读取项目详情"));
       }).finally(() => {
         if (active) setLoading(false);
-      });
-      projectsApi.listCases({ opportunitySlug }).then((casesPayload) => {
-        if (active) setEvidence(casesPayload.cases ?? []);
-      }).catch(() => {
-        if (active) setEvidence([]);
       });
       return () => { active = false; };
     }
@@ -1200,7 +1262,7 @@ function ProjectDetail() {
     return () => {
       active = false;
     };
-  }, [matchId, opportunitySlug]);
+  }, [activeProjectRef, matchId]);
 
   const project = session?.result?.projects?.[0];
   const title = opportunity?.title ?? project?.title ?? "项目详情";
@@ -1234,7 +1296,7 @@ function ProjectDetail() {
   const activeSectionTitle = detailTabs.find(([key]) => key === activeSectionKey)?.[2] ?? "成功路径";
   const activeSection = opportunity?.sections?.find((section) => section.key === activeSectionKey || section.title === activeSectionTitle)
     ?? (activeSectionKey === "path" ? opportunity?.sections?.[0] : undefined);
-  const detailBasePath = opportunitySlug ? `/projects/opportunities/${opportunitySlug}` : "/projects/detail";
+  const detailBasePath = activeProjectRef ? `/projects/${activeProjectRef}` : "/projects/detail";
 
   return (
     <>
@@ -1244,7 +1306,7 @@ function ProjectDetail() {
           <h1>{title} <span aria-hidden="true">☆</span></h1>
           <small>{subtitle}</small>
           {opportunity ? <div className="pm-mini-tags">{[opportunity.industry, ...opportunity.tags].filter(Boolean).slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}
-          {opportunitySlug ? (
+          {activeProjectRef ? (
             <div className="pm-detail-actions">
               <Link to="/projects/history#pm-saved-projects">查看收藏结果</Link>
               <Link to={`/projects/compare?items=${opportunitySlug}`}>加入对比</Link>
@@ -1253,7 +1315,7 @@ function ProjectDetail() {
             </div>
           ) : null}
         </div>
-        <div className={`pm-detail-art pm-detail-art-${opportunitySlug ?? "default"}`} aria-hidden="true" />
+        <div className={`pm-detail-art pm-detail-art-${activeProjectRef ?? "default"}`} aria-hidden="true" />
         {detailMetrics.length > 0 ? (
           <div className="pm-detail-metric-strip">
             {detailMetrics.map(([label, value, icon]) => <article key={label}><i className={icon} aria-hidden="true" /><span><small>{label}</small><strong>{value}</strong></span>{project ? <span className="pm-visually-hidden">{label === "启动预算" ? `预算 ${value}` : `${label} ${value}`}</span> : null}</article>)}
@@ -1507,7 +1569,7 @@ function ProjectCompare() {
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
-    projectsApi.listOpportunities().then((payload) => { if (active) setOptions(payload.opportunities); })
+    projectsApi.listProjects({ pageSize: 100 }).then((payload) => { if (active) setOptions(payload.items); })
       .catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取项目目录")); });
     return () => { active = false; };
   }, []);
@@ -1578,7 +1640,7 @@ function ProjectCompare() {
         </div>
         <div>
           <button disabled={selected.length === 0} onClick={() => { setSelected([]); setSearchParams({}, { replace: true }); setComparison([]); setComparisonId(null); setComparisonExportId(null); }} type="button">移除项目</button>
-          <Link to={comparison[0] ? `/projects/opportunities/${comparison[0].slug}` : "/projects/explore"}>查看拆解</Link>
+          <Link to={comparison[0] ? `/projects/${comparison[0].slug}` : "/projects/explore"}>查看拆解</Link>
           <Link to="/projects/history#pm-saved-projects">查看收藏记录</Link>
           <button disabled={creatingComparison || (comparisonId ? false : selected.length < 2)} onClick={() => void (comparisonId ? exportComparison() : createComparison())} type="button">{creatingComparison ? "对比中..." : comparisonId ? "导出对比" : "开始对比"}</button>
         </div>
@@ -1615,7 +1677,7 @@ function ProjectCompare() {
             <div className="pm-compare-trophy" aria-hidden="true" />
             <div><small>优先核对 · 按已选项目顺序</small><strong className="pm-compare-recommend-title">{primaryComparison?.title}</strong><p>先核对预算、资源与风险项，再进入完整拆解验证项目是否适合当前条件。</p></div>
             <ul>{primaryComparison ? [primaryComparison.budget_band, primaryComparison.difficulty, ...primaryComparison.resource_requirements.slice(0, 2)].filter(Boolean).map((item) => <li key={item}>{item}</li>) : null}</ul>
-            <Link to={primaryComparison ? `/projects/opportunities/${primaryComparison.slug}` : "/projects/explore"}>查看完整项目拆解 →</Link>
+            <Link to={primaryComparison ? `/projects/${primaryComparison.slug}` : "/projects/explore"}>查看完整项目拆解 →</Link>
           </section>
         </>
       )}
@@ -1669,10 +1731,11 @@ function Considerations() {
 
 function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   const copilotPanel = useRegisteredCopilotPanel();
-  const { matchId, opportunitySlug } = useParams();
+  const { matchId, opportunitySlug, projectRef } = useParams();
+  const activeProjectRef = projectRef ?? opportunitySlug;
   const [searchParams] = useSearchParams();
   const [opportunities, setOpportunities] = useState<ProjectOpportunity[]>([]);
-  const [cases, setCases] = useState<ProjectCase[]>([]);
+  const [cases, setCases] = useState<EvidenceCaseItem[]>([]);
   const [sessions, setSessions] = useState<ProjectMatchSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ProjectMatchSession | null>(null);
   const [contextOpportunity, setContextOpportunity] = useState<ProjectOpportunity | null>(null);
@@ -1680,10 +1743,10 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   useEffect(() => {
     let active = true;
     if (["home", "explore", "compare"].includes(variant)) {
-      projectsApi.listOpportunities().then((payload) => { if (active) setOpportunities(payload.opportunities ?? []); }).catch(() => { if (active) setOpportunities([]); });
+      projectsApi.listProjects({ pageSize: 20 }).then((payload) => { if (active) setOpportunities(payload.items ?? []); }).catch(() => { if (active) setOpportunities([]); });
     }
     if (variant === "cases") {
-      projectsApi.listCases().then((payload) => { if (active) setCases(payload.cases ?? []); }).catch(() => { if (active) setCases([]); });
+      projectsApi.listEvidenceCases({ pageSize: 20 }).then((payload) => { if (active) setCases(payload.items ?? []); }).catch(() => { if (active) setCases([]); });
     }
     if (["match", "questions", "history", "results", "paywall", "export"].includes(variant)) {
       const routeSessionId = Number(matchId);
@@ -1693,11 +1756,11 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
         projectsApi.listMatches().then((payload) => { if (active) setSessions(payload.matches ?? []); }).catch(() => { if (active) setSessions([]); });
       }
     }
-    if (opportunitySlug && ["detail", "diagnosis"].includes(variant)) {
-      projectsApi.getOpportunity(opportunitySlug).then((payload) => { if (active) setContextOpportunity(payload); }).catch(() => { if (active) setContextOpportunity(null); });
+    if (activeProjectRef && ["detail", "diagnosis"].includes(variant)) {
+      projectsApi.getProject(activeProjectRef).then((payload) => { if (active) setContextOpportunity(payload); }).catch(() => { if (active) setContextOpportunity(null); });
     }
     return () => { active = false; };
-  }, [matchId, opportunitySlug, variant]);
+  }, [activeProjectRef, matchId, variant]);
 
   const selectedSlugs = (searchParams.get("items") ?? "").split(",").filter(Boolean);
   const comparedOpportunities = opportunities.filter((item) => selectedSlugs.includes(item.slug));
@@ -1710,7 +1773,7 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   const detailItems = (activeDetailSection?.items?.length
     ? activeDetailSection.items
     : activeDetailSection?.blocks?.flatMap((block) => block.items?.map((item) => item.title || item.value || "").filter(Boolean) ?? []) ?? []).slice(0, 4);
-  const caseLessons = cases.flatMap((item) => item.lessons ?? []).slice(0, 3);
+  const caseLessons = cases.map((item) => item.result_summary).slice(0, 3);
 
   if (!copilotPanel.isPanelOpen) {
     return copilotPanel.hasSharedController ? null : <FloatingCopilotOrb onActivate={copilotPanel.openPanel} />;
@@ -1725,39 +1788,37 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
       <div className="pm-copilot-bubble user"><b>我</b><p>请<br />帮我找一些适合一人公司、轻资产、<br />可快速起盘的项目</p></div>
       <div className="pm-copilot-bubble assistant"><b>AI</b><p>好的！我会基于你的偏好分析适合的<br />机会，并推荐可快速起盘的项目。<br /><br />以下是为你精选的推荐：</p></div>
       <div className="pm-copilot-projects">
-        {homeCopilotRecommendations.map((item, index) => (
-          <Link key={item.title} to={opportunities[index] ? `/projects/opportunities/${opportunities[index].slug}` : "/projects/explore"}>
-            <i className="pm-project-thumb" style={{ backgroundImage: `url(${item.image})` }} />
-            <span><strong>{item.title}</strong><small>{item.detail}</small></span>
+        {opportunities.length > 0 ? opportunities.slice(0, 3).map((item, index) => (
+          <Link key={item.id} to={`/projects/${item.slug}`}>
+            <i className="pm-project-thumb" style={{ backgroundImage: `url(${featuredOpportunityArt[index] ?? featuredOpportunityArt[0]})` }} />
+            <span><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ") || item.track || "已发布项目"}</small></span>
           </Link>
-        ))}
+        )) : <span>当前目录暂无可推荐项目</span>}
       </div>
       <Link className="pm-copilot-cta" to="/projects/match">查看 AI 匹配页 →</Link>
     </>;
   } else if (variant === "explore") {
-    const copilotOpportunities = opportunities.length > 0
-      ? opportunities.slice(0, 4)
-      : [referenceExploreOpportunities[0], referenceExploreOpportunities[1], referenceExploreOpportunities[5], referenceExploreOpportunities[7]];
+    const copilotOpportunities = opportunities.slice(0, 4);
     conversation = <>
       <div className="pm-copilot-bubble user"><b>我</b><p>我想找适合一个人公司、预算有限的项目机会，有什么推荐？</p></div>
       <div className="pm-copilot-bubble assistant"><b>AI</b><p><strong>智活 Copilot</strong>为你筛选出以下几个方向，综合考虑启动成本、可复制性和变现潜力：</p></div>
       <div className="pm-copilot-explore-list">
-        {copilotOpportunities.map((item) => <Link key={item.id} to={item.id < 0 ? `/projects/match?intent=${encodeURIComponent(item.title)}` : `/projects/opportunities/${item.slug}`}><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ")} · {item.budget_band}</small></Link>)}
+        {copilotOpportunities.length > 0 ? copilotOpportunities.map((item) => <Link key={item.id} to={`/projects/${item.slug}`}><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ")} · {item.budget_band}</small></Link>) : <span>当前目录暂无可推荐项目</span>}
       </div>
       <p className="pm-copilot-question">想查看更多项目拆解和匹配度分析吗？</p>
       <Link className="pm-copilot-cta" to="/projects/match">去 AI 匹配 →</Link>
     </>;
   } else if (variant === "cases") {
-    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下案例来自服务端案例库，并保留各自的来源链接。</p></div><div className="pm-copilot-projects cases">{cases.slice(0, 3).map((item) => <a href={item.source_url} key={item.id} rel="noreferrer" target="_blank"><i className={`pm-case-thumb pm-case-${item.slug}`} /><span><strong>{item.title}</strong><small>{item.case_type === "success" ? "成功案例" : "失败复盘"}</small></span></a>)}</div><div className="pm-copilot-summary"><strong>案例库中的可学要点</strong>{caseLessons.length > 0 ? caseLessons.map((item) => <span key={item}>✓ {item}</span>) : <span>当前接口没有已发布经验</span>}</div></>;
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下案例来自证据案例库，并保留各自的首要来源。</p></div><div className="pm-copilot-projects cases">{cases.slice(0, 3).map((item) => <Link key={item.id} to={`/project-cases/${item.id}`}><i className={`pm-case-thumb pm-case-${item.id}`} /><span><strong>{item.title}</strong><small>{item.type === "success" ? "成功案例" : "失败复盘"} · {item.source_count} 条证据</small></span></Link>)}</div><div className="pm-copilot-summary"><strong>案例库中的核验结论</strong>{caseLessons.length > 0 ? caseLessons.map((item) => <span key={item}>✓ {item}</span>) : <span>当前接口没有已发布经验</span>}</div></>;
   } else if (variant === "history") {
     conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>当前接口返回 {sessions.length} 条匹配记录。</p></div><div className="pm-copilot-summary">{latestProject ? <><span>✓ 最近完成记录的首项：{latestProject.title}</span><span>✓ 可重新打开并核对原始匹配条件</span><span>✓ 可导出已保存的服务端记录</span></> : <span>完成首次匹配后，这里会显示历史记录摘要。</span>}</div></>;
   } else if (variant === "results") {
-    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>{latestProject ? `根据当前匹配记录，优先验证 ${latestProject.title}。` : "匹配结果正在从会话接口读取。"}</p></div>{latestProject ? <div className="pm-copilot-result"><small>TOP 1 推荐</small><strong>{latestProject.title}</strong><b>匹配度 {latestProject.score} 分</b><p>这是最适合当前条件的项目：</p>{latestProject.reasons.map((item) => <span key={item}>✓ {item}</span>)}<Link to={latestProject.opportunity_slug ? `/projects/opportunities/${latestProject.opportunity_slug}` : "/projects/history"}>查看项目完整拆解 →</Link></div> : null}</>;
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>{latestProject ? `根据当前匹配记录，优先验证 ${latestProject.title}。` : "匹配结果正在从会话接口读取。"}</p></div>{latestProject ? <div className="pm-copilot-result"><small>TOP 1 推荐</small><strong>{latestProject.title}</strong><b>匹配度 {latestProject.score} 分</b><p>这是最适合当前条件的项目：</p>{latestProject.reasons.map((item) => <span key={item}>✓ {item}</span>)}<Link to={latestProject.opportunity_slug ? `/projects/${latestProject.opportunity_slug}` : "/projects/history"}>查看项目完整拆解 →</Link></div> : null}</>;
   } else if (variant === "detail" || variant === "diagnosis") {
     conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>{contextOpportunity ? `已读取 ${contextOpportunity.title} 的“${activeDetailSection?.title ?? "项目详情"}”接口内容。` : "正在读取当前项目上下文。"}</p></div><div className="pm-copilot-summary"><strong>{activeDetailSection?.title ?? "当前章节"}</strong>{detailItems.length > 0 ? detailItems.map((item) => <span key={item}>• {item}</span>) : <span>当前章节暂无结构化数据</span>}</div>{contextOpportunity ? <Link className="pm-copilot-cta" to={`/tasks?project=${encodeURIComponent(contextOpportunity.slug)}`}>生成落地计划表</Link> : null}</>;
   } else if (variant === "compare") {
     const firstSelected = comparedOpportunities[0];
-    conversation = <>{firstSelected ? <div className="pm-copilot-result"><small>已选项目摘要</small><strong>{firstSelected.title}</strong><p>以下内容来自项目目录：</p><span>✓ 启动预算：{firstSelected.budget_band}</span><span>✓ 项目难度：{firstSelected.difficulty}</span><span>✓ 资源：{firstSelected.resource_requirements.slice(0, 2).join("、") || "待补充"}</span><Link to={`/projects/opportunities/${firstSelected.slug}`}>查看项目拆解详情 →</Link></div> : <div className="pm-copilot-bubble assistant"><b>AI</b><p>选择至少两个项目后，这里会展示接口中的项目条件摘要。</p></div>}</>;
+    conversation = <>{firstSelected ? <div className="pm-copilot-result"><small>已选项目摘要</small><strong>{firstSelected.title}</strong><p>以下内容来自项目目录：</p><span>✓ 启动预算：{firstSelected.budget_band}</span><span>✓ 项目难度：{firstSelected.difficulty}</span><span>✓ 资源：{firstSelected.resource_requirements.slice(0, 2).join("、") || "待补充"}</span><Link to={`/projects/${firstSelected.slug}`}>查看项目拆解详情 →</Link></div> : <div className="pm-copilot-bubble assistant"><b>AI</b><p>选择至少两个项目后，这里会展示接口中的项目条件摘要。</p></div>}</>;
   } else {
     conversation = <div className="pm-copilot-bubble assistant"><b>AI</b><p>{variant === "paywall" ? "解锁前请先核对权益、价格和可导出内容。" : "导出文件将按当前匹配会话的服务端记录生成。"}</p></div>;
   }
