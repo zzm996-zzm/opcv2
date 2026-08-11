@@ -112,6 +112,24 @@ export type ProjectCase = {
 };
 export type ProjectComparison = { id:number; user_id:number; items:ProjectOpportunity[]; created_at:string };
 
+export type ProjectPublicConfig = {
+  feature_paywall_enabled: boolean;
+};
+
+export type ProjectCatalogFavorite = {
+  project_id: number;
+  slug: string;
+  title: string;
+  created_at?: string;
+};
+
+export type ProjectCompareItem = {
+  project_id: number;
+  slug: string;
+  title: string;
+  added_at?: string;
+};
+
 export type ProjectHome = {
   hero: { title: string; subtitle: string; desc: string; image_url?: string };
   quick_tags: { code: string; name: string; filters: Record<string, unknown> }[];
@@ -169,6 +187,10 @@ export type EvidenceCasePage = {
 };
 
 export const projectsApi = {
+  getPublicConfig() {
+    return apiRequest<ProjectPublicConfig>("/api/v1/config", { method: "GET" });
+  },
+
   getHome() {
     return apiRequest<ProjectHome>("/api/v1/projects/home", { method: "GET" });
   },
@@ -220,6 +242,33 @@ export const projectsApi = {
 
   getEvidenceCase(ref: string) {
     return apiRequest<EvidenceCaseDetail>(`/api/v1/project-cases/${encodeURIComponent(ref)}`, { method: "GET" });
+  },
+
+  listProjectFavorites() {
+    return apiRequest<{ favorites: ProjectCatalogFavorite[] }>("/api/v1/projects/project-favorites", { method: "GET" });
+  },
+
+  favoriteProject(ref: string) {
+    return apiRequest<ProjectCatalogFavorite>(`/api/v1/projects/${encodeURIComponent(ref)}/favorite`, { method: "POST" });
+  },
+
+  unfavoriteProject(ref: string) {
+    return apiRequest<void>(`/api/v1/projects/${encodeURIComponent(ref)}/favorite`, { method: "DELETE" });
+  },
+
+  listProjectCompareItems() {
+    return apiRequest<{ items: ProjectCompareItem[] }>("/api/v1/projects/compare", { method: "GET" });
+  },
+
+  addProjectCompareItem(ref: string) {
+    return apiRequest<ProjectCompareItem>("/api/v1/projects/compare-items", {
+      method: "POST",
+      body: JSON.stringify({ project_id: ref })
+    });
+  },
+
+  removeProjectCompareItem(ref: string) {
+    return apiRequest<void>(`/api/v1/projects/compare-items/${encodeURIComponent(ref)}`, { method: "DELETE" });
   },
 
   listOpportunities(filters: { query?: string; industry?: string } = {}) {

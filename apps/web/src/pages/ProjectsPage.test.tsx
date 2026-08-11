@@ -162,6 +162,47 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("navigation", { name: "项目机会分页" })).toBeInTheDocument();
   });
 
+  it("persists a favorite directly from a catalog card", async () => {
+    const project = {
+      id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", track: "企业服务",
+      tags: ["B端"], budget_band: "1万", difficulty: "中等", resource_requirements: []
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.startsWith("/api/v1/projects?") && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({ items: [project], page: 1, page_size: 8, total: 1 }), { status: 200 }));
+      if (url === "/api/v1/projects/project-favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/compare") return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/ai-sales/favorite" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ project_id: 42, slug: "ai-sales", title: "AI销售顾问" }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+
+    renderProjectRoute("/projects/explore");
+
+    fireEvent.click(await screen.findByRole("button", { name: "收藏 AI销售顾问" }));
+    expect(screen.getByRole("button", { name: "取消收藏 AI销售顾问" })).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/ai-sales/favorite", expect.objectContaining({ method: "POST" })));
+  });
+
+  it("renders the persisted compare bar at the document root", async () => {
+    const project = {
+      id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", track: "企业服务",
+      tags: ["B端"], budget_band: "1万", difficulty: "中等", resource_requirements: []
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/v1/projects?")) return Promise.resolve(new Response(JSON.stringify({ items: [project], page: 1, page_size: 8, total: 1 }), { status: 200 }));
+      if (url === "/api/v1/projects/project-favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/compare") return Promise.resolve(new Response(JSON.stringify({ items: [{ project_id: 42, slug: "ai-sales", title: "AI销售顾问" }] }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+
+    renderProjectRoute("/projects/explore");
+
+    const compareBar = await screen.findByRole("complementary", { name: "项目对比栏" });
+    expect(compareBar.parentElement).toBe(document.body);
+    expect(compareBar).toHaveTextContent("已加入对比 1/5");
+  });
+
   it("shows the real empty catalog without demo records or fake totals", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 8, total: 0 }), { status: 200 })));
     renderProjectRoute("/projects/explore");
@@ -406,6 +447,25 @@ describe("ProjectsPage", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("restores and removes persisted project favorites from history", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/projects/matches") return Promise.resolve(new Response(JSON.stringify({ matches: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/project-favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [{ project_id: 42, slug: "ai-sales", title: "AI销售顾问", created_at: "2026-08-11T08:00:00Z" }] }), { status: 200 }));
+      if (url === "/api/v1/projects/ai-sales/favorite" && init?.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+
+    renderProjectRoute("/projects/history");
+
+    expect(await screen.findByRole("heading", { name: "收藏项目" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看项目" })).toHaveAttribute("href", "/projects/ai-sales");
+    fireEvent.click(screen.getByRole("button", { name: "取消收藏 AI销售顾问" }));
+    expect(await screen.findByText("暂无收藏项目")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/ai-sales/favorite", expect.objectContaining({ method: "DELETE" }));
+  });
+
   it("renders match detail from API session", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({
@@ -442,34 +502,19 @@ describe("ProjectsPage", () => {
     expect(screen.getByText(/未引用外部证据/)).toBeInTheDocument();
   });
 
-  it("renders paid sample overlay state from the membership API", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+  it("removes the paywall route and unlock controls while the catalog is fully open", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
-      if (url === "/api/v1/membership/plans") return Promise.resolve(new Response(JSON.stringify({ plans: [{ id: 2, code: "pro", name: "会员版", price_cents: 6900, billing_cycle: "month", features: ["完整项目拆解"], quotas: [], recommended: true }] }), { status: 200 }));
+      if (url === "/api/v1/config") return Promise.resolve(new Response(JSON.stringify({ feature_paywall_enabled: false }), { status: 200 }));
       if (url === "/api/v1/projects/matches") return Promise.resolve(new Response(JSON.stringify({ matches: [] }), { status: 200 }));
       if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
       return Promise.reject(new Error(`unexpected ${url}`));
     });
     renderProjectRoute("/projects/results/paywall");
 
-    expect(screen.getByRole("heading", { name: "解锁完整拆解" })).toBeInTheDocument();
-    expect(await screen.findByText("会员版")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "立即解锁" })).toHaveAttribute("href", "/membership/upgrade");
-  });
-
-  it("shows a disabled paywall action when membership plans fail to load", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
-      const url = String(input);
-      if (url === "/api/v1/membership/plans") return Promise.resolve(new Response(JSON.stringify({ message: "plans unavailable" }), { status: 503 }));
-      if (url === "/api/v1/projects/matches") return Promise.resolve(new Response(JSON.stringify({ matches: [] }), { status: 200 }));
-      return Promise.reject(new Error(`unexpected ${url}`));
-    });
-
-    renderProjectRoute("/projects/results/paywall");
-
-    expect(await screen.findByText("会员方案暂不可用，请稍后重试")).toHaveAttribute("role", "alert");
-    expect(screen.getByRole("button", { name: "方案暂不可用" })).toBeDisabled();
-    expect(screen.queryByRole("link", { name: "立即解锁" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "解锁完整拆解" })).not.toBeInTheDocument());
+    expect(screen.queryByText("解锁完整报告")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/v1/membership/plans")).toBe(false);
   });
 
   it("redirects the legacy detail route to opportunity exploration", async () => {
@@ -528,6 +573,60 @@ describe("ProjectsPage", () => {
       expect.objectContaining({ method: "GET" })
     ));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("restores a project favorite after refresh and rolls back a failed removal", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/projects/ai-sales") return Promise.resolve(new Response(JSON.stringify({
+        id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", track: "企业服务", tags: ["B端"], budget_band: "1万", difficulty: "中等", resource_requirements: [], sections: []
+      }), { status: 200 }));
+      if (url === "/api/v1/project-cases?page_size=100") return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 100, total: 0 }), { status: 200 }));
+      if (url === "/api/v1/projects/project-favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [{ project_id: 42, slug: "ai-sales", title: "AI销售顾问" }] }), { status: 200 }));
+      if (url === "/api/v1/projects/compare") return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/ai-sales/favorite" && init?.method === "DELETE") return Promise.resolve(new Response(JSON.stringify({ error: "internal_error" }), { status: 500 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+
+    renderProjectRoute("/projects/ai-sales");
+
+    const favoriteButton = await screen.findByRole("button", { name: "取消收藏项目" });
+    fireEvent.click(favoriteButton);
+    expect(screen.getByRole("button", { name: "收藏项目" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("取消收藏失败");
+    expect(screen.getByRole("button", { name: "取消收藏项目" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/project-favorites", expect.objectContaining({ method: "GET" }));
+  });
+
+  it("restores the persisted five-item compare list and rolls back a sixth item", async () => {
+    const items = Array.from({ length: 6 }, (_, index) => ({
+      id: index + 1,
+      slug: `project-${index + 1}`,
+      title: `项目${index + 1}`,
+      summary: `项目${index + 1}摘要`,
+      track: "企业服务",
+      tags: [],
+      budget_band: "1万",
+      difficulty: "中等",
+      resource_requirements: []
+    }));
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/projects?page_size=100") return Promise.resolve(new Response(JSON.stringify({ items, page: 1, page_size: 100, total: 6 }), { status: 200 }));
+      if (url === "/api/v1/projects/compare") return Promise.resolve(new Response(JSON.stringify({ items: items.slice(0, 5).map((item) => ({ project_id: item.id, slug: item.slug, title: item.title })) }), { status: 200 }));
+      if (url === "/api/v1/projects/compare-items" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ error: "compare_limit_reached", max: 5 }), { status: 409 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+
+    renderProjectRoute("/projects/compare");
+
+    expect(await screen.findByText("已保存 5/5 个项目")).toBeInTheDocument();
+    const sixth = screen.getByRole("checkbox", { name: "项目6" });
+    fireEvent.click(sixth);
+    expect(sixth).toBeChecked();
+    expect(await screen.findByRole("alert")).toHaveTextContent("最多只能同时对比 5 个项目");
+    expect(sixth).not.toBeChecked();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/compare-items", expect.objectContaining({ method: "POST", body: JSON.stringify({ project_id: "project-6" }) }));
   });
 
   it("opens a directly addressable detail tab backed by API sections", async () => {
@@ -590,6 +689,12 @@ describe("ProjectsPage", () => {
         { id: 2, slug: "ai-content", title: "AI内容", summary: "内容生产", industry: "内容", tags: [], budget_band: "5000", difficulty: "低", resource_requirements: [] }
       ];
       if (url === "/api/v1/projects?page_size=100" || url === "/api/v1/projects?page_size=20") return Promise.resolve(new Response(JSON.stringify({ items, page: 1, page_size: 100, total: items.length }), { status: 200 }));
+      if (url === "/api/v1/projects/compare" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/compare-items" && init?.method === "POST") {
+        const slug = JSON.parse(String(init.body)).project_id;
+        const item = items.find((candidate) => candidate.slug === slug);
+        return Promise.resolve(new Response(JSON.stringify({ project_id: item?.id, slug: item?.slug, title: item?.title }), { status: 200 }));
+      }
       if (url === "/api/v1/projects/comparisons" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 61, items }), { status: 200 }));
       if (url === "/api/v1/projects/exports" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 72, status: "ready", download_url: "/api/v1/projects/exports/72/download" }), { status: 200 }));
       if (url === "/api/v1/projects/exports/72/download" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({ source_type: "comparison", source_id: 61 }), { status: 200 }));
@@ -600,7 +705,9 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "项目对比" })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("checkbox", { name: "AI销售" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "AI内容" }));
-    fireEvent.click(screen.getByRole("button", { name: "开始对比" }));
+    const compareButton = screen.getByRole("button", { name: "开始对比" });
+    await waitFor(() => expect(compareButton).toBeEnabled());
+    fireEvent.click(compareButton);
     expect(await screen.findByRole("heading", { name: "AI销售" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "AI内容" })).toBeInTheDocument();
     await waitFor(() => expect(fetchMock.mock.calls.filter(([input, init]) =>

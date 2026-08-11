@@ -68,7 +68,8 @@ const errorMessages: Record<string, string> = {
   invalid_memory_id: "记忆 ID 不正确",
   invalid_file_id: "文件 ID 不正确",
   notification_not_found: "消息不存在或已无权限访问",
-  membership_required: "循环提醒仅限会员使用，请升级后重试"
+  membership_required: "循环提醒仅限会员使用，请升级后重试",
+  compare_limit_reached: "最多只能同时对比 5 个项目"
 };
 
 export class ApiRequestError extends Error {

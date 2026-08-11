@@ -9,7 +9,7 @@ import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
-import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
+import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
@@ -175,6 +175,22 @@ function intentFacts(intent: string): IntentFact[] {
 }
 
 function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
+  const needsPublicConfig = variant === "results" || variant === "paywall" || variant === "export";
+  const [featurePaywallEnabled, setFeaturePaywallEnabled] = useState<boolean | null>(needsPublicConfig ? null : false);
+
+  useEffect(() => {
+    if (!needsPublicConfig) {
+      setFeaturePaywallEnabled(false);
+      return;
+    }
+    let active = true;
+    setFeaturePaywallEnabled(null);
+    projectsApi.getPublicConfig()
+      .then((config) => { if (active) setFeaturePaywallEnabled(config.feature_paywall_enabled === true); })
+      .catch(() => { if (active) setFeaturePaywallEnabled(false); });
+    return () => { active = false; };
+  }, [needsPublicConfig]);
+
   return (
     <V4PageShell className="project-market-shell" showCopilotMini={false}>
       <section className="project-market-page" aria-label="项目超市">
@@ -186,12 +202,12 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
             {variant === "cases" && <CaseLibrary />}
             {variant === "caseDetail" && <CaseDetail />}
             {variant === "questions" && <MatchQuestions />}
-            {variant === "results" && <MatchResults />}
+            {variant === "results" && <MatchResults paywallEnabled={featurePaywallEnabled === true} />}
             {variant === "history" && <MatchHistory />}
             {variant === "paywall" && (
               <>
-                <MatchResults />
-                <PaywallOverlay />
+                <MatchResults paywallEnabled={featurePaywallEnabled === true} />
+                <PaywallOverlay paywallEnabled={featurePaywallEnabled} />
               </>
             )}
             {variant === "detail" && <ProjectDetail />}
@@ -204,12 +220,12 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
             {variant === "compare" && <ProjectCompare />}
             {variant === "export" && (
               <>
-                <MatchResults />
-                <ExportOverlay />
+                <MatchResults paywallEnabled={featurePaywallEnabled === true} />
+                <ExportOverlay paywallEnabled={featurePaywallEnabled === true} />
               </>
             )}
           </main>
-          <ProjectCopilot variant={variant} />
+          <ProjectCopilot variant={variant === "paywall" && featurePaywallEnabled !== true ? "results" : variant} />
         </div>
       </section>
     </V4PageShell>
@@ -396,6 +412,10 @@ function OpportunityExplore() {
   const [query, setQuery] = useState(submittedQuery);
   const [loading, setLoading] = useState(true);
   const [reloadToken, setReloadToken] = useState(0);
+  const [favoriteSlugs, setFavoriteSlugs] = useState<string[]>([]);
+  const [compareSlugs, setCompareSlugs] = useState<string[]>([]);
+  const [collectionPending, setCollectionPending] = useState<string[]>([]);
+  const [collectionError, setCollectionError] = useState("");
   const requestID = useRef(0);
   const track = searchParams.get("track") ?? "";
   const budget = searchParams.get("budget") ?? "";
@@ -456,6 +476,20 @@ function OpportunityExplore() {
     });
   }, [budget, effectiveDifficulty, effectiveKeyword, effectiveSort, page, reloadToken, resource, track]);
 
+  useEffect(() => {
+    let active = true;
+    Promise.allSettled([projectsApi.listProjectFavorites(), projectsApi.listProjectCompareItems()]).then(([favoritesResult, compareResult]) => {
+      if (!active) return;
+      if (favoritesResult.status === "fulfilled") {
+        setFavoriteSlugs((favoritesResult.value.favorites ?? []).filter((item) => item.project_id > 0).map((item) => item.slug));
+      }
+      if (compareResult.status === "fulfilled") {
+        setCompareSlugs((compareResult.value.items ?? []).filter((item) => item.project_id > 0).map((item) => item.slug));
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
   function submitQuery(value: string) {
     const normalized = value.trim();
     setQuery(normalized);
@@ -469,6 +503,34 @@ function OpportunityExplore() {
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     submitQuery(query);
+  }
+
+  async function toggleCatalogCollection(item: ProjectOpportunity, kind: "favorite" | "compare") {
+    const pendingKey = `${kind}:${item.slug}`;
+    if (collectionPending.includes(pendingKey)) return;
+    const values = kind === "favorite" ? favoriteSlugs : compareSlugs;
+    const setValues = kind === "favorite" ? setFavoriteSlugs : setCompareSlugs;
+    const removing = values.includes(item.slug);
+    const previous = values;
+    setValues(removing ? values.filter((slug) => slug !== item.slug) : [...values, item.slug]);
+    setCollectionPending((current) => [...current, pendingKey]);
+    setCollectionError("");
+    try {
+      if (kind === "favorite") {
+        if (removing) await projectsApi.unfavoriteProject(item.slug);
+        else await projectsApi.favoriteProject(item.slug);
+      } else if (removing) {
+        await projectsApi.removeProjectCompareItem(item.slug);
+      } else {
+        await projectsApi.addProjectCompareItem(item.slug);
+      }
+    } catch (collectionActionError) {
+      setValues(previous);
+      const operation = kind === "favorite" ? (removing ? "取消收藏" : "收藏项目") : (removing ? "移出对比" : "加入对比");
+      setCollectionError(`${operation}失败：${apiErrorMessage(collectionActionError, "请稍后重试")}`);
+    } finally {
+      setCollectionPending((current) => current.filter((key) => key !== pendingKey));
+    }
   }
 
   const filterOptions = useMemo(() => ({
@@ -534,6 +596,7 @@ function OpportunityExplore() {
       </section>
 
       <section aria-busy={loading} className="pm-explore-grid" aria-label="项目机会列表">
+        {collectionError ? <p className="form-error pm-collection-error" role="alert">{collectionError}</p> : null}
         {loading ? <div className="module-empty-state" role="status">正在搜索项目机会…</div> : null}
         {!loading && error ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
         {!loading && !error && items.length === 0 ? <div className="module-empty-state" role="status">{effectiveKeyword ? `未找到“${effectiveKeyword}”相关的已发布项目机会` : "暂无符合条件的已发布项目机会"}</div> : null}
@@ -546,6 +609,10 @@ function OpportunityExplore() {
               <strong>{item.budget_band || "预算待补充"}</strong>
               <small>{item.difficulty || "难度待补充"}</small>
               <div className="pm-mini-tags">{item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}</div>
+              <div className="pm-card-collection-actions">
+                <button aria-label={favoriteSlugs.includes(item.slug) ? `取消收藏 ${item.title}` : `收藏 ${item.title}`} disabled={collectionPending.includes(`favorite:${item.slug}`)} onClick={() => void toggleCatalogCollection(item, "favorite")} type="button">{favoriteSlugs.includes(item.slug) ? "★" : "☆"}</button>
+                <button aria-label={compareSlugs.includes(item.slug) ? `移出对比 ${item.title}` : `加入对比 ${item.title}`} disabled={collectionPending.includes(`compare:${item.slug}`)} onClick={() => void toggleCatalogCollection(item, "compare")} type="button">{compareSlugs.includes(item.slug) ? "已对比" : "对比"}</button>
+              </div>
               <Link aria-label="查看机会" to={`/projects/${item.slug}`}>查看拆解 →</Link>
             </footer>
           </article>
@@ -559,6 +626,10 @@ function OpportunityExplore() {
         <button aria-label="下一页" disabled={page >= pageCount} onClick={() => updateParams({ page: String(Math.min(pageCount, page + 1)) })} type="button">›</button>
         <small>共 {total} 条</small>
       </nav> : null}
+      {compareSlugs.length > 0 ? createPortal(
+        <aside className="pm-persisted-compare-bar" aria-label="项目对比栏"><span>已加入对比 {compareSlugs.length}/5</span><Link to="/projects/compare">打开对比</Link></aside>,
+        document.body,
+      ) : null}
     </>
   );
 }
@@ -910,7 +981,7 @@ function MatchQuestions() {
   );
 }
 
-function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProject[]; sessionId?: number }) {
+function MatchResults({ projects, sessionId, paywallEnabled = false }: { projects?: readonly DisplayProject[]; sessionId?: number; paywallEnabled?: boolean }) {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const [loadedSession, setLoadedSession] = useState<ProjectMatchSession | null>(null);
@@ -1050,7 +1121,7 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
           </div>
           <small>来源：匹配记录 #{persistedSessionId} · 模型推演内容需结合已发布项目资料验证</small>
           <Link to={persistedProjects[0]?.opportunitySlug ? `/projects/${persistedProjects[0].opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看项目完整拆解</Link>
-          <Link className="pm-unlock-report" to={persistedSessionId ? `/projects/matches/${persistedSessionId}/results/paywall` : "/projects/results/paywall"}>解锁完整报告</Link>
+          {paywallEnabled ? <Link className="pm-unlock-report" to={persistedSessionId ? `/projects/matches/${persistedSessionId}/results/paywall` : "/projects/results/paywall"}>解锁完整报告</Link> : null}
           <button disabled={!persistedSessionId} onClick={() => void generateTasks()} type="button">生成落地任务</button>
         </aside>
       </section> : null}
@@ -1061,6 +1132,7 @@ function MatchResults({ projects, sessionId }: { projects?: readonly DisplayProj
 function MatchHistory() {
   const [sessions, setSessions] = useState<ProjectMatchSession[]>([]);
   const [favorites, setFavorites] = useState<ProjectFavorite[]>([]);
+  const [projectFavorites, setProjectFavorites] = useState<ProjectCatalogFavorite[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [timeFilter, setTimeFilter] = useState("all");
@@ -1090,6 +1162,13 @@ function MatchHistory() {
       .catch(() => {
         if (active) setFavorites([]);
       });
+    projectsApi.listProjectFavorites()
+      .then((favoritesPayload) => {
+        if (active) setProjectFavorites(favoritesPayload.favorites ?? []);
+      })
+      .catch(() => {
+        if (active) setProjectFavorites([]);
+      });
     return () => {
       active = false;
     };
@@ -1114,6 +1193,27 @@ function MatchHistory() {
       setError("");
     } catch (removeError) {
       setError(apiErrorMessage(removeError, "暂时无法取消收藏"));
+    }
+  }
+
+  async function removeProjectFavorite(favorite: ProjectCatalogFavorite) {
+    const previous = projectFavorites;
+    setProjectFavorites((current) => current.filter((item) => item.project_id !== favorite.project_id));
+    try {
+      await projectsApi.unfavoriteProject(favorite.slug);
+      setError("");
+    } catch (removeError) {
+      setProjectFavorites(previous);
+      setError(`取消收藏失败：${apiErrorMessage(removeError, "请稍后重试")}`);
+    }
+  }
+
+  async function addFavoriteToCompare(favorite: ProjectCatalogFavorite) {
+    try {
+      await projectsApi.addProjectCompareItem(favorite.slug);
+      setError("");
+    } catch (compareError) {
+      setError(`加入对比失败：${apiErrorMessage(compareError, "请稍后重试")}`);
     }
   }
 
@@ -1178,6 +1278,23 @@ function MatchHistory() {
           ) : null)}
         </div>
       </section>
+
+      <section className="pm-saved-section" aria-label="收藏项目">
+        <header><h2>收藏项目</h2><span>跨设备保存的项目机会，可直接查看或加入对比</span><Link to="/projects/explore">继续浏览 →</Link></header>
+        <div className="pm-opportunity-grid saved">
+          {!loading && projectFavorites.length === 0 ? <div className="module-empty-state" role="status">暂无收藏项目</div> : null}
+          {projectFavorites.map((favorite) => (
+            <article className={`pm-project-${favorite.slug}`} key={favorite.project_id}>
+              <div className="pm-thumb" />
+              <h3>{favorite.title}</h3>
+              <small>收藏于 {favorite.created_at ? new Date(favorite.created_at).toLocaleDateString("zh-CN") : "项目目录"}</small>
+              <Link to={`/projects/${favorite.slug}`}>查看项目</Link>
+              <button className="pm-saved-compare" onClick={() => void addFavoriteToCompare(favorite)} type="button">加入对比</button>
+              <button aria-label={`取消收藏 ${favorite.title}`} className="pm-saved-remove" onClick={() => void removeProjectFavorite(favorite)} type="button">☆</button>
+            </article>
+          ))}
+        </div>
+      </section>
     </>
   );
 }
@@ -1210,6 +1327,11 @@ function ProjectDetail() {
   const [evidence, setEvidence] = useState<ProjectCase[]>([]);
   const [loading, setLoading] = useState(Boolean(matchId || activeProjectRef));
   const [error, setError] = useState("");
+  const [projectFavorited, setProjectFavorited] = useState(false);
+  const [projectCompared, setProjectCompared] = useState(false);
+  const [collectionsLoading, setCollectionsLoading] = useState(Boolean(activeProjectRef));
+  const [collectionPending, setCollectionPending] = useState<"favorite" | "compare" | "">("");
+  const [collectionError, setCollectionError] = useState("");
 
   useEffect(() => {
     if (activeProjectRef) {
@@ -1264,6 +1386,59 @@ function ProjectDetail() {
     };
   }, [activeProjectRef, matchId]);
 
+  useEffect(() => {
+    if (!activeProjectRef || !opportunity) {
+      setCollectionsLoading(false);
+      return;
+    }
+    let active = true;
+    setCollectionsLoading(true);
+    Promise.allSettled([projectsApi.listProjectFavorites(), projectsApi.listProjectCompareItems()])
+      .then(([favoriteResult, compareResult]) => {
+        if (!active) return;
+        setProjectFavorited(favoriteResult.status === "fulfilled" && favoriteResult.value.favorites.some((item) => item.project_id === opportunity.id || item.slug === opportunity.slug));
+        setProjectCompared(compareResult.status === "fulfilled" && compareResult.value.items.some((item) => item.project_id === opportunity.id || item.slug === opportunity.slug));
+      })
+      .finally(() => { if (active) setCollectionsLoading(false); });
+    return () => { active = false; };
+  }, [activeProjectRef, opportunity]);
+
+  async function toggleProjectFavorite() {
+    if (!opportunity || collectionPending) return;
+    const previous = projectFavorited;
+    setProjectFavorited(!previous);
+    setCollectionPending("favorite");
+    setCollectionError("");
+    try {
+      if (previous) await projectsApi.unfavoriteProject(opportunity.slug);
+      else await projectsApi.favoriteProject(opportunity.slug);
+    } catch (favoriteError) {
+      setProjectFavorited(previous);
+      const detail = apiErrorMessage(favoriteError, "请稍后重试");
+      setCollectionError(`${previous ? "取消收藏" : "收藏项目"}失败：${detail}`);
+    } finally {
+      setCollectionPending("");
+    }
+  }
+
+  async function toggleProjectCompare() {
+    if (!opportunity || collectionPending) return;
+    const previous = projectCompared;
+    setProjectCompared(!previous);
+    setCollectionPending("compare");
+    setCollectionError("");
+    try {
+      if (previous) await projectsApi.removeProjectCompareItem(opportunity.slug);
+      else await projectsApi.addProjectCompareItem(opportunity.slug);
+    } catch (compareError) {
+      setProjectCompared(previous);
+      const detail = apiErrorMessage(compareError, "请稍后重试");
+      setCollectionError(`${previous ? "移出对比" : "加入对比"}失败：${detail}`);
+    } finally {
+      setCollectionPending("");
+    }
+  }
+
   const project = session?.result?.projects?.[0];
   const title = opportunity?.title ?? project?.title ?? "项目详情";
   const subtitle = opportunity?.summary ?? (project
@@ -1308,8 +1483,9 @@ function ProjectDetail() {
           {opportunity ? <div className="pm-mini-tags">{[opportunity.industry, ...opportunity.tags].filter(Boolean).slice(0, 5).map((item) => <span key={item}>{item}</span>)}</div> : null}
           {activeProjectRef ? (
             <div className="pm-detail-actions">
-              <Link to="/projects/history#pm-saved-projects">查看收藏结果</Link>
-              <Link to={`/projects/compare?items=${opportunitySlug}`}>加入对比</Link>
+              <button aria-label={projectFavorited ? "取消收藏项目" : "收藏项目"} disabled={!opportunity || collectionsLoading || Boolean(collectionPending)} onClick={() => void toggleProjectFavorite()} type="button">{collectionPending === "favorite" ? "处理中..." : projectFavorited ? "取消收藏" : "收藏项目"}</button>
+              <button aria-label={projectCompared ? "移出项目对比" : "加入项目对比"} disabled={!opportunity || collectionsLoading || Boolean(collectionPending)} onClick={() => void toggleProjectCompare()} type="button">{collectionPending === "compare" ? "处理中..." : projectCompared ? "移出对比" : "加入对比"}</button>
+              {projectCompared ? <Link to="/projects/compare">查看对比</Link> : null}
               <Link to={`${detailBasePath}/diagnosis`}>诊断我能否做</Link>
               <Link className="primary" to="/projects/match">AI 匹配类似项目</Link>
             </div>
@@ -1324,6 +1500,7 @@ function ProjectDetail() {
       </section>
       {loading ? <div className="module-empty-state" role="status">正在读取项目详情...</div> : null}
       {error && <p className="form-error" role="alert">{error}</p>}
+      {collectionError ? <p className="form-error" role="alert">{collectionError}</p> : null}
       {!loading && !error && opportunity ? (
         <>
           <nav className="pm-detail-tabs" aria-label="项目详情栏目">
@@ -1559,27 +1736,101 @@ function MatchRecordDetail({ session }: { session: ProjectMatchSession }) {
 
 function ProjectCompare() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const setSearchParamsRef = useRef(setSearchParams);
+  const requestedSlugs = useRef((searchParams.get("items") ?? "").split(",").filter(Boolean).slice(0, 5));
   const [options, setOptions] = useState<ProjectOpportunity[]>([]);
-  const [selected, setSelected] = useState<string[]>(() => (searchParams.get("items") ?? "").split(",").filter(Boolean).slice(0, 4));
+  const [selected, setSelected] = useState<string[]>([]);
   const [comparison, setComparison] = useState<ProjectOpportunity[]>([]);
   const [comparisonId, setComparisonId] = useState<number | null>(null);
   const [comparisonExportId, setComparisonExportId] = useState<number | null>(null);
   const [creatingComparison, setCreatingComparison] = useState(false);
   const [downloadingComparison, setDownloadingComparison] = useState(false);
+  const [collectionsLoading, setCollectionsLoading] = useState(true);
+  const [collectionPending, setCollectionPending] = useState<string[]>([]);
   const [error, setError] = useState("");
+  useEffect(() => {
+    setSearchParamsRef.current = setSearchParams;
+  }, [setSearchParams]);
   useEffect(() => {
     let active = true;
     projectsApi.listProjects({ pageSize: 100 }).then((payload) => { if (active) setOptions(payload.items); })
       .catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取项目目录")); });
+
+    async function loadPersistedSelection() {
+      let next: string[] = [];
+      try {
+        const payload = await projectsApi.listProjectCompareItems();
+        next = payload.items.map((item) => item.slug).filter(Boolean).slice(0, 5);
+      } catch (loadError) {
+        if (active) setError(apiErrorMessage(loadError, "暂时无法读取已保存的对比项目"));
+      }
+      for (const slug of requestedSlugs.current) {
+        if (next.includes(slug)) continue;
+        try {
+          const item = await projectsApi.addProjectCompareItem(slug);
+          next.push(item.slug);
+        } catch (addError) {
+          if (active) setError(apiErrorMessage(addError, "暂时无法加入对比"));
+          break;
+        }
+      }
+      if (!active) return;
+      setSelected(next);
+      setSearchParamsRef.current(next.length > 0 ? { items: next.join(",") } : {}, { replace: true });
+      setCollectionsLoading(false);
+    }
+    void loadPersistedSelection();
     return () => { active = false; };
   }, []);
-  function toggle(slug: string) {
+  async function toggle(slug: string) {
+    if (collectionPending.includes(slug)) return;
+    const previous = selected;
+    const removing = selected.includes(slug);
+    const next = removing ? selected.filter((item) => item !== slug) : [...selected, slug];
     setComparison([]);
     setComparisonId(null);
     setComparisonExportId(null);
-    const next = selected.includes(slug) ? selected.filter((item) => item !== slug) : selected.length < 4 ? [...selected, slug] : selected;
     setSelected(next);
     setSearchParams(next.length > 0 ? { items: next.join(",") } : {}, { replace: true });
+    setCollectionPending((current) => [...current, slug]);
+    setError("");
+    try {
+      if (removing) await projectsApi.removeProjectCompareItem(slug);
+      else await projectsApi.addProjectCompareItem(slug);
+    } catch (toggleError) {
+      setSelected(previous);
+      setSearchParams(previous.length > 0 ? { items: previous.join(",") } : {}, { replace: true });
+      setError(apiErrorMessage(toggleError, removing ? "暂时无法移出对比" : "暂时无法加入对比"));
+    } finally {
+      setCollectionPending((current) => current.filter((item) => item !== slug));
+    }
+  }
+  async function clearSelection() {
+    if (selected.length === 0 || collectionPending.length > 0) return;
+    const previous = selected;
+    setSelected([]);
+    setSearchParams({}, { replace: true });
+    setComparison([]);
+    setComparisonId(null);
+    setComparisonExportId(null);
+    setCollectionPending(previous);
+    setError("");
+    try {
+      await Promise.all(previous.map((slug) => projectsApi.removeProjectCompareItem(slug)));
+    } catch (clearError) {
+      try {
+        const payload = await projectsApi.listProjectCompareItems();
+        const restored = payload.items.map((item) => item.slug).filter(Boolean).slice(0, 5);
+        setSelected(restored);
+        setSearchParams(restored.length > 0 ? { items: restored.join(",") } : {}, { replace: true });
+      } catch {
+        setSelected(previous);
+        setSearchParams({ items: previous.join(",") }, { replace: true });
+      }
+      setError(apiErrorMessage(clearError, "暂时无法清空对比项目"));
+    } finally {
+      setCollectionPending([]);
+    }
   }
   async function createComparison() {
     if (selected.length < 2 || creatingComparison) return;
@@ -1639,18 +1890,19 @@ function ProjectCompare() {
           <small>并排比较多个项目的预算、门槛、风险与增长潜力，帮助你更快做决策</small>
         </div>
         <div>
-          <button disabled={selected.length === 0} onClick={() => { setSelected([]); setSearchParams({}, { replace: true }); setComparison([]); setComparisonId(null); setComparisonExportId(null); }} type="button">移除项目</button>
+          <button disabled={selected.length === 0 || collectionPending.length > 0} onClick={() => void clearSelection()} type="button">移除项目</button>
           <Link to={comparison[0] ? `/projects/${comparison[0].slug}` : "/projects/explore"}>查看拆解</Link>
           <Link to="/projects/history#pm-saved-projects">查看收藏记录</Link>
-          <button disabled={creatingComparison || (comparisonId ? false : selected.length < 2)} onClick={() => void (comparisonId ? exportComparison() : createComparison())} type="button">{creatingComparison ? "对比中..." : comparisonId ? "导出对比" : "开始对比"}</button>
+          <button disabled={creatingComparison || collectionPending.length > 0 || (comparisonId ? false : selected.length < 2)} onClick={() => void (comparisonId ? exportComparison() : createComparison())} type="button">{creatingComparison ? "对比中..." : comparisonId ? "导出对比" : "开始对比"}</button>
         </div>
       </div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
+      <p className="pm-compare-saved-state" role="status">{collectionsLoading ? "正在读取已保存的对比项目..." : `已保存 ${selected.length}/5 个项目`}</p>
       {comparisonExportId ? <button className="pm-compare-download" disabled={downloadingComparison} onClick={() => void downloadComparison()} type="button">{downloadingComparison ? "下载中..." : "下载对比报告"}</button> : null}
       {comparison.length === 0 ? (
         <section className="pm-panel pm-compare-picker">
-          <h2>选择 2-4 个项目</h2>
-          <div>{options.map((item) => <label key={item.id}><input aria-label={item.title} checked={selected.includes(item.slug)} onChange={() => toggle(item.slug)} type="checkbox" /><span><strong>{item.title}</strong><small>{item.industry} · {item.budget_band}</small></span></label>)}</div>
+          <h2>选择 2-5 个项目</h2>
+          <div>{options.map((item) => <label key={item.id}><input aria-label={item.title} checked={selected.includes(item.slug)} disabled={collectionsLoading || collectionPending.includes(item.slug)} onChange={() => void toggle(item.slug)} type="checkbox" /><span><strong>{item.title}</strong><small>{item.industry} · {item.budget_band}</small></span></label>)}</div>
         </section>
       ) : (
         <>
@@ -1664,7 +1916,7 @@ function ProjectCompare() {
           <section className="pm-compare-table" style={{ "--pm-compare-count": comparison.length } as CSSProperties}>
             <header>
               <strong>项目名称</strong>
-              {comparison.map((project) => <article className={`pm-project-${project.slug}`} key={project.id}><button aria-label={`移除 ${project.title}`} onClick={() => toggle(project.slug)} type="button">×</button><h2>{project.title}</h2><div className="pm-result-image" /></article>)}
+              {comparison.map((project) => <article className={`pm-project-${project.slug}`} key={project.id}><button aria-label={`移除 ${project.title}`} onClick={() => void toggle(project.slug)} type="button">×</button><h2>{project.title}</h2><div className="pm-result-image" /></article>)}
             </header>
             {compareRows.map(([label, getValue]) => (
               <div className="pm-compare-row" key={label}>
@@ -1854,12 +2106,14 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   );
 }
 
-function PaywallOverlay() {
+function PaywallOverlay({ paywallEnabled }: { paywallEnabled: boolean | null }) {
   const { matchId } = useParams();
   const closeHref = matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
+  const navigate = useNavigate();
   const [plan, setPlan] = useState<MembershipPlanOption | null>(null);
   const [planStatus, setPlanStatus] = useState<"loading" | "ready" | "error">("loading");
   useEffect(() => {
+    if (paywallEnabled !== true) return;
     let active = true;
     membershipApi.listPlans().then((payload) => {
       if (!active) return;
@@ -1873,7 +2127,11 @@ function PaywallOverlay() {
       }
     });
     return () => { active = false; };
-  }, []);
+  }, [paywallEnabled]);
+  useEffect(() => {
+    if (paywallEnabled === false) navigate(closeHref, { replace: true });
+  }, [closeHref, navigate, paywallEnabled]);
+  if (paywallEnabled !== true) return null;
   return createPortal(
     <div className="pm-modal-scrim">
       <section className="pm-paywall-modal" role="dialog" aria-label="解锁完整拆解" aria-modal="true">
@@ -1906,7 +2164,7 @@ function PaywallOverlay() {
   );
 }
 
-function ExportOverlay() {
+function ExportOverlay({ paywallEnabled }: { paywallEnabled: boolean }) {
   const { matchId } = useParams();
   const closeHref = matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
   const [sourceID, setSourceID] = useState<number | null>(null);
@@ -1982,7 +2240,7 @@ function ExportOverlay() {
             {["匹配需求", "项目结果排名", "项目标签与预算", "模型推荐理由", "风险提示", "会话时间"].map((item, index) => (
               <label key={item}><input checked disabled readOnly type="checkbox" /><i aria-hidden="true">{["◎", "▥", "▦", "✓", "!", "◷"][index]}</i><span><strong>{item}</strong><small>来自当前匹配会话的服务端记录</small></span></label>
             ))}
-            <Link to="/membership">会员专享 · 高级导出选项 →</Link>
+            {paywallEnabled ? <Link to="/membership">会员专享 · 高级导出选项 →</Link> : null}
           </section>
           <article className="pm-export-preview">
             <h3>3. 报告预览</h3>
@@ -1995,7 +2253,7 @@ function ExportOverlay() {
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         {exportID ? <button className="pm-export-download" disabled={downloading} onClick={() => void downloadExport()} type="button">{downloading ? "下载中..." : "下载已生成的 JSON 报告"}</button> : null}
         <footer>
-          <small>付费用户可导出无水印或详细报告，解锁更多专业内容与数据详情。</small>
+          <small>{paywallEnabled ? "付费用户可导出无水印或详细报告，解锁更多专业内容与数据详情。" : "当前项目内容已全部开放，导出文件按服务端记录生成。"}</small>
           <Link to={closeHref}>取消</Link>
           <button disabled={!sourceID || exporting} onClick={() => void createExport()} type="button">{exporting ? "导出中..." : "确认导出"}</button>
         </footer>

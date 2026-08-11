@@ -71,6 +71,33 @@ describe("projectsApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/projects/ai-sales", expect.objectContaining({ method: "GET" }));
   });
 
+  it("loads public config and manages persisted project collections", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ feature_paywall_enabled: false }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ favorites: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ project_id: 42, slug: "ai-sales", title: "AI销售" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ project_id: 42, slug: "ai-sales", title: "AI销售" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await projectsApi.getPublicConfig();
+    await projectsApi.listProjectFavorites();
+    await projectsApi.favoriteProject("ai-sales");
+    await projectsApi.unfavoriteProject("ai-sales");
+    await projectsApi.listProjectCompareItems();
+    await projectsApi.addProjectCompareItem("ai-sales");
+    await projectsApi.removeProjectCompareItem("ai-sales");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/config", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/projects/project-favorites", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/projects/ai-sales/favorite", expect.objectContaining({ method: "POST" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/projects/ai-sales/favorite", expect.objectContaining({ method: "DELETE" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(5, "/api/v1/projects/compare", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(6, "/api/v1/projects/compare-items", expect.objectContaining({ method: "POST", body: JSON.stringify({ project_id: "ai-sales" }) }));
+    expect(fetchMock).toHaveBeenNthCalledWith(7, "/api/v1/projects/compare-items/ai-sales", expect.objectContaining({ method: "DELETE" }));
+  });
+
   it("lists and gets V1.4 evidence cases", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], page: 2, page_size: 10, total: 0 }), { status: 200 }))

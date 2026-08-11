@@ -53,6 +53,39 @@ func TestPostgresRepositorySearchesOpportunityKeywordFields(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryEnforcesProjectCompareLimitAtomically(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 11, 9, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		WITH user_lock AS (
+			SELECT pg_advisory_xact_lock($1)
+		)
+		INSERT INTO project_compare_items (user_id, project_id, added_at)
+		SELECT $1, $2, $3
+		FROM user_lock
+		WHERE (SELECT COUNT(*) FROM project_compare_items WHERE user_id = $1) < 5
+		   OR EXISTS (SELECT 1 FROM project_compare_items WHERE user_id = $1 AND project_id = $2)
+		ON CONFLICT (user_id, project_id) DO UPDATE SET added_at = project_compare_items.added_at
+		RETURNING added_at
+	`)).
+		WithArgs(int64(42), int64(6), now).
+		WillReturnRows(pgxmock.NewRows([]string{"added_at"}))
+
+	repository := NewPostgresRepository(db)
+	_, err = repository.AddProjectCompareItem(context.Background(), ProjectCompareItem{ProjectID: 6, AddedAt: now}, 42)
+	if err != ErrCompareLimit {
+		t.Fatalf("AddProjectCompareItem() error = %v, want %v", err, ErrCompareLimit)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryGetsOpportunityWithStructuredBlocks(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

@@ -510,11 +510,20 @@ func (r *PostgresRepository) DeleteProjectFavorite(ctx context.Context, userID, 
 
 func (r *PostgresRepository) AddProjectCompareItem(ctx context.Context, item ProjectCompareItem, userID int64) (ProjectCompareItem, error) {
 	err := r.db.QueryRow(ctx, `
+		WITH user_lock AS (
+			SELECT pg_advisory_xact_lock($1)
+		)
 		INSERT INTO project_compare_items (user_id, project_id, added_at)
-		VALUES ($1, $2, $3)
+		SELECT $1, $2, $3
+		FROM user_lock
+		WHERE (SELECT COUNT(*) FROM project_compare_items WHERE user_id = $1) < 5
+		   OR EXISTS (SELECT 1 FROM project_compare_items WHERE user_id = $1 AND project_id = $2)
 		ON CONFLICT (user_id, project_id) DO UPDATE SET added_at = project_compare_items.added_at
 		RETURNING added_at
 	`, userID, item.ProjectID, item.AddedAt).Scan(&item.AddedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProjectCompareItem{}, ErrCompareLimit
+	}
 	if err != nil {
 		return ProjectCompareItem{}, err
 	}
