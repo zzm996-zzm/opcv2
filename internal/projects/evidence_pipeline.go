@@ -44,10 +44,18 @@ func (s *Service) buildMatchEvidence(ctx context.Context, run MatchRun) (matchEv
 		return matchEvidenceBundle{}, err
 	}
 	bundle := matchEvidenceBundle{Catalog: catalog, Sufficiency: kbSufficiency(documents), KBVersion: kbVersion}
+	catalogBySlug := make(map[string]Opportunity, len(catalog))
+	for _, item := range catalog {
+		catalogBySlug[item.Slug] = item
+	}
 	for _, document := range documents {
+		excerpt := truncateEvidence(document.Text, 800)
+		if item, ok := catalogBySlug[document.ID]; ok {
+			excerpt = opportunityEvidenceExcerpt(item)
+		}
 		bundle.Evidence = append(bundle.Evidence, MatchEvidence{
 			SourceType: "knowledge_base", SourceID: document.ID, URL: "/projects/" + document.ID,
-			Title: document.Title, Publisher: "项目超市", Excerpt: truncateEvidence(document.Text, 800), Quality: document.Score,
+			Title: document.Title, Publisher: "项目超市", Excerpt: excerpt, Quality: document.Score,
 		})
 	}
 	if (len(bundle.Evidence) < minimumEvidenceCount || bundle.Sufficiency < minimumKBSufficiency) && s.research != nil {
@@ -66,6 +74,26 @@ func (s *Service) buildMatchEvidence(ctx context.Context, run MatchRun) (matchEv
 		return bundle, ErrInsufficientEvidence
 	}
 	return bundle, nil
+}
+
+func opportunityEvidenceExcerpt(item Opportunity) string {
+	parts := []string{strings.TrimSpace(item.Summary)}
+	if value := strings.TrimSpace(item.Industry); value != "" {
+		parts = append(parts, "行业："+value)
+	}
+	if len(item.Tags) > 0 {
+		parts = append(parts, "标签："+strings.Join(item.Tags, "、"))
+	}
+	if value := strings.TrimSpace(item.BudgetBand); value != "" {
+		parts = append(parts, "启动预算："+value)
+	}
+	if value := strings.TrimSpace(item.Difficulty); value != "" {
+		parts = append(parts, "难度："+value)
+	}
+	if len(item.ResourceRequirements) > 0 {
+		parts = append(parts, "资源要求："+strings.Join(item.ResourceRequirements, "、"))
+	}
+	return truncateEvidence(strings.Join(parts, "；"), 800)
 }
 
 func (s *Service) catalogForDocuments(ctx context.Context, documents []projectretrieval.Document) ([]Opportunity, error) {

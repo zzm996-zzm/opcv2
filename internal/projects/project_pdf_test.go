@@ -114,3 +114,22 @@ func TestProjectPDFAutomaticPageBreakRestoresContentMargin(t *testing.T) {
 		t.Fatalf("continuation page cursor = %.1f, want at least one line below 36", got)
 	}
 }
+
+func TestOpportunityEvidenceExcerptUsesReadableLabels(t *testing.T) {
+	excerpt := opportunityEvidenceExcerpt(Opportunity{
+		Summary: "为中小企业自动化重复报表流程。", Industry: "企业服务",
+		Tags: []string{"办公效率", "可复制"}, BudgetBand: "0.5-2万元", Difficulty: "中等",
+		ResourceRequirements: []string{"Excel函数", "业务流程梳理"},
+	})
+	for _, want := range []string{
+		"行业：企业服务", "标签：办公效率、可复制", "启动预算：0.5-2万元",
+		"难度：中等", "资源要求：Excel函数、业务流程梳理",
+	} {
+		if !strings.Contains(excerpt, want) {
+			t.Fatalf("excerpt = %q, want %q", excerpt, want)
+		}
+	}
+	if strings.ContainsAny(excerpt, "[]{}\"") {
+		t.Fatalf("excerpt exposes raw JSON syntax: %q", excerpt)
+	}
+}
