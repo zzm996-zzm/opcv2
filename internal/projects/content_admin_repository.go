@@ -155,6 +155,7 @@ func (r *PostgresRepository) PublishImportBatch(ctx context.Context, id, operato
 		WITH publishable AS (
 			SELECT b.id FROM project_import_batches b
 			WHERE b.id = $1 AND b.status = 'reviewing' AND b.succeeded_count > 0
+			  AND b.failed_count = 0 AND b.validation_errors = '[]'::JSONB
 			  AND NOT EXISTS (
 				SELECT 1 FROM startup_failures f
 				WHERE f.batch_id = b.id AND (
