@@ -67,6 +67,14 @@ type sequenceWorkflowGenerator struct {
 	calls    int
 }
 
+type failingWorkflowGenerator struct {
+	err error
+}
+
+func (g failingWorkflowGenerator) GenerateJSON(_ context.Context, _ ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
+	return ai.GenerateJSONResult{}, g.err
+}
+
 func (g *sequenceWorkflowGenerator) GenerateJSON(_ context.Context, request ai.GenerateJSONRequest) (ai.GenerateJSONResult, error) {
 	if request.Feature != "projects.match_analysis" {
 		return ai.GenerateJSONResult{}, errors.New("unexpected feature")
@@ -123,6 +131,50 @@ func TestCreateProjectMatchPersistsStructuredAnalysisAndIsIdempotent(t *testing.
 	run := repository.runs[0]
 	if run.WorkflowVersion != 2 || run.InputSnapshot.Need == "" || run.ParsedProfile["team_size"] == nil || len(run.FieldSources["skills"]) != 1 {
 		t.Fatalf("run = %+v", run)
+	}
+}
+
+func TestCreateProjectMatchFallsBackToDeterministicQuestionsWhenAnalysisFails(t *testing.T) {
+	repository := &workflowMemoryRepository{memoryRepository: &memoryRepository{}}
+	service := NewService(repository, failingWorkflowGenerator{err: ai.ErrInvalidModelJSON})
+
+	response, err := service.CreateProjectMatch(context.Background(), CreateProjectMatchInput{UserID: 42, Need: "想做线上服务"})
+	if err != nil {
+		t.Fatalf("CreateProjectMatch() error = %v", err)
+	}
+	if response.Status != MatchStatusClarifying || len(response.Questions) != 3 || response.Questions[0].Field != "budget_band" {
+		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestAnswerProjectMatchFallsBackToReadyWhenAnalysisFails(t *testing.T) {
+	repository := &workflowMemoryRepository{memoryRepository: &memoryRepository{}, runs: []MatchRun{{
+		ID: 200, UserID: 42, WorkflowVersion: 2, Need: "做内容项目", Status: MatchStatusClarifying,
+		Questions: []ClarificationQuestion{
+			{ID: "budget", Field: "budget_band", Required: true},
+			{ID: "time", Field: "time_per_week", Required: true},
+			{ID: "risk", Field: "risk_preference", Required: true},
+		},
+		QuestionCount: 3, Revision: 1, InputSnapshot: MatchInputSnapshot{Need: "做内容项目"}, ParsedProfile: map[string]any{}, FieldSources: map[string][]MatchFieldSource{},
+	}}}
+	service := NewService(repository, failingWorkflowGenerator{err: ai.ErrInvalidModelJSON})
+
+	response, err := service.AnswerProjectMatch(context.Background(), AnswerProjectMatchInput{
+		UserID: 42, MatchID: 200, Revision: 1,
+		Answers: []ClarificationAnswer{
+			{QuestionID: "budget", Value: "2w以上"},
+			{QuestionID: "time", Value: "20小时以上"},
+			{QuestionID: "risk", Value: "低"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("AnswerProjectMatch() error = %v", err)
+	}
+	if response.Status != MatchStatusReady || response.Completeness != 0.9 || len(response.Questions) != 0 {
+		t.Fatalf("response = %+v", response)
+	}
+	if repository.runs[0].ParsedProfile["risk_preference"] != "低" {
+		t.Fatalf("profile = %+v", repository.runs[0].ParsedProfile)
 	}
 }
 
