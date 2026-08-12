@@ -23,6 +23,50 @@ func projectFileRows(now time.Time) *pgxmock.Rows {
 	)
 }
 
+func TestPostgresRepositoryRecordsAnalyticsEventIdempotently(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	projectID := int64(42)
+	db.ExpectQuery("WITH inserted AS").WithArgs(
+		"event-12345678", ProjectEventDetailView, (*int64)(nil), strings.Repeat("a", 64), "/projects/42", "catalog",
+		&projectID, pgxmock.AnyArg(), now, now,
+	).WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
+	repository := NewPostgresRepository(db)
+	recorded, err := repository.RecordProjectEvent(context.Background(), AnalyticsEvent{
+		EventID: "event-12345678", EventName: ProjectEventDetailView, VisitorHash: strings.Repeat("a", 64),
+		Route: "/projects/42", RefModule: "catalog", ProjectID: &projectID, Properties: map[string]any{"project_id": 42},
+		OccurredAt: now, CreatedAt: now,
+	})
+	if err != nil || !recorded {
+		t.Fatalf("RecordProjectEvent() recorded=%v error=%v", recorded, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryRecalculatesThirtyDayProjectHeat(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	cutoff := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
+	db.ExpectExec("COUNT\\(DISTINCT visitor_key\\)::INTEGER").WithArgs(int64(42), cutoff).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	repository := NewPostgresRepository(db)
+	if err := repository.RecalculateProjectHeat(context.Background(), 42, cutoff); err != nil {
+		t.Fatalf("RecalculateProjectHeat() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryPersistsProjectMatchFileMetadata(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

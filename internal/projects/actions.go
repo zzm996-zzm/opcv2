@@ -27,7 +27,11 @@ func (s *Service) FavoriteProject(ctx context.Context, userID int64, ref string)
 	if err != nil {
 		return ProjectFavorite{}, err
 	}
-	return repository.SaveProjectFavorite(ctx, ProjectFavorite{UserID: userID, ProjectID: project.ID, Slug: project.Slug, Title: project.Title, CreatedAt: s.now()})
+	favorite, err := repository.SaveProjectFavorite(ctx, ProjectFavorite{UserID: userID, ProjectID: project.ID, Slug: project.Slug, Title: project.Title, CreatedAt: s.now()})
+	if err == nil {
+		s.enqueueProjectHeat(ctx, project.ID)
+	}
+	return favorite, err
 }
 
 func (s *Service) ListFavoriteProjects(ctx context.Context, userID int64, limit int) ([]ProjectFavorite, error) {
@@ -50,7 +54,11 @@ func (s *Service) UnfavoriteProject(ctx context.Context, userID int64, ref strin
 	if err != nil {
 		return err
 	}
-	return repository.DeleteProjectFavorite(ctx, userID, project.ID)
+	if err := repository.DeleteProjectFavorite(ctx, userID, project.ID); err != nil {
+		return err
+	}
+	s.enqueueProjectHeat(ctx, project.ID)
+	return nil
 }
 
 func (s *Service) AddProjectCompareItem(ctx context.Context, userID int64, ref string) (ProjectCompareItem, error) {

@@ -13,6 +13,7 @@ const (
 	TypeSandboxV2Run         = "sandbox.v2.run"
 	TypeProjectMatchGenerate = "projects.match_generate"
 	TypeProjectExportRender  = "projects.export_render"
+	TypeProjectHeatAggregate = "projects.heat_aggregate"
 )
 
 var (

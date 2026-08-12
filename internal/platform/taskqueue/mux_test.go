@@ -38,4 +38,7 @@ func TestDefaultRegistryIncludesKnownJobTypes(t *testing.T) {
 	if !registry[jobs.TypeProjectExportRender] {
 		t.Fatalf("DefaultRegistry() = %+v, want project export type", registry)
 	}
+	if !registry[jobs.TypeProjectHeatAggregate] {
+		t.Fatalf("DefaultRegistry() = %+v, want project heat aggregation type", registry)
+	}
 }

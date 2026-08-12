@@ -61,6 +61,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 
 // RegisterPublic mounts catalog and published case reads.
 func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
+	router.POST("/analytics/events", h.recordProjectEvent)
 	router.GET("/config", h.getPublicConfig)
 	router.GET("/dicts", h.listDictionaryItems)
 	router.GET("/project-categories", h.listProjectCategories)
@@ -74,6 +75,29 @@ func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
 	router.POST("/content-corrections", h.submitContentCorrection)
 	router.GET("/projects", h.listProjects)
 	router.GET("/projects/:id", h.getProject)
+}
+
+func (h *HTTPHandler) recordProjectEvent(c *gin.Context) {
+	app, ok := h.app.(ProjectAnalyticsApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.UseNumber()
+	decoder.DisallowUnknownFields()
+	var request AnalyticsEventInput
+	if err := decoder.Decode(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_event"})
+		return
+	}
+	receipt, err := app.RecordProjectEvent(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, receipt)
 }
 
 // RegisterProtected mounts operations that create or read user-owned data.
@@ -1052,6 +1076,8 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "compare_limit_reached", "max": maxProjectCollectionItems})
 	case errors.Is(err, ErrInvalidDictionaryKind):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_dictionary_kind"})
+	case errors.Is(err, ErrInvalidEvent):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_event"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	case errors.Is(err, ErrInvalidAIResult):

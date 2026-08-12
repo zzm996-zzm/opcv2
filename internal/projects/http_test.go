@@ -50,6 +50,13 @@ type fakeApplication struct {
 	afterEventID       int64
 	export             Export
 	exportInput        CreateExportInput
+	analyticsInput     AnalyticsEventInput
+	analyticsReceipt   AnalyticsReceipt
+}
+
+func (a *fakeApplication) RecordProjectEvent(_ context.Context, input AnalyticsEventInput) (AnalyticsReceipt, error) {
+	a.analyticsInput = input
+	return a.analyticsReceipt, a.err
 }
 
 func (a *fakeApplication) GetPublicConfig(context.Context) PublicConfig { return a.publicConfig }
@@ -212,6 +219,46 @@ func TestCreateMatchEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"title":"AI短视频脚本工作室"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestProjectAnalyticsEndpointAcceptsWhitelistedEvent(t *testing.T) {
+	app := &fakeApplication{analyticsReceipt: AnalyticsReceipt{EventID: "event-12345678", Accepted: true}}
+	router := projectTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/analytics/events", strings.NewReader(`{
+		"event_id":"event-12345678","event_name":"project_detail_view","visitor_key":"visitor-12345",
+		"route":"/projects/42","ref_module":"catalog","properties":{"project_id":42,"tab":"overview"}
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusAccepted || app.analyticsInput.EventName != ProjectEventDetailView {
+		t.Fatalf("status=%d input=%+v body=%s", recorder.Code, app.analyticsInput, recorder.Body.String())
+	}
+}
+
+func TestProjectAnalyticsEndpointRejectsMalformedPayload(t *testing.T) {
+	router := projectTestRouter(&fakeApplication{})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/analytics/events", strings.NewReader(`{"event_name":`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "invalid_event") {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestProjectAnalyticsEndpointRejectsClientIdentityFields(t *testing.T) {
+	router := projectTestRouter(&fakeApplication{})
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/analytics/events", strings.NewReader(`{
+		"event_id":"event-12345678","event_name":"project_detail_view","visitor_key":"visitor-12345",
+		"route":"/projects/42","user_id":99,"properties":{"project_id":42}
+	}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "invalid_event") {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 

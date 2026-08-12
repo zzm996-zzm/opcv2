@@ -14,6 +14,7 @@ func DefaultRegistry() jobs.Registry {
 		jobs.TypeSandboxV2Run:         true,
 		jobs.TypeProjectMatchGenerate: true,
 		jobs.TypeProjectExportRender:  true,
+		jobs.TypeProjectHeatAggregate: true,
 	}
 }
 

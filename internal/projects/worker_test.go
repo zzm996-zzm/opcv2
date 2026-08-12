@@ -10,9 +10,15 @@ import (
 )
 
 type fakeProjectMatchProcessor struct {
-	userID  int64
-	matchID int64
-	attempt int
+	userID    int64
+	matchID   int64
+	attempt   int
+	projectID int64
+}
+
+func (p *fakeProjectMatchProcessor) ProcessProjectHeat(_ context.Context, projectID int64) error {
+	p.projectID = projectID
+	return nil
 }
 
 func (p *fakeProjectMatchProcessor) ProcessProjectExport(_ context.Context, userID, exportID int64) error {
@@ -54,5 +60,21 @@ func TestProjectMatchWorkerProcessesEnvelope(t *testing.T) {
 	}
 	if processor.userID != 42 || processor.matchID != 200 || processor.attempt != 1 {
 		t.Fatalf("processor = %+v", processor)
+	}
+}
+
+func TestProjectHeatWorkerProcessesEnvelope(t *testing.T) {
+	processor := &fakeProjectMatchProcessor{}
+	mux := asynq.NewServeMux()
+	RegisterWorker(mux, processor)
+	payload, err := json.Marshal(jobs.Envelope{IdempotencyKey: "project-heat-42", Payload: map[string]any{"project_id": 42}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mux.ProcessTask(context.Background(), asynq.NewTask(jobs.TypeProjectHeatAggregate, payload)); err != nil {
+		t.Fatalf("ProcessTask() error = %v", err)
+	}
+	if processor.projectID != 42 {
+		t.Fatalf("projectID = %d, want 42", processor.projectID)
 	}
 }

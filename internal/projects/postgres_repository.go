@@ -28,6 +28,55 @@ func NewPostgresRepository(db postgresDB) *PostgresRepository {
 	return &PostgresRepository{db: db}
 }
 
+func (r *PostgresRepository) RecordProjectEvent(ctx context.Context, event AnalyticsEvent) (bool, error) {
+	properties, err := json.Marshal(event.Properties)
+	if err != nil {
+		return false, err
+	}
+	var recorded bool
+	err = r.db.QueryRow(ctx, `
+		WITH inserted AS (
+			INSERT INTO project_analytics_events
+				(event_id, event_name, user_id, visitor_hash, route, ref_module, project_id,
+				 properties, occurred_at, created_at)
+			VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), $7, $8, $9, $10)
+			ON CONFLICT (event_id) DO NOTHING
+			RETURNING id, event_name, project_id, user_id, visitor_hash, occurred_at
+		), inserted_view AS (
+			INSERT INTO project_views (project_id, user_id, visitor_key, viewed_at, analytics_event_id)
+			SELECT project_id, user_id, visitor_hash, occurred_at, id
+			FROM inserted
+			WHERE event_name = 'project_detail_view' AND project_id IS NOT NULL
+			RETURNING id
+		)
+		SELECT EXISTS(SELECT 1 FROM inserted)
+	`, event.EventID, event.EventName, event.UserID, event.VisitorHash, event.Route, event.RefModule,
+		event.ProjectID, properties, event.OccurredAt, event.CreatedAt).Scan(&recorded)
+	return recorded, err
+}
+
+func (r *PostgresRepository) RecalculateProjectHeat(ctx context.Context, projectID int64, cutoff time.Time) error {
+	command, err := r.db.Exec(ctx, `
+		UPDATE project_opportunities p
+		SET heat = metrics.views + metrics.favorites * 3 + metrics.unlocks * 10,
+		    updated_at = NOW()
+		FROM (
+			SELECT
+				(SELECT COUNT(DISTINCT visitor_key)::INTEGER FROM project_views WHERE project_id = $1 AND viewed_at >= $2) AS views,
+				(SELECT COUNT(*)::INTEGER FROM project_favorites WHERE project_id = $1 AND created_at >= $2) AS favorites,
+				(SELECT COUNT(*)::INTEGER FROM project_unlocks WHERE project_id = $1 AND unlocked_at >= $2) AS unlocks
+		) metrics
+		WHERE p.id = $1
+	`, projectID, cutoff)
+	if err != nil {
+		return err
+	}
+	if command.RowsAffected() == 0 {
+		return ErrOpportunityNotFound
+	}
+	return nil
+}
+
 func (r *PostgresRepository) Search(ctx context.Context, request projectretrieval.SearchRequest) ([]projectretrieval.Document, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT slug, title, summary, industry, tags, budget_band, difficulty, resource_requirements

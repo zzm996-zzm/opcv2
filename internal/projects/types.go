@@ -32,6 +32,7 @@ var (
 	ErrExportExpired       = errors.New("project export expired")
 	ErrExportUnavailable   = errors.New("project export is not ready")
 	ErrCompareLimit        = errors.New("project comparison limit reached")
+	ErrInvalidEvent        = errors.New("invalid project analytics event")
 )
 
 type CreateExportInput struct {
