@@ -21,7 +21,7 @@ func TestPostgresRepositoryRejectsPartialImportBatchPublicationIntegration(t *te
 	if err != nil {
 		t.Fatalf("pgxpool.New() error = %v", err)
 	}
-	defer db.Close()
+	t.Cleanup(db.Close)
 
 	now := time.Now().UTC()
 	batchNo := fmt.Sprintf("integration-partial-%d", now.UnixNano())
@@ -66,7 +66,7 @@ func TestPostgresRepositoryRebuildsProjectKBIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pgxpool.New() error = %v", err)
 	}
-	defer db.Close()
+	t.Cleanup(db.Close)
 
 	var sourceVersion int
 	if err := db.QueryRow(ctx, `SELECT active_version FROM project_kb_state WHERE singleton = TRUE`).Scan(&sourceVersion); err != nil {
