@@ -9,6 +9,7 @@ import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
+import { trackProjectEvent } from "../lib/projectAnalytics";
 import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectExport, type ProjectFavorite, type ProjectMatch, type ProjectMatchFile, type ProjectMatchSession, type ProjectMatchWorkflow, type ProjectOpportunity } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
@@ -250,6 +251,10 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
     return () => { active = false; };
   }, [needsPublicConfig]);
 
+  useEffect(() => {
+    if (variant === "home") trackProjectEvent("project_home_view", { entry_from: document.referrer || "direct" }, "home");
+  }, [variant]);
+
   return (
     <V4PageShell className="project-market-shell" showCopilotMini={false}>
       <section className="project-market-page" aria-label="项目超市">
@@ -316,7 +321,7 @@ function MarketHome() {
           <h1 className="pm-asset-copy-sr">项目超市</h1>
           <h2 className="pm-asset-copy-sr">发现下一个可落地机会</h2>
           <p className="pm-asset-copy-sr">从真实案例、赛道数据、失败教训和增长路径中筛出适合你的项目。</p>
-          <form className="ref-project-search" onSubmit={(event) => { event.preventDefault(); navigate(`/projects/explore${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`); }}>
+          <form className="ref-project-search" onSubmit={(event) => { event.preventDefault(); const normalized = query.trim(); trackProjectEvent("project_banner_submit", { query: normalized, parsed_filters: {} }, "home_banner"); navigate(`/projects/explore${normalized ? `?q=${encodeURIComponent(normalized)}` : ""}`); }}>
             <span aria-hidden="true">⌕</span>
             <input aria-label="搜索项目名称、行业、关键词" onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目名称、行业、关键词" value={query} />
             <button type="submit" aria-label="搜索">⌕</button>
@@ -369,7 +374,7 @@ function MarketHome() {
               <div>
                 {item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
               </div>
-              <Link to={`/projects/${item.slug}`}>查看机会</Link>
+              <Link onClick={() => trackProjectEvent("project_card_click", { project_id: item.id, position: index + 1, list_type: "featured" }, "home_featured")} to={`/projects/${item.slug}`}>查看机会</Link>
             </article>
           ))}
         </div>}
@@ -387,6 +392,7 @@ function MatchRequest() {
   const [uploadingNames, setUploadingNames] = useState<string[]>([]);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const trackedParseResults = useRef(new Set<number>());
   const navigate = useNavigate();
   const readyFiles = files.filter((file) => file.parse_status === "ready");
   const canSubmit = (Boolean(intent.trim()) || readyFiles.length > 0) && uploadingNames.length === 0;
@@ -396,11 +402,25 @@ function MatchRequest() {
     if (pending.length === 0) return;
     const timer = window.setInterval(() => {
       void Promise.all(pending.map((file) => projectsApi.getProjectMatchFile(file.id)))
-        .then((updated) => setFiles((current) => current.map((file) => updated.find((item) => item.id === file.id) ?? file)))
+        .then((updated) => {
+          updated.forEach((file) => trackFileParseResult(file));
+          setFiles((current) => current.map((file) => updated.find((item) => item.id === file.id) ?? file));
+        })
         .catch(() => undefined);
     }, 1200);
     return () => window.clearInterval(timer);
   }, [files]);
+
+  function trackFileParseResult(file: ProjectMatchFile) {
+    if ((file.parse_status !== "ready" && file.parse_status !== "failed") || trackedParseResults.current.has(file.id)) return;
+    trackedParseResults.current.add(file.id);
+    trackProjectEvent("match_file_parse_result", {
+      file_type: file.detected_mime || file.mime_type,
+      size_bytes: file.size_bytes,
+      status: file.parse_status,
+      error_code: file.error_code ?? ""
+    }, "match_request");
+  }
 
   async function uploadFiles(selected: FileList | null) {
     const candidates = Array.from(selected ?? []);
@@ -415,6 +435,8 @@ function MatchRequest() {
       try {
         const uploaded = await projectsApi.uploadProjectMatchFile(candidate);
         setFiles((current) => [...current, uploaded]);
+        trackProjectEvent("match_file_upload", { file_type: uploaded.detected_mime || candidate.type, size_bytes: uploaded.size_bytes }, "match_request");
+        trackFileParseResult(uploaded);
         setError("");
       } catch (uploadError) {
         setError(`上传“${candidate.name}”失败：${apiErrorMessage(uploadError, "请检查文件后重试")}`);
@@ -441,6 +463,7 @@ function MatchRequest() {
     try {
       const updated = await projectsApi.retryProjectMatchFile(file.id);
       setFiles((current) => current.map((item) => item.id === file.id ? updated : item));
+      trackFileParseResult(updated);
       setError("");
     } catch (retryError) {
       setFiles((current) => current.map((item) => item.id === file.id ? file : item));
@@ -455,6 +478,7 @@ function MatchRequest() {
     setError("");
     try {
       const next = await projectsApi.createProjectMatch({ need: intent, file_ids: readyFiles.map((file) => file.id) }, idempotencyKey("project-match"));
+      trackProjectEvent("match_start", { match_id: next.match_id }, "match_request");
       navigate(next.status === "clarifying"
         ? `/projects/matches/${next.match_id}/questions`
         : `/projects/matches/${next.match_id}/results`);
@@ -610,6 +634,8 @@ function OpportunityExplore() {
       setItems(payload.items ?? []);
       setTotal(Number.isFinite(payload.total) ? payload.total : 0);
       setError("");
+      trackProjectEvent("project_explore_view", { group: activeDirection, query: effectiveKeyword }, "explore_catalog");
+      if (effectiveKeyword) trackProjectEvent("project_search", { keyword: effectiveKeyword, result_count: payload.total ?? 0 }, "explore_catalog");
     }).catch((loadError) => {
       if (currentRequest !== requestID.current) return;
       setItems([]);
@@ -618,7 +644,7 @@ function OpportunityExplore() {
     }).finally(() => {
       if (currentRequest === requestID.current) setLoading(false);
     });
-  }, [budget, effectiveDifficulty, effectiveKeyword, effectiveSort, page, reloadToken, resource, track]);
+  }, [activeDirection, budget, effectiveDifficulty, effectiveKeyword, effectiveSort, page, reloadToken, resource, track]);
 
   useEffect(() => {
     let active = true;
@@ -644,6 +670,13 @@ function OpportunityExplore() {
     updateParams({ q: normalized, page: "" });
   }
 
+  function updateTrackedFilters(updates: Record<string, string>) {
+    const filters = Object.fromEntries(Object.entries({ track, budget, difficulty, resource, sort: sortMode, direction: activeDirection, ...updates })
+      .filter(([key, value]) => key !== "page" && Boolean(value)));
+    trackProjectEvent("project_filter_apply", { filters }, "explore_filters");
+    updateParams(updates);
+  }
+
   function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     submitQuery(query);
@@ -667,6 +700,7 @@ function OpportunityExplore() {
         await projectsApi.removeProjectCompareItem(item.slug);
       } else {
         await projectsApi.addProjectCompareItem(item.slug);
+        trackProjectEvent("project_compare_add", { project_ids: [item.id] }, "explore_catalog");
       }
     } catch (collectionActionError) {
       setValues(previous);
@@ -715,14 +749,14 @@ function OpportunityExplore() {
       </section>
 
       <section className="pm-catalog-filter" aria-label="项目机会筛选">
-        <label><span>行业</span><select aria-label="按行业筛选" onChange={(event) => updateParams({ track: event.target.value, page: "" })} value={track}><option value="">全部行业</option>{filterOptions.tracks.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><span>预算区间</span><select aria-label="按预算筛选" onChange={(event) => updateParams({ budget: event.target.value, page: "" })} value={budget}><option value="">全部预算</option>{filterOptions.budgets.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><span>难度</span><select aria-label="按难度筛选" onChange={(event) => updateParams({ difficulty: event.target.value, page: "" })} value={difficulty}><option value="">全部难度</option>{filterOptions.difficulties.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><span>资源要求</span><select aria-label="按资源要求筛选" onChange={(event) => updateParams({ resource: event.target.value, page: "" })} value={resource}><option value="">全部资源</option>{filterOptions.resources.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>行业</span><select aria-label="按行业筛选" onChange={(event) => updateTrackedFilters({ track: event.target.value, page: "" })} value={track}><option value="">全部行业</option>{filterOptions.tracks.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>预算区间</span><select aria-label="按预算筛选" onChange={(event) => updateTrackedFilters({ budget: event.target.value, page: "" })} value={budget}><option value="">全部预算</option>{filterOptions.budgets.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>难度</span><select aria-label="按难度筛选" onChange={(event) => updateTrackedFilters({ difficulty: event.target.value, page: "" })} value={difficulty}><option value="">全部难度</option>{filterOptions.difficulties.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label><span>资源要求</span><select aria-label="按资源要求筛选" onChange={(event) => updateTrackedFilters({ resource: event.target.value, page: "" })} value={resource}><option value="">全部资源</option>{filterOptions.resources.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <div className="pm-sort-control" aria-label="项目排序">
           <span>排序</span>
           <div>
-            {(["heat", "latest"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => updateParams({ sort: mode === "heat" ? "" : mode, page: "" })} type="button">{{ heat: "热度", latest: "最新" }[mode]}</button>)}
+            {(["heat", "latest"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => updateTrackedFilters({ sort: mode === "heat" ? "" : mode, page: "" })} type="button">{{ heat: "热度", latest: "最新" }[mode]}</button>)}
           </div>
         </div>
       </section>
@@ -757,7 +791,7 @@ function OpportunityExplore() {
                 <button aria-label={favoriteSlugs.includes(item.slug) ? `取消收藏 ${item.title}` : `收藏 ${item.title}`} disabled={collectionPending.includes(`favorite:${item.slug}`)} onClick={() => void toggleCatalogCollection(item, "favorite")} type="button">{favoriteSlugs.includes(item.slug) ? "★" : "☆"}</button>
                 <button aria-label={compareSlugs.includes(item.slug) ? `移出对比 ${item.title}` : `加入对比 ${item.title}`} disabled={collectionPending.includes(`compare:${item.slug}`)} onClick={() => void toggleCatalogCollection(item, "compare")} type="button">{compareSlugs.includes(item.slug) ? "已对比" : "对比"}</button>
               </div>
-              <Link aria-label="查看机会" to={`/projects/${item.slug}`}>查看拆解 →</Link>
+              <Link aria-label="查看机会" onClick={() => trackProjectEvent("project_card_click", { project_id: item.id, position: (page - 1) * pageSize + items.indexOf(item) + 1, list_type: "explore" }, "explore_catalog")} to={`/projects/${item.slug}`}>查看拆解 →</Link>
             </footer>
           </article>
         ))}
@@ -903,7 +937,7 @@ function CaseLibrary() {
               <footer>
                 <Link to={`/project-cases/${item.id}`}>查看案例</Link>
                 {item.project_id ? <Link to={`/projects/${item.project_id}`}>查看项目</Link> : <Link to="/projects/explore">浏览项目</Link>}
-                <a href={item.primary_source_url} rel="noreferrer" target="_blank">查看首要来源</a>
+                <a href={item.primary_source_url} onClick={() => trackProjectEvent("project_case_source_click", { case_id: item.id, case_type: item.type, source_id: "primary", field: "primary_source_url" }, "case_library")} rel="noreferrer" target="_blank">查看首要来源</a>
               </footer>
             </article>
           ))}
@@ -948,6 +982,7 @@ function CaseDetail() {
       if (active) {
         setCaseDetail(payload);
         setError("");
+        trackProjectEvent("project_case_view", { case_id: payload.id, case_type: payload.type }, "case_detail");
       }
     }).catch((loadError) => {
       if (active) setError(apiErrorMessage(loadError, "暂时无法读取案例详情"));
@@ -986,7 +1021,7 @@ function CaseDetail() {
         <article className="pm-structured-block type-sources">
           <h2>来源与证据</h2>
           <div className="pm-structured-grid" style={{ "--pm-columns": 3 } as CSSProperties}>
-            {caseDetail.sources.map((source) => <a href={source.url} key={source.id} rel="noreferrer" target="_blank"><strong>{source.title || source.publisher || "公开来源"}</strong><small>{source.kind}{source.is_primary ? " · 首要来源" : ""}</small><span>查看出处 →</span></a>)}
+            {caseDetail.sources.map((source) => <a href={source.url} key={source.id} onClick={() => trackProjectEvent("project_case_source_click", { case_id: caseDetail.id, case_type: caseDetail.type, source_id: source.id, field: source.claim_fields.join(",") || "source" }, "case_detail")} rel="noreferrer" target="_blank"><strong>{source.title || source.publisher || "公开来源"}</strong><small>{source.kind}{source.is_primary ? " · 首要来源" : ""}</small><span>查看出处 →</span></a>)}
           </div>
         </article>
       </section> : null}
@@ -1047,6 +1082,7 @@ function MatchQuestions() {
           value: selectedAnswers[question.key]
         }))
       }, idempotencyKey("project-match-answer"));
+      trackProjectEvent("match_answer", { match_id: session.id, rounds: next.revision, completeness: next.completeness }, "match_questions");
       navigate(next.status === "ready"
         ? `/projects/matches/${session.id}/results`
         : `/projects/matches/${session.id}/questions`);
@@ -1144,6 +1180,7 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
   const [loadError, setLoadError] = useState("");
   const [favorited, setFavorited] = useState(false);
   const [favoritePending, setFavoritePending] = useState(false);
+  const trackedResultKey = useRef("");
   const persistedProjects = projects ?? workflow?.generation?.result?.projects?.map(toDisplayProject) ?? loadedSession?.result?.projects?.map(toDisplayProject) ?? [];
   const routeSessionId = Number(matchId);
   const requestedSessionId = Number.isFinite(routeSessionId) && routeSessionId > 0 ? routeSessionId : undefined;
@@ -1155,6 +1192,28 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
   const matchFacts = loadedSession?.intent
     ? intentFacts([loadedSession.intent, ...(loadedSession.answers ?? []).map((answer) => answer.value)].join(" "))
     : [];
+
+  useEffect(() => {
+    if (!persistedSessionId || !generation || (generation.status !== "completed" && generation.status !== "partial")) return;
+    const key = `${persistedSessionId}:${generation.attempt}:${generation.status}`;
+    if (trackedResultKey.current === key) return;
+    trackedResultKey.current = key;
+    const evidence = generation.result?.evidence ?? [];
+    const webSources = evidence.filter((item) => item.source_type === "web").length;
+    const researchProperties = {
+      match_id: persistedSessionId,
+      kb_sufficiency: generation.result?.evidence_status ?? "unknown",
+      web_trigger_reason: webSources > 0 ? "insufficient_kb_evidence" : "not_triggered",
+      source_count: evidence.length
+    };
+    trackProjectEvent("match_research", researchProperties, "match_results");
+    trackProjectEvent("match_result", {
+      ...researchProperties,
+      rounds: workflow?.revision ?? generation.attempt,
+      completeness: workflow?.completeness ?? 1,
+      result_count: generation.result?.projects?.length ?? persistedProjects.length
+    }, "match_results");
+  }, [generation, persistedProjects.length, persistedSessionId, workflow?.completeness, workflow?.revision]);
 
   useEffect(() => {
     if (projects !== undefined) return;
@@ -1584,6 +1643,9 @@ function ProjectDetail() {
   const [collectionsLoading, setCollectionsLoading] = useState(Boolean(activeProjectRef));
   const [collectionPending, setCollectionPending] = useState<"favorite" | "compare" | "">("");
   const [collectionError, setCollectionError] = useState("");
+  const trackedDetail = useRef("");
+  const requestedSection = searchParams.get("section") ?? "path";
+  const activeSectionKey = detailTabs.some(([key]) => key === requestedSection) ? requestedSection : "path";
 
   useEffect(() => {
     if (activeProjectRef) {
@@ -1639,6 +1701,14 @@ function ProjectDetail() {
   }, [activeProjectRef, matchId]);
 
   useEffect(() => {
+    if (!opportunity) return;
+    const detailKey = `${opportunity.id}:${activeSectionKey}`;
+    if (trackedDetail.current === detailKey) return;
+    trackedDetail.current = detailKey;
+    trackProjectEvent("project_detail_view", { project_id: opportunity.id, tab: activeSectionKey }, "project_detail");
+  }, [activeSectionKey, opportunity]);
+
+  useEffect(() => {
     if (!activeProjectRef || !opportunity) {
       setCollectionsLoading(false);
       return;
@@ -1681,7 +1751,10 @@ function ProjectDetail() {
     setCollectionError("");
     try {
       if (previous) await projectsApi.removeProjectCompareItem(opportunity.slug);
-      else await projectsApi.addProjectCompareItem(opportunity.slug);
+      else {
+        await projectsApi.addProjectCompareItem(opportunity.slug);
+        trackProjectEvent("project_compare_add", { project_ids: [opportunity.id] }, "project_detail");
+      }
     } catch (compareError) {
       setProjectCompared(previous);
       const detail = apiErrorMessage(compareError, "请稍后重试");
@@ -1717,13 +1790,15 @@ function ProjectDetail() {
           ["风险提示", project.risk, "people"]
         ]
       : [];
-  const activeSectionKey = detailTabs.some(([key]) => key === searchParams.get("section"))
-    ? searchParams.get("section") ?? "path"
-    : "path";
   const activeSectionTitle = detailTabs.find(([key]) => key === activeSectionKey)?.[2] ?? "成功路径";
   const activeSection = opportunity?.sections?.find((section) => section.key === activeSectionKey || section.title === activeSectionTitle)
     ?? (activeSectionKey === "path" ? opportunity?.sections?.[0] : undefined);
   const detailBasePath = activeProjectRef ? `/projects/${activeProjectRef}` : "/projects/detail";
+
+  function trackDetailTab(nextKey: string) {
+    if (!opportunity || nextKey === activeSectionKey) return;
+    trackProjectEvent("project_tab_switch", { project_id: opportunity.id, from: activeSectionKey, to: nextKey }, "project_detail");
+  }
 
   return (
     <>
@@ -1757,7 +1832,7 @@ function ProjectDetail() {
         <>
           <nav className="pm-detail-tabs" aria-label="项目详情栏目">
             {detailTabs.map(([key, label]) => (
-              <Link className={activeSectionKey === key ? "active" : ""} key={key} to={`${detailBasePath}?section=${key}`}>{label}</Link>
+              <Link className={activeSectionKey === key ? "active" : ""} key={key} onClick={() => trackDetailTab(key)} to={`${detailBasePath}?section=${key}`}>{label}</Link>
             ))}
           </nav>
           {activeSection ? <ProjectDetailSection activeKey={activeSectionKey} evidence={evidence} opportunity={opportunity} section={activeSection} /> : <div className="module-empty-state" role="status">暂无项目详情章节</div>}
@@ -1782,7 +1857,7 @@ function ProjectEvidenceCards({ evidence }: { evidence: ProjectCase[] }) {
           <strong>{item.title}</strong>
           <small>{item.summary}</small>
           <b>{item.outcome}</b>
-          {item.source_url ? <a href={item.source_url} rel="noreferrer" target="_blank">{item.source_title || "查看来源"}</a> : <small>来源链接待补充</small>}
+          {item.source_url ? <a href={item.source_url} onClick={() => trackProjectEvent("project_explore_source_click", { ...(item.opportunity_id ? { opportunity_id: item.opportunity_id } : {}), group: item.case_type, query: item.title, source_id: item.id }, "project_detail_evidence")} rel="noreferrer" target="_blank">{item.source_title || "查看来源"}</a> : <small>来源链接待补充</small>}
         </article>
       ))}
     </div>
@@ -1819,7 +1894,7 @@ function contentBlockIcon(block: ProjectContentBlock, index: number) {
   return `/project-market/detail-icons/${iconNames[itemTitle] ?? fallback[index % fallback.length]}.png`;
 }
 
-function ProjectContentBlockView({ block, evidence }: { block: ProjectContentBlock; evidence: ProjectCase[] }) {
+function ProjectContentBlockView({ block, evidence, opportunityID }: { block: ProjectContentBlock; evidence: ProjectCase[]; opportunityID: number }) {
   const items = block.items ?? [];
   const series = block.series ?? [];
   const columns = Math.max(1, Math.min(block.columns ?? (items.length > 0 ? items.length : 1), 6));
@@ -1854,7 +1929,7 @@ function ProjectContentBlockView({ block, evidence }: { block: ProjectContentBlo
       <article className="pm-structured-block type-sources">
         {block.title ? <h2 aria-label="来源与证据">{block.title}</h2> : null}
         <div className="pm-structured-grid" style={{ "--pm-columns": columns } as CSSProperties}>
-          {evidence.filter((item) => item.source_url).slice(0, columns).map((item) => <a href={item.source_url} key={item.id} rel="noreferrer" target="_blank"><strong>{item.source_title}</strong><small>{item.title}</small><span>查看出处 →</span></a>)}
+          {evidence.filter((item) => item.source_url).slice(0, columns).map((item) => <a href={item.source_url} key={item.id} onClick={() => trackProjectEvent("project_explore_source_click", { opportunity_id: opportunityID, group: item.case_type, query: item.title, source_id: item.id }, "project_detail_evidence")} rel="noreferrer" target="_blank"><strong>{item.source_title}</strong><small>{item.title}</small><span>查看出处 →</span></a>)}
         </div>
       </article>
     );
@@ -1889,7 +1964,7 @@ function ProjectContentBlockView({ block, evidence }: { block: ProjectContentBlo
                 {item.meta && block.type !== "actions" ? <small>{item.meta}</small> : null}
                 {progress > 0 ? <span className="pm-structured-progress"><em style={{ width: `${progress}%` }} /></span> : null}
                 {(item.tags ?? []).length > 0 ? <span className="pm-structured-tags">{item.tags?.map((tag) => <small key={tag}>{tag}</small>)}</span> : null}
-                {source?.source_url ? <a href={source.source_url} rel="noreferrer" target="_blank">{source.source_title || "查看来源"} →</a> : null}
+                {source?.source_url ? <a href={source.source_url} onClick={() => trackProjectEvent("project_explore_source_click", { opportunity_id: opportunityID, group: source.case_type, query: source.title, source_id: source.id }, "project_detail_evidence")} rel="noreferrer" target="_blank">{source.source_title || "查看来源"} →</a> : null}
               </div>
             </section>
           );
@@ -1909,7 +1984,7 @@ function ProjectDetailSection({ activeKey, evidence, opportunity, section }: {
   const structuredBlocks = (section.blocks ?? []).filter((block) => block.type !== "profile");
 
   if (structuredBlocks.length > 0) {
-    return <section className={`pm-detail-content pm-structured-content ${activeKey}`}>{structuredBlocks.map((block, index) => <ProjectContentBlockView block={block} evidence={evidence} key={`${block.type}-${block.title}-${index}`} />)}</section>;
+    return <section className={`pm-detail-content pm-structured-content ${activeKey}`}>{structuredBlocks.map((block, index) => <ProjectContentBlockView block={block} evidence={evidence} key={`${block.type}-${block.title}-${index}`} opportunityID={opportunity.id} />)}</section>;
   }
 
   return (
@@ -1954,7 +2029,7 @@ function DiagnosisOverlay() {
           <div><strong>完成方式</strong><b>按实际填写进度</b><small>不会读取未接入的模块数据</small></div>
           <div><strong>你将获得</strong><span>□ 模型适配度</span><span>□ 关键能力差距</span><span>□ 评估依据</span><span>□ 学习建议</span></div>
         </div>
-        <footer><Link to={closeHref}>稍后再说</Link><button aria-label="开始诊断" onClick={() => navigate(`/learning/diagnosis?project=${encodeURIComponent(opportunitySlug ?? "")}`)} type="button">✦ 开始诊断</button></footer>
+        <footer><Link to={closeHref}>稍后再说</Link><button aria-label="开始诊断" onClick={() => { trackProjectEvent("project_diagnose_submit", {}, "project_diagnosis"); navigate(`/learning/diagnosis?project=${encodeURIComponent(opportunitySlug ?? "")}`); }} type="button">✦ 开始诊断</button></footer>
         <small className="pm-modal-privacy">所有数据仅用于能力评估与学习建议，严格保护你的隐私安全</small>
       </section>
     </div>,
@@ -2092,6 +2167,7 @@ function ProjectCompare() {
       setComparison(result.items);
       setComparisonId(result.id);
       setError("");
+      trackProjectEvent("project_compare_view", { project_ids: result.items.map((item) => item.id) }, "project_compare");
     } catch (createError) {
       setError(apiErrorMessage(createError, "暂时无法创建项目对比"));
     } finally {
@@ -2101,6 +2177,7 @@ function ProjectCompare() {
   async function exportComparison() {
     if (!comparisonId) return;
     try {
+      trackProjectEvent("match_export_click", { match_id: comparisonId, plan: "comparison_pdf", blocked: false }, "project_compare");
       const result = await projectsApi.createExport("comparison", comparisonId);
       setComparisonExport(result);
       setError("");
@@ -2489,7 +2566,12 @@ function ExportOverlay({ paywallEnabled }: { paywallEnabled: boolean }) {
   async function createExport() {
     if (!sourceID || exporting) return;
     setExporting(true); setError("");
-    try { const item = await projectsApi.createExport("match", sourceID); setExportID(item.id); setExportState(item); }
+    try {
+      trackProjectEvent("match_export_click", { match_id: sourceID, plan: paywallEnabled ? "membership_pdf" : "standard_pdf", blocked: false }, "match_export");
+      const item = await projectsApi.createExport("match", sourceID);
+      setExportID(item.id);
+      setExportState(item);
+    }
     catch (createError) { setError(apiErrorMessage(createError, "暂时无法导出报告")); }
     finally { setExporting(false); }
   }

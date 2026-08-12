@@ -388,6 +388,13 @@ describe("ProjectsPage", () => {
     expect(screen.queryByRole("heading", { name: "Excel自动化报表定制" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "AI智能简历优化服务" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "AI绘画定制服务" })).toBeInTheDocument();
+    await waitFor(() => {
+      const analytics = fetchMock.mock.calls
+        .filter(([input]) => String(input) === "/api/v1/analytics/events")
+        .map(([, init]) => JSON.parse(String(init?.body)))
+        .find((payload) => payload.event_name === "project_search");
+      expect(analytics?.properties).toEqual({ keyword: "AI应用", result_count: 2 });
+    });
   });
 
   it("shows a query-specific empty state after search form submission", async () => {
@@ -778,7 +785,7 @@ describe("ProjectsPage", () => {
   });
 
   it("opens a directly addressable detail tab backed by API sections", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/projects/ai-short-video-studio") return Promise.resolve(new Response(JSON.stringify({
         id: 42,
         slug: "ai-short-video-studio",
@@ -804,6 +811,13 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("link", { name: "优劣势" })).toHaveClass("active");
     expect(screen.getByText("启动成本低，但需要建立差异化。")).toBeInTheDocument();
     expect(screen.queryByText("先完成首个付费验证")).not.toBeInTheDocument();
+    await waitFor(() => {
+      const analytics = fetchMock.mock.calls
+        .filter(([input]) => String(input) === "/api/v1/analytics/events")
+        .map(([, init]) => JSON.parse(String(init?.body)))
+        .find((payload) => payload.event_name === "project_detail_view");
+      expect(analytics?.properties).toEqual({ project_id: 42, tab: "swot" });
+    });
   });
 
   it("renders the project diagnosis as a closeable route state", async () => {
