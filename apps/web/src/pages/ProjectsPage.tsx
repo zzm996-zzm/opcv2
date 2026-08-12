@@ -24,6 +24,7 @@ type ProjectMarketVariant =
   | "history"
   | "paywall"
   | "detail"
+  | "detailUnlock"
   | "diagnosis"
   | "compare"
   | "export";
@@ -235,7 +236,7 @@ function intentFacts(intent: string): IntentFact[] {
 }
 
 function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
-  const needsPublicConfig = variant === "results" || variant === "paywall" || variant === "export";
+  const needsPublicConfig = variant === "results" || variant === "paywall" || variant === "detailUnlock" || variant === "export";
   const [featurePaywallEnabled, setFeaturePaywallEnabled] = useState<boolean | null>(needsPublicConfig ? null : false);
 
   useEffect(() => {
@@ -275,6 +276,12 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
               </>
             )}
             {variant === "detail" && <ProjectDetail />}
+            {variant === "detailUnlock" && (
+              <>
+                <ProjectDetail />
+                <PaywallOverlay paywallEnabled={featurePaywallEnabled} source="detail" />
+              </>
+            )}
             {variant === "diagnosis" && (
               <>
                 <ProjectDetail />
@@ -289,7 +296,7 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
               </>
             )}
           </main>
-          <ProjectCopilot variant={variant === "paywall" && featurePaywallEnabled !== true ? "results" : variant} />
+          <ProjectCopilot variant={variant === "paywall" && featurePaywallEnabled !== true ? "results" : variant === "detailUnlock" ? "detail" : variant} />
         </div>
       </section>
     </V4PageShell>
@@ -1815,6 +1822,15 @@ function ProjectDetail() {
               {projectCompared ? <Link to="/projects/compare">查看对比</Link> : null}
               <Link to={`${detailBasePath}/diagnosis`}>诊断我能否做</Link>
               <Link className="primary" to="/projects/match">AI 匹配类似项目</Link>
+              {opportunity ? (
+                <Link
+                  className="pm-unlock-detail"
+                  onClick={() => trackProjectEvent("project_unlock_click", { project_id: opportunity.id, tab: activeSectionKey }, "project_detail")}
+                  to={`${detailBasePath}/unlock?section=${activeSectionKey}`}
+                >
+                  解锁完整拆解
+                </Link>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -2450,10 +2466,14 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   );
 }
 
-function PaywallOverlay({ paywallEnabled }: { paywallEnabled: boolean | null }) {
-  const { matchId } = useParams();
-  const closeHref = matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
-  const navigate = useNavigate();
+function PaywallOverlay({ paywallEnabled, source = "results" }: { paywallEnabled: boolean | null; source?: "results" | "detail" }) {
+  const { matchId, opportunitySlug, projectRef } = useParams();
+  const [searchParams] = useSearchParams();
+  const activeProjectRef = projectRef ?? opportunitySlug;
+  const section = searchParams.get("section");
+  const closeHref = source === "detail" && activeProjectRef
+    ? `/projects/${activeProjectRef}${section ? `?section=${encodeURIComponent(section)}` : ""}`
+    : matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
   const [plan, setPlan] = useState<MembershipPlanOption | null>(null);
   const [planStatus, setPlanStatus] = useState<"loading" | "ready" | "error">("loading");
   useEffect(() => {
@@ -2472,10 +2492,9 @@ function PaywallOverlay({ paywallEnabled }: { paywallEnabled: boolean | null }) 
     });
     return () => { active = false; };
   }, [paywallEnabled]);
-  useEffect(() => {
-    if (paywallEnabled === false) navigate(closeHref, { replace: true });
-  }, [closeHref, navigate, paywallEnabled]);
-  if (paywallEnabled !== true) return null;
+  if (paywallEnabled === null) return null;
+  const shellOnly = paywallEnabled === false;
+  const shellBenefits = ["完整成功路径", "全部当前数据 + 出处", "案例完整复盘", "报告导出"];
   return createPortal(
     <div className="pm-modal-scrim">
       <section className="pm-paywall-modal" role="dialog" aria-label="解锁完整拆解" aria-modal="true">
@@ -2486,20 +2505,20 @@ function PaywallOverlay({ paywallEnabled }: { paywallEnabled: boolean | null }) 
         </header>
         <div className="pm-paywall-content">
           <section className="pm-plan-comparison" aria-label="会员权益对比">
-            <div className="pm-plan-comparison-head"><strong>功能权益</strong><strong>当前账号</strong><strong>{plan?.name ?? "会员版"}</strong></div>
-            {(plan?.features ?? []).slice(0, 6).map((feature) => (
-              <div key={feature}><span>{feature}</span><small>以账号权限为准</small><b>方案包含</b></div>
+            <div className="pm-plan-comparison-head"><strong>功能权益</strong><strong>当前账号</strong><strong>{shellOnly ? "即将开放" : plan?.name ?? "会员版"}</strong></div>
+            {(shellOnly ? shellBenefits : plan?.features ?? []).slice(0, 6).map((feature) => (
+              <div key={feature}><span>{feature}</span><small>{shellOnly ? "当前已开放" : "以账号权限为准"}</small><b>{shellOnly ? "完整可见" : "方案包含"}</b></div>
             ))}
-            {planStatus === "loading" ? <div className="module-empty-state" role="status">正在读取会员方案...</div> : null}
-            {planStatus === "error" ? <div className="module-empty-state" role="alert">会员方案暂不可用，请稍后重试</div> : null}
+            {!shellOnly && planStatus === "loading" ? <div className="module-empty-state" role="status">正在读取会员方案...</div> : null}
+            {!shellOnly && planStatus === "error" ? <div className="module-empty-state" role="alert">会员方案暂不可用，请稍后重试</div> : null}
           </section>
           <aside>
-            <header><strong>{plan?.name ?? "智活AI会员"}</strong><small>解锁全部高级内容</small></header>
-            <p>海量高质量项目 · 深度拆解 · 持续更新</p>
-            <div className="pm-paywall-price"><b>{plan ? `¥${(plan.price_cents / 100).toLocaleString("zh-CN")}` : "--"}</b><span>/{plan ? (plan.billing_cycle === "year" ? "年" : "月") : "读取中"}</span></div>
-            <small className="pm-cancel-note">随时可取消 · 未消费额度按方案规则处理</small>
-            {plan ? <Link className="pm-primary-button" to="/membership/upgrade">立即解锁 <span aria-hidden="true">→</span></Link> : <button className="pm-primary-button" disabled type="button">方案暂不可用</button>}
-            <Link to="/membership">先看摘要</Link>
+            <header><strong>{shellOnly ? "完整拆解权益" : plan?.name ?? "智活AI会员"}</strong><small>{shellOnly ? "功能预告" : "解锁全部高级内容"}</small></header>
+            <p>{shellOnly ? "本期项目内容已全部开放，无需付费即可查看。" : "海量高质量项目 · 深度拆解 · 持续更新"}</p>
+            {!shellOnly && plan ? <div className="pm-paywall-price"><b>{`¥${(plan.price_cents / 100).toLocaleString("zh-CN")}`}</b><span>/{plan.billing_cycle === "year" ? "年" : "月"}</span></div> : null}
+            {!shellOnly ? <small className="pm-cancel-note">随时可取消 · 未消费额度按方案规则处理</small> : null}
+            {shellOnly ? <button className="pm-primary-button" disabled type="button">即将开放</button> : plan ? <Link className="pm-primary-button" to="/membership/upgrade">立即解锁 <span aria-hidden="true">→</span></Link> : <button className="pm-primary-button" disabled type="button">方案暂不可用</button>}
+            {!shellOnly ? <Link to="/membership">先看摘要</Link> : null}
           </aside>
         </div>
       </section>

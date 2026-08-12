@@ -657,19 +657,44 @@ describe("ProjectsPage", () => {
     expect(screen.getByText(/未引用外部证据/)).toBeInTheDocument();
   });
 
-  it("removes the paywall route and unlock controls while the catalog is fully open", async () => {
+  it("opens the scheme A unlock shell from a fully open project detail", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
       if (url === "/api/v1/config") return Promise.resolve(new Response(JSON.stringify({ feature_paywall_enabled: false }), { status: 200 }));
-      if (url === "/api/v1/projects/matches") return Promise.resolve(new Response(JSON.stringify({ matches: [] }), { status: 200 }));
-      if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/ai-sales") return Promise.resolve(new Response(JSON.stringify({
+        id: 42,
+        slug: "ai-sales",
+        title: "AI销售顾问",
+        summary: "销售流程试点",
+        industry: "企业服务",
+        tags: ["B端"],
+        budget_band: "1万",
+        difficulty: "中等",
+        resource_requirements: [],
+        sections: [{ key: "data", title: "当前数据", body: "当前数据正文", items: [] }]
+      }), { status: 200 }));
+      if (url === "/api/v1/project-cases?page_size=100") return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 100, total: 0 }), { status: 200 }));
+      if (url === "/api/v1/projects/project-favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/compare-items") return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
       return Promise.reject(new Error(`unexpected ${url}`));
     });
-    renderProjectRoute("/projects/results/paywall");
+    renderProjectRoute("/projects/ai-sales?section=data");
 
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "解锁完整拆解" })).not.toBeInTheDocument());
-    expect(screen.queryByText("解锁完整报告")).not.toBeInTheDocument();
+    const unlock = await screen.findByRole("link", { name: "解锁完整拆解" });
+    expect(unlock).toHaveAttribute("href", "/projects/ai-sales/unlock?section=data");
+    fireEvent.click(unlock);
+
+    expect(await screen.findByRole("dialog", { name: "解锁完整拆解" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "即将开放" })).toBeDisabled();
+    expect(screen.getByRole("link", { name: "关闭解锁弹层" })).toHaveAttribute("href", "/projects/ai-sales?section=data");
     expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/v1/membership/plans")).toBe(false);
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => {
+      if (String(input) !== "/api/v1/analytics/events" || typeof init?.body !== "string") return false;
+      const payload = JSON.parse(init.body);
+      return payload.event_name === "project_unlock_click"
+        && payload.properties.project_id === 42
+        && payload.properties.tab === "data";
+    })).toBe(true));
   });
 
   it("redirects the legacy detail route to opportunity exploration", async () => {

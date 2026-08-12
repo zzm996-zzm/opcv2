@@ -2717,7 +2717,7 @@
   .pm-compare-summary > a { grid-column: 1; width: 100%; margin: 0; }
   .pm-diagnosis-modal,
   .pm-paywall-modal,
-  .pm-export-modal { width: calc(100vw - 20px); max-height: calc(100vh - 20px); padding: 18px; }
+  .pm-export-modal { width: calc(100vw - 40px); max-height: calc(100vh - 20px); padding: 18px; }
   .pm-diagnosis-modal > header,
   .pm-diagnosis-steps,
   .pm-diagnosis-meta,
@@ -2727,7 +2727,14 @@
   .pm-diagnosis-modal > footer { display: grid; }
   .pm-diagnosis-modal > footer > * { width: 100% !important; }
   .pm-paywall-modal > header h2 { font-size: 36px; }
-  .pm-paywall-hero-art { width: 100%; height: 170px; }
+  .pm-paywall-hero-art {
+    width: 100%;
+    height: 170px;
+    background-image: url("/project-market/paywall-hero.jpg");
+    background-position: right 20%;
+    background-size: auto 280px;
+    clip-path: none;
+  }
   .pm-paywall-content { grid-template-columns: 1fr; }
   .pm-export-modal > footer { grid-template-columns: 1fr; }
 }

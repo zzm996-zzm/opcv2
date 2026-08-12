@@ -575,6 +575,22 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
+            <ProjectsPage variant="detailUnlock" />
+          </RequireAuth>
+        }
+        path="/projects/opportunities/:opportunitySlug/unlock"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <ProjectsPage variant="detailUnlock" />
+          </RequireAuth>
+        }
+        path="/projects/:projectRef/unlock"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <ProjectsPage variant="detail" />
           </RequireAuth>
         }
