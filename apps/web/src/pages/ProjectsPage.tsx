@@ -142,7 +142,7 @@ function workflowToSession(session: ProjectMatchWorkflow): ProjectMatchSession {
   return {
     id: session.match_id,
     user_id: 0,
-    intent: "",
+    intent: session.need ?? "",
     status: session.status === "clarifying" ? "needs_input" : "completed",
     questions: workflowQuestions(session).map((question) => ({ key: question.key, text: question.text, options: question.options })),
     result: session.generation?.result,

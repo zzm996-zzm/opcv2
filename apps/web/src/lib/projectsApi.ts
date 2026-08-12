@@ -57,6 +57,7 @@ export type ProjectClarificationQuestion = {
 
 export type ProjectMatchWorkflow = {
   match_id: number;
+  need: string;
   status: "clarifying" | "ready" | ProjectMatchGeneration["status"];
   analysis_summary?: string;
   parsed_profile?: Record<string, unknown>;

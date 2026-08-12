@@ -117,6 +117,9 @@ func TestCreateProjectMatchPersistsStructuredAnalysisAndIsIdempotent(t *testing.
 	if first.Status != MatchStatusClarifying || len(first.Questions) != 3 || first.Completeness != 0.45 {
 		t.Fatalf("response = %+v", first)
 	}
+	if first.Need != input.Need || second.Need != input.Need {
+		t.Fatalf("response needs = %q/%q, want %q", first.Need, second.Need, input.Need)
+	}
 	run := repository.runs[0]
 	if run.WorkflowVersion != 2 || run.InputSnapshot.Need == "" || run.ParsedProfile["team_size"] == nil || len(run.FieldSources["skills"]) != 1 {
 		t.Fatalf("run = %+v", run)

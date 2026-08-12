@@ -107,6 +107,7 @@ type AnswerProjectMatchInput struct {
 
 type MatchWorkflowResponse struct {
 	MatchID         int64                         `json:"match_id"`
+	Need            string                        `json:"need"`
 	Status          string                        `json:"status"`
 	AnalysisSummary string                        `json:"analysis_summary,omitempty"`
 	ParsedProfile   map[string]any                `json:"parsed_profile,omitempty"`
@@ -390,7 +391,7 @@ func (s *Service) generateWorkflowAnalysis(ctx context.Context, userID int64, ne
 }
 
 func matchWorkflowResponse(run MatchRun) MatchWorkflowResponse {
-	response := MatchWorkflowResponse{MatchID: run.ID, Status: run.Status, AnalysisSummary: run.AnalysisSummary, ParsedProfile: cloneMap(run.ParsedProfile), FieldSources: cloneFieldSources(run.FieldSources), Completeness: run.Completeness, MissingFields: append([]string(nil), run.MissingFields...), Questions: append([]ClarificationQuestion(nil), run.Questions...), Assumptions: append([]string(nil), run.Assumptions...), Revision: run.Revision, FileIDs: append([]int64(nil), run.InputSnapshot.FileIDs...)}
+	response := MatchWorkflowResponse{MatchID: run.ID, Need: run.Need, Status: run.Status, AnalysisSummary: run.AnalysisSummary, ParsedProfile: cloneMap(run.ParsedProfile), FieldSources: cloneFieldSources(run.FieldSources), Completeness: run.Completeness, MissingFields: append([]string(nil), run.MissingFields...), Questions: append([]ClarificationQuestion(nil), run.Questions...), Assumptions: append([]string(nil), run.Assumptions...), Revision: run.Revision, FileIDs: append([]int64(nil), run.InputSnapshot.FileIDs...)}
 	if run.GenerationAttempt > 0 {
 		generation := matchGenerationResponse(run)
 		response.Generation = &generation

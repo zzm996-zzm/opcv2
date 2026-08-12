@@ -190,22 +190,26 @@ describe("ProjectsPage", () => {
 
   it("answers dynamic match questions and renders the persisted result", async () => {
     const project = { rank:1, opportunity_slug:"local-ai-sales-consulting", title:"AI销售顾问", score:90, tags:["B端"], budget:"1万", reasons:["经验匹配"], risk:"需验证获客" };
+    const need = "预算2万元，每周20小时，一人公司，线上内容创作";
     let answered = false;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/project-matches/99/answer" && init?.method === "POST") {
         answered = true;
-        return Promise.resolve(new Response(JSON.stringify({ match_id:99, status:"ready", completeness:0.9, revision:2 }), { status:200 }));
+        return Promise.resolve(new Response(JSON.stringify({ match_id:99, need, status:"ready", completeness:0.9, revision:2 }), { status:200 }));
       }
       if (url === "/api/v1/project-matches/99") {
         return Promise.resolve(new Response(JSON.stringify(answered
-          ? { match_id:99, status:"completed", completeness:0.9, revision:2, generation:{ match_id:99, status:"completed", attempt:1, progress_percent:100, current_step:"done", result:{ session_id:99, status:"completed", projects:[project], evidence:[] } } }
-          : { match_id:99, status:"clarifying", completeness:0.5, revision:1, questions:[{ id:"background", field:"background", type:"single", question:"你擅长什么？", options:["销售经验","内容创作","技术能力"], required:true }] }), { status:200 }));
+          ? { match_id:99, need, status:"completed", completeness:0.9, revision:2, generation:{ match_id:99, status:"completed", attempt:1, progress_percent:100, current_step:"done", result:{ session_id:99, status:"completed", projects:[project], evidence:[] } } }
+          : { match_id:99, need, status:"clarifying", completeness:0.5, revision:1, questions:[{ id:"background", field:"background", type:"single", question:"你擅长什么？", options:["销售经验","内容创作","技术能力"], required:true }] }), { status:200 }));
       }
       if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites:[] }), { status:200 }));
       return Promise.reject(new Error(`unexpected ${url}`));
     });
     renderProjectRoute("/projects/matches/99/questions");
+    expect(await screen.findByText("预算2万元")).toBeInTheDocument();
+    expect(screen.getByText("一人公司")).toBeInTheDocument();
+    expect(screen.getByText("线上优先")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name:"销售经验" }));
     fireEvent.click(screen.getByRole("button", { name:"生成匹配结果" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/project-matches/99/answer", expect.objectContaining({ method:"POST", body:JSON.stringify({ revision:1, answers:[{ question_id:"background", field:"background", value:"销售经验" }] }) })));
