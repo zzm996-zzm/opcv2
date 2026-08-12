@@ -135,6 +135,137 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.GET("/projects/exports/:id/download", h.downloadExport)
 }
 
+// RegisterAdmin mounts project content operations. Service methods still verify the admin role.
+func (h *HTTPHandler) RegisterAdmin(router *gin.RouterGroup) {
+	router.POST("/admin/import-batches", h.createImportBatch)
+	router.GET("/admin/import-batches", h.listImportBatches)
+	router.GET("/admin/import-batches/:id", h.getImportBatch)
+	router.POST("/admin/import-batches/:id/publish", h.publishImportBatch)
+	router.POST("/admin/import-batches/:id/rollback", h.rollbackImportBatch)
+	router.GET("/admin/project-operation-audits", h.listProjectOperationAudits)
+}
+
+func (h *HTTPHandler) projectContentAdminApplication(c *gin.Context) (ProjectContentAdminApplication, bool) {
+	app, ok := h.app.(ProjectContentAdminApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) createImportBatch(c *gin.Context) {
+	app, ok := h.projectContentAdminApplication(c)
+	if !ok {
+		return
+	}
+	decoder := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 2<<20))
+	decoder.DisallowUnknownFields()
+	var request CreateImportBatchInput
+	if err := decoder.Decode(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_import_batch"})
+		return
+	}
+	request.AdminUserID = c.GetInt64(auth.UserIDContextKey)
+	item, err := app.CreateImportBatch(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, item)
+}
+
+func (h *HTTPHandler) listImportBatches(c *gin.Context) {
+	app, ok := h.projectContentAdminApplication(c)
+	if !ok {
+		return
+	}
+	limit, valid := positiveQueryInt(c, "limit", 20)
+	if !valid {
+		return
+	}
+	items, err := app.ListImportBatches(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func (h *HTTPHandler) getImportBatch(c *gin.Context) {
+	app, ok := h.projectContentAdminApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := positivePathID(c, "id", "invalid_import_batch_id")
+	if !valid {
+		return
+	}
+	item, err := app.GetImportBatch(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *HTTPHandler) publishImportBatch(c *gin.Context) {
+	h.changeImportBatch(c, "publish")
+}
+
+func (h *HTTPHandler) rollbackImportBatch(c *gin.Context) {
+	h.changeImportBatch(c, "rollback")
+}
+
+func (h *HTTPHandler) changeImportBatch(c *gin.Context, action string) {
+	app, ok := h.projectContentAdminApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := positivePathID(c, "id", "invalid_import_batch_id")
+	if !valid {
+		return
+	}
+	var item ImportBatch
+	var err error
+	if action == "publish" {
+		item, err = app.PublishImportBatch(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	} else {
+		item, err = app.RollbackImportBatch(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	}
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *HTTPHandler) listProjectOperationAudits(c *gin.Context) {
+	app, ok := h.projectContentAdminApplication(c)
+	if !ok {
+		return
+	}
+	limit, valid := positiveQueryInt(c, "limit", 50)
+	if !valid {
+		return
+	}
+	items, err := app.ListProjectOperationAudits(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func positivePathID(c *gin.Context, name, errorCode string) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param(name), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": errorCode})
+		return 0, false
+	}
+	return id, true
+}
+
 func (h *HTTPHandler) projectFileApplication(c *gin.Context) (ProjectFileApplication, bool) {
 	app, ok := h.app.(ProjectFileApplication)
 	if !ok {
@@ -1078,6 +1209,16 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_dictionary_kind"})
 	case errors.Is(err, ErrInvalidEvent):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_event"})
+	case errors.Is(err, ErrAdminRequired):
+		c.JSON(http.StatusForbidden, gin.H{"error": "admin_required"})
+	case errors.Is(err, ErrInvalidImportBatch):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_import_batch"})
+	case errors.Is(err, ErrImportBatchNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "import_batch_not_found"})
+	case errors.Is(err, ErrImportBatchState):
+		c.JSON(http.StatusConflict, gin.H{"error": "invalid_import_batch_state"})
+	case errors.Is(err, ErrPublicationGate):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "publication_gate_failed"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	case errors.Is(err, ErrInvalidAIResult):

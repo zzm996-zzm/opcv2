@@ -52,11 +52,34 @@ type fakeApplication struct {
 	exportInput        CreateExportInput
 	analyticsInput     AnalyticsEventInput
 	analyticsReceipt   AnalyticsReceipt
+	importBatch        ImportBatch
+	importInput        CreateImportBatchInput
+	operationAudits    []OperationAudit
 }
 
 func (a *fakeApplication) RecordProjectEvent(_ context.Context, input AnalyticsEventInput) (AnalyticsReceipt, error) {
 	a.analyticsInput = input
 	return a.analyticsReceipt, a.err
+}
+
+func (a *fakeApplication) CreateImportBatch(_ context.Context, input CreateImportBatchInput) (ImportBatch, error) {
+	a.importInput = input
+	return a.importBatch, a.err
+}
+func (a *fakeApplication) ListImportBatches(context.Context, int64, int) ([]ImportBatch, error) {
+	return []ImportBatch{a.importBatch}, a.err
+}
+func (a *fakeApplication) GetImportBatch(context.Context, int64, int64) (ImportBatch, error) {
+	return a.importBatch, a.err
+}
+func (a *fakeApplication) PublishImportBatch(context.Context, int64, int64) (ImportBatch, error) {
+	return a.importBatch, a.err
+}
+func (a *fakeApplication) RollbackImportBatch(context.Context, int64, int64) (ImportBatch, error) {
+	return a.importBatch, a.err
+}
+func (a *fakeApplication) ListProjectOperationAudits(context.Context, int64, int) ([]OperationAudit, error) {
+	return a.operationAudits, a.err
 }
 
 func (a *fakeApplication) GetPublicConfig(context.Context) PublicConfig { return a.publicConfig }
@@ -194,6 +217,17 @@ func projectTestRouter(app Application) *gin.Engine {
 	return router
 }
 
+func projectAdminTestRouter(app Application) *gin.Engine {
+	router := projectTestRouter(app)
+	group := router.Group("/api/v1")
+	group.Use(func(c *gin.Context) {
+		c.Set(auth.UserIDContextKey, int64(42))
+		c.Next()
+	})
+	NewHTTPHandler(app).RegisterAdmin(group)
+	return router
+}
+
 func TestCreateMatchEndpointUsesAuthenticatedUser(t *testing.T) {
 	app := &fakeApplication{result: MatchResult{
 		SessionID: 99,
@@ -258,6 +292,41 @@ func TestProjectAnalyticsEndpointRejectsClientIdentityFields(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "invalid_event") {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestCreateProjectImportBatchEndpointUsesAuthenticatedAdmin(t *testing.T) {
+	app := &fakeApplication{importBatch: ImportBatch{ID: 81, BatchNo: "2026-08-12-am", Status: ImportBatchReviewing}}
+	router := projectAdminTestRouter(app)
+	body := `{"batch_no":"2026-08-12-am","items":[{"slug":"example","name":"Example","value_prop_zh":"价值","death_cause_zh":"原因","failure_analysis_zh":"分析","learnings_zh":["教训"],"sources":[{"field_name":"death_cause","url":"https://example.com","kind":"authority"}]}]}`
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/import-batches", strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusCreated || app.importInput.AdminUserID != 42 || app.importInput.BatchNo != "2026-08-12-am" {
+		t.Fatalf("status=%d input=%+v body=%s", recorder.Code, app.importInput, recorder.Body.String())
+	}
+}
+
+func TestPublishProjectImportBatchMapsPublicationGate(t *testing.T) {
+	app := &fakeApplication{err: ErrPublicationGate}
+	router := projectAdminTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/import-batches/81/publish", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnprocessableEntity || !strings.Contains(recorder.Body.String(), "publication_gate_failed") {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestProjectImportBatchAdminRequired(t *testing.T) {
+	app := &fakeApplication{err: ErrAdminRequired}
+	router := projectAdminTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/import-batches", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "admin_required") {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

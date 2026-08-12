@@ -33,6 +33,11 @@ var (
 	ErrExportUnavailable   = errors.New("project export is not ready")
 	ErrCompareLimit        = errors.New("project comparison limit reached")
 	ErrInvalidEvent        = errors.New("invalid project analytics event")
+	ErrAdminRequired       = errors.New("project admin role required")
+	ErrInvalidImportBatch  = errors.New("invalid project import batch")
+	ErrImportBatchNotFound = errors.New("project import batch not found")
+	ErrImportBatchState    = errors.New("invalid project import batch state")
+	ErrPublicationGate     = errors.New("project content publication gate failed")
 )
 
 type CreateExportInput struct {

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	pgxmock "github.com/pashagolub/pgxmock/v4"
 	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 )
@@ -61,6 +62,63 @@ func TestPostgresRepositoryRecalculatesThirtyDayProjectHeat(t *testing.T) {
 	repository := NewPostgresRepository(db)
 	if err := repository.RecalculateProjectHeat(context.Background(), 42, cutoff); err != nil {
 		t.Fatalf("RecalculateProjectHeat() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryChecksProjectAdmin(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	db.ExpectQuery("SELECT role = 'admin'").WithArgs(int64(42)).WillReturnRows(pgxmock.NewRows([]string{"is_admin"}).AddRow(true))
+	repository := NewPostgresRepository(db)
+	admin, err := repository.IsProjectAdmin(context.Background(), 42)
+	if err != nil || !admin {
+		t.Fatalf("IsProjectAdmin() = %v/%v", admin, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryRejectsImportBatchThatFailsPublicationGate(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 8, 12, 13, 0, 0, 0, time.UTC)
+	db.ExpectQuery("WITH publishable AS").WithArgs(int64(81), int64(42), now).WillReturnError(pgx.ErrNoRows)
+	db.ExpectQuery("FROM project_import_batches WHERE id").WithArgs(int64(81)).WillReturnRows(pgxmock.NewRows([]string{
+		"id", "batch_no", "planned_count", "succeeded_count", "failed_count", "status", "operator_id", "validation_errors", "created_at", "updated_at", "published_at", "rolled_back_at",
+	}).AddRow(int64(81), "batch", 1, 1, 0, ImportBatchReviewing, int64(42), []byte(`[]`), now, now, nil, nil))
+	repository := NewPostgresRepository(db)
+	if _, err := repository.PublishImportBatch(context.Background(), 81, 42, now); err != ErrPublicationGate {
+		t.Fatalf("PublishImportBatch() error = %v, want ErrPublicationGate", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryRollbackRemovesBatchFromPublicReads(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 8, 12, 13, 0, 0, 0, time.UTC)
+	db.ExpectQuery("WITH updated_batch AS").WithArgs(int64(81), int64(42), now).WillReturnRows(pgxmock.NewRows([]string{
+		"id", "batch_no", "planned_count", "succeeded_count", "failed_count", "status", "operator_id", "validation_errors", "created_at", "updated_at", "published_at", "rolled_back_at",
+	}).AddRow(int64(81), "batch", 1, 1, 0, ImportBatchRolledBack, int64(42), []byte(`[]`), now, now, now, now))
+	repository := NewPostgresRepository(db)
+	batch, err := repository.RollbackImportBatch(context.Background(), 81, 42, now)
+	if err != nil || batch.Status != ImportBatchRolledBack {
+		t.Fatalf("RollbackImportBatch() = %+v/%v", batch, err)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
