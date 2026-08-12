@@ -387,6 +387,56 @@ the existing filter controls.
 Returns `hero`, six `quick_tags`, three `entries`, and up to eight published
 featured projects. This endpoint never starts AI generation.
 
+### Project Market Analytics and Heat
+
+`POST /api/v1/analytics/events` is a public, non-blocking ingestion endpoint.
+The request body is limited to 16 KiB, uses strict JSON decoding, and rejects
+unknown top-level fields, unknown event names, or properties outside the
+event-specific allowlist.
+
+```json
+{
+  "event_id": "event-019fe5c0-0a9e-7e0c-8bf2-123456789abc",
+  "event_name": "project_detail_view",
+  "visitor_key": "visitor-019fe5c0-0a9e-7e0c-8bf2-123456789abc",
+  "route": "/projects/ai-sales?section=path",
+  "ref_module": "project_detail",
+  "properties": {
+    "project_id": 42,
+    "tab": "path"
+  }
+}
+```
+
+Response `202`:
+
+```json
+{
+  "event_id": "event-019fe5c0-0a9e-7e0c-8bf2-123456789abc",
+  "accepted": true,
+  "duplicate": false
+}
+```
+
+`event_id` is the idempotency key. Repeating the same event returns
+`accepted=true` and `duplicate=true` without inserting a second record.
+`visitor_key` is never stored in plaintext; the server stores only its SHA-256
+hash. Clients cannot supply `user_id` or `heat`, and event ingestion does not
+trust either value from request properties. Invalid input returns
+`400 {"error":"invalid_event"}`.
+
+The asynchronous `projects.heat_aggregate` worker recalculates catalog heat as:
+
+```text
+heat = distinct visitor views in the trailing 30 days
+     + current favorites * 3
+     + current unlocks * 10
+```
+
+A successful `project_detail_view` and a favorite-list mutation enqueue a heat
+refresh. Catalog clients can only read the resulting `heat`; they cannot write
+or override it.
+
 ### Project Catalog
 
 `GET /api/v1/projects`
@@ -553,6 +603,110 @@ After clarification reaches `ready`, generation uses these protected endpoints:
 Generation status values are `queued`, `running`, `completed`, `partial`,
 `failed`, and `canceled`. A `partial` result contains catalog-backed candidates
 when personalized model generation is unavailable.
+
+## Project Market Content Operations
+
+All endpoints in this section require a valid access token and
+`users.role = "admin"`. Authentication middleware alone is not sufficient: the
+service checks the role again and non-admin users receive
+`403 {"error":"admin_required"}`. Every publish and rollback action is written
+to the operation audit log.
+
+### Import Failure Batches
+
+Available routes:
+
+- `POST /api/v1/admin/import-batches`
+- `GET /api/v1/admin/import-batches?limit=20`
+- `GET /api/v1/admin/import-batches/{id}`
+- `POST /api/v1/admin/import-batches/{id}/publish`
+- `POST /api/v1/admin/import-batches/{id}/rollback`
+- `GET /api/v1/admin/project-operation-audits?limit=50`
+
+Create request:
+
+```json
+{
+  "batch_no": "failures-2026-08-12",
+  "planned_count": 2,
+  "items": [{
+    "slug": "example-failure",
+    "name": "Example Failure",
+    "name_zh": "示例失败项目",
+    "value_prop_zh": "原始价值主张",
+    "death_cause_zh": "已核验的失败原因",
+    "failure_analysis_zh": "基于来源的复盘",
+    "learnings_zh": ["先验证真实付费需求"],
+    "sources": [{
+      "field_name": "death_cause_zh",
+      "url": "https://example.com/source",
+      "name": "公开复盘",
+      "kind": "primary",
+      "excerpt": "公开披露的失败原因"
+    }]
+  }]
+}
+```
+
+A batch may be accepted with partial item validation failures. Valid items are
+persisted for review, while `failed_count` and `validation_errors` identify the
+rejected item index, slug, field, and stable validation code. Batch statuses are
+`reviewing`, `published`, and `rolled_back` for API-created batches.
+
+Publication is all-or-nothing and is rejected with
+`422 {"error":"publication_gate_failed"}` when the batch has validation
+failures or any item fails the evidence gate. An item qualifies only when it
+has either:
+
+- at least one distinct `primary` or `authority` source URL; or
+- at least two distinct `research`, `media`, or `vertical` source URLs.
+
+Sources must be valid public HTTP(S) URLs; `loot-drop.io` and its subdomains are
+invalid. Invalid state transitions return
+`409 {"error":"invalid_import_batch_state"}`.
+
+Rollback is immediate and audited. It rejects the imported failure records,
+sets derived published projects to offline, marks associated opportunity items
+stale, and changes the batch to `rolled_back`. Public catalog and case reads
+therefore stop exposing rolled-back content without waiting for a later job.
+
+### Versioned Knowledge Base Operations
+
+Available admin routes:
+
+- `POST /api/v1/admin/kb/reindex`
+- `GET /api/v1/admin/kb/reindex/{id}`
+- `GET /api/v1/admin/ai-answers?limit=50`
+
+`POST /api/v1/admin/kb/reindex` returns `202` with a persistent job. Statuses
+are `queued`, `running`, `ready`, and `failed`. The deterministic task key is
+based on the target version, so duplicate requests for the same pending target
+do not enqueue duplicate work.
+
+The `projects.kb_reindex` worker snapshots all currently published projects
+into `project_kb_documents` under a new version, atomically switches
+`project_kb_state.active_version`, and deletes old project AI response-cache
+rows. Match retrieval always reads the active version and records that version
+with the resulting AI answer. A failed rebuild leaves the previous active
+version available.
+
+`GET /api/v1/admin/ai-answers` returns recent auditable answers including the
+entry point, raw input, parsed intent, cited KB chunk IDs, cited web sources,
+KB sufficiency, result, prompt/model metadata, active KB version, latency, and
+status. It is an operations/audit endpoint and is never public.
+
+### Scheduled Content Production
+
+The backend scheduler checks in `Asia/Shanghai` and schedules production on
+Tuesday and Friday at 02:00. A date-based deterministic task key makes the
+schedule idempotent. The `projects.content_batch` worker uses published failure
+records plus reviewed rebuild/localization data to create at most the planned
+number of opportunity drafts.
+
+Production output is always `reviewing`; the scheduler never publishes content
+and never bypasses the evidence/publication gate. Operators must review and
+publish through the content-operation workflow before drafts become publicly
+visible.
 
 ## Legacy Project Matches
 
