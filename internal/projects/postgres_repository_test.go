@@ -653,3 +653,57 @@ func TestPostgresRepositoryListsAndDeletesFavorites(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPostgresRepositoryPersistsAndUpdatesPDFExport(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	expires := now.Add(7 * 24 * time.Hour)
+	snapshot := []byte(`{"match_id":99,"need":"AI项目"}`)
+	db.ExpectQuery(regexp.QuoteMeta(`INSERT INTO project_exports (user_id, source_type, source_id, status, payload, snapshot, payload_bytes, format, includes, expires_at, created_at, updated_at, error_code) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`)).
+		WithArgs(int64(42), "match", int64(99), "queued", []byte(`{}`), snapshot, nil, "pdf", []byte(`[]`), expires, now, now, "").
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(int64(71)))
+	payload := []byte("%PDF-1.7\nrendered")
+	db.ExpectQuery(regexp.QuoteMeta(`UPDATE project_exports SET status=$3, payload=$4, payload_bytes=$5, error_code=$6, updated_at=$7 WHERE id=$1 AND user_id=$2 RETURNING updated_at`)).
+		WithArgs(int64(71), int64(42), "ready", []byte(`{}`), payload, "", now.Add(time.Minute)).
+		WillReturnRows(pgxmock.NewRows([]string{"updated_at"}).AddRow(now.Add(time.Minute)))
+
+	repository := NewPostgresRepository(db)
+	item, err := repository.CreateExport(context.Background(), Export{UserID: 42, SourceType: "match", SourceID: 99, Status: "queued", Snapshot: snapshot, Format: "pdf", ExpiresAt: expires, CreatedAt: now, UpdatedAt: now})
+	if err != nil || item.ID != 71 {
+		t.Fatalf("CreateExport() item=%+v err=%v", item, err)
+	}
+	item.Status, item.Payload, item.UpdatedAt = "ready", payload, now.Add(time.Minute)
+	if _, err := repository.UpdateExport(context.Background(), item); err != nil {
+		t.Fatalf("UpdateExport() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryFindsReusablePDFExport(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
+	db.ExpectQuery("SELECT id FROM project_exports").WithArgs(int64(42), "match", int64(99), "pdf", now).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(int64(71)))
+	db.ExpectQuery("SELECT id, user_id, source_type").WithArgs(int64(42), int64(71)).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "user_id", "source_type", "source_id", "status", "snapshot", "payload", "format", "includes", "expires_at", "created_at", "updated_at", "error_code"}).
+			AddRow(int64(71), int64(42), "match", int64(99), "ready", []byte(`{"match_id":99}`), []byte("%PDF-1.7"), "pdf", []byte(`[]`), now.Add(time.Hour), now, now, ""))
+
+	repository := NewPostgresRepository(db)
+	item, err := repository.FindReusableExport(context.Background(), 42, "match", 99, "pdf", now)
+	if err != nil || item.ID != 71 || item.Status != "ready" || !strings.HasPrefix(string(item.Payload), "%PDF-") {
+		t.Fatalf("FindReusableExport() item=%+v err=%v", item, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}

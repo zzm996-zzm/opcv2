@@ -9,7 +9,7 @@ import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
-import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchFile, type ProjectMatchSession, type ProjectMatchWorkflow, type ProjectOpportunity } from "../lib/projectsApi";
+import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectExport, type ProjectFavorite, type ProjectMatch, type ProjectMatchFile, type ProjectMatchSession, type ProjectMatchWorkflow, type ProjectOpportunity } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
@@ -1994,7 +1994,7 @@ function ProjectCompare() {
   const [selected, setSelected] = useState<string[]>([]);
   const [comparison, setComparison] = useState<ProjectOpportunity[]>([]);
   const [comparisonId, setComparisonId] = useState<number | null>(null);
-  const [comparisonExportId, setComparisonExportId] = useState<number | null>(null);
+  const [comparisonExport, setComparisonExport] = useState<ProjectExport | null>(null);
   const [creatingComparison, setCreatingComparison] = useState(false);
   const [downloadingComparison, setDownloadingComparison] = useState(false);
   const [collectionsLoading, setCollectionsLoading] = useState(true);
@@ -2041,7 +2041,7 @@ function ProjectCompare() {
     const next = removing ? selected.filter((item) => item !== slug) : [...selected, slug];
     setComparison([]);
     setComparisonId(null);
-    setComparisonExportId(null);
+    setComparisonExport(null);
     setSelected(next);
     setSearchParams(next.length > 0 ? { items: next.join(",") } : {}, { replace: true });
     setCollectionPending((current) => [...current, slug]);
@@ -2064,7 +2064,7 @@ function ProjectCompare() {
     setSearchParams({}, { replace: true });
     setComparison([]);
     setComparisonId(null);
-    setComparisonExportId(null);
+    setComparisonExport(null);
     setCollectionPending(previous);
     setError("");
     try {
@@ -2102,18 +2102,32 @@ function ProjectCompare() {
     if (!comparisonId) return;
     try {
       const result = await projectsApi.createExport("comparison", comparisonId);
-      setComparisonExportId(result.id);
+      setComparisonExport(result);
       setError("");
     } catch (exportError) {
       setError(apiErrorMessage(exportError, "暂时无法导出项目对比"));
     }
   }
+  useEffect(() => {
+    if (!comparisonExport || comparisonExport.status === "ready" || comparisonExport.status === "failed") return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      projectsApi.getExport(comparisonExport.id).then((item) => {
+        if (!active) return;
+        setComparisonExport(item);
+        if (item.status === "failed") setError("PDF 生成失败，请重新创建导出");
+      }).catch((loadError) => {
+        if (active) setError(apiErrorMessage(loadError, "暂时无法读取导出进度"));
+      });
+    }, 800);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [comparisonExport]);
   async function downloadComparison() {
-    if (!comparisonExportId || downloadingComparison) return;
+    if (!comparisonExport || comparisonExport.status !== "ready" || downloadingComparison) return;
     setDownloadingComparison(true);
     try {
-      const blob = await projectsApi.downloadExport(comparisonExportId);
-      saveProjectExport(blob, `project-comparison-${comparisonId ?? comparisonExportId}.json`);
+      const blob = await projectsApi.downloadExport(comparisonExport.id);
+      saveProjectExport(blob, `project-comparison-${comparisonId ?? comparisonExport.id}.pdf`);
       setError("");
     } catch (downloadError) {
       setError(apiErrorMessage(downloadError, "暂时无法下载项目对比"));
@@ -2150,7 +2164,8 @@ function ProjectCompare() {
       </div>
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <p className="pm-compare-saved-state" role="status">{collectionsLoading ? "正在读取已保存的对比项目..." : `已保存 ${selected.length}/5 个项目`}</p>
-      {comparisonExportId ? <button className="pm-compare-download" disabled={downloadingComparison} onClick={() => void downloadComparison()} type="button">{downloadingComparison ? "下载中..." : "下载对比报告"}</button> : null}
+      {comparisonExport && comparisonExport.status !== "ready" && comparisonExport.status !== "failed" ? <p role="status">{comparisonExport.status === "queued" ? "对比报告已进入生成队列..." : "正在排版生成对比报告..."}</p> : null}
+      {comparisonExport ? <button className="pm-compare-download" disabled={comparisonExport.status !== "ready" || downloadingComparison} onClick={() => void downloadComparison()} type="button">{downloadingComparison ? "下载中..." : comparisonExport.status === "ready" ? "下载 PDF 对比报告" : "等待 PDF 生成"}</button> : null}
       {comparison.length === 0 ? (
         <section className="pm-panel pm-compare-picker">
           <h2>选择 2-5 个项目</h2>
@@ -2421,6 +2436,7 @@ function ExportOverlay({ paywallEnabled }: { paywallEnabled: boolean }) {
   const closeHref = matchId ? `/projects/matches/${matchId}/results` : "/projects/results";
   const [sourceID, setSourceID] = useState<number | null>(null);
   const [exportID, setExportID] = useState<number | null>(null);
+  const [exportState, setExportState] = useState<ProjectExport | null>(null);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -2429,13 +2445,13 @@ function ExportOverlay({ paywallEnabled }: { paywallEnabled: boolean }) {
     if (Number.isFinite(routeID) && routeID > 0) {
       let active = true;
       setSourceID(null);
-      projectsApi.getMatch(routeID).then((session) => {
+      projectsApi.getProjectMatch(routeID).then((session) => {
         if (!active) return;
-        if (session.status !== "completed") {
+        if (session.generation?.status !== "completed" && session.generation?.status !== "partial") {
           setError("该匹配记录尚未完成，暂时不能导出");
           return;
         }
-        setSourceID(session.id);
+        setSourceID(session.match_id);
         setError("");
       }).catch((loadError) => {
         if (active) setError(apiErrorMessage(loadError, "暂时无法读取匹配记录"));
@@ -2456,19 +2472,33 @@ function ExportOverlay({ paywallEnabled }: { paywallEnabled: boolean }) {
     }).catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取匹配记录")); });
     return () => { active = false; };
   }, [matchId]);
+  useEffect(() => {
+    if (!exportID || exportState?.status === "ready" || exportState?.status === "failed") return;
+    let active = true;
+    const timer = window.setInterval(() => {
+      projectsApi.getExport(exportID).then((item) => {
+        if (!active) return;
+        setExportState(item);
+        if (item.status === "failed") setError("PDF 生成失败，请重新创建导出");
+      }).catch((loadError) => {
+        if (active) setError(apiErrorMessage(loadError, "暂时无法读取导出进度"));
+      });
+    }, 800);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [exportID, exportState?.status]);
   async function createExport() {
     if (!sourceID || exporting) return;
     setExporting(true); setError("");
-    try { const item = await projectsApi.createExport("match", sourceID); setExportID(item.id); }
+    try { const item = await projectsApi.createExport("match", sourceID); setExportID(item.id); setExportState(item); }
     catch (createError) { setError(apiErrorMessage(createError, "暂时无法导出报告")); }
     finally { setExporting(false); }
   }
   async function downloadExport() {
-    if (!exportID || downloading) return;
+    if (!exportID || exportState?.status !== "ready" || downloading) return;
     setDownloading(true); setError("");
     try {
       const blob = await projectsApi.downloadExport(exportID);
-      saveProjectExport(blob, `project-match-${sourceID ?? exportID}.json`);
+      saveProjectExport(blob, `project-match-${sourceID ?? exportID}.pdf`);
     } catch (downloadError) {
       setError(apiErrorMessage(downloadError, "暂时无法下载报告"));
     } finally {
@@ -2483,7 +2513,7 @@ function ExportOverlay({ paywallEnabled }: { paywallEnabled: boolean }) {
         <div className="pm-export-layout">
           <section className="pm-export-formats">
             <h3>1. 选择导出格式</h3>
-            <button className="active" type="button"><i aria-hidden="true">{"{}"}</i><b>JSON 数据</b><span>服务端快照</span><small>结构化保存完整匹配记录</small></button>
+            <button className="active" type="button"><i aria-hidden="true">PDF</i><b>PDF 报告</b><span>服务端排版</span><small>适合归档、打印与分享</small></button>
             <button disabled type="button"><i aria-hidden="true">X</i><b>Excel 表格</b><span>即将开放</span><small>适合详细数据与二次分析</small></button>
             <button disabled type="button"><i aria-hidden="true">↗</i><b>在线分享链接</b><span>即将开放</span><small>生成加密链接，便于在线分享</small></button>
           </section>
@@ -2503,7 +2533,8 @@ function ExportOverlay({ paywallEnabled }: { paywallEnabled: boolean }) {
           </article>
         </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
-        {exportID ? <button className="pm-export-download" disabled={downloading} onClick={() => void downloadExport()} type="button">{downloading ? "下载中..." : "下载已生成的 JSON 报告"}</button> : null}
+        {exportState && exportState.status !== "ready" && exportState.status !== "failed" ? <p role="status">{exportState.status === "queued" ? "PDF 已进入生成队列..." : "正在排版生成 PDF..."}</p> : null}
+        {exportID ? <button className="pm-export-download" disabled={exportState?.status !== "ready" || downloading} onClick={() => void downloadExport()} type="button">{downloading ? "下载中..." : exportState?.status === "ready" ? "下载 PDF 报告" : "等待 PDF 生成"}</button> : null}
         <footer>
           <small>{paywallEnabled ? "付费用户可导出无水印或详细报告，解锁更多专业内容与数据详情。" : "当前项目内容已全部开放，导出文件按服务端记录生成。"}</small>
           <Link to={closeHref}>取消</Link>

@@ -500,13 +500,19 @@ func (r *PostgresRepository) CreateExport(ctx context.Context, item Export) (Exp
 	if err != nil {
 		return Export{}, err
 	}
-	err = r.db.QueryRow(ctx, `INSERT INTO project_exports (user_id, source_type, source_id, status, payload, format, includes, expires_at, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, item.UserID, item.SourceType, item.SourceID, item.Status, item.Payload, item.Format, includes, item.ExpiresAt, item.CreatedAt).Scan(&item.ID)
+	if len(item.Snapshot) == 0 {
+		item.Snapshot = []byte(`{}`)
+	}
+	if item.UpdatedAt.IsZero() {
+		item.UpdatedAt = item.CreatedAt
+	}
+	err = r.db.QueryRow(ctx, `INSERT INTO project_exports (user_id, source_type, source_id, status, payload, snapshot, payload_bytes, format, includes, expires_at, created_at, updated_at, error_code) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`, item.UserID, item.SourceType, item.SourceID, item.Status, []byte(`{}`), item.Snapshot, nil, item.Format, includes, item.ExpiresAt, item.CreatedAt, item.UpdatedAt, item.ErrorCode).Scan(&item.ID)
 	return item, err
 }
 func (r *PostgresRepository) GetExport(ctx context.Context, userID, id int64) (Export, error) {
 	var item Export
 	var includes []byte
-	err := r.db.QueryRow(ctx, `SELECT id, user_id, source_type, source_id, status, payload, format, includes, expires_at, created_at FROM project_exports WHERE user_id = $1 AND id = $2`, userID, id).Scan(&item.ID, &item.UserID, &item.SourceType, &item.SourceID, &item.Status, &item.Payload, &item.Format, &includes, &item.ExpiresAt, &item.CreatedAt)
+	err := r.db.QueryRow(ctx, `SELECT id, user_id, source_type, source_id, status, snapshot, COALESCE(payload_bytes, CASE WHEN status = 'ready' THEN payload::text::bytea END), format, includes, expires_at, created_at, updated_at, error_code FROM project_exports WHERE user_id = $1 AND id = $2`, userID, id).Scan(&item.ID, &item.UserID, &item.SourceType, &item.SourceID, &item.Status, &item.Snapshot, &item.Payload, &item.Format, &includes, &item.ExpiresAt, &item.CreatedAt, &item.UpdatedAt, &item.ErrorCode)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Export{}, ErrExportNotFound
 	}
@@ -514,6 +520,33 @@ func (r *PostgresRepository) GetExport(ctx context.Context, userID, id int64) (E
 		if unmarshalErr := json.Unmarshal(includes, &item.Includes); unmarshalErr != nil {
 			return Export{}, unmarshalErr
 		}
+	}
+	return item, err
+}
+
+func (r *PostgresRepository) FindReusableExport(ctx context.Context, userID int64, sourceType string, sourceID int64, format string, now time.Time) (Export, error) {
+	var id int64
+	err := r.db.QueryRow(ctx, `SELECT id FROM project_exports WHERE user_id=$1 AND source_type=$2 AND source_id=$3 AND format=$4 AND status IN ('queued','running','ready') AND expires_at>$5 ORDER BY id DESC LIMIT 1`, userID, sourceType, sourceID, format, now).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Export{}, ErrExportNotFound
+	}
+	if err != nil {
+		return Export{}, err
+	}
+	return r.GetExport(ctx, userID, id)
+}
+
+func (r *PostgresRepository) UpdateExport(ctx context.Context, item Export) (Export, error) {
+	payloadJSON := []byte(`{}`)
+	var payloadBytes []byte
+	if item.Format == "pdf" {
+		payloadBytes = item.Payload
+	} else if len(item.Payload) > 0 {
+		payloadJSON = item.Payload
+	}
+	err := r.db.QueryRow(ctx, `UPDATE project_exports SET status=$3, payload=$4, payload_bytes=$5, error_code=$6, updated_at=$7 WHERE id=$1 AND user_id=$2 RETURNING updated_at`, item.ID, item.UserID, item.Status, payloadJSON, payloadBytes, item.ErrorCode, item.UpdatedAt).Scan(&item.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Export{}, ErrExportNotFound
 	}
 	return item, err
 }

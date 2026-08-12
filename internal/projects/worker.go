@@ -13,10 +13,20 @@ var ErrInvalidProjectMatchJob = errors.New("invalid project match job payload")
 
 type ProjectMatchProcessor interface {
 	ProcessProjectMatch(context.Context, int64, int64, int) error
+	ProcessProjectExport(context.Context, int64, int64) error
 }
 
 type ProjectMatchWorker struct {
 	processor ProjectMatchProcessor
+}
+
+func (w *ProjectMatchWorker) HandleExport(ctx context.Context, envelope jobs.Envelope) error {
+	userID, userOK := projectMatchJobNumber(envelope.Payload["user_id"])
+	exportID, exportOK := projectMatchJobNumber(envelope.Payload["export_id"])
+	if !userOK || !exportOK {
+		return ErrInvalidProjectMatchJob
+	}
+	return w.processor.ProcessProjectExport(ctx, userID, exportID)
 }
 
 func NewProjectMatchWorker(processor ProjectMatchProcessor) *ProjectMatchWorker {
@@ -36,6 +46,7 @@ func (w *ProjectMatchWorker) Handle(ctx context.Context, envelope jobs.Envelope)
 func RegisterWorker(mux *asynq.ServeMux, processor ProjectMatchProcessor) {
 	worker := NewProjectMatchWorker(processor)
 	jobs.Register(mux, jobs.Handler{Type: jobs.TypeProjectMatchGenerate, Handle: worker.Handle})
+	jobs.Register(mux, jobs.Handler{Type: jobs.TypeProjectExportRender, Handle: worker.HandleExport})
 }
 
 func projectMatchJobNumber(value any) (int64, bool) {

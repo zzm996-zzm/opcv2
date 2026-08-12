@@ -844,8 +844,8 @@ describe("ProjectsPage", () => {
         return Promise.resolve(new Response(JSON.stringify({ project_id: item?.id, slug: item?.slug, title: item?.title }), { status: 200 }));
       }
       if (url === "/api/v1/projects/comparisons" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 61, items }), { status: 200 }));
-      if (url === "/api/v1/projects/exports" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 72, status: "ready", download_url: "/api/v1/projects/exports/72/download" }), { status: 200 }));
-      if (url === "/api/v1/projects/exports/72/download" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({ source_type: "comparison", source_id: 61 }), { status: 200 }));
+      if (url === "/api/v1/projects/exports" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 72, status: "ready", format: "pdf", download_url: "/api/v1/projects/exports/72/download" }), { status: 202 }));
+      if (url === "/api/v1/projects/exports/72/download" && init?.method === "GET") return Promise.resolve(new Response("%PDF-1.7\ncomparison", { status: 200, headers: { "Content-Type": "application/pdf" } }));
       return Promise.reject(new Error(`unexpected ${url}`));
     });
     renderProjectRoute("/projects/compare");
@@ -862,7 +862,7 @@ describe("ProjectsPage", () => {
       String(input) === "/api/v1/projects/comparisons" && init?.method === "POST"
     )).toHaveLength(1));
     fireEvent.click(screen.getByRole("button", { name: "导出对比" }));
-    fireEvent.click(await screen.findByRole("button", { name: "下载对比报告" }));
+    fireEvent.click(await screen.findByRole("button", { name: "下载 PDF 对比报告" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/projects/exports/72/download",
       expect.objectContaining({ method: "GET", headers: expect.objectContaining({ Authorization: "Bearer access-token" }) })
@@ -880,20 +880,26 @@ describe("ProjectsPage", () => {
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: revokeObjectURL });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
-      if (url === "/api/v1/projects/opportunities") return Promise.resolve(new Response(JSON.stringify({ opportunities: [] }), { status: 200 }));
-      if (url === "/api/v1/projects/matches") return Promise.resolve(new Response(JSON.stringify({ matches: [{ id: 99, status: "completed", intent: "AI项目", result: { status: "completed", projects: [] } }] }), { status: 200 }));
-      if (url === "/api/v1/projects/exports" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 71, status: "ready", download_url: "/api/v1/projects/exports/71/download" }), { status: 200 }));
-      if (url === "/api/v1/projects/exports/71/download" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({ source_type: "match", source_id: 99 }), { status: 200 }));
+      if (url === "/api/v1/project-matches/99") return Promise.resolve(new Response(JSON.stringify({
+        match_id: 99,
+        need: "AI项目",
+        status: "completed",
+        completeness: 0.9,
+        revision: 2,
+        generation: { match_id: 99, status: "completed", attempt: 1, progress_percent: 100, current_step: "done", result: { session_id: 99, status: "completed", projects: [], evidence: [] } }
+      }), { status: 200 }));
+      if (url === "/api/v1/projects/exports" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 71, status: "ready", format: "pdf", download_url: "/api/v1/projects/exports/71/download" }), { status: 202 }));
+      if (url === "/api/v1/projects/exports/71/download" && init?.method === "GET") return Promise.resolve(new Response("%PDF-1.7\nmatch", { status: 200, headers: { "Content-Type": "application/pdf" } }));
       return Promise.reject(new Error(`unexpected ${url}`));
     });
-    renderProjectRoute("/projects/export");
+    renderProjectRoute("/projects/matches/99/export");
 
     expect(screen.getByRole("heading", { name: "导出匹配报告" })).toBeInTheDocument();
     const exportButton = await screen.findByRole("button", { name: "确认导出" });
     await waitFor(() => expect(exportButton).toBeEnabled());
     fireEvent.click(exportButton);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/exports", expect.objectContaining({ method: "POST" })));
-    fireEvent.click(await screen.findByRole("button", { name: "下载已生成的 JSON 报告" }));
+    fireEvent.click(await screen.findByRole("button", { name: "下载 PDF 报告" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/projects/exports/71/download",
       expect.objectContaining({ method: "GET", headers: expect.objectContaining({ Authorization: "Bearer access-token" }) })
@@ -923,16 +929,16 @@ describe("ProjectsPage", () => {
 
   it("rejects an incomplete match before creating an export", async () => {
     const session = {
-      id: 77,
-      user_id: 7,
-      intent: "等待补充的项目需求",
+      match_id: 77,
+      need: "等待补充的项目需求",
       status: "pending",
-      created_at: "2026-07-17T08:00:00Z",
-      updated_at: "2026-07-17T08:00:00Z"
+      completeness: 0.4,
+      revision: 1,
+      generation: { match_id: 77, status: "pending", attempt: 0, progress_percent: 0 }
     };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
-      if (url === "/api/v1/projects/matches/77") return Promise.resolve(new Response(JSON.stringify(session), { status: 200 }));
+      if (url === "/api/v1/project-matches/77") return Promise.resolve(new Response(JSON.stringify(session), { status: 200 }));
       if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
       return Promise.reject(new Error(`unexpected ${url}`));
     });

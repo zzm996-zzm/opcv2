@@ -107,6 +107,7 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.POST("/projects/compare-items", h.addProjectCompareItem)
 	router.DELETE("/projects/compare-items/:id", h.removeProjectCompareItem)
 	router.POST("/projects/exports", h.createExport)
+	router.GET("/projects/exports/:id", h.getExport)
 	router.GET("/projects/exports/:id/download", h.downloadExport)
 }
 
@@ -606,6 +607,19 @@ func (h *HTTPHandler) createExport(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	c.JSON(http.StatusAccepted, item)
+}
+
+func (h *HTTPHandler) getExport(c *gin.Context) {
+	id, ok := matchID(c)
+	if !ok {
+		return
+	}
+	item, err := h.app.GetExport(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, item)
 }
 
@@ -761,12 +775,20 @@ func (h *HTTPHandler) downloadExport(c *gin.Context) {
 		writeError(c, err)
 		return
 	}
+	if item.Status != "ready" || len(item.Payload) == 0 {
+		writeError(c, ErrExportUnavailable)
+		return
+	}
 	ext := "json"
 	if item.Format != "" {
 		ext = item.Format
 	}
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="project-export-%d.%s"`, item.ID, ext))
-	c.Data(http.StatusOK, "application/json; charset=utf-8", item.Payload)
+	contentType := "application/json; charset=utf-8"
+	if ext == "pdf" {
+		contentType = "application/pdf"
+	}
+	c.Data(http.StatusOK, contentType, item.Payload)
 }
 
 func (h *HTTPHandler) createComparison(c *gin.Context) {
@@ -1024,6 +1046,8 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_content_correction"})
 	case errors.Is(err, ErrExportExpired):
 		c.JSON(http.StatusGone, gin.H{"error": "export_expired"})
+	case errors.Is(err, ErrExportUnavailable):
+		c.JSON(http.StatusConflict, gin.H{"error": "export_unavailable"})
 	case errors.Is(err, ErrCompareLimit):
 		c.JSON(http.StatusConflict, gin.H{"error": "compare_limit_reached", "max": maxProjectCollectionItems})
 	case errors.Is(err, ErrInvalidDictionaryKind):

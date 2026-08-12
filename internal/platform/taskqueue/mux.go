@@ -13,6 +13,7 @@ func DefaultRegistry() jobs.Registry {
 		jobs.TypeSandboxRun:           true,
 		jobs.TypeSandboxV2Run:         true,
 		jobs.TypeProjectMatchGenerate: true,
+		jobs.TypeProjectExportRender:  true,
 	}
 }
 

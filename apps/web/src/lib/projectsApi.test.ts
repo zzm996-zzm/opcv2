@@ -191,7 +191,13 @@ describe("projectsApi", () => {
   it("creates a project export", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ id:71, status:"ready" }), { status:200 }));
     await projectsApi.createExport("match", 99);
-    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/exports", expect.objectContaining({ method:"POST", body:JSON.stringify({ source_type:"match", source_id:99 }) }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/exports", expect.objectContaining({ method:"POST", body:JSON.stringify({ source_type:"match", source_id:99, format:"pdf" }) }));
+  });
+
+  it("gets project export progress", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ id:71, status:"running", format:"pdf" }), { status:200 }));
+    await projectsApi.getExport(71);
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/exports/71", expect.objectContaining({ method:"GET" }));
   });
 
   it("downloads a project export with bearer authentication", async () => {
@@ -202,12 +208,12 @@ describe("projectsApi", () => {
       user: { id: 7, nickname: "张晨", phone: "", status: "active" }
     });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ source_type: "match", source_id: 99 }), { status: 200, headers: { "Content-Type": "application/json" } })
+      new Response("%PDF-1.7\nrendered", { status: 200, headers: { "Content-Type": "application/pdf" } })
     );
 
     const blob = await projectsApi.downloadExport(71);
 
-    expect(await blob.text()).toContain('"source_id":99');
+    expect(await blob.text()).toContain("%PDF-1.7");
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/projects/exports/71/download",
       expect.objectContaining({

@@ -48,6 +48,8 @@ type fakeApplication struct {
 	generationResponse MatchGenerationResponse
 	progressEvents     []MatchProgressEvent
 	afterEventID       int64
+	export             Export
+	exportInput        CreateExportInput
 }
 
 func (a *fakeApplication) GetPublicConfig(context.Context) PublicConfig { return a.publicConfig }
@@ -113,10 +115,17 @@ func (a *fakeApplication) GetComparison(_ context.Context, userID, id int64) (Co
 	return Comparison{ID: id, UserID: userID}, a.err
 }
 func (a *fakeApplication) CreateExport(_ context.Context, input CreateExportInput) (Export, error) {
-	return Export{ID: 71, UserID: input.UserID, Status: "ready"}, a.err
+	a.exportInput = input
+	if a.export.ID == 0 {
+		return Export{ID: 71, UserID: input.UserID, Status: "queued", Format: "pdf"}, a.err
+	}
+	return a.export, a.err
 }
 func (a *fakeApplication) GetExport(_ context.Context, userID, id int64) (Export, error) {
-	return Export{ID: id, UserID: userID, Payload: []byte(`{}`)}, a.err
+	if a.export.ID == 0 {
+		return Export{ID: id, UserID: userID, Status: "ready", Format: "json", Payload: []byte(`{}`)}, a.err
+	}
+	return a.export, a.err
 }
 
 func (a *fakeApplication) FavoriteMatch(_ context.Context, userID, id int64) (Favorite, error) {
@@ -518,5 +527,55 @@ func TestListAndDeleteFavoriteMatchEndpoints(t *testing.T) {
 	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodDelete, "/api/v1/projects/matches/99/favorite", nil))
 	if recorder.Code != http.StatusNoContent || app.userID != 42 || app.matchID != 99 {
 		t.Fatalf("delete status/user/match = %d/%d/%d", recorder.Code, app.userID, app.matchID)
+	}
+}
+
+func TestProjectExportLifecycleEndpoints(t *testing.T) {
+	expires := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
+	app := &fakeApplication{export: Export{ID: 71, UserID: 42, SourceType: ExportSourceMatch, SourceID: 99, Status: "queued", Format: "pdf", ExpiresAt: expires}}
+	router := projectTestRouter(app)
+
+	create := httptest.NewRecorder()
+	router.ServeHTTP(create, httptest.NewRequest(http.MethodPost, "/api/v1/projects/exports", strings.NewReader(`{"source_type":"match","source_id":99,"format":"pdf"}`)))
+	if create.Code != http.StatusAccepted || !strings.Contains(create.Body.String(), `"status":"queued"`) {
+		t.Fatalf("create status/body = %d/%s", create.Code, create.Body.String())
+	}
+	if app.exportInput.UserID != 42 || app.exportInput.SourceID != 99 || app.exportInput.Format != "pdf" {
+		t.Fatalf("create input = %+v", app.exportInput)
+	}
+
+	status := httptest.NewRecorder()
+	router.ServeHTTP(status, httptest.NewRequest(http.MethodGet, "/api/v1/projects/exports/71", nil))
+	if status.Code != http.StatusOK || !strings.Contains(status.Body.String(), `"status":"queued"`) {
+		t.Fatalf("get status/body = %d/%s", status.Code, status.Body.String())
+	}
+}
+
+func TestProjectExportDownloadRequiresReadyPDF(t *testing.T) {
+	app := &fakeApplication{export: Export{ID: 71, UserID: 42, Status: "queued", Format: "pdf"}}
+	router := projectTestRouter(app)
+
+	queued := httptest.NewRecorder()
+	router.ServeHTTP(queued, httptest.NewRequest(http.MethodGet, "/api/v1/projects/exports/71/download", nil))
+	if queued.Code != http.StatusConflict || !strings.Contains(queued.Body.String(), `"error":"export_unavailable"`) {
+		t.Fatalf("queued status/body = %d/%s", queued.Code, queued.Body.String())
+	}
+
+	app.export.Status = "ready"
+	app.export.Payload = []byte("%PDF-1.7\nrendered")
+	ready := httptest.NewRecorder()
+	router.ServeHTTP(ready, httptest.NewRequest(http.MethodGet, "/api/v1/projects/exports/71/download", nil))
+	if ready.Code != http.StatusOK || ready.Header().Get("Content-Type") != "application/pdf" || !strings.HasPrefix(ready.Body.String(), "%PDF-") {
+		t.Fatalf("ready status/content-type/body = %d/%q/%q", ready.Code, ready.Header().Get("Content-Type"), ready.Body.String())
+	}
+}
+
+func TestProjectExportEndpointReturnsGoneAfterExpiry(t *testing.T) {
+	app := &fakeApplication{err: ErrExportExpired}
+	router := projectTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/projects/exports/71", nil))
+	if recorder.Code != http.StatusGone || !strings.Contains(recorder.Body.String(), `"error":"export_expired"`) {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }

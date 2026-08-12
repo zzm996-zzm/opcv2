@@ -200,6 +200,15 @@ export type ProjectCompareItem = {
   added_at?: string;
 };
 
+export type ProjectExport = {
+  id: number;
+  status: "queued" | "running" | "ready" | "failed";
+  format: "pdf" | "json" | "link";
+  download_url?: string;
+  expires_at: string;
+  error_code?: string;
+};
+
 export type ProjectHome = {
   hero: { title: string; subtitle: string; desc: string; image_url?: string };
   quick_tags: { code: string; name: string; filters: Record<string, unknown> }[];
@@ -470,7 +479,8 @@ export const projectsApi = {
   },
   createComparison(opportunitySlugs: string[]) { return apiRequest<ProjectComparison>("/api/v1/projects/comparisons", { method:"POST", body:JSON.stringify({ opportunity_slugs:opportunitySlugs }) }); },
   getComparison(id: number) { return apiRequest<ProjectComparison>(`/api/v1/projects/comparisons/${id}`, { method:"GET" }); },
-  createExport(sourceType: "match" | "comparison", sourceId: number) { return apiRequest<{ id:number; status:string; download_url:string }>("/api/v1/projects/exports", { method:"POST", body:JSON.stringify({ source_type:sourceType, source_id:sourceId }) }); },
+  createExport(sourceType: "match" | "comparison", sourceId: number) { return apiRequest<ProjectExport>("/api/v1/projects/exports", { method:"POST", body:JSON.stringify({ source_type:sourceType, source_id:sourceId, format:"pdf" }) }); },
+  getExport(id: number) { return apiRequest<ProjectExport>(`/api/v1/projects/exports/${id}`, { method:"GET" }); },
   async downloadExport(id: number) {
     const response = await apiStreamRequest(`/api/v1/projects/exports/${id}/download`, { method: "GET" });
     return response.blob();

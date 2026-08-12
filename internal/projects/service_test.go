@@ -28,6 +28,23 @@ func (r *memoryRepository) CreateExport(_ context.Context, item Export) (Export,
 	r.exports = append(r.exports, item)
 	return item, nil
 }
+func (r *memoryRepository) FindReusableExport(_ context.Context, userID int64, sourceType string, sourceID int64, format string, now time.Time) (Export, error) {
+	for _, item := range r.exports {
+		if item.UserID == userID && item.SourceType == sourceType && item.SourceID == sourceID && item.Format == format && item.ExpiresAt.After(now) && (item.Status == "queued" || item.Status == "running" || item.Status == "ready") {
+			return item, nil
+		}
+	}
+	return Export{}, ErrExportNotFound
+}
+func (r *memoryRepository) UpdateExport(_ context.Context, item Export) (Export, error) {
+	for index := range r.exports {
+		if r.exports[index].ID == item.ID && r.exports[index].UserID == item.UserID {
+			r.exports[index] = item
+			return item, nil
+		}
+	}
+	return Export{}, ErrExportNotFound
+}
 func (r *memoryRepository) GetExport(_ context.Context, userID, id int64) (Export, error) {
 	for _, item := range r.exports {
 		if item.UserID == userID && item.ID == id {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/jobs"
 	"github.com/zzm/opcv2/internal/membership"
 	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 	projectresearch "github.com/zzm/opcv2/internal/projects/research"
@@ -26,6 +27,8 @@ type Repository interface {
 	GetComparison(ctx context.Context, userID, id int64) (Comparison, error)
 	CreateExport(ctx context.Context, item Export) (Export, error)
 	GetExport(ctx context.Context, userID, id int64) (Export, error)
+	UpdateExport(ctx context.Context, item Export) (Export, error)
+	FindReusableExport(ctx context.Context, userID int64, sourceType string, sourceID int64, format string, now time.Time) (Export, error)
 	CreateSession(ctx context.Context, session MatchSession) (MatchSession, error)
 	ListSessions(ctx context.Context, userID int64, limit int) ([]MatchSession, error)
 	GetSession(ctx context.Context, userID, id int64) (MatchSession, error)
@@ -36,7 +39,7 @@ type Repository interface {
 }
 
 func (s *Service) CreateExport(ctx context.Context, input CreateExportInput) (Export, error) {
-	if s.repository == nil {
+	if s.repository == nil || s.matchQueue == nil {
 		return Export{}, ErrServiceNotReady
 	}
 	if input.SourceID <= 0 {
@@ -44,7 +47,7 @@ func (s *Service) CreateExport(ctx context.Context, input CreateExportInput) (Ex
 	}
 	input.Format = strings.ToLower(strings.TrimSpace(input.Format))
 	if input.Format == "" {
-		input.Format = "json"
+		input.Format = "pdf"
 	}
 	if input.Format != "json" && input.Format != "pdf" && input.Format != "link" {
 		return Export{}, ErrInvalidExport
@@ -52,11 +55,27 @@ func (s *Service) CreateExport(ctx context.Context, input CreateExportInput) (Ex
 	var source any
 	switch input.SourceType {
 	case ExportSourceMatch:
-		item, err := s.repository.GetSession(ctx, input.UserID, input.SourceID)
-		if err != nil {
-			return Export{}, err
+		if workflow, workflowErr := s.workflowRepository(); workflowErr == nil {
+			run, getErr := workflow.GetMatchRun(ctx, input.UserID, input.SourceID)
+			if getErr == nil {
+				if run.Status != MatchStatusCompleted && run.Status != MatchStatusPartial {
+					return Export{}, ErrInvalidExport
+				}
+				source = run
+			} else if !errors.Is(getErr, ErrSessionNotFound) {
+				return Export{}, getErr
+			}
 		}
-		source = item
+		if source == nil {
+			item, err := s.repository.GetSession(ctx, input.UserID, input.SourceID)
+			if err != nil {
+				return Export{}, err
+			}
+			if item.Status != StatusCompleted {
+				return Export{}, ErrInvalidExport
+			}
+			source = item
+		}
 	case ExportSourceComparison:
 		item, err := s.repository.GetComparison(ctx, input.UserID, input.SourceID)
 		if err != nil {
@@ -70,11 +89,30 @@ func (s *Service) CreateExport(ctx context.Context, input CreateExportInput) (Ex
 	if err != nil {
 		return Export{}, err
 	}
-	item, err := s.repository.CreateExport(ctx, Export{UserID: input.UserID, SourceType: input.SourceType, SourceID: input.SourceID, Status: "ready", Payload: payload, Format: input.Format, Includes: append([]string(nil), input.Includes...), ExpiresAt: s.now().Add(7 * 24 * time.Hour), CreatedAt: s.now()})
+	now := s.now()
+	if existing, findErr := s.repository.FindReusableExport(ctx, input.UserID, input.SourceType, input.SourceID, input.Format, now); findErr == nil {
+		if existing.Status == "ready" {
+			existing.DownloadURL = fmt.Sprintf("/api/v1/projects/exports/%d/download", existing.ID)
+		}
+		return existing, nil
+	} else if !errors.Is(findErr, ErrExportNotFound) {
+		return Export{}, findErr
+	}
+	item, err := s.repository.CreateExport(ctx, Export{UserID: input.UserID, SourceType: input.SourceType, SourceID: input.SourceID, Status: "queued", Snapshot: payload, Format: input.Format, Includes: append([]string(nil), input.Includes...), ExpiresAt: now.Add(7 * 24 * time.Hour), CreatedAt: now, UpdatedAt: now})
 	if err != nil {
+		if existing, findErr := s.repository.FindReusableExport(ctx, input.UserID, input.SourceType, input.SourceID, input.Format, now); findErr == nil {
+			if existing.Status == "ready" {
+				existing.DownloadURL = fmt.Sprintf("/api/v1/projects/exports/%d/download", existing.ID)
+			}
+			return existing, nil
+		}
 		return Export{}, err
 	}
-	item.DownloadURL = fmt.Sprintf("/api/v1/projects/exports/%d/download", item.ID)
+	if err := s.matchQueue.Enqueue(ctx, jobs.Job{Type: jobs.TypeProjectExportRender, IdempotencyKey: fmt.Sprintf("project-export-%d", item.ID), Payload: map[string]any{"user_id": input.UserID, "export_id": item.ID}, MaxRetry: 1, Timeout: 2 * time.Minute}); err != nil {
+		item.Status, item.ErrorCode, item.UpdatedAt = "failed", "queue_unavailable", s.now()
+		item, _ = s.repository.UpdateExport(ctx, item)
+		return item, err
+	}
 	return item, nil
 }
 func (s *Service) GetExport(ctx context.Context, userID, id int64) (Export, error) {
@@ -87,6 +125,9 @@ func (s *Service) GetExport(ctx context.Context, userID, id int64) (Export, erro
 	}
 	if !item.ExpiresAt.IsZero() && !s.now().Before(item.ExpiresAt) {
 		return Export{}, ErrExportExpired
+	}
+	if item.Status == "ready" {
+		item.DownloadURL = fmt.Sprintf("/api/v1/projects/exports/%d/download", item.ID)
 	}
 	return item, nil
 }
@@ -233,6 +274,7 @@ type Service struct {
 	research              *projectresearch.Service
 	usage                 projectUsageConsumer
 	featurePaywallEnabled bool
+	renderProjectPDF      func(Export) ([]byte, error)
 	now                   func() time.Time
 }
 
@@ -247,11 +289,17 @@ func WithProjectMatchQueue(queue ProjectMatchQueue) Option {
 }
 
 func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
-	service := &Service{repository: repository, generator: generator, now: time.Now}
+	service := &Service{repository: repository, generator: generator, now: time.Now, renderProjectPDF: RenderProjectPDF}
 	for _, option := range options {
 		option(service)
 	}
 	return service
+}
+
+func WithProjectPDFRenderer(renderer func(Export) ([]byte, error)) Option {
+	return func(service *Service) {
+		service.renderProjectPDF = renderer
+	}
 }
 
 func WithProfileContextProvider(provider ProfileContextProvider) Option {

@@ -30,6 +30,7 @@ var (
 	ErrExportNotFound      = errors.New("project export not found")
 	ErrInvalidExport       = errors.New("invalid project export")
 	ErrExportExpired       = errors.New("project export expired")
+	ErrExportUnavailable   = errors.New("project export is not ready")
 	ErrCompareLimit        = errors.New("project comparison limit reached")
 )
 
@@ -47,11 +48,14 @@ type Export struct {
 	SourceID    int64     `json:"source_id"`
 	Status      string    `json:"status"`
 	Payload     []byte    `json:"-"`
+	Snapshot    []byte    `json:"-"`
 	DownloadURL string    `json:"download_url"`
 	Format      string    `json:"format"`
 	Includes    []string  `json:"includes,omitempty"`
 	ExpiresAt   time.Time `json:"expires_at"`
 	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	ErrorCode   string    `json:"error_code,omitempty"`
 }
 
 type CreateComparisonInput struct {

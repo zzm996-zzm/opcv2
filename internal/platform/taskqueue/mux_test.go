@@ -35,4 +35,7 @@ func TestDefaultRegistryIncludesKnownJobTypes(t *testing.T) {
 	if !registry[jobs.TypeProjectMatchGenerate] {
 		t.Fatalf("DefaultRegistry() = %+v, want project match generation type", registry)
 	}
+	if !registry[jobs.TypeProjectExportRender] {
+		t.Fatalf("DefaultRegistry() = %+v, want project export type", registry)
+	}
 }
