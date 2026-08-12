@@ -49,14 +49,14 @@ func newProjectPDF(title string) (*fpdf.Fpdf, error) {
 	pdf.SetMargins(16, 36, 16)
 	pdf.SetAutoPageBreak(true, 18)
 	pdf.AliasNbPages("")
-	pdf.SetHeaderFunc(func() {
+	pdf.SetHeaderFuncMode(func() {
 		pdf.SetY(14)
 		pdf.SetFont("project", "", 8)
 		pdf.SetTextColor(112, 121, 134)
 		pdf.CellFormat(0, 6, "OPCV2 · 项目超市", "", 1, "L", false, 0, "")
 		pdf.SetDrawColor(223, 228, 235)
 		pdf.Line(16, 25, 194, 25)
-	})
+	}, true)
 	pdf.SetFooterFunc(func() {
 		pdf.SetY(-13)
 		pdf.SetFont("project", "", 8)
@@ -155,8 +155,27 @@ func projectPDFParagraphWidth(pdf *fpdf.Fpdf, text string, width float64) {
 	}
 	pdf.SetFont("project", "", 9.5)
 	pdf.SetTextColor(72, 81, 95)
-	pdf.MultiCell(width, 5.3, strings.TrimSpace(text), "", "L", false)
+	projectPDFWrappedText(pdf, strings.TrimSpace(text), width, 5.3)
 	pdf.Ln(2)
+}
+
+func projectPDFWrappedText(pdf *fpdf.Fpdf, text string, width, lineHeight float64) {
+	startX := pdf.GetX()
+	paragraphs := strings.Split(strings.ReplaceAll(text, "\r", ""), "\n")
+	for _, paragraph := range paragraphs {
+		lines := pdf.SplitText(paragraph, width)
+		if len(lines) == 0 {
+			lines = []string{""}
+		}
+		for _, line := range lines {
+			if pdf.GetY()+lineHeight > 278 {
+				pdf.AddPage()
+				pdf.SetY(36)
+			}
+			pdf.SetX(startX)
+			pdf.CellFormat(width, lineHeight, line, "", 1, "L", false, 0, "")
+		}
+	}
 }
 
 func projectPDFBullet(pdf *fpdf.Fpdf, title, detail string) {

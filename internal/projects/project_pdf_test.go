@@ -83,4 +83,34 @@ func TestRenderProjectPDFKeepsContinuationContentBelowHeader(t *testing.T) {
 	if bytes.Count(payload, []byte("/Type /Page")) < 2 {
 		t.Fatalf("expected multi-page PDF, bytes=%d", len(payload))
 	}
+	if outputDir := strings.TrimSpace(os.Getenv("OPCV2_PROJECT_PDF_TEST_OUTPUT_DIR")); outputDir != "" {
+		if err := os.MkdirAll(outputDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(outputDir, "project-continuation.pdf"), payload, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestProjectPDFAutomaticPageBreakRestoresContentMargin(t *testing.T) {
+	if _, err := loadProjectPDFFont(); errors.Is(err, ErrProjectPDFFontUnavailable) {
+		t.Skip("CJK font is not installed in this test environment")
+	}
+	pdf, err := newProjectPDF("自动分页验证")
+	if err != nil {
+		t.Fatalf("newProjectPDF() error = %v", err)
+	}
+	pdf.AddPage()
+	if got := pdf.GetY(); got != 36 {
+		t.Fatalf("first page content margin = %.1f, want 36", got)
+	}
+	pdf.SetY(275)
+	projectPDFParagraph(pdf, strings.Repeat("自动分页后正文必须位于页眉分隔线下方。", 12))
+	if pdf.PageNo() < 2 {
+		t.Fatal("expected paragraph to trigger an automatic page break")
+	}
+	if got := pdf.GetY(); got < 41.3 {
+		t.Fatalf("continuation page cursor = %.1f, want at least one line below 36", got)
+	}
 }
