@@ -9,7 +9,7 @@ import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
-import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
+import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchFile, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
@@ -106,6 +106,23 @@ function saveProjectExport(blob: Blob, filename: string) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function projectFileStatus(file: ProjectMatchFile) {
+  switch (file.parse_status) {
+    case "uploading":
+      return "上传中";
+    case "scanning":
+      return "安全扫描中";
+    case "parsing":
+      return "解析中";
+    case "ready":
+      return "解析完成";
+    case "failed":
+      return file.error_code === "ocr_unavailable" ? "图片 OCR 暂不可用" : "解析失败";
+    default:
+      return "不可用";
+  }
 }
 
 
@@ -324,16 +341,78 @@ function MatchRequest() {
   const exampleIntent = "我想找适合一个人做的线上项目，预算3万以内，每天投入1-2小时，希望尽快看到第一笔收入。";
   const [intent, setIntent] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting">("idle");
+  const [files, setFiles] = useState<ProjectMatchFile[]>([]);
+  const [uploadingNames, setUploadingNames] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const readyFiles = files.filter((file) => file.parse_status === "ready");
+  const canSubmit = (Boolean(intent.trim()) || readyFiles.length > 0) && uploadingNames.length === 0;
+
+  useEffect(() => {
+    const pending = files.filter((file) => file.parse_status === "uploading" || file.parse_status === "scanning" || file.parse_status === "parsing");
+    if (pending.length === 0) return;
+    const timer = window.setInterval(() => {
+      void Promise.all(pending.map((file) => projectsApi.getProjectMatchFile(file.id)))
+        .then((updated) => setFiles((current) => current.map((file) => updated.find((item) => item.id === file.id) ?? file)))
+        .catch(() => undefined);
+    }, 1200);
+    return () => window.clearInterval(timer);
+  }, [files]);
+
+  async function uploadFiles(selected: FileList | null) {
+    const candidates = Array.from(selected ?? []);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (candidates.length === 0) return;
+    if (files.length + candidates.length > 10) {
+      setError("最多只能上传 10 个文件");
+      return;
+    }
+    for (const candidate of candidates) {
+      setUploadingNames((current) => [...current, candidate.name]);
+      try {
+        const uploaded = await projectsApi.uploadProjectMatchFile(candidate);
+        setFiles((current) => [...current, uploaded]);
+        setError("");
+      } catch (uploadError) {
+        setError(`上传“${candidate.name}”失败：${apiErrorMessage(uploadError, "请检查文件后重试")}`);
+      } finally {
+        setUploadingNames((current) => current.filter((name) => name !== candidate.name));
+      }
+    }
+  }
+
+  async function removeFile(file: ProjectMatchFile) {
+    const previous = files;
+    setFiles((current) => current.filter((item) => item.id !== file.id));
+    try {
+      await projectsApi.deleteProjectMatchFile(file.id);
+      setError("");
+    } catch (removeError) {
+      setFiles(previous);
+      setError(`删除文件失败：${apiErrorMessage(removeError, "请稍后重试")}`);
+    }
+  }
+
+  async function retryFile(file: ProjectMatchFile) {
+    setFiles((current) => current.map((item) => item.id === file.id ? { ...item, parse_status: "parsing", error_code: undefined } : item));
+    try {
+      const updated = await projectsApi.retryProjectMatchFile(file.id);
+      setFiles((current) => current.map((item) => item.id === file.id ? updated : item));
+      setError("");
+    } catch (retryError) {
+      setFiles((current) => current.map((item) => item.id === file.id ? file : item));
+      setError(`重试解析失败：${apiErrorMessage(retryError, "请稍后重试")}`);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!intent.trim() || status === "submitting") return;
+    if (!canSubmit || status === "submitting") return;
     setStatus("submitting");
     setError("");
     try {
-      const next = await projectsApi.createMatch({ intent });
+      const next = await projectsApi.createMatch({ intent, file_ids: readyFiles.map((file) => file.id) });
       navigate(next.status === "needs_input"
         ? `/projects/matches/${next.session_id}/questions`
         : `/projects/matches/${next.session_id}/results`);
@@ -345,7 +424,7 @@ function MatchRequest() {
   }
 
   const recognizedFactors = [
-    { title: "需求描述", detail: intent.trim() ? `已输入 ${intent.trim().length} 字` : "待填写", icon: "description" },
+    { title: "需求描述", detail: intent.trim() ? `已输入 ${intent.trim().length} 字` : readyFiles.length > 0 ? `已上传 ${readyFiles.length} 份资料` : "待填写", icon: "description" },
     { title: "预算信息", detail: /预算|资金|本金|\d+\s*万/.test(intent) ? "已包含" : "待补充", icon: "budget" },
     { title: "投入时间", detail: /小时|全职|兼职|每周|每天/.test(intent) ? "已包含" : "待补充", icon: "time" },
     { title: "项目偏好", detail: /线上|本地|服务|产品|一人公司|轻资产/.test(intent) ? "已包含" : "待补充", icon: "preference" }
@@ -370,11 +449,34 @@ function MatchRequest() {
             placeholder="例如：我想找适合一个人做的线上项目，预算3万以内，有1-2小时/天时间，希望尽快见到收入..."
             value={intent}
           />
+          {(files.length > 0 || uploadingNames.length > 0) ? (
+            <div className="pm-upload-list" aria-label="已上传资料">
+              {uploadingNames.map((name) => <article key={`uploading-${name}`}><span><strong>{name}</strong><small>上传中</small></span></article>)}
+              {files.map((file) => (
+                <article key={file.id}>
+                  <span><strong>{file.name}</strong><small>{projectFileStatus(file)}</small></span>
+                  {file.parse_status === "failed" ? <button onClick={() => void retryFile(file)} type="button">重试</button> : null}
+                  <button aria-label={`删除文件 ${file.name}`} onClick={() => void removeFile(file)} type="button">×</button>
+                </article>
+              ))}
+            </div>
+          ) : null}
           <div className="pm-input-tools">
             <button className="pm-input-tool example" onClick={() => setIntent(exampleIntent)} type="button">参考案例</button>
-            <button className="pm-input-tool upload" disabled title="上传资料暂未开放" type="button">上传资料</button>
+            <label className={`pm-input-tool upload${files.length + uploadingNames.length >= 10 ? " disabled" : ""}`}>
+              <span>上传资料</span>
+              <input
+                accept=".pdf,.docx,.txt,.md,.csv,.xlsx,.pptx,.png,.jpg,.jpeg"
+                aria-label="选择项目匹配资料"
+                disabled={files.length + uploadingNames.length >= 10}
+                multiple
+                onChange={(event) => void uploadFiles(event.target.files)}
+                ref={fileInputRef}
+                type="file"
+              />
+            </label>
             <button className="pm-input-tool voice" disabled title="语音输入暂未开放" type="button">语音输入</button>
-            <button aria-label="提交匹配需求" disabled={!intent.trim() || status === "submitting"} type="submit">→</button>
+            <button aria-label="提交匹配需求" disabled={!canSubmit || status === "submitting"} type="submit">→</button>
           </div>
         </section>
         <section className="pm-panel pm-recognized">
@@ -391,7 +493,7 @@ function MatchRequest() {
               </article>
             ))}
           </div>
-          <button className="pm-primary-button" disabled={!intent.trim() || status === "submitting"} type="submit">
+          <button className="pm-primary-button" disabled={!canSubmit || status === "submitting"} type="submit">
             <span aria-hidden="true">✦</span>{status === "submitting" ? "匹配中..." : "提交给 AI 分析"}
           </button>
           <small className="pm-analysis-estimate">约 20-30 秒生成结果</small>

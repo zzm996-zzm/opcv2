@@ -79,6 +79,90 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("link", { name: "匹配历史" })).toHaveAttribute("href", "/projects/history");
   });
 
+  it("uploads a parsed text file and supports a file-only match request", async () => {
+    const uploaded = {
+      id: 501,
+      name: "项目需求.txt",
+      mime_type: "text/plain",
+      detected_mime: "text/plain",
+      size_bytes: 24,
+      sha256: "abc123",
+      parse_status: "ready",
+      expires_at: "2026-09-10T08:00:00Z",
+      created_at: "2026-08-11T08:00:00Z",
+      updated_at: "2026-08-11T08:00:00Z"
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/project-match-files" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(uploaded), { status: 201 }));
+      }
+      if (url === "/api/v1/projects/matches" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ session_id: 99, status: "needs_input", questions: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/projects/matches/99") {
+        return Promise.resolve(new Response(JSON.stringify({ id: 99, user_id: 7, intent: "", status: "needs_input", questions: [], files: [uploaded], created_at: uploaded.created_at, updated_at: uploaded.updated_at }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+    renderProjectRoute("/projects/match");
+
+    const file = new File(["预算 3 万元，希望做线上服务"], "项目需求.txt", { type: "text/plain" });
+    fireEvent.change(screen.getByLabelText("选择项目匹配资料"), { target: { files: [file] } });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/project-match-files",
+      expect.objectContaining({ method: "POST", body: expect.any(FormData) })
+    ));
+    expect(await screen.findByText("项目需求.txt")).toBeInTheDocument();
+    expect(screen.getByText("解析完成")).toBeInTheDocument();
+    const submit = screen.getByRole("button", { name: "提交给 AI 分析" });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/projects/matches",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ intent: "", file_ids: [501] }) })
+    ));
+  });
+
+  it("shows failed file state and supports retry and removal", async () => {
+    const failed = {
+      id: 502,
+      name: "现场照片.png",
+      mime_type: "image/png",
+      detected_mime: "image/png",
+      size_bytes: 12,
+      sha256: "def456",
+      parse_status: "failed",
+      error_code: "ocr_unavailable",
+      expires_at: "2026-09-10T08:00:00Z",
+      created_at: "2026-08-11T08:00:00Z",
+      updated_at: "2026-08-11T08:00:00Z"
+    };
+    const ready = { ...failed, parse_status: "ready", error_code: undefined, extracted_text: "线下门店照片说明" };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/project-match-files" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify(failed), { status: 201 }));
+      if (url === "/api/v1/project-match-files/502/retry" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify(ready), { status: 200 }));
+      if (url === "/api/v1/project-match-files/502" && init?.method === "DELETE") return Promise.resolve(new Response(null, { status: 204 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+    renderProjectRoute("/projects/match");
+
+    const image = new File(["image bytes"], "现场照片.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText("选择项目匹配资料"), { target: { files: [image] } });
+
+    expect(await screen.findByText("图片 OCR 暂不可用")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "提交给 AI 分析" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(await screen.findByText("解析完成")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "删除文件 现场照片.png" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/project-match-files/502", expect.objectContaining({ method: "DELETE" })));
+    expect(screen.queryByText("现场照片.png")).not.toBeInTheDocument();
+  });
+
   it("submits match request and renders API result", async () => {
     const project = { rank:1, opportunity_slug:"local-ai-sales-consulting", title:"本地AI获客顾问", score:91, tags:["B端服务","轻资产"], budget:"¥2,000 - ¥6,000", reasons:["客户需求明确","交付可标准化"], risk:"需要控制交付边界" };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {

@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/zzm/opcv2/internal/platform/config"
 	"github.com/zzm/opcv2/internal/projects/files"
@@ -25,7 +28,7 @@ func New(cfg config.Config) (Bundle, error) {
 	if cfg.Environment == "production" && (cfg.ProjectFileProvider == "development" || cfg.ProjectRetrievalProvider == "development" || cfg.ProjectResearchProvider == "development") {
 		return Bundle{}, fmt.Errorf("%w: development providers are not allowed in production", ErrUnsupportedProvider)
 	}
-	fileManager, err := newFiles(cfg.ProjectFileProvider)
+	fileManager, err := newFiles(cfg)
 	if err != nil {
 		return Bundle{}, err
 	}
@@ -40,10 +43,18 @@ func New(cfg config.Config) (Bundle, error) {
 	return Bundle{Files: fileManager, Retrieval: retriever, Research: researchService}, nil
 }
 
-func newFiles(provider string) (*files.Manager, error) {
-	switch provider {
+func newFiles(cfg config.Config) (*files.Manager, error) {
+	switch cfg.ProjectFileProvider {
 	case "development":
-		return files.NewManager(files.NewDevelopmentStorage(), files.DevelopmentScanner{}, files.DevelopmentParser{}, files.DefaultMaxFileSize), nil
+		storagePath := strings.TrimSpace(cfg.ProjectFileStoragePath)
+		if storagePath == "" {
+			storagePath = filepath.Join(os.TempDir(), "opcv2-project-match-files")
+		}
+		storage, err := files.NewLocalStorage(storagePath)
+		if err != nil {
+			return nil, err
+		}
+		return files.NewManager(storage, files.DevelopmentScanner{}, files.DevelopmentParser{}, files.DefaultMaxFileSize), nil
 	case "s3", "oss", "minio":
 		return files.NewManager(unavailableStorage{}, unavailableScanner{}, unavailableParser{}, files.DefaultMaxFileSize), nil
 	default:

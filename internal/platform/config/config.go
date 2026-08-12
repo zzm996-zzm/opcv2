@@ -33,6 +33,7 @@ type Config struct {
 	LeadProvider              string
 	CompetitorScannerProvider string
 	ProjectFileProvider       string
+	ProjectFileStoragePath    string
 	ProjectRetrievalProvider  string
 	ProjectResearchProvider   string
 	TianyanchaAPIKey          string
@@ -71,6 +72,7 @@ func Load() (Config, error) {
 		LeadProvider:              envOrDefault("OPCV2_LEAD_PROVIDER", "development"),
 		CompetitorScannerProvider: strings.TrimSpace(os.Getenv("OPCV2_COMPETITOR_SCANNER_PROVIDER")),
 		ProjectFileProvider:       envOrDefault("OPCV2_PROJECT_FILE_PROVIDER", "development"),
+		ProjectFileStoragePath:    envOrDefault("OPCV2_PROJECT_FILE_STORAGE_PATH", "data/project-match-files"),
 		ProjectRetrievalProvider:  envOrDefault("OPCV2_PROJECT_RETRIEVAL_PROVIDER", "development"),
 		ProjectResearchProvider:   envOrDefault("OPCV2_PROJECT_RESEARCH_PROVIDER", "development"),
 		TianyanchaAPIKey:          os.Getenv("OPCV2_TYC_API_KEY"),

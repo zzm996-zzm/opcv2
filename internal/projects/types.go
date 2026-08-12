@@ -3,6 +3,8 @@ package projects
 import (
 	"errors"
 	"time"
+
+	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 )
 
 const (
@@ -148,9 +150,11 @@ type Opportunity struct {
 }
 
 type MatchInput struct {
-	UserID  int64    `json:"-"`
-	Intent  string   `json:"intent"`
-	Answers []Answer `json:"answers,omitempty"`
+	UserID     int64    `json:"-"`
+	Intent     string   `json:"intent"`
+	FileIDs    []int64  `json:"file_ids,omitempty"`
+	FilePrompt string   `json:"-"`
+	Answers    []Answer `json:"answers,omitempty"`
 }
 
 type Answer struct {
@@ -183,15 +187,16 @@ type ProjectMatch struct {
 }
 
 type MatchSession struct {
-	ID        int64       `json:"id"`
-	UserID    int64       `json:"user_id"`
-	Intent    string      `json:"intent"`
-	Answers   []Answer    `json:"answers,omitempty"`
-	Status    string      `json:"status"`
-	Questions []Question  `json:"questions,omitempty"`
-	Result    MatchResult `json:"result,omitempty"`
-	CreatedAt time.Time   `json:"created_at"`
-	UpdatedAt time.Time   `json:"updated_at"`
+	ID        int64               `json:"id"`
+	UserID    int64               `json:"user_id"`
+	Intent    string              `json:"intent"`
+	Answers   []Answer            `json:"answers,omitempty"`
+	Status    string              `json:"status"`
+	Questions []Question          `json:"questions,omitempty"`
+	Result    MatchResult         `json:"result,omitempty"`
+	Files     []projectfiles.File `json:"files,omitempty"`
+	CreatedAt time.Time           `json:"created_at"`
+	UpdatedAt time.Time           `json:"updated_at"`
 }
 
 type Favorite struct {

@@ -1,14 +1,20 @@
 package projects
 
 import (
+	"bytes"
 	"context"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
+	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 )
 
 type fakeApplication struct {
@@ -198,6 +204,58 @@ func TestCreateMatchEndpointUsesAuthenticatedUser(t *testing.T) {
 	if !strings.Contains(recorder.Body.String(), `"title":"AI短视频脚本工作室"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
 	}
+}
+
+func TestProjectMatchFileEndpointsUploadValidateAndEnforceOwnership(t *testing.T) {
+	manager := projectfiles.NewManager(projectfiles.NewDevelopmentStorage(), projectfiles.DevelopmentScanner{}, projectfiles.DevelopmentParser{}, projectfiles.DefaultMaxFileSize)
+	service := NewService(nil, nil, WithProjectFileManager(manager))
+	router := projectTestRouter(service)
+
+	upload := multipartProjectFileRequest(t, "requirements.txt", projectfiles.MIMEText, []byte("预算 3 万元，希望做线上服务"))
+	uploadRecorder := httptest.NewRecorder()
+	router.ServeHTTP(uploadRecorder, upload)
+	if uploadRecorder.Code != http.StatusCreated || !strings.Contains(uploadRecorder.Body.String(), `"parse_status":"ready"`) {
+		t.Fatalf("upload status/body = %d/%s", uploadRecorder.Code, uploadRecorder.Body.String())
+	}
+
+	mismatch := multipartProjectFileRequest(t, "fake.txt", projectfiles.MIMEText, []byte("%PDF-1.4"))
+	mismatchRecorder := httptest.NewRecorder()
+	router.ServeHTTP(mismatchRecorder, mismatch)
+	if mismatchRecorder.Code != http.StatusBadRequest || !strings.Contains(mismatchRecorder.Body.String(), `"error":"project_file_mime_mismatch"`) {
+		t.Fatalf("mismatch status/body = %d/%s", mismatchRecorder.Code, mismatchRecorder.Body.String())
+	}
+
+	otherUserFile, err := manager.Upload(context.Background(), 7, "private.txt", projectfiles.MIMEText, []byte("private"), time.Hour)
+	if err != nil {
+		t.Fatalf("Upload(other user) error = %v", err)
+	}
+	otherUserRecorder := httptest.NewRecorder()
+	router.ServeHTTP(otherUserRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/project-match-files/"+strconv.FormatInt(otherUserFile.ID, 10), nil))
+	if otherUserRecorder.Code != http.StatusNotFound || !strings.Contains(otherUserRecorder.Body.String(), `"error":"project_file_not_found"`) {
+		t.Fatalf("other user status/body = %d/%s", otherUserRecorder.Code, otherUserRecorder.Body.String())
+	}
+}
+
+func multipartProjectFileRequest(t *testing.T, name, contentType string, content []byte) *http.Request {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", `form-data; name="file"; filename="`+name+`"`)
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		t.Fatalf("CreatePart() error = %v", err)
+	}
+	if _, err := part.Write(content); err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/project-match-files", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	return request
 }
 
 func TestProjectMatchWorkflowEndpointsUseAuthenticatedUserAndIdempotency(t *testing.T) {

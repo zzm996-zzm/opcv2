@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
+	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 )
 
 type Application interface {
@@ -76,6 +78,11 @@ func (h *HTTPHandler) RegisterPublic(router *gin.RouterGroup) {
 
 // RegisterProtected mounts operations that create or read user-owned data.
 func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
+	router.POST("/project-match-files", h.uploadProjectMatchFile)
+	router.GET("/project-match-files", h.listProjectMatchFiles)
+	router.GET("/project-match-files/:id", h.getProjectMatchFile)
+	router.POST("/project-match-files/:id/retry", h.retryProjectMatchFile)
+	router.DELETE("/project-match-files/:id", h.deleteProjectMatchFile)
 	router.POST("/project-matches", h.createProjectMatch)
 	router.POST("/project-matches/:id/answer", h.answerProjectMatch)
 	router.GET("/project-matches/:id", h.getProjectMatch)
@@ -101,6 +108,129 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.DELETE("/projects/compare-items/:id", h.removeProjectCompareItem)
 	router.POST("/projects/exports", h.createExport)
 	router.GET("/projects/exports/:id/download", h.downloadExport)
+}
+
+func (h *HTTPHandler) projectFileApplication(c *gin.Context) (ProjectFileApplication, bool) {
+	app, ok := h.app.(ProjectFileApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) uploadProjectMatchFile(c *gin.Context) {
+	app, ok := h.projectFileApplication(c)
+	if !ok {
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, projectfiles.DefaultMaxFileSize+(1<<20))
+	header, err := c.FormFile("file")
+	if err != nil || header.Size <= 0 || header.Size > projectfiles.DefaultMaxFileSize {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "project_file_too_large", "max_bytes": projectfiles.DefaultMaxFileSize})
+		return
+	}
+	reader, err := header.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_project_file"})
+		return
+	}
+	defer reader.Close()
+	content, err := io.ReadAll(io.LimitReader(reader, projectfiles.DefaultMaxFileSize+1))
+	if err != nil || int64(len(content)) > projectfiles.DefaultMaxFileSize {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "project_file_too_large", "max_bytes": projectfiles.DefaultMaxFileSize})
+		return
+	}
+	file, err := app.UploadProjectMatchFile(c.Request.Context(), UploadProjectMatchFileInput{
+		UserID: c.GetInt64(auth.UserIDContextKey), Name: header.Filename,
+		MIME: header.Header.Get("Content-Type"), Data: content,
+	})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, file)
+}
+
+func (h *HTTPHandler) getProjectMatchFile(c *gin.Context) {
+	app, ok := h.projectFileApplication(c)
+	if !ok {
+		return
+	}
+	fileID, valid := projectFileID(c)
+	if !valid {
+		return
+	}
+	file, err := app.GetProjectMatchFile(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), fileID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, file)
+}
+
+func (h *HTTPHandler) listProjectMatchFiles(c *gin.Context) {
+	app, ok := h.projectFileApplication(c)
+	if !ok {
+		return
+	}
+	var matchID *int64
+	if raw := strings.TrimSpace(c.Query("match_id")); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_match_id"})
+			return
+		}
+		matchID = &value
+	}
+	files, err := app.ListProjectMatchFiles(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), matchID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"files": files})
+}
+
+func (h *HTTPHandler) retryProjectMatchFile(c *gin.Context) {
+	app, ok := h.projectFileApplication(c)
+	if !ok {
+		return
+	}
+	fileID, valid := projectFileID(c)
+	if !valid {
+		return
+	}
+	file, err := app.RetryProjectMatchFile(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), fileID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, file)
+}
+
+func (h *HTTPHandler) deleteProjectMatchFile(c *gin.Context) {
+	app, ok := h.projectFileApplication(c)
+	if !ok {
+		return
+	}
+	fileID, valid := projectFileID(c)
+	if !valid {
+		return
+	}
+	if err := app.DeleteProjectMatchFile(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), fileID); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func projectFileID(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_file_id"})
+		return 0, false
+	}
+	return id, true
 }
 
 func (h *HTTPHandler) matchGenerationApplication(c *gin.Context) (MatchGenerationApplication, bool) {
@@ -844,6 +974,28 @@ func matchID(c *gin.Context) (int64, bool) {
 
 func writeError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, projectfiles.ErrFileNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "project_file_not_found"})
+	case errors.Is(err, projectfiles.ErrFileExpired):
+		c.JSON(http.StatusGone, gin.H{"error": "project_file_expired"})
+	case errors.Is(err, projectfiles.ErrFileTooLarge):
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "project_file_too_large", "max_bytes": projectfiles.DefaultMaxFileSize})
+	case errors.Is(err, projectfiles.ErrFileCountExceeded):
+		c.JSON(http.StatusConflict, gin.H{"error": "project_file_count_exceeded", "max": projectfiles.DefaultMaxFileCount})
+	case errors.Is(err, projectfiles.ErrTotalSizeExceeded):
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "project_file_total_size_exceeded", "max_bytes": projectfiles.DefaultMaxTotalSize})
+	case errors.Is(err, projectfiles.ErrUnsupportedMIME):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unsupported_project_file_type"})
+	case errors.Is(err, projectfiles.ErrMIMEMismatch):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project_file_mime_mismatch"})
+	case errors.Is(err, projectfiles.ErrInvalidFileName):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_project_file_name"})
+	case errors.Is(err, projectfiles.ErrUnsafeFile):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "unsafe_project_file"})
+	case errors.Is(err, projectfiles.ErrFileNotReady):
+		c.JSON(http.StatusConflict, gin.H{"error": "project_file_not_ready"})
+	case errors.Is(err, projectfiles.ErrFileAlreadyAttached):
+		c.JSON(http.StatusConflict, gin.H{"error": "project_file_duplicate"})
 	case errors.Is(err, ErrSessionNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "match_not_found"})
 	case errors.Is(err, ErrOpportunityNotFound):

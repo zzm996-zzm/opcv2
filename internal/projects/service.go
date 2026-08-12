@@ -135,7 +135,11 @@ func (s *Service) AnswerMatch(ctx context.Context, input AnswerMatchInput) (Matc
 	if session.Status != StatusNeedsInput || !answersCoverQuestions(session.Questions, input.Answers) {
 		return MatchResult{}, ErrInvalidMatchAnswers
 	}
-	result, err := s.generateMatch(ctx, MatchInput{UserID: input.UserID, Intent: session.Intent, Answers: input.Answers})
+	fileIDs, filePrompt, err := s.projectMatchFileInput(ctx, input.UserID, session.ID)
+	if err != nil {
+		return MatchResult{}, err
+	}
+	result, err := s.generateMatch(ctx, MatchInput{UserID: input.UserID, Intent: session.Intent, FileIDs: fileIDs, FilePrompt: filePrompt, Answers: input.Answers})
 	if err != nil {
 		return MatchResult{}, err
 	}
@@ -298,6 +302,14 @@ func (s *Service) CreateMatch(ctx context.Context, input MatchInput) (MatchResul
 	if s.repository == nil || s.generator == nil {
 		return MatchResult{}, ErrServiceNotReady
 	}
+	files, filePrompt, err := s.resolveProjectMatchFiles(ctx, input.UserID, input.FileIDs)
+	if err != nil {
+		return MatchResult{}, err
+	}
+	if input.Intent == "" && len(files) == 0 {
+		return MatchResult{}, ErrInvalidMatchRequest
+	}
+	input.FilePrompt = filePrompt
 	questions := missingQuestions(input)
 	if len(questions) > 0 {
 		session, err := s.repository.CreateSession(ctx, MatchSession{
@@ -309,6 +321,11 @@ func (s *Service) CreateMatch(ctx context.Context, input MatchInput) (MatchResul
 		})
 		if err != nil {
 			return MatchResult{}, err
+		}
+		if len(files) > 0 {
+			if _, err := s.fileManager.Attach(ctx, input.UserID, session.ID, input.FileIDs); err != nil {
+				return MatchResult{}, err
+			}
 		}
 		return MatchResult{SessionID: session.ID, Status: StatusNeedsInput, Questions: questions}, nil
 	}
@@ -327,6 +344,11 @@ func (s *Service) CreateMatch(ctx context.Context, input MatchInput) (MatchResul
 	if err != nil {
 		return MatchResult{}, err
 	}
+	if len(files) > 0 {
+		if _, err := s.fileManager.Attach(ctx, input.UserID, session.ID, input.FileIDs); err != nil {
+			return MatchResult{}, err
+		}
+	}
 	result.SessionID = session.ID
 	session.Result = result
 	session.UpdatedAt = s.now()
@@ -343,14 +365,28 @@ func (s *Service) ListMatches(ctx context.Context, userID int64, limit int) ([]M
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	return s.repository.ListSessions(ctx, userID, limit)
+	sessions, err := s.repository.ListSessions(ctx, userID, limit)
+	if err != nil || s.fileManager == nil {
+		return sessions, err
+	}
+	for index := range sessions {
+		matchID := sessions[index].ID
+		sessions[index].Files, _ = s.fileManager.List(ctx, userID, &matchID)
+	}
+	return sessions, nil
 }
 
 func (s *Service) GetMatch(ctx context.Context, userID, id int64) (MatchSession, error) {
 	if s.repository == nil {
 		return MatchSession{}, ErrServiceNotReady
 	}
-	return s.repository.GetSession(ctx, userID, id)
+	session, err := s.repository.GetSession(ctx, userID, id)
+	if err != nil || s.fileManager == nil {
+		return session, err
+	}
+	matchID := session.ID
+	session.Files, _ = s.fileManager.List(ctx, userID, &matchID)
+	return session, nil
 }
 
 func (s *Service) FavoriteMatch(ctx context.Context, userID, id int64) (Favorite, error) {
@@ -393,6 +429,7 @@ func (s *Service) generateMatch(ctx context.Context, input MatchInput) (MatchRes
 		return MatchResult{}, err
 	}
 	userPrompt := appendPromptSection(matchUserPrompt(input), profilePrompt)
+	userPrompt = appendPromptSection(userPrompt, input.FilePrompt)
 	userPrompt = appendPromptSection(userPrompt, matchCatalogPrompt(catalog))
 	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID:         input.UserID,
@@ -555,9 +592,9 @@ func validateMatchResult(result MatchResult) error {
 }
 
 func missingQuestions(input MatchInput) []Question {
-	intent := input.Intent + " " + answerText(input.Answers)
+	intent := input.Intent + " " + input.FilePrompt + " " + answerText(input.Answers)
 	var questions []Question
-	if len([]rune(input.Intent)) < 30 {
+	if len([]rune(strings.TrimSpace(input.Intent+input.FilePrompt))) < 30 {
 		questions = append(questions, Question{
 			Key:     "background",
 			Text:    "你现在最明确的能力、经验或资源是什么？",

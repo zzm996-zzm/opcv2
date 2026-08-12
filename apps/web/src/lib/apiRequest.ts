@@ -69,7 +69,18 @@ const errorMessages: Record<string, string> = {
   invalid_file_id: "文件 ID 不正确",
   notification_not_found: "消息不存在或已无权限访问",
   membership_required: "循环提醒仅限会员使用，请升级后重试",
-  compare_limit_reached: "最多只能同时对比 5 个项目"
+  compare_limit_reached: "最多只能同时对比 5 个项目",
+  project_file_not_found: "文件不存在或已无权访问",
+  project_file_expired: "文件已过期，请重新上传",
+  project_file_too_large: "单个文件不能超过 20MB",
+  project_file_count_exceeded: "最多只能上传 10 个文件",
+  project_file_total_size_exceeded: "文件总大小不能超过 50MB",
+  unsupported_project_file_type: "暂不支持该文件类型",
+  project_file_mime_mismatch: "文件类型与内容不一致",
+  invalid_project_file_name: "文件名不安全，请重命名后上传",
+  unsafe_project_file: "文件未通过安全扫描",
+  project_file_not_ready: "文件尚未解析完成",
+  project_file_duplicate: "该文件已上传或已绑定到其他匹配记录"
 };
 
 export class ApiRequestError extends Error {

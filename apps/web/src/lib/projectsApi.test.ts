@@ -32,6 +32,23 @@ describe("projectsApi", () => {
     );
   });
 
+  it("uploads project match files as multipart data without forcing a JSON content type", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 501, name: "需求.txt", parse_status: "ready" }), { status: 201 })
+    );
+    const file = new File(["预算 3 万元"], "需求.txt", { type: "text/plain" });
+
+    await projectsApi.uploadProjectMatchFile(file);
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [path, init] = fetchMock.mock.calls[0];
+    expect(path).toBe("/api/v1/project-match-files");
+    expect(init?.method).toBe("POST");
+    expect(init?.body).toBeInstanceOf(FormData);
+    expect((init?.body as FormData).get("file")).toEqual(file);
+    expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
+  });
+
   it("lists project match history", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ matches: [] }), { status: 200 })

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 )
 
 type postgresDB interface {
@@ -579,6 +580,85 @@ func (r *PostgresRepository) CreateContentCorrection(ctx context.Context, item C
 	return item, err
 }
 
+func (r *PostgresRepository) CreateFile(ctx context.Context, file projectfiles.File) (projectfiles.File, error) {
+	extractedJSON, err := json.Marshal(nonNilMap(file.ExtractedJSON))
+	if err != nil {
+		return projectfiles.File{}, err
+	}
+	return scanProjectFile(r.db.QueryRow(ctx, `
+		INSERT INTO project_match_files (
+			user_id, match_id, original_name, mime_type, detected_mime, size_bytes,
+			storage_key, sha256, parse_status, extracted_text, extracted_json, error_code,
+			expires_at, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10, ''), $11, NULLIF($12, ''), $13, $14, $15)
+		RETURNING id, user_id, match_id, original_name, mime_type, detected_mime, size_bytes,
+		          storage_key, sha256, parse_status, COALESCE(extracted_text, ''), extracted_json,
+		          COALESCE(error_code, ''), expires_at, created_at, updated_at
+	`, file.UserID, file.MatchID, file.Name, file.MIME, file.DetectedMIME, file.Size, file.ObjectKey,
+		file.SHA256, file.ParseStatus, file.ExtractedText, extractedJSON, file.ErrorCode,
+		file.ExpiresAt, file.CreatedAt, file.UpdatedAt))
+}
+
+func (r *PostgresRepository) GetFile(ctx context.Context, userID, fileID int64) (projectfiles.File, error) {
+	file, err := scanProjectFile(r.db.QueryRow(ctx, `
+		SELECT id, user_id, match_id, original_name, mime_type, detected_mime, size_bytes,
+		       storage_key, sha256, parse_status, COALESCE(extracted_text, ''), extracted_json,
+		       COALESCE(error_code, ''), expires_at, created_at, updated_at
+		FROM project_match_files
+		WHERE user_id = $1 AND id = $2 AND parse_status <> 'deleted'
+	`, userID, fileID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return projectfiles.File{}, projectfiles.ErrFileNotFound
+	}
+	return file, err
+}
+
+func (r *PostgresRepository) ListFiles(ctx context.Context, userID int64, matchID *int64) ([]projectfiles.File, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, match_id, original_name, mime_type, detected_mime, size_bytes,
+		       storage_key, sha256, parse_status, COALESCE(extracted_text, ''), extracted_json,
+		       COALESCE(error_code, ''), expires_at, created_at, updated_at
+		FROM project_match_files
+		WHERE user_id = $1 AND parse_status <> 'deleted'
+		  AND ($2::BIGINT IS NULL OR match_id = $2)
+		ORDER BY created_at DESC, id DESC
+	`, userID, matchID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]projectfiles.File, 0)
+	for rows.Next() {
+		file, scanErr := scanProjectFile(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		items = append(items, file)
+	}
+	return items, rows.Err()
+}
+
+func (r *PostgresRepository) UpdateFile(ctx context.Context, file projectfiles.File) (projectfiles.File, error) {
+	extractedJSON, err := json.Marshal(nonNilMap(file.ExtractedJSON))
+	if err != nil {
+		return projectfiles.File{}, err
+	}
+	updated, err := scanProjectFile(r.db.QueryRow(ctx, `
+		UPDATE project_match_files
+		SET match_id = $3, parse_status = $4, extracted_text = NULLIF($5, ''),
+		    extracted_json = $6, error_code = NULLIF($7, ''), updated_at = $8
+		WHERE id = $1 AND user_id = $2
+		RETURNING id, user_id, match_id, original_name, mime_type, detected_mime, size_bytes,
+		          storage_key, sha256, parse_status, COALESCE(extracted_text, ''), extracted_json,
+		          COALESCE(error_code, ''), expires_at, created_at, updated_at
+	`, file.ID, file.UserID, file.MatchID, file.ParseStatus, file.ExtractedText, extractedJSON, file.ErrorCode, file.UpdatedAt))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return projectfiles.File{}, projectfiles.ErrFileNotFound
+	}
+	return updated, err
+}
+
 func (r *PostgresRepository) CreateSession(ctx context.Context, session MatchSession) (MatchSession, error) {
 	answersToStore := session.Answers
 	if answersToStore == nil {
@@ -949,6 +1029,29 @@ func (r *PostgresRepository) DeleteFavorite(ctx context.Context, userID, session
 
 type sessionScanner interface {
 	Scan(dest ...any) error
+}
+
+func scanProjectFile(scanner sessionScanner) (projectfiles.File, error) {
+	var file projectfiles.File
+	var matchID pgtype.Int8
+	var extractedJSON []byte
+	if err := scanner.Scan(
+		&file.ID, &file.UserID, &matchID, &file.Name, &file.MIME, &file.DetectedMIME, &file.Size,
+		&file.ObjectKey, &file.SHA256, &file.ParseStatus, &file.ExtractedText, &extractedJSON,
+		&file.ErrorCode, &file.ExpiresAt, &file.CreatedAt, &file.UpdatedAt,
+	); err != nil {
+		return projectfiles.File{}, err
+	}
+	if matchID.Valid {
+		value := matchID.Int64
+		file.MatchID = &value
+	}
+	if len(extractedJSON) > 0 {
+		if err := json.Unmarshal(extractedJSON, &file.ExtractedJSON); err != nil {
+			return projectfiles.File{}, err
+		}
+	}
+	return file, nil
 }
 
 func scanCatalogProject(scanner sessionScanner) (Project, error) {

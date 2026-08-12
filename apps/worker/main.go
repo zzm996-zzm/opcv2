@@ -78,7 +78,9 @@ func main() {
 		logger.Error("configure project providers", "error", err)
 		os.Exit(1)
 	}
-	projectsService := projects.NewService(projects.NewPostgresRepository(db), aiService,
+	projectsRepository := projects.NewPostgresRepository(db)
+	projectProviders.Files.SetMetadataStore(projectsRepository)
+	projectsService := projects.NewService(projectsRepository, aiService,
 		projects.WithProjectMatchQueue(taskqueue.NewClient(cfg.RedisAddr)),
 		projects.WithProjectFileManager(projectProviders.Files),
 		projects.WithProjectRetrievalProvider(projectProviders.Retrieval),

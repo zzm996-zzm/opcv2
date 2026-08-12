@@ -8,7 +8,67 @@ import (
 	"time"
 
 	pgxmock "github.com/pashagolub/pgxmock/v4"
+	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 )
+
+func projectFileRows(now time.Time) *pgxmock.Rows {
+	return pgxmock.NewRows([]string{
+		"id", "user_id", "match_id", "original_name", "mime_type", "detected_mime", "size_bytes",
+		"storage_key", "sha256", "parse_status", "extracted_text", "extracted_json", "error_code",
+		"expires_at", "created_at", "updated_at",
+	}).AddRow(
+		int64(501), int64(42), nil, "需求.txt", projectfiles.MIMEText, projectfiles.MIMEText, int64(12),
+		"project-matches/42/requirements.txt", strings.Repeat("a", 64), projectfiles.StatusReady,
+		"预算 3 万元", []byte(`{"format":"text/plain"}`), "", now.Add(30*24*time.Hour), now, now,
+	)
+}
+
+func TestPostgresRepositoryPersistsProjectMatchFileMetadata(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 8, 11, 8, 0, 0, 0, time.UTC)
+
+	db.ExpectQuery("INSERT INTO project_match_files").WithArgs(
+		int64(42), pgxmock.AnyArg(), "需求.txt", projectfiles.MIMEText, projectfiles.MIMEText, int64(12),
+		"project-matches/42/requirements.txt", strings.Repeat("a", 64), projectfiles.StatusReady,
+		"预算 3 万元", pgxmock.AnyArg(), "", now.Add(30*24*time.Hour), now, now,
+	).WillReturnRows(projectFileRows(now))
+	db.ExpectQuery("FROM project_match_files").WithArgs(int64(42), int64(501)).WillReturnRows(projectFileRows(now))
+	db.ExpectQuery("FROM project_match_files").WithArgs(int64(42), pgxmock.AnyArg()).WillReturnRows(projectFileRows(now))
+	db.ExpectQuery("UPDATE project_match_files").WithArgs(
+		int64(501), int64(42), pgxmock.AnyArg(), projectfiles.StatusReady, "预算 3 万元", pgxmock.AnyArg(), "", now,
+	).WillReturnRows(projectFileRows(now))
+
+	repository := NewPostgresRepository(db)
+	input := projectfiles.File{
+		UserID: 42, Name: "需求.txt", MIME: projectfiles.MIMEText, DetectedMIME: projectfiles.MIMEText,
+		Size: 12, ObjectKey: "project-matches/42/requirements.txt", SHA256: strings.Repeat("a", 64),
+		ParseStatus: projectfiles.StatusReady, ExtractedText: "预算 3 万元", ExtractedJSON: map[string]any{"format": "text/plain"},
+		ExpiresAt: now.Add(30 * 24 * time.Hour), CreatedAt: now, UpdatedAt: now,
+	}
+	created, err := repository.CreateFile(context.Background(), input)
+	if err != nil || created.ID != 501 || created.ExtractedJSON["format"] != "text/plain" {
+		t.Fatalf("CreateFile() file=%+v error=%v", created, err)
+	}
+	got, err := repository.GetFile(context.Background(), 42, 501)
+	if err != nil || got.Name != "需求.txt" {
+		t.Fatalf("GetFile() file=%+v error=%v", got, err)
+	}
+	listed, err := repository.ListFiles(context.Background(), 42, nil)
+	if err != nil || len(listed) != 1 || listed[0].ID != 501 {
+		t.Fatalf("ListFiles() files=%+v error=%v", listed, err)
+	}
+	updated, err := repository.UpdateFile(context.Background(), got)
+	if err != nil || updated.ParseStatus != projectfiles.StatusReady {
+		t.Fatalf("UpdateFile() file=%+v error=%v", updated, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestPostgresRepositorySearchesOpportunityKeywordFields(t *testing.T) {
 	db, err := pgxmock.NewPool()

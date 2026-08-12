@@ -123,6 +123,7 @@ func main() {
 		logger.Error("configure project providers", "error", err)
 		os.Exit(1)
 	}
+	projectProviders.Files.SetMetadataStore(projectsRepository)
 	projectsService := projects.NewService(
 		projectsRepository,
 		aiService,

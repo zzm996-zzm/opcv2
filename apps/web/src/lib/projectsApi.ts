@@ -24,6 +24,23 @@ export type ProjectMatchResult = {
   projects?: ProjectMatch[];
 };
 
+export type ProjectMatchFile = {
+  id: number;
+  match_id?: number;
+  name: string;
+  mime_type: string;
+  detected_mime: string;
+  size_bytes: number;
+  sha256: string;
+  parse_status: "uploading" | "scanning" | "parsing" | "ready" | "failed" | "deleted";
+  extracted_text?: string;
+  extracted_json?: Record<string, unknown>;
+  error_code?: string;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ProjectMatchSession = {
   id: number;
   user_id: number;
@@ -32,6 +49,7 @@ export type ProjectMatchSession = {
   status: "needs_input" | "completed";
   questions?: ProjectQuestion[];
   result?: ProjectMatchResult;
+  files?: ProjectMatchFile[];
   created_at: string;
   updated_at: string;
 };
@@ -290,7 +308,30 @@ export const projectsApi = {
     const suffix = query.toString() ? `?${query.toString()}` : "";
     return apiRequest<{ cases: ProjectCase[] }>(`/api/v1/projects/cases${suffix}`, { method: "GET" });
   },
-  createMatch(input: { intent: string }) {
+  uploadProjectMatchFile(file: File) {
+    const body = new FormData();
+    body.append("file", file);
+    return apiRequest<ProjectMatchFile>("/api/v1/project-match-files", { method: "POST", body });
+  },
+
+  getProjectMatchFile(id: number) {
+    return apiRequest<ProjectMatchFile>(`/api/v1/project-match-files/${id}`, { method: "GET" });
+  },
+
+  listProjectMatchFiles(matchId?: number) {
+    const suffix = matchId ? `?match_id=${matchId}` : "";
+    return apiRequest<{ files: ProjectMatchFile[] }>(`/api/v1/project-match-files${suffix}`, { method: "GET" });
+  },
+
+  retryProjectMatchFile(id: number) {
+    return apiRequest<ProjectMatchFile>(`/api/v1/project-match-files/${id}/retry`, { method: "POST" });
+  },
+
+  deleteProjectMatchFile(id: number) {
+    return apiRequest<void>(`/api/v1/project-match-files/${id}`, { method: "DELETE" });
+  },
+
+  createMatch(input: { intent: string; file_ids?: number[] }) {
     return apiRequest<ProjectMatchResult>("/api/v1/projects/matches", {
       method: "POST",
       body: JSON.stringify(input)

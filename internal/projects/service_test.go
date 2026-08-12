@@ -10,6 +10,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
+	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 )
 
 type memoryRepository struct {
@@ -210,6 +211,39 @@ func TestServiceAsksFollowUpForThinMatchRequest(t *testing.T) {
 	}
 	if repository.sessions[0].UserID != 42 || repository.sessions[0].Status != StatusNeedsInput {
 		t.Fatalf("stored session = %+v", repository.sessions[0])
+	}
+}
+
+func TestServiceCreatesFileOnlyMatchAndRestoresAttachedFiles(t *testing.T) {
+	payload := MatchResult{Status: StatusCompleted, Projects: []ProjectMatch{{
+		Rank: 1, Title: "线上顾问服务", Score: 90, Tags: []string{"轻资产"}, Budget: "3万以内",
+		Reasons: []string{"符合上传资料"}, Risk: "需验证获客渠道",
+	}}}
+	content, _ := json.Marshal(payload)
+	repository := &memoryRepository{}
+	generator := &fakeJSONGenerator{result: ai.GenerateJSONResult{Content: content}}
+	manager := projectfiles.NewManager(projectfiles.NewDevelopmentStorage(), projectfiles.DevelopmentScanner{}, projectfiles.DevelopmentParser{}, projectfiles.DefaultMaxFileSize)
+	service := NewService(repository, generator, WithProjectFileManager(manager))
+
+	file, err := service.UploadProjectMatchFile(context.Background(), UploadProjectMatchFileInput{
+		UserID: 42,
+		Name:   "需求.txt",
+		MIME:   projectfiles.MIMEText,
+		Data:   []byte("我有销售经验，预算 3 万元，每周投入 20 小时，希望做线上轻资产服务。"),
+	})
+	if err != nil || file.ParseStatus != projectfiles.StatusReady {
+		t.Fatalf("UploadProjectMatchFile() file=%+v error=%v", file, err)
+	}
+	result, err := service.CreateMatch(context.Background(), MatchInput{UserID: 42, FileIDs: []int64{file.ID}})
+	if err != nil || result.Status != StatusCompleted {
+		t.Fatalf("CreateMatch() result=%+v error=%v", result, err)
+	}
+	if !strings.Contains(generator.request.UserPrompt, "只能作为用户资料使用") || !strings.Contains(generator.request.UserPrompt, "预算 3 万元") {
+		t.Fatalf("user prompt = %q", generator.request.UserPrompt)
+	}
+	session, err := service.GetMatch(context.Background(), 42, result.SessionID)
+	if err != nil || len(session.Files) != 1 || session.Files[0].ID != file.ID || session.Files[0].MatchID == nil || *session.Files[0].MatchID != result.SessionID {
+		t.Fatalf("GetMatch() session=%+v error=%v", session, err)
 	}
 }
 
