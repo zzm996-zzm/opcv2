@@ -2,6 +2,7 @@ package projectprovider
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/zzm/opcv2/internal/platform/config"
@@ -45,11 +46,16 @@ func TestNewRejectsDevelopmentProvidersInProduction(t *testing.T) {
 }
 
 func TestNewBuildsUnavailableAdaptersForNamedProductionProviders(t *testing.T) {
-	bundle, err := New(config.Config{Environment: "production", ProjectFileProvider: "s3", ProjectRetrievalProvider: "pgvector", ProjectResearchProvider: "serper"})
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
+	_, err := New(config.Config{Environment: "production", ProjectFileProvider: "s3", ProjectRetrievalProvider: "pgvector", ProjectResearchProvider: "bing"})
+	if !errors.Is(err, ErrUnsupportedProvider) {
+		t.Fatalf("New() error = %v, want unsupported provider", err)
 	}
-	if bundle.Files == nil || bundle.Retrieval == nil || bundle.Research == nil {
-		t.Fatal("production bundle contains nil dependencies")
+}
+
+func TestNewBuildsConfiguredProductionAdapters(t *testing.T) {
+	retriever := retrieval.DevelopmentProvider{}
+	bundle, err := New(config.Config{Environment: "production", ProjectFileProvider: "local", ProjectFileStoragePath: t.TempDir(), ProjectRetrievalProvider: "postgres", ProjectResearchProvider: "serper", SerperAPIKey: "key", SerperTimeoutSeconds: 1}, WithRetrievalProvider(retriever))
+	if err != nil || bundle.Files == nil || bundle.Retrieval == nil || bundle.Research == nil {
+		t.Fatalf("New() = %+v, %v", bundle, err)
 	}
 }

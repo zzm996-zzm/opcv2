@@ -124,6 +124,21 @@ func Load() (Config, error) {
 		if cfg.ProjectResearchProvider == "development" || cfg.ProjectResearchProvider == "" {
 			return Config{}, errors.New("OPCV2_PROJECT_RESEARCH_PROVIDER=development is not allowed in production")
 		}
+		if cfg.ProjectFileProvider != "local" {
+			return Config{}, errors.New("OPCV2_PROJECT_FILE_PROVIDER must be local until an external object-store adapter is configured")
+		}
+		if cfg.ProjectRetrievalProvider != "postgres" {
+			return Config{}, errors.New("OPCV2_PROJECT_RETRIEVAL_PROVIDER must be postgres")
+		}
+		if cfg.ProjectResearchProvider != "serper" {
+			return Config{}, errors.New("OPCV2_PROJECT_RESEARCH_PROVIDER must be serper")
+		}
+		if strings.TrimSpace(cfg.ProjectFileStoragePath) == "" {
+			return Config{}, errors.New("OPCV2_PROJECT_FILE_STORAGE_PATH is required in production")
+		}
+		if cfg.SerperAPIKey == "" {
+			return Config{}, errors.New("OPCV2_SERPER_API_KEY is required for project research in production")
+		}
 		if cfg.LeadProvider == "tianyancha" && cfg.TianyanchaAPIKey == "" {
 			return Config{}, errors.New("OPCV2_TYC_API_KEY is required in production")
 		}

@@ -24,3 +24,15 @@ func TestCanonicalURLNormalizesFragmentAndTrailingSlash(t *testing.T) {
 		t.Fatalf("canonical/error = %q/%v", canonical, err)
 	}
 }
+
+func TestRankDocumentsOrdersMatchesAndDropsIrrelevantCandidates(t *testing.T) {
+	documents := []Document{
+		{ID: "low", Title: "内容工作室", Text: "短视频服务", Score: 0.1},
+		{ID: "best", Title: "AI 销售顾问", Text: "面向 B 端客户获客", Score: 0.2},
+		{ID: "second", Title: "企业销售自动化", Text: "AI 线索跟进", Score: 0.1},
+	}
+	ranked := RankDocuments("AI 销售", documents, 2)
+	if len(ranked) != 2 || ranked[0].ID != "best" || ranked[1].ID != "second" {
+		t.Fatalf("RankDocuments() = %+v", ranked)
+	}
+}

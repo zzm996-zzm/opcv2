@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	projectfiles "github.com/zzm/opcv2/internal/projects/files"
+	projectretrieval "github.com/zzm/opcv2/internal/projects/retrieval"
 )
 
 type postgresDB interface {
@@ -24,6 +26,66 @@ type PostgresRepository struct {
 
 func NewPostgresRepository(db postgresDB) *PostgresRepository {
 	return &PostgresRepository{db: db}
+}
+
+func (r *PostgresRepository) Search(ctx context.Context, request projectretrieval.SearchRequest) ([]projectretrieval.Document, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT slug, title, summary, industry, tags, budget_band, difficulty, resource_requirements
+		FROM project_opportunities
+		WHERE status = 'published'
+		ORDER BY is_featured DESC, heat DESC, published_at DESC, id ASC
+		LIMIT 100
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	documents := make([]projectretrieval.Document, 0)
+	for rows.Next() {
+		var slug, title, summary, industry, budget, difficulty string
+		var tags, resources []string
+		if err := rows.Scan(&slug, &title, &summary, &industry, &tags, &budget, &difficulty, &resources); err != nil {
+			return nil, err
+		}
+		documents = append(documents, projectretrieval.Document{
+			ID: slug, Title: title,
+			Text:     strings.Join([]string{summary, industry, strings.Join(tags, " "), budget, difficulty, strings.Join(resources, " ")}, " "),
+			Metadata: map[string]string{"slug": slug, "kind": "project", "knowledge_base_version": request.KnowledgeBaseVersion},
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return projectretrieval.RankDocuments(request.Query, documents, request.Limit), nil
+}
+
+func (r *PostgresRepository) SaveMatchEvidence(ctx context.Context, userID, matchID int64, attempt int, sufficiency float64, evidence []MatchEvidence) error {
+	command, err := r.db.Exec(ctx, `
+		UPDATE project_match_sessions
+		SET kb_sufficiency = $4, updated_at = NOW()
+		WHERE user_id = $1 AND id = $2 AND workflow_version = 2 AND generation_attempt = $3
+		  AND status IN ('queued', 'running')
+	`, userID, matchID, attempt, sufficiency)
+	if err != nil {
+		return err
+	}
+	if command.RowsAffected() == 0 {
+		return ErrStaleMatchGeneration
+	}
+	if _, err := r.db.Exec(ctx, `DELETE FROM project_match_evidence WHERE user_id = $1 AND match_id = $2 AND attempt = $3`, userID, matchID, attempt); err != nil {
+		return err
+	}
+	for _, item := range evidence {
+		if _, err := r.db.Exec(ctx, `
+			INSERT INTO project_match_evidence
+				(match_id, user_id, attempt, source_type, source_id, source_url, title, publisher,
+				 excerpt, quality_score, untrusted_content)
+			VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8, $9, $10, $11)
+		`, matchID, userID, attempt, item.SourceType, item.SourceID, item.URL, item.Title, item.Publisher, item.Excerpt, item.Quality, item.UntrustedContent); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *PostgresRepository) ListDictionaryItems(ctx context.Context, kind string) ([]DictionaryItem, error) {

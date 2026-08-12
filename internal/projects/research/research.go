@@ -1,9 +1,14 @@
 package research
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -11,8 +16,9 @@ import (
 )
 
 var (
-	ErrUnsafeURL   = errors.New("unsafe research URL")
-	ErrFetchFailed = errors.New("research page fetch failed")
+	ErrUnsafeURL    = errors.New("unsafe research URL")
+	ErrFetchFailed  = errors.New("research page fetch failed")
+	ErrSearchFailed = errors.New("research search failed")
 )
 
 type SearchResult struct {
@@ -143,6 +149,187 @@ type DevelopmentProvider struct {
 	Results []SearchResult
 	Pages   map[string]Page
 	Now     func() time.Time
+}
+
+type SerperProvider struct {
+	baseURL     string
+	apiKey      string
+	client      *http.Client
+	fetchClient *http.Client
+}
+
+func NewSerperProvider(baseURL, apiKey string, timeout time.Duration) (*SerperProvider, error) {
+	if strings.TrimSpace(apiKey) == "" {
+		return nil, fmt.Errorf("%w: missing Serper API key", ErrSearchFailed)
+	}
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if baseURL == "" {
+		baseURL = "https://google.serper.dev"
+	}
+	return &SerperProvider{
+		baseURL: baseURL, apiKey: apiKey, client: &http.Client{Timeout: timeout},
+		fetchClient: newSafeFetchClient(timeout),
+	}, nil
+}
+
+func (p *SerperProvider) Search(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	if limit <= 0 || limit > 20 {
+		limit = 10
+	}
+	body, _ := json.Marshal(map[string]any{"q": strings.TrimSpace(query), "num": limit})
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/search", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSearchFailed, err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-API-KEY", p.apiKey)
+	response, err := p.client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSearchFailed, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("%w: status %d", ErrSearchFailed, response.StatusCode)
+	}
+	var payload struct {
+		Organic []struct {
+			Title   string `json:"title"`
+			Link    string `json:"link"`
+			Snippet string `json:"snippet"`
+		} `json:"organic"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 2<<20)).Decode(&payload); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSearchFailed, err)
+	}
+	results := make([]SearchResult, 0, len(payload.Organic))
+	for _, item := range payload.Organic {
+		if strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Link) == "" {
+			continue
+		}
+		results = append(results, SearchResult{Title: strings.TrimSpace(item.Title), URL: strings.TrimSpace(item.Link), Snippet: strings.TrimSpace(item.Snippet), Quality: sourceQuality(item.Link)})
+	}
+	return results, nil
+}
+
+func (p *SerperProvider) Fetch(ctx context.Context, rawURL string) (Page, error) {
+	canonical, err := CanonicalizeURL(rawURL)
+	if err != nil {
+		return Page{}, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, canonical, nil)
+	if err != nil {
+		return Page{}, ErrFetchFailed
+	}
+	request.Header.Set("User-Agent", "OPCV2Research/1.0")
+	response, err := p.fetchClient.Do(request)
+	if err != nil {
+		return Page{}, fmt.Errorf("%w: %v", ErrFetchFailed, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return Page{}, fmt.Errorf("%w: status %d", ErrFetchFailed, response.StatusCode)
+	}
+	contentType := strings.ToLower(response.Header.Get("Content-Type"))
+	if contentType != "" && !strings.Contains(contentType, "text/html") && !strings.Contains(contentType, "text/plain") && !strings.Contains(contentType, "application/xhtml") {
+		return Page{}, fmt.Errorf("%w: unsupported content type", ErrFetchFailed)
+	}
+	content, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return Page{}, fmt.Errorf("%w: %v", ErrFetchFailed, err)
+	}
+	return Page{URL: canonical, Title: canonical, Publisher: strings.ToLower(request.URL.Hostname()), Content: stripHTML(string(content)), FetchedAt: time.Now()}, nil
+}
+
+func newSafeFetchClient(timeout time.Duration) *http.Client {
+	dialer := &net.Dialer{Timeout: timeout}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(address)
+			if err != nil {
+				return nil, ErrUnsafeURL
+			}
+			addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil || len(addresses) == 0 {
+				return nil, ErrUnsafeURL
+			}
+			for _, address := range addresses {
+				if unsafeIP(address.IP) {
+					continue
+				}
+				return dialer.DialContext(ctx, network, net.JoinHostPort(address.IP.String(), port))
+			}
+			return nil, ErrUnsafeURL
+		},
+		ResponseHeaderTimeout: timeout,
+		TLSHandshakeTimeout:   timeout,
+		IdleConnTimeout:       30 * time.Second,
+	}
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+		CheckRedirect: func(request *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return ErrUnsafeURL
+			}
+			_, err := CanonicalizeURL(request.URL.String())
+			return err
+		},
+	}
+}
+
+func unsafeIP(ip net.IP) bool {
+	return ip == nil || ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast()
+}
+
+func (p *SerperProvider) Extract(_ context.Context, page Page, result SearchResult) (Evidence, error) {
+	excerpt := strings.TrimSpace(page.Content)
+	if excerpt == "" {
+		excerpt = strings.TrimSpace(result.Snippet)
+	}
+	if len([]rune(excerpt)) > 800 {
+		excerpt = string([]rune(excerpt)[:800])
+	}
+	return Evidence{URL: page.URL, Title: result.Title, Publisher: page.Publisher, Excerpt: excerpt, Quality: result.Quality, UntrustedContent: true}, nil
+}
+
+func sourceQuality(rawURL string) float64 {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return 0
+	}
+	host := strings.ToLower(parsed.Hostname())
+	switch {
+	case strings.HasSuffix(host, ".gov.cn"), strings.HasSuffix(host, ".edu.cn"):
+		return 0.95
+	case strings.Contains(host, "stats.gov"), strings.Contains(host, "miit.gov"), strings.Contains(host, "cnnic"):
+		return 0.95
+	case strings.Contains(host, "36kr"), strings.Contains(host, "caixin"), strings.Contains(host, "iresearch"):
+		return 0.75
+	default:
+		return 0.6
+	}
+}
+
+func stripHTML(value string) string {
+	var output strings.Builder
+	inTag := false
+	for _, char := range value {
+		switch char {
+		case '<':
+			inTag = true
+		case '>':
+			inTag = false
+			output.WriteRune(' ')
+		default:
+			if !inTag {
+				output.WriteRune(char)
+			}
+		}
+	}
+	return strings.Join(strings.Fields(output.String()), " ")
 }
 
 func (p *DevelopmentProvider) Search(_ context.Context, query string, limit int) ([]SearchResult, error) {

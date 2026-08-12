@@ -73,12 +73,12 @@ func main() {
 	}
 	competitorService := competitor.NewService(competitorRepository, competitorOptions...)
 	sandboxService := sandbox.NewService(sandbox.NewPostgresRepository(db), aiService, sandbox.WithQuotaConsumer(membershipService), sandbox.WithProfileContextProvider(accountService))
-	projectProviders, err := projectprovider.New(cfg)
+	projectsRepository := projects.NewPostgresRepository(db)
+	projectProviders, err := projectprovider.New(cfg, projectprovider.WithRetrievalProvider(projectsRepository))
 	if err != nil {
 		logger.Error("configure project providers", "error", err)
 		os.Exit(1)
 	}
-	projectsRepository := projects.NewPostgresRepository(db)
 	projectProviders.Files.SetMetadataStore(projectsRepository)
 	projectsService := projects.NewService(projectsRepository, aiService,
 		projects.WithProjectMatchQueue(taskqueue.NewClient(cfg.RedisAddr)),

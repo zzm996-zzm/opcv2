@@ -118,7 +118,7 @@ func main() {
 	analysisService := analysis.NewService(analysisRepository, aiService)
 	analysisHTTP := analysis.NewHTTPHandler(analysisService)
 	projectsRepository := projects.NewPostgresRepository(db)
-	projectProviders, err := projectprovider.New(cfg)
+	projectProviders, err := projectprovider.New(cfg, projectprovider.WithRetrievalProvider(projectsRepository))
 	if err != nil {
 		logger.Error("configure project providers", "error", err)
 		os.Exit(1)

@@ -182,9 +182,11 @@ func TestLoadDefaultsProductionSMSToDisabled(t *testing.T) {
 	t.Setenv("OPCV2_LEAD_PROVIDER", "tianyancha")
 	t.Setenv("OPCV2_TYC_API_KEY", "production-tyc-key")
 	t.Setenv("OPCV2_CORS_ALLOWED_ORIGINS", "https://app.example.com")
-	t.Setenv("OPCV2_PROJECT_FILE_PROVIDER", "s3")
+	t.Setenv("OPCV2_PROJECT_FILE_PROVIDER", "local")
+	t.Setenv("OPCV2_PROJECT_FILE_STORAGE_PATH", t.TempDir())
 	t.Setenv("OPCV2_PROJECT_RETRIEVAL_PROVIDER", "postgres")
 	t.Setenv("OPCV2_PROJECT_RESEARCH_PROVIDER", "serper")
+	t.Setenv("OPCV2_SERPER_API_KEY", "production-serper-key")
 
 	cfg, err := Load()
 	if err != nil {

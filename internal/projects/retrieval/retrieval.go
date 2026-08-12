@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"sort"
 	"strings"
+	"unicode"
 )
 
 var ErrNoRetrievalProvider = errors.New("retrieval provider is not configured")
@@ -41,18 +43,77 @@ func (p DevelopmentProvider) Search(_ context.Context, request SearchRequest) ([
 	if limit <= 0 || limit > 20 {
 		limit = 20
 	}
-	query := strings.ToLower(strings.TrimSpace(request.Query))
-	result := make([]Document, 0, limit)
-	for _, document := range p.Documents {
-		if query != "" && !strings.Contains(strings.ToLower(document.Title+" "+document.Text), query) {
+	return RankDocuments(request.Query, p.Documents, limit), nil
+}
+
+// RankDocuments applies deterministic lexical ranking to provider candidates.
+// Provider supplied scores are retained as a secondary quality signal.
+func RankDocuments(query string, documents []Document, limit int) []Document {
+	if limit <= 0 || limit > 20 {
+		limit = 20
+	}
+	terms := searchTerms(query)
+	ranked := make([]Document, 0, len(documents))
+	for _, document := range documents {
+		haystack := strings.ToLower(document.Title + " " + document.Text)
+		score := document.Score
+		for _, term := range terms {
+			if strings.Contains(strings.ToLower(document.Title), term) {
+				score += 0.35
+			}
+			if strings.Contains(haystack, term) {
+				score += 0.15
+			}
+		}
+		if len(terms) > 0 && score <= document.Score {
 			continue
 		}
-		result = append(result, document)
-		if len(result) == limit {
-			break
+		document.Score = minFloat(score, 1)
+		ranked = append(ranked, document)
+	}
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].Score == ranked[j].Score {
+			return ranked[i].ID < ranked[j].ID
+		}
+		return ranked[i].Score > ranked[j].Score
+	})
+	if len(ranked) > limit {
+		ranked = ranked[:limit]
+	}
+	return ranked
+}
+
+func searchTerms(value string) []string {
+	fields := strings.FieldsFunc(strings.ToLower(strings.TrimSpace(value)), func(char rune) bool {
+		return unicode.IsSpace(char) || strings.ContainsRune(",，。；;:：/|()（）[]【】", char)
+	})
+	seen := map[string]bool{}
+	terms := make([]string, 0, len(fields))
+	for _, field := range fields {
+		field = strings.TrimSpace(field)
+		if field != "" && !seen[field] {
+			seen[field] = true
+			terms = append(terms, field)
+		}
+		runes := []rune(field)
+		if len(runes) >= 4 {
+			for index := 0; index+1 < len(runes); index++ {
+				bigram := string(runes[index : index+2])
+				if !seen[bigram] {
+					seen[bigram] = true
+					terms = append(terms, bigram)
+				}
+			}
 		}
 	}
-	return result, nil
+	return terms
+}
+
+func minFloat(left, right float64) float64 {
+	if left < right {
+		return left
+	}
+	return right
 }
 
 type DevelopmentEmbedding struct{ Dimension int }

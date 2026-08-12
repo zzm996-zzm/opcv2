@@ -2,6 +2,7 @@ package projects
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -161,24 +162,9 @@ func (s *Service) ProcessProjectMatch(ctx context.Context, userID, matchID int64
 	if err != nil || s.generator == nil {
 		return ErrServiceNotReady
 	}
-	stages := []struct {
-		step     string
-		progress int
-	}{
-		{MatchStepAnalyzing, 10},
-		{MatchStepRetrievingKB, 30},
-		{MatchStepResearchingWeb, 50},
-		{MatchStepMerging, 70},
-		{MatchStepGenerating, 85},
-	}
-	for _, stage := range stages {
-		active, stageErr := s.advanceMatchGeneration(ctx, repository, userID, matchID, attempt, stage.step, stage.progress)
-		if stageErr != nil {
-			return stageErr
-		}
-		if !active {
-			return nil
-		}
+	active, err := s.advanceMatchGeneration(ctx, repository, userID, matchID, attempt, MatchStepAnalyzing, 10)
+	if err != nil || !active {
+		return err
 	}
 	workflow, err := s.workflowRepository()
 	if err != nil {
@@ -188,9 +174,57 @@ func (s *Service) ProcessProjectMatch(ctx context.Context, userID, matchID int64
 	if err != nil {
 		return err
 	}
-	result, err := s.generateMatch(ctx, MatchInput{UserID: userID, Intent: run.Need})
+	active, err = s.advanceMatchGeneration(ctx, repository, userID, matchID, attempt, MatchStepRetrievingKB, 30)
+	if err != nil || !active {
+		return err
+	}
+	bundle, evidenceErr := s.buildMatchEvidence(ctx, run)
+	active, err = s.advanceMatchGeneration(ctx, repository, userID, matchID, attempt, MatchStepResearchingWeb, 50)
+	if err != nil || !active {
+		return err
+	}
+	if saveErr := s.saveMatchEvidence(ctx, run, bundle); saveErr != nil {
+		if errors.Is(saveErr, ErrStaleMatchGeneration) {
+			return nil
+		}
+		return saveErr
+	}
+	if evidenceErr != nil {
+		if errors.Is(evidenceErr, ErrInsufficientEvidence) && len(bundle.Catalog) > 0 {
+			partial := catalogResult(bundle.Catalog)
+			partial.Status, partial.Evidence, partial.EvidenceStatus = MatchStatusPartial, bundle.Evidence, "insufficient"
+			_, updateErr := repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusPartial, 100, MatchStepPartial, "insufficient_evidence", &partial)
+			if errors.Is(updateErr, ErrStaleMatchGeneration) {
+				return nil
+			}
+			return updateErr
+		}
+		_, _ = repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusFailed, 100, MatchStepError, "insufficient_evidence", nil)
+		return evidenceErr
+	}
+	active, err = s.advanceMatchGeneration(ctx, repository, userID, matchID, attempt, MatchStepMerging, 70)
+	if err != nil || !active {
+		return err
+	}
+	_, filePrompt, fileErr := s.resolveProjectMatchFiles(ctx, userID, run.InputSnapshot.FileIDs)
+	if fileErr != nil {
+		return fileErr
+	}
+	active, err = s.advanceMatchGeneration(ctx, repository, userID, matchID, attempt, MatchStepGenerating, 85)
+	if err != nil || !active {
+		return err
+	}
+	profilePrompt := ""
+	if len(run.ParsedProfile) > 0 {
+		if payload, marshalErr := json.Marshal(run.ParsedProfile); marshalErr == nil {
+			profilePrompt = "已确认用户画像：" + string(payload)
+		}
+	}
+	result, err := s.generateMatchFromEvidence(ctx, MatchInput{UserID: userID, Intent: run.Need, FilePrompt: filePrompt}, profilePrompt, bundle.Catalog, bundle.Evidence)
 	if err != nil {
-		if partial, partialOK := s.partialCatalogResult(ctx); partialOK {
+		if len(bundle.Catalog) > 0 {
+			partial := catalogResult(bundle.Catalog)
+			partial.Evidence, partial.EvidenceStatus = bundle.Evidence, "partial"
 			_, updateErr := repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusPartial, 100, MatchStepPartial, "generation_degraded", &partial)
 			if errors.Is(updateErr, ErrStaleMatchGeneration) {
 				return nil
@@ -198,6 +232,14 @@ func (s *Service) ProcessProjectMatch(ctx context.Context, userID, matchID int64
 			return updateErr
 		}
 		_, _ = repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusFailed, 100, MatchStepError, "invalid_ai_result", nil)
+		return err
+	}
+	if bundle.Degraded {
+		result.Status, result.EvidenceStatus = MatchStatusPartial, "partial"
+		_, err = repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusPartial, 100, MatchStepPartial, "research_partial", &result)
+		if errors.Is(err, ErrStaleMatchGeneration) {
+			return nil
+		}
 		return err
 	}
 	_, err = repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusCompleted, 100, MatchStepDone, "", &result)
@@ -215,11 +257,18 @@ func (s *Service) partialCatalogResult(ctx context.Context) (MatchResult, bool) 
 	if err != nil || len(catalog) == 0 {
 		return MatchResult{}, false
 	}
+	return catalogResult(catalog), true
+}
+
+func catalogResult(catalog []Opportunity) MatchResult {
+	if len(catalog) > 3 {
+		catalog = catalog[:3]
+	}
 	result := MatchResult{Status: MatchStatusPartial, Projects: make([]ProjectMatch, 0, len(catalog))}
 	for index, item := range catalog {
 		result.Projects = append(result.Projects, ProjectMatch{Rank: index + 1, OpportunitySlug: item.Slug, Title: item.Title, Tags: append([]string(nil), item.Tags...), Budget: item.BudgetBand, Reasons: []string{"基于已发布项目目录返回的降级候选"}, Risk: "个性化生成暂不可用，请结合项目详情进一步判断"})
 	}
-	return result, true
+	return result
 }
 
 func (s *Service) advanceMatchGeneration(ctx context.Context, repository MatchGenerationRepository, userID, matchID int64, attempt int, step string, progress int) (bool, error) {

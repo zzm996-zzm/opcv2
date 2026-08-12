@@ -169,10 +169,23 @@ type Question struct {
 }
 
 type MatchResult struct {
-	SessionID int64          `json:"session_id"`
-	Status    string         `json:"status"`
-	Questions []Question     `json:"questions,omitempty"`
-	Projects  []ProjectMatch `json:"projects,omitempty"`
+	SessionID      int64           `json:"session_id"`
+	Status         string          `json:"status"`
+	Questions      []Question      `json:"questions,omitempty"`
+	Projects       []ProjectMatch  `json:"projects,omitempty"`
+	Evidence       []MatchEvidence `json:"evidence,omitempty"`
+	EvidenceStatus string          `json:"evidence_status,omitempty"`
+}
+
+type MatchEvidence struct {
+	SourceType       string  `json:"source_type"`
+	SourceID         string  `json:"source_id,omitempty"`
+	URL              string  `json:"url,omitempty"`
+	Title            string  `json:"title"`
+	Publisher        string  `json:"publisher,omitempty"`
+	Excerpt          string  `json:"excerpt"`
+	Quality          float64 `json:"quality"`
+	UntrustedContent bool    `json:"untrusted_content"`
 }
 
 type ProjectMatch struct {
