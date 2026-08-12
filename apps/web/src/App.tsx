@@ -503,6 +503,14 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
+            <ProjectsPage variant="cases" />
+          </RequireAuth>
+        }
+        path="/project-cases"
+      />
+      <Route
+        element={
+          <RequireAuth>
             <ProjectsPage variant="caseDetail" />
           </RequireAuth>
         }

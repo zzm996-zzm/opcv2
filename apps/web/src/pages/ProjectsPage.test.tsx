@@ -464,6 +464,17 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "案例共性" })).toBeInTheDocument();
   });
 
+  it("renders the case library at its public entry route", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      items: [], page: 1, page_size: 12, total: 0
+    }), { status: 200 }));
+
+    renderProjectRoute("/project-cases");
+
+    expect(screen.getByRole("heading", { name: "真实案例库" })).toBeInTheDocument();
+    expect(await screen.findByText("暂无符合条件的已发布案例")).toBeInTheDocument();
+  });
+
   it("renders a directly addressable evidence case detail", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       id: 81, title: "AI销售试点", result_summary: "完成首轮流程验证", type: "success",
@@ -477,6 +488,7 @@ describe("ProjectsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "AI销售试点" })).toBeInTheDocument();
     expect(screen.getByText("两周")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "返回案例库" })).toHaveAttribute("href", "/project-cases");
     expect(screen.getByRole("link", { name: /企业公开复盘/ })).toHaveAttribute("href", "https://example.com/case");
   });
 

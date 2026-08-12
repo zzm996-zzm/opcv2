@@ -1006,7 +1006,7 @@ function CaseDetail() {
           <p>项目超市&nbsp;&nbsp;/&nbsp;&nbsp;真实案例库&nbsp;&nbsp;/&nbsp;&nbsp;案例详情</p>
           <h1>{caseDetail?.title ?? "案例详情"}</h1>
           <strong>{caseDetail?.result_summary ?? "查看经过核验的事实、分析与来源"}</strong>
-          <Link to="/projects/cases">返回案例库</Link>
+          <Link to="/project-cases">返回案例库</Link>
         </div>
         <div className="pm-catalog-hero-art" aria-hidden="true" />
       </section>
