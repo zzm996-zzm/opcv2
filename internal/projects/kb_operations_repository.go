@@ -110,10 +110,10 @@ func (r *PostgresRepository) RebuildProjectKB(ctx context.Context, id int64, now
 	}
 	command, err := tx.Exec(ctx, `
 		INSERT INTO project_kb_documents (version, document_id, title, body, metadata, created_at)
-		SELECT $1, slug, title,
+		SELECT $1::INTEGER, slug, title,
 		       concat_ws(' ', summary, industry, tags::TEXT, budget_band, difficulty,
 		                 resource_requirements::TEXT, detail::TEXT),
-		       jsonb_build_object('slug', slug, 'kind', 'project', 'knowledge_base_version', $1::TEXT), $2
+		       jsonb_build_object('slug', slug, 'kind', 'project', 'knowledge_base_version', ($1::INTEGER)::TEXT), $2
 		FROM project_opportunities WHERE status = 'published'
 	`, result.TargetVersion, now)
 	if err != nil {
