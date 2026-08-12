@@ -76,6 +76,23 @@ func TestRecordProjectEventRejectsUnknownAndPrivateProperties(t *testing.T) {
 	}
 }
 
+func TestRecordProjectMatchResultAcceptsResearchReason(t *testing.T) {
+	repository := &analyticsMemoryRepository{memoryRepository: &memoryRepository{}}
+	service := NewService(repository, nil)
+	input := AnalyticsEventInput{
+		EventID: "event-match-result-123", EventName: ProjectEventMatchResult,
+		VisitorKey: "browser-visitor-123", Route: "/projects/matches/4/results", RefModule: "match_results",
+		Properties: map[string]any{
+			"match_id": json.Number("4"), "rounds": json.Number("2"), "completeness": json.Number("0.9"),
+			"kb_sufficiency": "sufficient", "web_trigger_reason": "not_triggered",
+			"source_count": json.Number("8"), "result_count": json.Number("3"),
+		},
+	}
+	if _, err := service.RecordProjectEvent(context.Background(), input); err != nil {
+		t.Fatalf("RecordProjectEvent() error = %v", err)
+	}
+}
+
 func TestProcessProjectHeatUsesThirtyDayWindow(t *testing.T) {
 	repository := &analyticsMemoryRepository{memoryRepository: &memoryRepository{}}
 	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)

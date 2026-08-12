@@ -56,7 +56,7 @@ var projectEventProperties = map[string]map[string]bool{
 	ProjectEventMatchStart:       propertySet("match_id"),
 	ProjectEventMatchAnswer:      propertySet("match_id", "rounds", "completeness"),
 	ProjectEventMatchResearch:    propertySet("match_id", "kb_sufficiency", "web_trigger_reason", "source_count"),
-	ProjectEventMatchResult:      propertySet("match_id", "rounds", "completeness", "kb_sufficiency", "source_count", "result_count"),
+	ProjectEventMatchResult:      propertySet("match_id", "rounds", "completeness", "kb_sufficiency", "web_trigger_reason", "source_count", "result_count"),
 	ProjectEventExploreView:      propertySet("opportunity_id", "group", "query"),
 	ProjectEventExploreSource:    propertySet("opportunity_id", "group", "query", "source_id"),
 	ProjectEventCaseView:         propertySet("case_id", "case_type"),
