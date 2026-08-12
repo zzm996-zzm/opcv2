@@ -140,6 +140,38 @@ describe("projectsApi", () => {
     );
   });
 
+  it("uses durable V2 match lifecycle contracts and replays SSE from the last event", async () => {
+    const stream = [
+      "id: 8",
+      "event: generating",
+      "data: {}",
+      "",
+      "id: 9",
+      "event: done",
+      "data: {}",
+      ""
+    ].join("\n");
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ match_id: 99, status: "ready", revision: 1 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ match_id: 99, status: "queued", attempt: 1 }), { status: 202 }))
+      .mockResolvedValueOnce(new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+    const events: { id: number; event: string }[] = [];
+
+    await projectsApi.createProjectMatch({ need: "AI销售" }, "request-001");
+    await projectsApi.generateProjectMatch(99);
+    await projectsApi.streamProjectMatch(99, 7, (event) => events.push({ id: event.id, event: event.event }));
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/project-matches", expect.objectContaining({
+      method: "POST",
+      headers: expect.objectContaining({ "Idempotency-Key": "request-001" })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/project-matches/99/stream", expect.objectContaining({
+      method: "GET",
+      headers: expect.objectContaining({ "Last-Event-ID": "7" })
+    }));
+    expect(events).toEqual([{ id: 8, event: "generating" }, { id: 9, event: "done" }]);
+  });
+
   it("answers project match follow-up questions", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ session_id:99, status:"completed" }), { status:200 }));
     await projectsApi.answerMatch(99, [{ key:"background", value:"销售经验" }]);

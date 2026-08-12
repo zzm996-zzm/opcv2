@@ -24,6 +24,57 @@ export type ProjectMatchResult = {
   projects?: ProjectMatch[];
 };
 
+export type ProjectMatchEvidence = {
+  source_type: "knowledge_base" | "web";
+  source_id?: string;
+  url?: string;
+  title: string;
+  publisher?: string;
+  excerpt: string;
+  quality: number;
+  untrusted_content: boolean;
+};
+
+export type ProjectMatchGeneration = {
+  match_id: number;
+  status: "queued" | "running" | "completed" | "partial" | "failed" | "canceled";
+  attempt: number;
+  progress_percent: number;
+  current_step: string;
+  result?: ProjectMatchResult & { evidence?: ProjectMatchEvidence[]; evidence_status?: string };
+  error_code?: string;
+};
+
+export type ProjectClarificationQuestion = {
+  id: string;
+  field: string;
+  type: string;
+  question: string;
+  options?: string[];
+  required: boolean;
+  reason?: string;
+};
+
+export type ProjectMatchWorkflow = {
+  match_id: number;
+  status: "clarifying" | "ready" | ProjectMatchGeneration["status"];
+  analysis_summary?: string;
+  parsed_profile?: Record<string, unknown>;
+  completeness: number;
+  missing_fields?: string[];
+  questions?: ProjectClarificationQuestion[];
+  assumptions?: string[];
+  revision: number;
+  file_ids?: number[];
+  generation?: ProjectMatchGeneration;
+};
+
+export type ProjectMatchProgressEvent = {
+  id: number;
+  event: string;
+  data: Record<string, unknown>;
+};
+
 export type ProjectMatchFile = {
   id: number;
   match_id?: number;
@@ -336,6 +387,70 @@ export const projectsApi = {
       method: "POST",
       body: JSON.stringify(input)
     });
+  },
+
+  createProjectMatch(input: { need: string; file_ids?: number[] }, idempotencyKey: string) {
+    return apiRequest<ProjectMatchWorkflow>("/api/v1/project-matches", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(input)
+    });
+  },
+
+  getProjectMatch(id: number) {
+    return apiRequest<ProjectMatchWorkflow>(`/api/v1/project-matches/${id}`, { method: "GET" });
+  },
+
+  answerProjectMatch(id: number, input: { revision: number; answers: { question_id: string; field: string; value: string }[] }, idempotencyKey: string) {
+    return apiRequest<ProjectMatchWorkflow>(`/api/v1/project-matches/${id}/answer`, {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(input)
+    });
+  },
+
+  generateProjectMatch(id: number) {
+    return apiRequest<ProjectMatchGeneration>(`/api/v1/project-matches/${id}/generate`, { method: "POST" });
+  },
+
+  cancelProjectMatch(id: number) {
+    return apiRequest<ProjectMatchGeneration>(`/api/v1/project-matches/${id}/cancel`, { method: "POST" });
+  },
+
+  async streamProjectMatch(id: number, afterEventId: number, onEvent: (event: ProjectMatchProgressEvent) => void, signal?: AbortSignal) {
+    const response = await apiStreamRequest(`/api/v1/project-matches/${id}/stream`, {
+      method: "GET",
+      signal,
+      headers: afterEventId > 0 ? { "Last-Event-ID": String(afterEventId) } : undefined
+    });
+    if (!response.body) throw new Error("streaming_not_supported");
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const processBlock = (block: string) => {
+      let event = "message";
+      let eventId = 0;
+      const data: string[] = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("id:")) eventId = Number(line.slice(3).trim());
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        if (line.startsWith("data:")) data.push(line.slice(5).trim());
+      }
+      if (!Number.isFinite(eventId) || eventId <= 0) return;
+      onEvent({ id: eventId, event, data: data.length ? JSON.parse(data.join("\n")) as Record<string, unknown> : {} });
+    };
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary >= 0) {
+        processBlock(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+        boundary = buffer.indexOf("\n\n");
+      }
+      if (done) break;
+    }
+    if (buffer.trim()) processBlock(buffer.trim());
   },
 
   listMatches() {

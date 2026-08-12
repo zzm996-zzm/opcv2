@@ -2732,6 +2732,36 @@
   .pm-export-modal > footer { grid-template-columns: 1fr; }
 }
 
+.pm-generation-progress {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 18px 20px;
+  border: 1px solid #d7dce2;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.pm-generation-progress > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pm-generation-progress progress {
+  width: 100%;
+  height: 8px;
+  accent-color: #177ddc;
+}
+
+.pm-generation-progress button { width: fit-content; }
+
+.pm-generation-progress.failed {
+  border-color: #efb9b6;
+  background: #fff8f7;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .project-market-shell .project-market-page *,
   .project-market-shell .project-market-page *::before,

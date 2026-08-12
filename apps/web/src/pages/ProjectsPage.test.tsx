@@ -97,11 +97,11 @@ describe("ProjectsPage", () => {
       if (url === "/api/v1/project-match-files" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify(uploaded), { status: 201 }));
       }
-      if (url === "/api/v1/projects/matches" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ session_id: 99, status: "needs_input", questions: [] }), { status: 200 }));
+      if (url === "/api/v1/project-matches" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ match_id: 99, status: "clarifying", completeness: 0.5, questions: [], revision: 1 }), { status: 200 }));
       }
-      if (url === "/api/v1/projects/matches/99") {
-        return Promise.resolve(new Response(JSON.stringify({ id: 99, user_id: 7, intent: "", status: "needs_input", questions: [], files: [uploaded], created_at: uploaded.created_at, updated_at: uploaded.updated_at }), { status: 200 }));
+      if (url === "/api/v1/project-matches/99") {
+        return Promise.resolve(new Response(JSON.stringify({ match_id: 99, status: "clarifying", completeness: 0.5, questions: [], revision: 1, file_ids: [501] }), { status: 200 }));
       }
       return Promise.reject(new Error(`unexpected ${url}`));
     });
@@ -121,8 +121,8 @@ describe("ProjectsPage", () => {
     fireEvent.click(submit);
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/projects/matches",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ intent: "", file_ids: [501] }) })
+      "/api/v1/project-matches",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ need: "", file_ids: [501] }), headers: expect.objectContaining({ "Idempotency-Key": expect.stringMatching(/^project-match-/) }) })
     ));
   });
 
@@ -167,8 +167,9 @@ describe("ProjectsPage", () => {
     const project = { rank:1, opportunity_slug:"local-ai-sales-consulting", title:"本地AI获客顾问", score:91, tags:["B端服务","轻资产"], budget:"¥2,000 - ¥6,000", reasons:["客户需求明确","交付可标准化"], risk:"需要控制交付边界" };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
-      if (url === "/api/v1/projects/matches" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ session_id:99, status:"completed", projects:[project] }), { status:200 }));
-      if (url === "/api/v1/projects/matches/99") return Promise.resolve(new Response(JSON.stringify({ id:99, user_id:7, intent:"本地AI获客服务", status:"completed", result:{ session_id:99, status:"completed", projects:[project] }, created_at:"2026-06-24T12:00:00Z", updated_at:"2026-06-24T12:00:00Z" }), { status:200 }));
+      if (url === "/api/v1/project-matches" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ match_id:99, status:"ready", completeness:0.9, revision:1 }), { status:200 }));
+      if (url === "/api/v1/project-matches/99") return Promise.resolve(new Response(JSON.stringify({ match_id:99, status:"ready", completeness:0.9, revision:1 }), { status:200 }));
+      if (url === "/api/v1/project-matches/99/generate" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ match_id:99, status:"completed", attempt:1, progress_percent:100, current_step:"done", result:{ session_id:99, status:"completed", projects:[project], evidence:[], evidence_status:"sufficient" } }), { status:202 }));
       if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites:[] }), { status:200 }));
       return Promise.reject(new Error(`unexpected ${url}`));
     });
@@ -180,7 +181,7 @@ describe("ProjectsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "提交给 AI 分析" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/projects/matches",
+      "/api/v1/project-matches",
       expect.objectContaining({ method: "POST" })
     ));
     expect(await screen.findByRole("heading", { name: "本地AI获客顾问" })).toBeInTheDocument();
@@ -192,14 +193,14 @@ describe("ProjectsPage", () => {
     let answered = false;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
-      if (url === "/api/v1/projects/matches/99/answers" && init?.method === "POST") {
+      if (url === "/api/v1/project-matches/99/answer" && init?.method === "POST") {
         answered = true;
-        return Promise.resolve(new Response(JSON.stringify({ session_id:99, status:"completed", projects:[project] }), { status:200 }));
+        return Promise.resolve(new Response(JSON.stringify({ match_id:99, status:"ready", completeness:0.9, revision:2 }), { status:200 }));
       }
-      if (url === "/api/v1/projects/matches/99") {
+      if (url === "/api/v1/project-matches/99") {
         return Promise.resolve(new Response(JSON.stringify(answered
-          ? { id:99, user_id:7, intent:"想找项目", answers:[{ key:"background", value:"销售经验" }], status:"completed", result:{ session_id:99, status:"completed", projects:[project] }, created_at:"2026-06-24T12:00:00Z", updated_at:"2026-06-24T12:00:00Z" }
-          : { id:99, user_id:7, intent:"想找项目", status:"needs_input", questions:[{ key:"background", text:"你擅长什么？", options:["销售经验","内容创作","技术能力"] }], created_at:"2026-06-24T12:00:00Z", updated_at:"2026-06-24T12:00:00Z" }), { status:200 }));
+          ? { match_id:99, status:"completed", completeness:0.9, revision:2, generation:{ match_id:99, status:"completed", attempt:1, progress_percent:100, current_step:"done", result:{ session_id:99, status:"completed", projects:[project], evidence:[] } } }
+          : { match_id:99, status:"clarifying", completeness:0.5, revision:1, questions:[{ id:"background", field:"background", type:"single", question:"你擅长什么？", options:["销售经验","内容创作","技术能力"], required:true }] }), { status:200 }));
       }
       if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites:[] }), { status:200 }));
       return Promise.reject(new Error(`unexpected ${url}`));
@@ -207,14 +208,14 @@ describe("ProjectsPage", () => {
     renderProjectRoute("/projects/matches/99/questions");
     fireEvent.click(await screen.findByRole("button", { name:"销售经验" }));
     fireEvent.click(screen.getByRole("button", { name:"生成匹配结果" }));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/projects/matches/99/answers", expect.objectContaining({ method:"POST" })));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/project-matches/99/answer", expect.objectContaining({ method:"POST", body:JSON.stringify({ revision:1, answers:[{ question_id:"background", field:"background", value:"销售经验" }] }) })));
     expect(await screen.findByRole("heading", { name:"AI销售顾问" })).toBeInTheDocument();
   });
 
   it("syncs a persisted match result to task center", async () => {
     const project = { rank:1, opportunity_slug:"local-ai-sales-consulting", title:"AI销售顾问", score:90, tags:["B端"], budget:"1万", reasons:["经验匹配"], risk:"需验证" };
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
-      if (String(input) === "/api/v1/projects/matches/99") return Promise.resolve(new Response(JSON.stringify({ id:99, user_id:7, intent:"线上服务项目", status:"completed", result:{ session_id:99, status:"completed", projects:[project] }, created_at:"2026-06-24T12:00:00Z", updated_at:"2026-06-24T12:00:00Z" }), { status:200 }));
+      if (String(input) === "/api/v1/project-matches/99") return Promise.resolve(new Response(JSON.stringify({ match_id:99, status:"completed", completeness:0.9, revision:2, generation:{ match_id:99, status:"completed", attempt:1, progress_percent:100, current_step:"done", result:{ session_id:99, status:"completed", projects:[project], evidence:[] } } }), { status:200 }));
       if (String(input) === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites:[] }), { status:200 }));
       if (String(input) === "/api/v1/tasks/generate" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ tasks:[{ id:1 }] }), { status:200 }));
       return Promise.reject(new Error("unexpected"));
@@ -223,6 +224,65 @@ describe("ProjectsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name:"生成落地任务" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/generate", expect.objectContaining({ method:"POST" })));
     expect(await screen.findByText("已创建 1 个项目任务")).toBeInTheDocument();
+  });
+
+  it("restores running generation after refresh and supports cancellation", async () => {
+    let canceled = false;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/project-matches/99" && init?.method === "GET") {
+        return Promise.resolve(new Response(JSON.stringify({
+          match_id: 99,
+          status: canceled ? "canceled" : "running",
+          completeness: 0.9,
+          revision: 2,
+          generation: { match_id: 99, status: canceled ? "canceled" : "running", attempt: 1, progress_percent: canceled ? 100 : 70, current_step: canceled ? "canceled" : "merging" }
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/project-matches/99/stream") return Promise.resolve(new Response("", { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+      if (url === "/api/v1/project-matches/99/cancel" && init?.method === "POST") {
+        canceled = true;
+        return Promise.resolve(new Response(JSON.stringify({ match_id:99, status:"canceled", attempt:1, progress_percent:100, current_step:"canceled" }), { status:200 }));
+      }
+      if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites:[] }), { status:200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+
+    renderProjectRoute("/projects/matches/99/results");
+
+    expect(await screen.findByText("整理证据")).toBeInTheDocument();
+    expect(screen.getByText("70%")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name:"取消生成" }));
+    expect(await screen.findByText("本次生成已取消")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/project-matches/99/cancel", expect.objectContaining({ method:"POST" }));
+  });
+
+  it("retries a failed durable generation", async () => {
+    let retried = false;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/project-matches/99" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({
+        match_id:99,
+        status:retried ? "queued" : "failed",
+        completeness:0.9,
+        revision:2,
+        generation:{ match_id:99, status:retried ? "queued" : "failed", attempt:retried ? 2 : 1, progress_percent:retried ? 0 : 100, current_step:retried ? "queued" : "error", error_code:retried ? "" : "insufficient_evidence" }
+      }), { status:200 }));
+      if (url === "/api/v1/project-matches/99/generate" && init?.method === "POST") {
+        retried = true;
+        return Promise.resolve(new Response(JSON.stringify({ match_id:99, status:"queued", attempt:2, progress_percent:0, current_step:"queued" }), { status:202 }));
+      }
+      if (url === "/api/v1/project-matches/99/stream") return Promise.resolve(new Response("", { status:200, headers:{ "Content-Type":"text/event-stream" } }));
+      if (url === "/api/v1/projects/favorites") return Promise.resolve(new Response(JSON.stringify({ favorites:[] }), { status:200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+
+    renderProjectRoute("/projects/matches/99/results");
+
+    expect(await screen.findByText("生成未完成")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name:"重试生成" }));
+    expect(await screen.findByText("等待开始")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/project-matches/99/generate", expect.objectContaining({ method:"POST" }));
   });
 
   it("renders opportunity exploration from API", async () => {

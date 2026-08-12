@@ -9,7 +9,7 @@ import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
-import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchFile, type ProjectMatchSession, type ProjectOpportunity } from "../lib/projectsApi";
+import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectFavorite, type ProjectMatch, type ProjectMatchFile, type ProjectMatchSession, type ProjectMatchWorkflow, type ProjectOpportunity } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
@@ -123,6 +123,48 @@ function projectFileStatus(file: ProjectMatchFile) {
     default:
       return "不可用";
   }
+}
+
+function idempotencyKey(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function workflowQuestions(session: ProjectMatchWorkflow) {
+  return (session.questions ?? []).map((question) => ({
+    key: question.id,
+    field: question.field,
+    text: question.question,
+    options: question.options ?? []
+  }));
+}
+
+function workflowToSession(session: ProjectMatchWorkflow): ProjectMatchSession {
+  return {
+    id: session.match_id,
+    user_id: 0,
+    intent: "",
+    status: session.status === "clarifying" ? "needs_input" : "completed",
+    questions: workflowQuestions(session).map((question) => ({ key: question.key, text: question.text, options: question.options })),
+    result: session.generation?.result,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+}
+
+function projectGenerationStep(step?: string) {
+  const labels: Record<string, string> = {
+    queued: "等待开始",
+    analyzing: "分析需求",
+    retrieving_kb: "检索项目库",
+    researching_web: "补充外部证据",
+    merging: "整理证据",
+    generating: "生成推荐",
+    done: "匹配完成",
+    partial: "部分完成",
+    error: "生成失败",
+    canceled: "已取消"
+  };
+  return labels[step ?? ""] ?? "正在恢复匹配进度";
 }
 
 
@@ -412,10 +454,10 @@ function MatchRequest() {
     setStatus("submitting");
     setError("");
     try {
-      const next = await projectsApi.createMatch({ intent, file_ids: readyFiles.map((file) => file.id) });
-      navigate(next.status === "needs_input"
-        ? `/projects/matches/${next.session_id}/questions`
-        : `/projects/matches/${next.session_id}/results`);
+      const next = await projectsApi.createProjectMatch({ need: intent, file_ids: readyFiles.map((file) => file.id) }, idempotencyKey("project-match"));
+      navigate(next.status === "clarifying"
+        ? `/projects/matches/${next.match_id}/questions`
+        : `/projects/matches/${next.match_id}/results`);
     } catch (error) {
       setError(apiErrorMessage(error, "暂时无法生成项目匹配，请稍后重试"));
     } finally {
@@ -956,6 +998,7 @@ function MatchQuestions() {
   const { matchId } = useParams();
   const navigate = useNavigate();
   const [session, setSession] = useState<ProjectMatchSession | null>(null);
+  const [workflow, setWorkflow] = useState<ProjectMatchWorkflow | null>(null);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -973,13 +1016,14 @@ function MatchQuestions() {
       return;
     }
     let active = true;
-    projectsApi.getMatch(id).then((payload) => {
+    projectsApi.getProjectMatch(id).then((payload) => {
       if (!active) return;
-      if (payload.status === "completed") {
+      if (payload.status === "ready" || payload.generation?.status === "completed" || payload.generation?.status === "partial") {
         navigate(`/projects/matches/${id}/results`, { replace:true });
         return;
       }
-      setSession(payload);
+      setWorkflow(payload);
+      setSession(workflowToSession(payload));
       setError("");
     }).catch((loadError) => {
       if (active) setError(apiErrorMessage(loadError, "暂时无法读取补充问题"));
@@ -994,8 +1038,16 @@ function MatchQuestions() {
     setSubmitting(true);
     setError("");
     try {
-      const next = await projectsApi.answerMatch(session.id, questions.map((question) => ({ key:question.key, value:selectedAnswers[question.key] })));
-      navigate(next.status === "completed"
+      if (!workflow) return;
+      const next = await projectsApi.answerProjectMatch(session.id, {
+        revision: workflow.revision,
+        answers: workflowQuestions(workflow).map((question) => ({
+          question_id: question.key,
+          field: question.field,
+          value: selectedAnswers[question.key]
+        }))
+      }, idempotencyKey("project-match-answer"));
+      navigate(next.status === "ready"
         ? `/projects/matches/${session.id}/results`
         : `/projects/matches/${session.id}/questions`);
     } catch (submitError) {
@@ -1087,16 +1139,19 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
   const { matchId } = useParams();
   const navigate = useNavigate();
   const [loadedSession, setLoadedSession] = useState<ProjectMatchSession | null>(null);
+  const [workflow, setWorkflow] = useState<ProjectMatchWorkflow | null>(null);
   const [loading, setLoading] = useState(projects === undefined);
   const [loadError, setLoadError] = useState("");
   const [favorited, setFavorited] = useState(false);
   const [favoritePending, setFavoritePending] = useState(false);
-  const persistedProjects = projects ?? loadedSession?.result?.projects?.map(toDisplayProject) ?? [];
+  const persistedProjects = projects ?? workflow?.generation?.result?.projects?.map(toDisplayProject) ?? loadedSession?.result?.projects?.map(toDisplayProject) ?? [];
   const routeSessionId = Number(matchId);
   const requestedSessionId = Number.isFinite(routeSessionId) && routeSessionId > 0 ? routeSessionId : undefined;
   const persistedSessionId = sessionId ?? loadedSession?.id ?? requestedSessionId;
   const [taskMessage, setTaskMessage] = useState("");
   const [taskError, setTaskError] = useState("");
+  const generation = workflow?.generation;
+  const generationActive = generation?.status === "queued" || generation?.status === "running";
   const matchFacts = loadedSession?.intent
     ? intentFacts([loadedSession.intent, ...(loadedSession.answers ?? []).map((answer) => answer.value)].join(" "))
     : [];
@@ -1106,15 +1161,27 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
     let active = true;
     setLoading(true);
     const request = requestedSessionId
-      ? projectsApi.getMatch(requestedSessionId)
+      ? projectsApi.getProjectMatch(requestedSessionId).then(async (current) => {
+        if (current.status === "clarifying") {
+          navigate(`/projects/matches/${requestedSessionId}/questions`, { replace:true });
+          return null;
+        }
+        if (current.status === "ready" || current.generation?.status === "failed" || current.generation?.status === "canceled") {
+          const nextGeneration = current.status === "ready"
+            ? await projectsApi.generateProjectMatch(requestedSessionId)
+            : current.generation;
+          if (!nextGeneration) return workflowToSession(current);
+          const next = { ...current, status: nextGeneration.status, generation: nextGeneration } as ProjectMatchWorkflow;
+          setWorkflow(next);
+          return workflowToSession(next);
+        }
+        setWorkflow(current);
+        return workflowToSession(current);
+      })
       : projectsApi.listMatches().then((payload) => (payload.matches ?? []).find((item) => item.status === "completed" && (item.result?.projects?.length ?? 0) > 0) ?? null);
     request.then((latest) => {
       if (!active) return;
-      if (requestedSessionId && latest?.status === "needs_input") {
-        navigate(`/projects/matches/${requestedSessionId}/questions`, { replace:true });
-        return;
-      }
-      setLoadedSession(latest && latest.status === "completed" ? latest : null);
+      setLoadedSession(latest);
       setLoadError("");
     }).catch((error) => {
       if (active) setLoadError(apiErrorMessage(error, "暂时无法读取匹配结果"));
@@ -1123,6 +1190,74 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
     });
     return () => { active = false; };
   }, [navigate, projects, requestedSessionId]);
+
+  useEffect(() => {
+    if (!requestedSessionId || !generationActive) return;
+    const controller = new AbortController();
+    let active = true;
+    let lastEventId = 0;
+    const terminal = new Set(["completed", "partial", "failed", "canceled"]);
+    const refresh = async () => {
+      const current = await projectsApi.getProjectMatch(requestedSessionId);
+      if (!active) return current;
+      setWorkflow(current);
+      setLoadedSession(workflowToSession(current));
+      return current;
+    };
+    const poll = async () => {
+      while (active) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        if (!active) return;
+        const current = await refresh();
+        if (current.generation && terminal.has(current.generation.status)) return;
+      }
+    };
+    const connect = async (remainingReconnects: number): Promise<void> => {
+      try {
+        await projectsApi.streamProjectMatch(requestedSessionId, lastEventId, (event) => {
+          lastEventId = Math.max(lastEventId, event.id);
+          void refresh();
+        }, controller.signal);
+        const current = await refresh();
+        if (!active || (current.generation && terminal.has(current.generation.status))) return;
+      } catch {
+        if (!active || controller.signal.aborted) return;
+      }
+      if (remainingReconnects > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+        if (active) await connect(remainingReconnects - 1);
+        return;
+      }
+      if (active) await poll();
+    };
+    void connect(2);
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [generationActive, requestedSessionId]);
+
+  async function retryGeneration() {
+    if (!requestedSessionId) return;
+    setLoadError("");
+    try {
+      const next = await projectsApi.generateProjectMatch(requestedSessionId);
+      setWorkflow((current) => current ? { ...current, status: next.status, generation: next } : current);
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法重试匹配"));
+    }
+  }
+
+  async function cancelGeneration() {
+    if (!requestedSessionId) return;
+    try {
+      const next = await projectsApi.cancelProjectMatch(requestedSessionId);
+      setWorkflow((current) => current ? { ...current, status: next.status, generation: next } : current);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(apiErrorMessage(error, "暂时无法取消匹配"));
+    }
+  }
 
   useEffect(() => {
     if (!persistedSessionId) return;
@@ -1177,7 +1312,22 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
       </div>
       {loading ? <div className="module-empty-state" role="status">正在读取最近一次匹配结果...</div> : null}
       {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
-      {!loading && !loadError && persistedProjects.length === 0 ? (
+      {!loading && generationActive ? (
+        <section className="pm-generation-progress" aria-label="匹配生成进度">
+          <div><strong>{projectGenerationStep(generation?.current_step)}</strong><span>{generation?.progress_percent ?? 0}%</span></div>
+          <progress max="100" value={generation?.progress_percent ?? 0} />
+          <button onClick={() => void cancelGeneration()} type="button">取消生成</button>
+        </section>
+      ) : null}
+      {!loading && (generation?.status === "failed" || generation?.status === "canceled") ? (
+        <section className="pm-generation-progress failed" role="status">
+          <strong>{generation.status === "canceled" ? "本次生成已取消" : "生成未完成"}</strong>
+          <small>{generation.error_code ? `错误码：${generation.error_code}` : "可以从当前持久状态重新开始"}</small>
+          <button onClick={() => void retryGeneration()} type="button">重试生成</button>
+        </section>
+      ) : null}
+      {!loading && generation?.status === "partial" ? <p className="form-warning" role="status">证据不完整，当前结果已标记为部分完成，请优先核对来源。</p> : null}
+      {!loading && !loadError && !generationActive && generation?.status !== "failed" && generation?.status !== "canceled" && persistedProjects.length === 0 ? (
         <div className="module-empty-state" role="status">暂无已完成的匹配结果，请先提交项目匹配需求。</div>
       ) : null}
       {taskMessage ? <p className="form-success" role="status">{taskMessage}</p> : null}
@@ -1217,11 +1367,11 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
           <h2>推荐依据说明</h2>
           <p>以下内容直接来自当前匹配记录，最终仍需结合项目来源逐项验证。</p>
           <div className="pm-reason-evidence">
-            {(persistedProjects[0]?.reasons ?? []).map((reason, index) => (
-              <article key={reason}><b>{index + 1}</b><span>{reason}</span></article>
+            {(generation?.result?.evidence?.slice(0, 4) ?? []).map((evidence, index) => (
+              <article key={`${evidence.source_type}-${evidence.url ?? evidence.source_id ?? index}`}><b>{index + 1}</b><span>{evidence.title} · {Math.round(evidence.quality * 100)}%</span></article>
             ))}
           </div>
-          <small>来源：匹配记录 #{persistedSessionId} · 模型推演内容需结合已发布项目资料验证</small>
+          <small>来源：匹配记录 #{persistedSessionId} · {generation?.result?.evidence?.length ?? 0} 条持久证据</small>
           <Link to={persistedProjects[0]?.opportunitySlug ? `/projects/${persistedProjects[0].opportunitySlug}` : `/projects/matches/${persistedSessionId}`}>查看项目完整拆解</Link>
           {paywallEnabled ? <Link className="pm-unlock-report" to={persistedSessionId ? `/projects/matches/${persistedSessionId}/results/paywall` : "/projects/results/paywall"}>解锁完整报告</Link> : null}
           <button disabled={!persistedSessionId} onClick={() => void generateTasks()} type="button">生成落地任务</button>
