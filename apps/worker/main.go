@@ -99,6 +99,9 @@ func main() {
 	competitor.RegisterWorker(mux, competitorService)
 	sandbox.RegisterWorker(mux, sandboxService)
 	projects.RegisterWorker(mux, projectsService)
+	go projects.RunProjectContentScheduler(context.Background(), projectsService, time.Hour, time.Now, func(err error) {
+		logger.Error("schedule project content production", "error", err)
+	})
 	logger.Info("worker starting", "redis_addr", cfg.RedisAddr)
 	if err := server.Run(mux); err != nil {
 		logger.Error("run worker", "error", err)

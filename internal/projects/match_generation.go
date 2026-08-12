@@ -158,6 +158,7 @@ func (s *Service) ListProjectMatchProgress(ctx context.Context, userID, matchID,
 }
 
 func (s *Service) ProcessProjectMatch(ctx context.Context, userID, matchID int64, attempt int) error {
+	started := s.now()
 	repository, err := s.generationRepository()
 	if err != nil || s.generator == nil {
 		return ErrServiceNotReady
@@ -193,12 +194,14 @@ func (s *Service) ProcessProjectMatch(ctx context.Context, userID, matchID int64
 		if errors.Is(evidenceErr, ErrInsufficientEvidence) && len(bundle.Catalog) > 0 {
 			partial := catalogResult(bundle.Catalog)
 			partial.Status, partial.Evidence, partial.EvidenceStatus = MatchStatusPartial, bundle.Evidence, "insufficient"
+			s.recordMatchAIAnswer(ctx, run, bundle, partial, "partial", started)
 			_, updateErr := repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusPartial, 100, MatchStepPartial, "insufficient_evidence", &partial)
 			if errors.Is(updateErr, ErrStaleMatchGeneration) {
 				return nil
 			}
 			return updateErr
 		}
+		s.recordMatchAIAnswer(ctx, run, bundle, MatchResult{}, "ai_no_result", started)
 		_, _ = repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusFailed, 100, MatchStepError, "insufficient_evidence", nil)
 		return evidenceErr
 	}
@@ -225,6 +228,7 @@ func (s *Service) ProcessProjectMatch(ctx context.Context, userID, matchID int64
 		if len(bundle.Catalog) > 0 {
 			partial := catalogResult(bundle.Catalog)
 			partial.Evidence, partial.EvidenceStatus = bundle.Evidence, "partial"
+			s.recordMatchAIAnswer(ctx, run, bundle, partial, "degraded", started)
 			_, updateErr := repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusPartial, 100, MatchStepPartial, "generation_degraded", &partial)
 			if errors.Is(updateErr, ErrStaleMatchGeneration) {
 				return nil
@@ -236,12 +240,14 @@ func (s *Service) ProcessProjectMatch(ctx context.Context, userID, matchID int64
 	}
 	if bundle.Degraded {
 		result.Status, result.EvidenceStatus = MatchStatusPartial, "partial"
+		s.recordMatchAIAnswer(ctx, run, bundle, result, "partial", started)
 		_, err = repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusPartial, 100, MatchStepPartial, "research_partial", &result)
 		if errors.Is(err, ErrStaleMatchGeneration) {
 			return nil
 		}
 		return err
 	}
+	s.recordMatchAIAnswer(ctx, run, bundle, result, "ok", started)
 	_, err = repository.UpdateMatchGeneration(ctx, userID, matchID, attempt, MatchStatusCompleted, 100, MatchStepDone, "", &result)
 	if errors.Is(err, ErrStaleMatchGeneration) {
 		return nil

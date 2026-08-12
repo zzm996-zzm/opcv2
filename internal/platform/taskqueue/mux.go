@@ -15,6 +15,8 @@ func DefaultRegistry() jobs.Registry {
 		jobs.TypeProjectMatchGenerate: true,
 		jobs.TypeProjectExportRender:  true,
 		jobs.TypeProjectHeatAggregate: true,
+		jobs.TypeProjectKBReindex:     true,
+		jobs.TypeProjectContentBatch:  true,
 	}
 }
 

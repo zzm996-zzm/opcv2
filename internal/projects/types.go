@@ -38,6 +38,8 @@ var (
 	ErrImportBatchNotFound = errors.New("project import batch not found")
 	ErrImportBatchState    = errors.New("invalid project import batch state")
 	ErrPublicationGate     = errors.New("project content publication gate failed")
+	ErrKBReindexNotFound   = errors.New("project kb reindex job not found")
+	ErrInvalidKBReindex    = errors.New("invalid project kb reindex request")
 )
 
 type CreateExportInput struct {

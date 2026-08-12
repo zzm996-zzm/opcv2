@@ -55,6 +55,8 @@ type fakeApplication struct {
 	importBatch        ImportBatch
 	importInput        CreateImportBatchInput
 	operationAudits    []OperationAudit
+	kbReindex          KBReindexJob
+	aiAnswers          []ProjectAIAnswer
 }
 
 func (a *fakeApplication) RecordProjectEvent(_ context.Context, input AnalyticsEventInput) (AnalyticsReceipt, error) {
@@ -80,6 +82,15 @@ func (a *fakeApplication) RollbackImportBatch(context.Context, int64, int64) (Im
 }
 func (a *fakeApplication) ListProjectOperationAudits(context.Context, int64, int) ([]OperationAudit, error) {
 	return a.operationAudits, a.err
+}
+func (a *fakeApplication) RequestProjectKBReindex(context.Context, int64) (KBReindexJob, error) {
+	return a.kbReindex, a.err
+}
+func (a *fakeApplication) GetProjectKBReindex(context.Context, int64, int64) (KBReindexJob, error) {
+	return a.kbReindex, a.err
+}
+func (a *fakeApplication) ListProjectAIAnswers(context.Context, int64, int) ([]ProjectAIAnswer, error) {
+	return a.aiAnswers, a.err
 }
 
 func (a *fakeApplication) GetPublicConfig(context.Context) PublicConfig { return a.publicConfig }
@@ -328,6 +339,29 @@ func TestProjectImportBatchAdminRequired(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "admin_required") {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestProjectKBReindexAndAIAnswersAdminEndpoints(t *testing.T) {
+	app := &fakeApplication{kbReindex: KBReindexJob{ID: 91, Status: OperationsStatusQueued, TargetVersion: 8}, aiAnswers: []ProjectAIAnswer{{ID: 101, Entry: "match", KBVersion: 7, Status: "ok"}}}
+	router := projectAdminTestRouter(app)
+	checks := []struct {
+		method string
+		path   string
+		status int
+		body   string
+	}{
+		{http.MethodPost, "/api/v1/admin/kb/reindex", http.StatusAccepted, `"target_version":8`},
+		{http.MethodGet, "/api/v1/admin/kb/reindex/91", http.StatusOK, `"id":91`},
+		{http.MethodGet, "/api/v1/admin/ai-answers", http.StatusOK, `"kb_version":7`},
+	}
+	for _, check := range checks {
+		request := httptest.NewRequest(check.method, check.path, nil)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != check.status || !strings.Contains(recorder.Body.String(), check.body) {
+			t.Fatalf("%s %s status=%d body=%s", check.method, check.path, recorder.Code, recorder.Body.String())
+		}
 	}
 }
 

@@ -137,12 +137,71 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 
 // RegisterAdmin mounts project content operations. Service methods still verify the admin role.
 func (h *HTTPHandler) RegisterAdmin(router *gin.RouterGroup) {
+	router.POST("/admin/kb/reindex", h.requestProjectKBReindex)
+	router.GET("/admin/kb/reindex/:id", h.getProjectKBReindex)
+	router.GET("/admin/ai-answers", h.listProjectAIAnswers)
 	router.POST("/admin/import-batches", h.createImportBatch)
 	router.GET("/admin/import-batches", h.listImportBatches)
 	router.GET("/admin/import-batches/:id", h.getImportBatch)
 	router.POST("/admin/import-batches/:id/publish", h.publishImportBatch)
 	router.POST("/admin/import-batches/:id/rollback", h.rollbackImportBatch)
 	router.GET("/admin/project-operation-audits", h.listProjectOperationAudits)
+}
+
+func (h *HTTPHandler) projectKBAdminApplication(c *gin.Context) (ProjectKBAdminApplication, bool) {
+	app, ok := h.app.(ProjectKBAdminApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) requestProjectKBReindex(c *gin.Context) {
+	app, ok := h.projectKBAdminApplication(c)
+	if !ok {
+		return
+	}
+	item, err := app.RequestProjectKBReindex(c.Request.Context(), c.GetInt64(auth.UserIDContextKey))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, item)
+}
+
+func (h *HTTPHandler) getProjectKBReindex(c *gin.Context) {
+	app, ok := h.projectKBAdminApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := positivePathID(c, "id", "invalid_kb_reindex_id")
+	if !valid {
+		return
+	}
+	item, err := app.GetProjectKBReindex(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *HTTPHandler) listProjectAIAnswers(c *gin.Context) {
+	app, ok := h.projectKBAdminApplication(c)
+	if !ok {
+		return
+	}
+	limit, valid := positiveQueryInt(c, "limit", 50)
+	if !valid {
+		return
+	}
+	items, err := app.ListProjectAIAnswers(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func (h *HTTPHandler) projectContentAdminApplication(c *gin.Context) (ProjectContentAdminApplication, bool) {
@@ -1219,6 +1278,10 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "invalid_import_batch_state"})
 	case errors.Is(err, ErrPublicationGate):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "publication_gate_failed"})
+	case errors.Is(err, ErrKBReindexNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "kb_reindex_not_found"})
+	case errors.Is(err, ErrInvalidKBReindex):
+		c.JSON(http.StatusConflict, gin.H{"error": "invalid_kb_reindex_state"})
 	case errors.Is(err, ErrServiceNotReady):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
 	case errors.Is(err, ErrInvalidAIResult):

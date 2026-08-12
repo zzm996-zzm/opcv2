@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS project_content_production_runs;
+DROP INDEX IF EXISTS project_ai_response_cache_expiry_idx;
+DROP TABLE IF EXISTS project_ai_response_cache;
+DROP INDEX IF EXISTS project_ai_answers_cache_idx;
+DROP INDEX IF EXISTS project_ai_answers_created_idx;
+DROP TABLE IF EXISTS project_ai_answers;
+DROP TABLE IF EXISTS project_kb_reindex_jobs;
+DROP INDEX IF EXISTS project_kb_documents_search_idx;
+DROP TABLE IF EXISTS project_kb_documents;
+DROP TABLE IF EXISTS project_kb_state;

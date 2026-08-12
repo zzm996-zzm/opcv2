@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -80,27 +79,30 @@ func (r *PostgresRepository) RecalculateProjectHeat(ctx context.Context, project
 
 func (r *PostgresRepository) Search(ctx context.Context, request projectretrieval.SearchRequest) ([]projectretrieval.Document, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT slug, title, summary, industry, tags, budget_band, difficulty, resource_requirements
-		FROM project_opportunities
-		WHERE status = 'published'
-		ORDER BY is_featured DESC, heat DESC, published_at DESC, id ASC
+		SELECT document_id, title, body, metadata
+		FROM project_kb_documents
+		WHERE version = COALESCE(NULLIF($1, '')::INTEGER,
+		                      (SELECT active_version FROM project_kb_state WHERE singleton = TRUE))
+		ORDER BY document_id ASC
 		LIMIT 100
-	`)
+	`, request.KnowledgeBaseVersion)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	documents := make([]projectretrieval.Document, 0)
 	for rows.Next() {
-		var slug, title, summary, industry, budget, difficulty string
-		var tags, resources []string
-		if err := rows.Scan(&slug, &title, &summary, &industry, &tags, &budget, &difficulty, &resources); err != nil {
+		var id, title, body string
+		var metadataBytes []byte
+		if err := rows.Scan(&id, &title, &body, &metadataBytes); err != nil {
+			return nil, err
+		}
+		metadata := map[string]string{}
+		if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
 			return nil, err
 		}
 		documents = append(documents, projectretrieval.Document{
-			ID: slug, Title: title,
-			Text:     strings.Join([]string{summary, industry, strings.Join(tags, " "), budget, difficulty, strings.Join(resources, " ")}, " "),
-			Metadata: map[string]string{"slug": slug, "kind": "project", "knowledge_base_version": request.KnowledgeBaseVersion},
+			ID: id, Title: title, Text: body, Metadata: metadata,
 		})
 	}
 	if err := rows.Err(); err != nil {

@@ -14,6 +14,8 @@ const (
 	TypeProjectMatchGenerate = "projects.match_generate"
 	TypeProjectExportRender  = "projects.export_render"
 	TypeProjectHeatAggregate = "projects.heat_aggregate"
+	TypeProjectKBReindex     = "projects.kb_reindex"
+	TypeProjectContentBatch  = "projects.content_batch"
 )
 
 var (

@@ -41,4 +41,7 @@ func TestDefaultRegistryIncludesKnownJobTypes(t *testing.T) {
 	if !registry[jobs.TypeProjectHeatAggregate] {
 		t.Fatalf("DefaultRegistry() = %+v, want project heat aggregation type", registry)
 	}
+	if !registry[jobs.TypeProjectKBReindex] || !registry[jobs.TypeProjectContentBatch] {
+		t.Fatalf("DefaultRegistry() = %+v, want project operations job types", registry)
+	}
 }

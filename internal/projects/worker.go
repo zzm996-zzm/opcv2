@@ -15,6 +15,8 @@ type ProjectMatchProcessor interface {
 	ProcessProjectMatch(context.Context, int64, int64, int) error
 	ProcessProjectExport(context.Context, int64, int64) error
 	ProcessProjectHeat(context.Context, int64) error
+	ProcessProjectKBReindex(context.Context, int64) error
+	ProcessProjectContentBatch(context.Context, int64) error
 }
 
 type ProjectMatchWorker struct {
@@ -38,6 +40,22 @@ func (w *ProjectMatchWorker) HandleHeat(ctx context.Context, envelope jobs.Envel
 	return w.processor.ProcessProjectHeat(ctx, projectID)
 }
 
+func (w *ProjectMatchWorker) HandleKBReindex(ctx context.Context, envelope jobs.Envelope) error {
+	id, ok := projectMatchJobNumber(envelope.Payload["reindex_id"])
+	if !ok {
+		return ErrInvalidProjectMatchJob
+	}
+	return w.processor.ProcessProjectKBReindex(ctx, id)
+}
+
+func (w *ProjectMatchWorker) HandleContentBatch(ctx context.Context, envelope jobs.Envelope) error {
+	id, ok := projectMatchJobNumber(envelope.Payload["run_id"])
+	if !ok {
+		return ErrInvalidProjectMatchJob
+	}
+	return w.processor.ProcessProjectContentBatch(ctx, id)
+}
+
 func NewProjectMatchWorker(processor ProjectMatchProcessor) *ProjectMatchWorker {
 	return &ProjectMatchWorker{processor: processor}
 }
@@ -57,6 +75,8 @@ func RegisterWorker(mux *asynq.ServeMux, processor ProjectMatchProcessor) {
 	jobs.Register(mux, jobs.Handler{Type: jobs.TypeProjectMatchGenerate, Handle: worker.Handle})
 	jobs.Register(mux, jobs.Handler{Type: jobs.TypeProjectExportRender, Handle: worker.HandleExport})
 	jobs.Register(mux, jobs.Handler{Type: jobs.TypeProjectHeatAggregate, Handle: worker.HandleHeat})
+	jobs.Register(mux, jobs.Handler{Type: jobs.TypeProjectKBReindex, Handle: worker.HandleKBReindex})
+	jobs.Register(mux, jobs.Handler{Type: jobs.TypeProjectContentBatch, Handle: worker.HandleContentBatch})
 }
 
 func projectMatchJobNumber(value any) (int64, bool) {

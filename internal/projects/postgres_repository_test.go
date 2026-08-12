@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	pgxmock "github.com/pashagolub/pgxmock/v4"
 	projectfiles "github.com/zzm/opcv2/internal/projects/files"
+	projectretrieval "github.com/zzm/opcv2/internal/projects/retrieval"
 )
 
 func projectFileRows(now time.Time) *pgxmock.Rows {
@@ -209,6 +210,28 @@ func TestPostgresRepositorySearchesOpportunityKeywordFields(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].Slug != "ai-service" {
 		t.Fatalf("items = %+v", items)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositorySearchUsesVersionedKBDocuments(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	db.ExpectQuery("SELECT document_id, title, body, metadata").WithArgs("7").WillReturnRows(pgxmock.NewRows([]string{
+		"document_id", "title", "body", "metadata",
+	}).AddRow("ai-sales", "AI 销售顾问", "AI 销售 企业获客", []byte(`{"slug":"ai-sales","kind":"project","knowledge_base_version":"7"}`)))
+	repository := NewPostgresRepository(db)
+	documents, err := repository.Search(context.Background(), projectretrieval.SearchRequest{Query: "AI 销售", Limit: 3, KnowledgeBaseVersion: "7"})
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+	if len(documents) != 1 || documents[0].ID != "ai-sales" || documents[0].Metadata["knowledge_base_version"] != "7" {
+		t.Fatalf("documents = %+v", documents)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

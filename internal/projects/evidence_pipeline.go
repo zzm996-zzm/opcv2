@@ -26,6 +26,7 @@ type matchEvidenceBundle struct {
 	Evidence    []MatchEvidence
 	Sufficiency float64
 	Degraded    bool
+	KBVersion   int
 }
 
 func (s *Service) buildMatchEvidence(ctx context.Context, run MatchRun) (matchEvidenceBundle, error) {
@@ -33,7 +34,8 @@ func (s *Service) buildMatchEvidence(ctx context.Context, run MatchRun) (matchEv
 		return matchEvidenceBundle{}, ErrServiceNotReady
 	}
 	query := matchEvidenceQuery(run)
-	documents, err := s.retrieval.Search(ctx, projectretrieval.SearchRequest{Query: query, Limit: 8, KnowledgeBaseVersion: "project_market_v1.4"})
+	kbVersion := s.ActiveProjectKBVersion(ctx)
+	documents, err := s.retrieval.Search(ctx, projectretrieval.SearchRequest{Query: query, Limit: 8, KnowledgeBaseVersion: kbVersionString(kbVersion)})
 	if err != nil {
 		return matchEvidenceBundle{}, err
 	}
@@ -41,7 +43,7 @@ func (s *Service) buildMatchEvidence(ctx context.Context, run MatchRun) (matchEv
 	if err != nil {
 		return matchEvidenceBundle{}, err
 	}
-	bundle := matchEvidenceBundle{Catalog: catalog, Sufficiency: kbSufficiency(documents)}
+	bundle := matchEvidenceBundle{Catalog: catalog, Sufficiency: kbSufficiency(documents), KBVersion: kbVersion}
 	for _, document := range documents {
 		bundle.Evidence = append(bundle.Evidence, MatchEvidence{
 			SourceType: "knowledge_base", SourceID: document.ID, URL: "/projects/" + document.ID,
