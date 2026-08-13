@@ -3,24 +3,18 @@ import { Check } from "lucide-react";
 import type { SandboxRole } from "../../lib/sandboxApi";
 
 const roleArtwork: Record<string, string> = {
-  user: "/sandbox/role-user.jpg",
+  customer: "/sandbox/role-user.jpg",
   investor: "/sandbox/role-investor.jpg",
   channel: "/sandbox/role-channel.jpg",
   competitor: "/sandbox/role-competitor.jpg",
-  operator: "/sandbox/role-operator.jpg"
+  supply: "/sandbox/role-operator.jpg",
+  expert: "/sandbox/role-user.jpg",
+  skeptic: "/sandbox/role-competitor.jpg",
+  partner: "/sandbox/role-channel.jpg"
 };
 
-function sandboxRoleKey(role: Pick<SandboxRole, "key" | "label">) {
-  if (roleArtwork[role.key]) return role.key;
-  if (role.label.includes("投资")) return "investor";
-  if (role.label.includes("代理") || role.label.includes("渠道")) return "channel";
-  if (role.label.includes("竞争")) return "competitor";
-  if (role.label.includes("运营")) return "operator";
-  return "user";
-}
-
-function sandboxRoleArtwork(role: Pick<SandboxRole, "key" | "label">) {
-  return roleArtwork[sandboxRoleKey(role)] ?? roleArtwork.user;
+function sandboxRoleArtwork(role: SandboxRole) {
+  return roleArtwork[role.role_code] ?? roleArtwork.customer;
 }
 
 type SandboxRoleCardProps = {
@@ -35,9 +29,9 @@ function SandboxRoleCard({ compact = false, onToggle, role, selected = false }: 
     <>
       <span className="sb-role-check" aria-hidden="true">{selected ? <Check size={15} strokeWidth={3} /> : null}</span>
       <img alt="" className="sb-role-art" src={sandboxRoleArtwork(role)} />
-      <strong>{role.label}</strong>
+      <strong>{role.display_name}</strong>
       <small>{role.description}</small>
-      {!compact && <em>{role.badge}</em>}
+      {!compact && <em>{role.is_required ? "必须选择" : role.default_selected ? "默认推荐" : "可选角色"}</em>}
     </>
   );
 

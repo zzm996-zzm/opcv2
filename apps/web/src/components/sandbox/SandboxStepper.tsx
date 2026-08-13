@@ -1,16 +1,16 @@
 import { Check } from "lucide-react";
 
-const steps = ["智能补充信息", "选择推演角色", "确认并开始推演"] as const;
+const steps = ["描述", "补充信息", "选择角色", "确认开始"] as const;
 
 type SandboxStepperProps = {
-  active: 1 | 2 | 3;
+  active: 1 | 2 | 3 | 4;
 };
 
 function SandboxStepper({ active }: SandboxStepperProps) {
   return (
     <ol className="sb-stepper" aria-label="推演配置进度">
       {steps.map((label, index) => {
-        const step = (index + 1) as 1 | 2 | 3;
+        const step = (index + 1) as 1 | 2 | 3 | 4;
         const completed = step < active;
         return (
           <li className={step === active ? "is-active" : completed ? "is-complete" : ""} key={label}>
@@ -24,4 +24,3 @@ function SandboxStepper({ active }: SandboxStepperProps) {
 }
 
 export default SandboxStepper;
-

@@ -663,23 +663,15 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <SandboxPage variant="setup" />
+            <SandboxPage variant="new" />
           </RequireAuth>
         }
-        path="/sandbox/setup"
+        path="/sandbox/new"
       />
       <Route
         element={
           <RequireAuth>
-            <SandboxPage variant="roles" />
-          </RequireAuth>
-        }
-        path="/sandbox/roles"
-      />
-      <Route
-        element={
-          <RequireAuth>
-            <SandboxPage variant="start" />
+            <SandboxPage variant="new" />
           </RequireAuth>
         }
         path="/sandbox/start"
@@ -687,18 +679,10 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <SandboxPage variant="questions" />
-          </RequireAuth>
-        }
-        path="/sandbox/questions"
-      />
-      <Route
-        element={
-          <RequireAuth>
             <SandboxPage variant="run" />
           </RequireAuth>
         }
-        path="/sandbox/run"
+        path="/sandbox-runs/:runId"
       />
       <Route
         element={
@@ -706,15 +690,7 @@ function AppRoutes() {
             <SandboxPage variant="report" />
           </RequireAuth>
         }
-        path="/sandbox/report"
-      />
-      <Route
-        element={
-          <RequireAuth>
-            <SandboxPage variant="report" />
-          </RequireAuth>
-        }
-        path="/sandbox/sessions/:sessionId/report"
+        path="/sandbox-runs/:runId/report"
       />
       <Route
         element={

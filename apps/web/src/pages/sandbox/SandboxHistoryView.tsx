@@ -1,118 +1,14 @@
-import { ArrowLeft, ArrowRight, CalendarDays, Crown, FileText, History, RotateCcw, Search, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, FileText, History, Search, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-
 import SandboxFrame from "../../components/sandbox/SandboxFrame";
-import type { SandboxSession } from "../../lib/sandboxApi";
+import { sandboxApi, type SandboxRun, type SandboxRunStatus } from "../../lib/sandboxApi";
 
-type SandboxHistoryViewProps = {
-  examples: SandboxSession[];
-  loading?: boolean;
-  sessions: SandboxSession[];
-};
-
-const pageSize = 7;
-
-function SandboxHistoryView({ examples, loading = false, sessions }: SandboxHistoryViewProps) {
-  const [source, setSource] = useState<"mine" | "examples">("mine");
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-  const [role, setRole] = useState("all");
-  const [dateRange, setDateRange] = useState("all");
-  const [page, setPage] = useState(1);
-  const activeSessions = source === "examples" ? examples : sessions;
-  const roleOptions = useMemo(() => Array.from(new Set(activeSessions.flatMap((session) => session.roles))).sort(), [activeSessions]);
-  const filtered = useMemo(() => activeSessions.filter((session) => {
-    const text = `${session.product} ${session.goal} ${session.target_users}`.toLowerCase();
-    if (query.trim() && !text.includes(query.trim().toLowerCase())) return false;
-    if (status !== "all" && session.status !== status) return false;
-    if (role !== "all" && !session.roles.includes(role)) return false;
-    if (dateRange !== "all") {
-      const age = Date.now() - new Date(session.created_at).getTime();
-      const days = age / 86_400_000;
-      if (dateRange === "7" && days > 7) return false;
-      if (dateRange === "30" && days > 30) return false;
-      if (dateRange === "90" && days > 90) return false;
-    }
-    return true;
-  }), [activeSessions, dateRange, query, role, status]);
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, pageCount);
-  const rows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-
-  useEffect(() => {
-    if (!loading && sessions.length === 0 && examples.length > 0) setSource("examples");
-  }, [examples.length, loading, sessions.length]);
-
-  function changeSource(next: "mine" | "examples") {
-    setSource(next);
-    setPage(1);
-    setQuery("");
-    setStatus("all");
-    setRole("all");
-    setDateRange("all");
-  }
-
-  function reset() {
-    setQuery("");
-    setStatus("all");
-    setRole("all");
-    setDateRange("all");
-    setPage(1);
-  }
-
-  return (
-    <SandboxFrame copilotMode="history">
-      <header className="sb-history-heading"><div className="sb-breadcrumb"><Link to="/sandbox">商业沙盘</Link><span>/</span><strong>历史推演</strong><small>查看与管理你过往的商业沙盘推演记录</small></div></header>
-      <section className="sb-history-notice">
-        <span><History size={22} /></span>
-        <div><strong>历史记录管理说明</strong><p>推演记录来自你的真实沙盘会话。可按项目、状态、角色和创建时间筛选。</p></div>
-        <Link to="/membership/upgrade"><Crown size={16} />升级会员，保留更多记录</Link>
-      </section>
-      <div className="sb-history-source" role="tablist" aria-label="记录来源">
-        <button aria-selected={source === "mine"} className={source === "mine" ? "is-active" : ""} onClick={() => changeSource("mine")} role="tab" type="button">我的记录 <span>{sessions.length}</span></button>
-        <button aria-selected={source === "examples"} className={source === "examples" ? "is-active" : ""} onClick={() => changeSource("examples")} role="tab" type="button">示例记录 <span>{examples.length}</span></button>
-        {source === "examples" ? <p>以下内容由沙盘示例接口返回，仅用于体验页面和报告结构。</p> : null}
-      </div>
-      <section className="sb-history-filters" aria-label="历史推演筛选">
-        <label className="sb-search-field"><Search size={16} /><input aria-label="搜索项目名称或关键词" onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="搜索项目名称 / 关键词" value={query} /></label>
-        <label><span>状态</span><select aria-label="全部状态" onChange={(event) => { setStatus(event.target.value); setPage(1); }} value={status}><option value="all">全部状态</option><option value="completed">已完成</option><option value="running">进行中</option><option value="queued">等待执行</option><option value="draft">草稿</option><option value="failed">失败</option><option value="canceled">已取消</option></select></label>
-        <label><span>参与角色</span><select aria-label="全部角色" onChange={(event) => { setRole(event.target.value); setPage(1); }} value={role}><option value="all">全部角色</option>{roleOptions.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label><CalendarDays size={15} /><select aria-label="选择时间范围" onChange={(event) => { setDateRange(event.target.value); setPage(1); }} value={dateRange}><option value="all">选择时间范围</option><option value="7">最近 7 天</option><option value="30">最近 30 天</option><option value="90">最近 90 天</option></select></label>
-        <button onClick={reset} type="button"><RotateCcw size={15} />重置筛选</button>
-      </section>
-      <section className="sb-history-table">
-        <header><span>项目名称 / 描述</span><span>参与角色</span><span>推演时间</span><span>状态</span><span>综合评分</span><span>风险等级</span><span>操作</span></header>
-        {loading ? <div className="sb-table-state"><Sparkles size={20} />正在读取推演记录...</div> : rows.length ? rows.map((session) => <HistoryRow key={session.id} session={session} />) : <div className="sb-table-state"><FileText size={22} /><strong>没有符合条件的推演记录</strong><span>调整筛选条件，或开始一轮新的商业沙盘。</span><Link to="/sandbox">开始新推演<ArrowRight size={15} /></Link></div>}
-      </section>
-      <footer className="sb-history-pagination">
-        <span>共 {filtered.length} 条</span>
-        <div><button aria-label="上一页" disabled={safePage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} type="button"><ArrowLeft size={16} /></button><b>{safePage}</b><button aria-label="下一页" disabled={safePage >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} type="button"><ArrowRight size={16} /></button></div>
-        <span>{pageSize} 条 / 页</span>
-      </footer>
-    </SandboxFrame>
-  );
+export default function SandboxHistoryView() {
+  const [runs, setRuns] = useState<SandboxRun[]>([]); const [page, setPage] = useState(1); const [status, setStatus] = useState<"" | SandboxRunStatus>(""); const [product, setProduct] = useState(""); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  useEffect(() => { let active = true; const timer = window.setTimeout(() => { setLoading(true); void sandboxApi.listRuns({ page, limit: 20, status: status || undefined, product }).then((payload) => { if (active) setRuns(payload.runs ?? []); }).catch((requestError) => { if (active) setError(requestError instanceof Error ? requestError.message : "历史记录加载失败。"); }).finally(() => { if (active) setLoading(false); }); }, 150); return () => { active = false; window.clearTimeout(timer); }; }, [page, product, status]);
+  return <SandboxFrame copilotMode="history"><header className="sb-history-heading"><div className="sb-breadcrumb"><Link to="/sandbox">商业沙盘</Link><span>/</span><strong>历史推演</strong><small>全部记录不限条数、不限时长</small></div></header><section className="sb-history-notice"><span><History size={22} /></span><div><strong>服务端历史记录</strong><p>筛选、分页和状态均来自 V1.2 接口，不会锁定旧记录。</p></div><Link to="/sandbox">开始新推演</Link></section><section className="sb-history-filters"><label className="sb-search-field"><Search size={16} /><input aria-label="搜索产品名称" onChange={(event) => { setProduct(event.target.value); setPage(1); }} placeholder="搜索产品名称" value={product} /></label><label><span>状态</span><select aria-label="全部状态" onChange={(event) => { setStatus(event.target.value as "" | SandboxRunStatus); setPage(1); }} value={status}><option value="">全部状态</option><option value="done">已完成</option><option value="partial">部分完成</option><option value="running">推演中</option><option value="ready">准备就绪</option><option value="clarifying">补充信息</option><option value="failed">失败</option></select></label></section><section className="sb-history-table"><header><span>项目名称</span><span>参与角色</span><span>推演时间</span><span>状态</span><span>可行性</span><span>消费概率</span><span>操作</span></header>{loading ? <div className="sb-table-state"><Sparkles size={20} />正在读取推演记录...</div> : runs.length ? runs.map((run) => <HistoryRow key={run.id} run={run} />) : <div className="sb-table-state"><FileText size={22} /><strong>没有符合条件的推演记录</strong><span>调整筛选条件，或开始一轮新的商业沙盘。</span><Link to="/sandbox">开始新推演<ArrowRight size={15} /></Link></div>}</section><footer className="sb-history-pagination"><button aria-label="上一页" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} type="button"><ArrowLeft size={16} /></button><b>{page}</b><button aria-label="下一页" disabled={runs.length < 20} onClick={() => setPage((value) => value + 1)} type="button"><ArrowRight size={16} /></button></footer>{error ? <p className="sb-inline-error" role="alert">{error}</p> : null}</SandboxFrame>;
 }
-
-function HistoryRow({ session }: { session: SandboxSession }) {
-  const report = session.report;
-  const score = report?.score ? report.score.toFixed(1) : "--";
-  const href = sessionHref(session);
-  return <article><div className="sb-history-project"><span aria-hidden="true">{session.product?.slice(0, 1) || "沙"}</span><div><strong>{session.product || session.goal}</strong><small>{session.goal}</small></div></div><div className="sb-history-roles">{session.roles.slice(0, 3).map((item) => <em key={item}>{shortRole(item)}</em>)}{session.roles.length > 3 && <b>+{session.roles.length - 3}</b>}</div><time>{formatDate(session.created_at)}</time><span className={`sb-status-pill is-${session.status}`}>{statusLabel(session.status)}</span><strong className="sb-history-score">{score === "--" ? score : `★ ${score}`}</strong><span className={`sb-risk-badge is-${report?.risk_level || "unknown"}`}>{riskLabel(report?.risk_level)}</span><Link to={href}>{session.status === "completed" ? "查看报告" : "继续处理"}</Link></article>;
-}
-
-function sessionHref(session: SandboxSession) {
-  if (session.is_example && session.example_key) return `/sandbox/report?example=${encodeURIComponent(session.example_key)}`;
-  if (session.status === "completed") return `/sandbox/sessions/${session.id}/report`;
-  if (session.status === "queued" || session.status === "running" || session.status === "failed" || session.status === "canceled") return `/sandbox/run?session=${session.id}`;
-  if (session.intake?.status === "questions") return `/sandbox/questions?session=${session.id}`;
-  if (!session.roles.length) return `/sandbox/roles?session=${session.id}`;
-  return `/sandbox/start?session=${session.id}`;
-}
-
-function shortRole(value: string) { return value.replace("视角", "").replace("代理商 / 渠道方", "渠道"); }
+function HistoryRow({ run }: { run: SandboxRun }) { const terminal = ["done", "partial"].includes(run.status); const href = terminal ? `/sandbox-runs/${run.id}/report` : run.status === "running" || run.status === "failed" ? `/sandbox-runs/${run.id}` : `/sandbox/new?run=${run.id}&step=${run.status === "clarifying" ? 2 : 3}`; return <article><div className="sb-history-project"><span>{run.product.name.slice(0, 1) || "沙"}</span><div><strong>{run.name || run.product.name}</strong><small>{run.product.selling_point || run.context.target_customer || "待补充"}</small></div></div><div className="sb-history-roles"><em>{run.roles.length} 个角色</em></div><time>{formatDate(run.created_at)}</time><span className={`sb-status-pill is-${run.status}`}>{statusLabel(run.status)}</span><strong className="sb-history-score">{run.report ? run.report.feasibility.score : "--"}</strong><span>{run.report ? `${run.report.purchase_probability.value_pct}%` : "--"}</span><Link to={href}>{terminal ? "查看报告" : "继续处理"}</Link></article>; }
+function statusLabel(value: SandboxRunStatus) { return ({ draft: "草稿", clarifying: "补充信息", ready: "准备就绪", running: "推演中", partial: "部分完成", done: "已完成", failed: "失败", ai_no_result: "无有效结果" } as const)[value]; }
 function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false, month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }); }
-function statusLabel(value: SandboxSession["status"]) { return ({ draft: "草稿", queued: "等待", running: "进行中", completed: "已完成", failed: "失败", canceled: "已取消" } as const)[value]; }
-function riskLabel(value?: string) { return value === "high" ? "较高" : value === "low" ? "较低" : value === "medium" ? "中等" : "待评估"; }
-
-export default SandboxHistoryView;

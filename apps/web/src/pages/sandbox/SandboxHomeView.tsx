@@ -2,18 +2,18 @@ import { ArrowRight, History, Search } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
-import type { SandboxSession } from "../../lib/sandboxApi";
+import type { SandboxRun } from "../../lib/sandboxApi";
 import SandboxFrame from "../../components/sandbox/SandboxFrame";
 
 type SandboxHomeViewProps = {
-  onCreate: (initialIdea: string) => Promise<SandboxSession>;
+  onCreate: (initialIdea: string) => Promise<SandboxRun>;
 };
 
 const pillars = [
-  { title: "多角色推演", detail: "五大核心视角全面洞察", artwork: "/sandbox/pillar-roles.jpg" },
-  { title: "机会与风险识别", detail: "推演发现关键影响因素", artwork: "/sandbox/pillar-risks.jpg" },
-  { title: "科学决策支持", detail: "数据驱动更优决策", artwork: "/sandbox/pillar-decisions.jpg" },
-  { title: "推演历史沉淀", detail: "复盘迭代持续优化", artwork: "/sandbox/pillar-history.jpg" }
+  { title: "八角色独立推演", detail: "每个角色拥有隔离的分析会话", artwork: "/sandbox/pillar-roles.jpg" },
+  { title: "风险预警", detail: "强制加入悲观者检验关键假设", artwork: "/sandbox/pillar-risks.jpg" },
+  { title: "消费概率估算", detail: "明确标注模型推演与判断依据", artwork: "/sandbox/pillar-decisions.jpg" },
+  { title: "可执行建议", detail: "报告可转任务与增长测算输入", artwork: "/sandbox/pillar-history.jpg" }
 ];
 
 function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
@@ -47,7 +47,7 @@ function SandboxHomeView({ onCreate }: SandboxHomeViewProps) {
           <div className="sb-home-copy">
             <h1>商业沙盘</h1>
             <h2>多角色模拟未来，推演不同视角，判断项目机会与风险</h2>
-            <p>从用户、竞争、运营、增长到风险，多维度模拟真实世界的商业逻辑，助力科学决策。</p>
+            <p>客户、投资、竞争、渠道、供应、行业、反方和合伙视角彼此隔离分析，再由独立报告会话汇总共识与分歧。</p>
           </div>
           <img alt="多角色商业沙盘" className="sb-home-art" src="/sandbox/home-hero.png" />
           <form className="sb-home-start" onSubmit={submit}>

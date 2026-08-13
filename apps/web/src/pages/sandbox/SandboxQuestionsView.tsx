@@ -1,131 +1,53 @@
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Edit3, Lightbulb, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleHelp, Lightbulb, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import SandboxFrame from "../../components/sandbox/SandboxFrame";
 import SandboxStepper from "../../components/sandbox/SandboxStepper";
-import type { SandboxSession } from "../../lib/sandboxApi";
+import type { SandboxRun } from "../../lib/sandboxApi";
 
-type SandboxQuestionsViewProps = {
-  onComplete: () => Promise<SandboxSession>;
-  onFinished: (session: SandboxSession) => void;
-  onSave: (questionKey: string, answer: string, skipped: boolean) => Promise<SandboxSession>;
-  session: SandboxSession;
-};
+type Props = { onAnswer: (input: { revision: number; answers?: { key: string; value: string; skipped?: boolean }[]; skip?: boolean }) => Promise<SandboxRun>; onFinished: (run: SandboxRun) => void; run: SandboxRun };
 
-function SandboxQuestionsView({ onComplete, onFinished, onSave, session }: SandboxQuestionsViewProps) {
-  const questions = useMemo(() => session.intake?.questions ?? [], [session.intake?.questions]);
-  const initialIndex = useMemo(() => {
-    const firstOpen = questions.findIndex((question) => !question.answer && !question.skipped);
-    return firstOpen >= 0 ? firstOpen : Math.max(questions.length - 1, 0);
-  }, [questions]);
-  const [index, setIndex] = useState(initialIndex);
-  const [answer, setAnswer] = useState(questions[initialIndex]?.answer ?? "");
+function SandboxQuestionsView({ onAnswer, onFinished, run }: Props) {
+  const questions = useMemo(() => run.next_questions?.length ? run.next_questions : run.questions ?? [], [run.next_questions, run.questions]);
+  const [index, setIndex] = useState(0);
+  const current = questions[index];
+  const [answer, setAnswer] = useState(current?.answer ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const current = questions[index];
-  const answeredCount = questions.filter((question) => question.answer || question.skipped).length;
-  const progress = questions.length ? Math.round((answeredCount / questions.length) * 100) : 0;
 
-  useEffect(() => {
-    setAnswer(current?.answer ?? "");
-  }, [current?.answer, current?.key]);
+  useEffect(() => setAnswer(current?.answer ?? ""), [current?.key, current?.answer]);
 
   async function persist(skipped: boolean) {
     if (!current || saving) return;
-    const value = answer.trim();
-    if (current.required && !skipped && !value) {
-      setError("请回答当前问题，或选择暂时不清楚继续。");
-      return;
-    }
-    setSaving(true);
-    setError("");
+    if (!skipped && current.required && !answer.trim()) { setError("请回答当前问题，或选择跳过并记录假设。"); return; }
+    setSaving(true); setError("");
     try {
-      const updated = await onSave(current.key, skipped ? "" : value, skipped);
-      const last = index >= questions.length - 1;
-      if (!last) {
-        setIndex((valueIndex) => valueIndex + 1);
-        return;
-      }
-      const completed = await onComplete();
-      onFinished(completed ?? updated);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "答案保存失败，请稍后重试。");
-    } finally {
-      setSaving(false);
-    }
+      const updated = await onAnswer({ revision: run.revision, answers: [{ key: current.key, value: skipped ? "" : answer.trim(), skipped }] });
+      if (index < questions.length - 1 && updated.status === "clarifying") setIndex((value) => value + 1);
+      else onFinished(updated);
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "答案保存失败，请稍后重试。"); }
+    finally { setSaving(false); }
   }
 
-  if (!current) {
-    return (
-      <SandboxFrame copilotMode="questions" copilotProgress={100} copilotProject={session.intake?.initial_idea}>
-        <SandboxStepper active={1} />
-        <section className="sb-empty-panel">
-          <Sparkles size={28} />
-          <h1>关键信息已经整理完成</h1>
-          <p>当前会话没有待回答问题，可以直接查看信息摘要。</p>
-          <button onClick={async () => onFinished(await onComplete())} type="button">查看信息摘要<ArrowRight size={17} /></button>
-        </section>
-      </SandboxFrame>
-    );
+  async function skipAll() {
+    if (saving) return;
+    setSaving(true); setError("");
+    try { onFinished(await onAnswer({ revision: run.revision, skip: true })); }
+    catch (requestError) { setError(requestError instanceof Error ? requestError.message : "跳过澄清失败，请稍后重试。"); }
+    finally { setSaving(false); }
   }
 
-  return (
-    <SandboxFrame copilotMode="questions" copilotProgress={progress} copilotProject={session.intake?.initial_idea}>
-      <SandboxStepper active={1} />
-      <section className="sb-work-panel sb-question-panel">
-        <header className="sb-panel-header">
-          <div className="sb-heading-with-icon">
-            <span><Sparkles size={18} /></span>
-            <div><h1>推演发起配置</h1><small>AI 动态提问中</small></div>
-          </div>
-          <button type="button"><Edit3 size={15} />编辑初始设想</button>
-        </header>
-        <p className="sb-panel-intro">已识别你提供的初步想法，以下问题将帮助建立更准确的沙盘模型。每次回答都会自动保存。</p>
-        <article className="sb-initial-idea-card">
-          <strong>你的初步想法</strong>
-          <p>{session.intake?.initial_idea || session.goal}</p>
-        </article>
-        {session.intake?.recognized_fields?.length ? (
-          <section className="sb-recognized-grid" aria-label="AI 已识别的信息">
-            {session.intake.recognized_fields.map((field) => (
-              <article key={field.key}>
-                <span><Check size={13} strokeWidth={3} /></span>
-                <small>{field.label}</small>
-                <strong>{field.value}</strong>
-              </article>
-            ))}
-          </section>
-        ) : null}
-        <section className="sb-question-focus">
-          <div className="sb-question-counter">
-            <strong>第 {index + 1} 题 / 共 {questions.length} 题</strong>
-            <span><CircleHelp size={14} />{current.required ? "必填" : "可跳过"}</span>
-          </div>
-          <h2>{current.title}</h2>
-          <p>{current.hint}</p>
-          <textarea
-            aria-label={current.title}
-            maxLength={current.max_length || 1500}
-            onChange={(event) => setAnswer(event.target.value)}
-            placeholder={current.placeholder}
-            value={answer}
-          />
-          <div className="sb-answer-meta">
-            <span><Lightbulb size={15} />不确定也没关系，可以先留空继续，稍后返回修改。</span>
-            <b>{answer.length}/{current.max_length || 1500}</b>
-          </div>
-          <footer>
-            <button disabled={index === 0 || saving} onClick={() => setIndex((value) => Math.max(0, value - 1))} type="button"><ArrowLeft size={17} />上一题</button>
-            <button className="is-secondary" disabled={saving} onClick={() => void persist(true)} type="button">暂时不清楚，留空继续</button>
-            <button className="is-primary" disabled={saving || (current.required && !answer.trim())} onClick={() => void persist(false)} type="button">
-              {saving ? "保存中..." : index === questions.length - 1 ? "完成并查看摘要" : "下一题"}<ArrowRight size={18} />
-            </button>
-          </footer>
-          {error ? <p className="sb-inline-error" role="alert">{error}</p> : null}
-        </section>
-      </section>
-    </SandboxFrame>
-  );
+  if (!current) return <SandboxFrame copilotMode="questions"><SandboxStepper active={2} /><section className="sb-empty-panel"><Sparkles size={28} /><h1>信息已经整理完成</h1><p>当前没有待回答的澄清问题，可以继续选择角色。</p><button onClick={() => onFinished(run)} type="button">继续<ArrowRight size={17} /></button></section></SandboxFrame>;
+
+  return <SandboxFrame copilotMode="questions" copilotProgress={run.completeness * 100} copilotProject={run.product.name}>
+    <SandboxStepper active={2} />
+    <section className="sb-work-panel sb-question-panel">
+      <header className="sb-panel-header"><div className="sb-heading-with-icon"><span><Sparkles size={18} /></span><div><h1>补充关键信息</h1><small>每轮最多 3 个问题，回答会自动保存</small></div></div><span className="sb-selected-count">完成度 {Math.round(run.completeness * 100)}%</span></header>
+      <p className="sb-panel-intro">已识别“{run.product.name}”，补充的信息会冻结到本轮推演上下文中。</p>
+      <article className="sb-initial-idea-card"><strong>当前项目</strong><p>{run.product.name}{run.product.selling_point ? `：${run.product.selling_point}` : ""}</p></article>
+      <section className="sb-question-focus"><div className="sb-question-counter"><strong>第 {index + 1} 题 / 本轮 {questions.length} 题</strong><span><CircleHelp size={14} />{current.required ? "必填" : "可跳过"}</span></div><h2>{current.question}</h2><p>字段：{current.field}</p><textarea aria-label={current.question} onChange={(event) => setAnswer(event.target.value)} placeholder="填写你确定的信息；不确定可以跳过" value={answer} /><div className="sb-answer-meta"><span><Lightbulb size={15} />跳过会作为明确假设写入报告。</span><b>{answer.length}/1500</b></div><footer><button disabled={index === 0 || saving} onClick={() => setIndex((value) => Math.max(0, value - 1))} type="button"><ArrowLeft size={17} />上一题</button><button className="is-secondary" disabled={saving} onClick={() => void persist(true)} type="button">跳过本题</button><button className="is-primary" disabled={saving} onClick={() => void persist(false)} type="button">{saving ? "保存中..." : index === questions.length - 1 ? "完成补充" : "下一题"}<ArrowRight size={18} /></button></footer><button className="sb-quiet-button" disabled={saving} onClick={() => void skipAll()} type="button">跳过全部并进入角色选择</button>{error ? <p className="sb-inline-error" role="alert">{error}</p> : null}</section>
+    </section>
+  </SandboxFrame>;
 }
 
 export default SandboxQuestionsView;
