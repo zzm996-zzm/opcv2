@@ -22,6 +22,7 @@
 .public-profile-shell:has(.content-record-card) .profile-content {
   width: 100%;
   min-width: 0;
+  container: profile-content / inline-size;
 }
 
 .public-profile-shell:has(.content-record-card) .content-record-card {
@@ -71,14 +72,19 @@
   gap: 12px;
 }
 
+.public-profile-shell:has(.content-record-card) .content-filter-row .date-range {
+  white-space: nowrap;
+}
+
 .public-profile-shell:has(.content-record-card) .content-record-list {
   padding: 0;
-  grid-template-rows: repeat(5, 88px);
+  grid-template-rows: none;
+  grid-auto-rows: minmax(88px, auto);
 }
 
 .public-profile-shell:has(.content-record-card) .content-record-list article {
   grid-template-columns: 72px minmax(0, 1fr) 84px 112px 40px 86px 18px;
-  height: 88px;
+  height: auto;
   min-height: 88px;
   gap: 16px;
 }
@@ -236,11 +242,58 @@
   margin: 8px 16px 12px;
 }
 
-@media (max-width: 1180px) {
-  .public-profile-shell:has(.content-record-card) .v4-page-main {
-    padding: 28px 24px 48px;
+@container profile-content (max-width: 900px) {
+  .content-filter-row {
+    grid-template-columns: 132px 148px minmax(220px, 1fr);
+    gap: 12px;
   }
 
+  .content-filter-row label {
+    grid-column: 1 / -1;
+  }
+
+  .content-record-list article {
+    grid-template-columns: 56px minmax(0, 1fr) 72px 92px 32px 72px 12px;
+    gap: 10px;
+  }
+
+  .content-record-list h2 {
+    font-size: 15px;
+  }
+
+  .content-record-list p,
+  .content-record-list small,
+  .content-record-list time {
+    font-size: 12px;
+  }
+
+  .content-record-list b {
+    padding: 4px 9px;
+    font-size: 12px;
+  }
+
+  .content-record-list a {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 1599px) {
+  .public-profile-shell:has(.content-record-card) .v4-page-main {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+
+  .public-profile-shell:has(.content-record-card) .profile-layout.content-mode {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 24px;
+  }
+
+  .public-profile-shell:has(.content-record-card) .profile-content-copilot {
+    width: 280px;
+  }
+}
+
+@media (max-width: 1400px) {
   .public-profile-shell:has(.content-record-card) .profile-layout.content-mode {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -250,27 +303,99 @@
   }
 }
 
+@media (max-width: 1180px) {
+  .public-profile-shell:has(.content-record-card) .v4-page-main {
+    padding: 28px 24px 48px;
+  }
+}
+
 @media (max-width: 760px) {
-  .public-profile-shell:has(.content-record-card) .content-filter-row {
+  .public-profile-shell:has(.content-record-card) .v4-page-main {
+    padding: 22px 16px 36px;
+  }
+
+  .public-profile-shell:has(.content-record-card) .profile-page .page-title-row {
+    min-height: 60px;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-card {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-tabs {
+    height: auto;
+    min-height: 0;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .public-profile-shell:has(.content-record-card) .content-tabs button {
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-filter-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 16px 0;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-filter-row .date-range,
   .public-profile-shell:has(.content-record-card) .content-filter-row label {
     grid-column: 1 / -1;
   }
 
   .public-profile-shell:has(.content-record-card) .content-record-list article {
     grid-template-columns: 48px minmax(0, 1fr) auto;
-    gap: 10px;
-    padding: 12px 0;
+    grid-template-rows: auto auto auto;
+    min-height: 0;
+    gap: 8px 12px;
+    padding: 14px 0;
   }
 
-  .public-profile-shell:has(.content-record-card) .content-record-list article > b,
-  .public-profile-shell:has(.content-record-card) .content-record-list article > time,
-  .public-profile-shell:has(.content-record-card) .content-record-list article > button,
-  .public-profile-shell:has(.content-record-card) .content-record-list article > a,
-  .public-profile-shell:has(.content-record-card) .content-record-list article > span:last-child {
+  .public-profile-shell:has(.content-record-card) .content-record-list article > .content-icon {
+    grid-row: 1 / span 3;
+    align-self: start;
+    margin-top: 2px;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-list article > div {
     grid-column: 2 / -1;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-list article > b {
+    grid-row: 2;
+    grid-column: 2;
     justify-self: start;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-list article > time {
+    grid-row: 2;
+    grid-column: 3;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-list article > button {
+    grid-row: 3;
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-list article > a {
+    grid-row: 3;
+    grid-column: 3;
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-record-list article > span:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .public-profile-shell:has(.content-record-card) .content-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-profile-shell:has(.content-record-card) .content-filter-row .date-range,
+  .public-profile-shell:has(.content-record-card) .content-filter-row label {
+    grid-column: 1;
   }
 }
