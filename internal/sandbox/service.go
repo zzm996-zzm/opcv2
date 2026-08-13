@@ -77,13 +77,14 @@ type V2PDFRenderer func(run V2SandboxRun) ([]byte, error)
 type Option func(*Service)
 
 type Service struct {
-	repository Repository
-	generator  JSONGenerator
-	quota      QuotaConsumer
-	queue      Queue
-	profile    ProfileContextProvider
-	renderPDF  V2PDFRenderer
-	now        func() time.Time
+	repository  Repository
+	generator   JSONGenerator
+	quota       QuotaConsumer
+	queue       Queue
+	profile     ProfileContextProvider
+	taskCreator SandboxTaskCreator
+	renderPDF   V2PDFRenderer
+	now         func() time.Time
 }
 
 func NewService(repository Repository, generator JSONGenerator, options ...Option) *Service {
@@ -116,6 +117,10 @@ func WithQueue(queue Queue) Option {
 	return func(service *Service) {
 		service.queue = queue
 	}
+}
+
+func WithTaskCreator(creator SandboxTaskCreator) Option {
+	return func(service *Service) { service.taskCreator = creator }
 }
 
 func (s *Service) CreateSession(ctx context.Context, input CreateInput) (Session, error) {

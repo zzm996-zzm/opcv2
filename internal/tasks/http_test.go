@@ -40,9 +40,27 @@ type fakeApplication struct {
 	batchCount      int
 }
 
+func (a *fakeApplication) CreateTasks(_ context.Context, input BatchCreateInput) ([]Task, error) {
+	a.userID = input.UserID
+	a.tasks = []Task{{ID: 101, UserID: input.UserID, Title: input.Tasks[0].Title}}
+	return a.tasks, a.err
+}
+
 func (a *fakeApplication) CreateTask(_ context.Context, input CreateInput) (Task, error) {
 	a.input = input
 	return a.task, a.err
+}
+
+func TestCreateTaskBatchEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/batch", strings.NewReader(`{"tasks":[{"title":"访谈十家门店","project":"AI运营","priority":"high","source_type":"sandbox_session","source_id":99,"source_title":"AI运营沙盘","source_url":"/sandbox-runs/99/report"}]}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusCreated || app.userID != 42 || !strings.Contains(recorder.Body.String(), `"id":101`) {
+		t.Fatalf("status/app/body=%d/%+v/%s", recorder.Code, app, recorder.Body.String())
+	}
 }
 
 func (a *fakeApplication) GenerateTasks(_ context.Context, input GenerateTasksInput) (GenerateTasksResult, error) {

@@ -170,12 +170,12 @@ export type SandboxFollowUp = {
 };
 
 export type SandboxTaskHandoff = {
-  tasks: { id: number; title: string; source_type: "sandbox_session"; source_id: string }[];
+  tasks: { id: number; title: string; source_type: "sandbox_session"; source_id: number }[];
 };
 
 export type SandboxGrowthHandoff = {
   url: string;
-  pricing?: number;
+  pricing_cents?: number;
   channel?: string;
 };
 

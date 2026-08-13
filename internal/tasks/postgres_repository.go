@@ -43,8 +43,10 @@ func createTask(ctx context.Context, writer taskWriter, task Task) (Task, error)
 		return Task{}, err
 	}
 	err = writer.QueryRow(ctx, `
-		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
+		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, idempotency_key, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
+		ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key <> ''
+		DO UPDATE SET updated_at = tasks.updated_at
 		RETURNING id, created_at, updated_at
 	`,
 		task.UserID,
@@ -62,6 +64,7 @@ func createTask(ctx context.Context, writer taskWriter, task Task) (Task, error)
 		task.SourceID,
 		task.SourceTitle,
 		task.SourceURL,
+		task.IdempotencyKey,
 		task.CreatedAt,
 	).Scan(&task.ID, &task.CreatedAt, &task.UpdatedAt)
 	return task, err

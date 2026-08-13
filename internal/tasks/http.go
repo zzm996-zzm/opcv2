@@ -43,6 +43,7 @@ func NewHTTPHandler(app Application) *HTTPHandler {
 
 func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/tasks", h.createTask)
+	router.POST("/tasks/batch", h.createTaskBatch)
 	router.POST("/tasks/generate", h.generateTasks)
 	router.GET("/tasks", h.listTasks)
 	router.GET("/tasks/stats", h.taskStats)
@@ -60,6 +61,46 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/:id/reminder", h.getTaskReminder)
 	router.PUT("/tasks/:id/reminder", h.upsertTaskReminder)
 	router.DELETE("/tasks/:id/reminder", h.deleteTaskReminder)
+}
+
+func (h *HTTPHandler) createTaskBatch(c *gin.Context) {
+	var request BatchCreateInput
+	if err := c.ShouldBindJSON(&request); err != nil || len(request.Tasks) == 0 || len(request.Tasks) > 20 {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	if request.UserID <= 0 {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	for index := range request.Tasks {
+		item := &request.Tasks[index]
+		item.Title = strings.TrimSpace(item.Title)
+		item.Description = strings.TrimSpace(item.Description)
+		item.Assignee = strings.TrimSpace(item.Assignee)
+		item.Project = strings.TrimSpace(item.Project)
+		item.SourceType = strings.TrimSpace(item.SourceType)
+		item.SourceTitle = strings.TrimSpace(item.SourceTitle)
+		item.SourceURL = strings.TrimSpace(item.SourceURL)
+		if !validCreateInput(*item) {
+			httpapi.BadRequest(c, "invalid_request")
+			return
+		}
+	}
+	creator, ok := h.app.(interface {
+		CreateTasks(context.Context, BatchCreateInput) ([]Task, error)
+	})
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	created, err := creator.CreateTasks(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"tasks": httpapi.EnsureSlice(created)})
 }
 
 func (h *HTTPHandler) batchUpdateTaskStatus(c *gin.Context) {

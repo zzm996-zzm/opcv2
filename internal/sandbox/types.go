@@ -584,6 +584,10 @@ type CreateV2ExportInput struct {
 	Format string `json:"format"`
 }
 
+type SandboxTaskHandoffInput struct { UserID int64 `json:"-"`; RunID int64 `json:"-"`; AdviceIndexes []int `json:"advice_indexes"` }
+type SandboxTaskHandoffResult struct { Tasks []map[string]any `json:"tasks"` }
+type SandboxGrowthHandoff struct { URL string `json:"url"`; PricingCents int64 `json:"pricing_cents,omitempty"`; Channel string `json:"channel,omitempty"` }
+
 type ReportInsight struct {
 	Title  string   `json:"title"`
 	Detail string   `json:"detail"`

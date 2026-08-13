@@ -72,6 +72,14 @@ describe("SandboxPage V1.2 flow", () => {
     render(<MemoryRouter initialEntries={["/sandbox-runs/42/report"]}><App /></MemoryRouter>); expect(await screen.findByText("是否立即扩张")).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: /导出 PDF/ })); await waitFor(() => expect(click).toHaveBeenCalledOnce()); expect(createURL).toHaveBeenCalledOnce();
   });
 
+  it("saves selected report advice and opens server-validated growth input", async () => {
+    signIn(); const completed = fixture({ status: "done", done: true, completeness: 1, report }); const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => { const url = String(input); if (url === "/api/v1/sandbox-runs/42" && init?.method === "GET") return response(completed); if (url.endsWith("/report/tasks")) return response({ tasks: [{ id: 9, title: "访谈十家门店", source_type: "sandbox_session", source_id: 42 }] }, 201); if (url.endsWith("/report/growth-handoff")) return response({ url: "/growth-calculator?sandbox_run=42&price_cents=3900" }); return Promise.reject(new Error(`unexpected ${url}`)); });
+    render(<MemoryRouter initialEntries={["/sandbox-runs/42/report"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "保存为任务" })); await screen.findByText("已按选择创建任务，可在任务中心继续跟进。");
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox-runs/42/report/tasks", expect.objectContaining({ body: JSON.stringify({ advice_indexes: [0] }) }));
+    fireEvent.click(screen.getByRole("button", { name: "去增长测算" })); await waitFor(() => expect(screen.getByText("增长测算")).toBeInTheDocument());
+  });
+
   it("loads server-filtered history and uses canonical report links", async () => {
     signIn(); const completed = fixture({ status: "done", done: true, report }); const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => String(input).startsWith("/api/v1/sandbox-runs?") ? response({ runs: [completed], page: 1, limit: 20 }) : Promise.reject(new Error(`unexpected ${String(input)}`)));
     render(<MemoryRouter initialEntries={["/sandbox/history"]}><App /></MemoryRouter>); expect(await screen.findByText("企业 AI 运营平台")).toBeInTheDocument(); expect(screen.getByRole("link", { name: "查看报告" })).toHaveAttribute("href", "/sandbox-runs/42/report"); fireEvent.change(screen.getByLabelText("搜索产品名称"), { target: { value: "门店" } }); await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).includes("product=%E9%97%A8%E5%BA%97"))).toBe(true));

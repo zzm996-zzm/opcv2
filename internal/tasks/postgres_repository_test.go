@@ -21,8 +21,10 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 	due := now.Add(2 * time.Hour)
 	sourceID := int64(501)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16)
+		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, idempotency_key, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
+		ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key <> ''
+		DO UPDATE SET updated_at = tasks.updated_at
 		RETURNING id, created_at, updated_at
 	`)).
 		WithArgs(
@@ -41,6 +43,7 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 			&sourceID,
 			"重点客户 A",
 			"/crm/customers/501",
+			"",
 			now,
 		).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(99), now, now))
@@ -75,6 +78,29 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryReturnsExistingTaskForRepeatedIdempotencyKey(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 13, 12, 0, 0, 0, time.UTC)
+	runID := int64(99)
+	task := Task{UserID: 42, Title: "访谈十家门店", Project: "AI 运营", Status: StatusTodo, Priority: PriorityHigh, Tags: []string{}, Tools: []string{}, SourceType: SourceSandboxSession, SourceID: &runID, SourceTitle: "门店 AI 沙盘", SourceURL: "/sandbox-runs/99/report", IdempotencyKey: "sandbox:99:advice:0", CreatedAt: now}
+	db.ExpectQuery("ON CONFLICT \\(user_id, idempotency_key\\)").
+		WithArgs(int64(42), task.Title, "", "", task.Project, StatusTodo, PriorityHigh, []byte(`[]`), (*time.Time)(nil), []byte(`[]`), "", SourceSandboxSession, &runID, task.SourceTitle, task.SourceURL, task.IdempotencyKey, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(501), now.Add(-time.Hour), now.Add(-time.Hour)))
+
+	created, err := NewPostgresRepository(db).CreateTask(context.Background(), task)
+	if err != nil || created.ID != 501 || !created.CreatedAt.Equal(now.Add(-time.Hour)) {
+		t.Fatalf("created/error = %+v/%v", created, err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryCreatesTasksInTransaction(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {
@@ -94,7 +120,7 @@ func TestPostgresRepositoryCreatesTasksInTransaction(t *testing.T) {
 			WithArgs(
 				int64(42), task.Title, "", "", "客户验证", StatusTodo, PriorityMedium,
 				[]byte(`[]`), (*time.Time)(nil), []byte(`[]`), "",
-				task.SourceType, task.SourceID, task.SourceTitle, task.SourceURL, now,
+				task.SourceType, task.SourceID, task.SourceTitle, task.SourceURL, task.IdempotencyKey, now,
 			).
 			WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(101+index), now, now))
 	}

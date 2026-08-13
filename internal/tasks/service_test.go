@@ -58,6 +58,28 @@ func (r *fakeRepository) CreateTask(_ context.Context, task Task) (Task, error) 
 	return task, r.err
 }
 
+func TestServiceCreatesTaskBatchWithOwnedSandboxSource(t *testing.T) {
+	repository := &fakeRepository{}
+	service := NewService(repository)
+	runID := int64(99)
+	created, err := service.CreateTasks(context.Background(), BatchCreateInput{UserID: 42, Tasks: []CreateInput{{Title: "访谈十家门店", Description: "验证付费意愿", Project: "AI 运营", Priority: PriorityHigh, SourceType: SourceSandboxSession, SourceID: &runID, SourceTitle: "AI 运营沙盘", SourceURL: "/sandbox-runs/99/report"}}})
+	if err != nil || len(created) != 1 {
+		t.Fatalf("created/error=%+v/%v", created, err)
+	}
+	if repository.createdTasks[0].UserID != 42 || repository.createdTasks[0].SourceType != SourceSandboxSession || repository.createdTasks[0].SourceID == nil || *repository.createdTasks[0].SourceID != 99 {
+		t.Fatalf("task=%+v", repository.createdTasks[0])
+	}
+}
+
+func TestServiceRejectsInvalidTaskBatch(t *testing.T) {
+	service := NewService(&fakeRepository{})
+	for _, input := range []BatchCreateInput{{UserID: 42}, {UserID: 42, Tasks: make([]CreateInput, 21)}, {UserID: 42, Tasks: []CreateInput{{Title: "x", Project: "p", Priority: PriorityHigh, SourceType: SourceSandboxSession}}}} {
+		if _, err := service.CreateTasks(context.Background(), input); !errors.Is(err, ErrInvalidTaskBatch) {
+			t.Fatalf("input/error=%+v/%v", input, err)
+		}
+	}
+}
+
 func (r *fakeRepository) ListTasks(_ context.Context, userID int64, filters ListFilters) ([]Task, error) {
 	r.filters = filters
 	if r.err != nil {

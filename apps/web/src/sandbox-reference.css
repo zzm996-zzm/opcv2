@@ -2033,6 +2033,11 @@ button.sb-role-card {
 .sb-insight-section.is-risk article strong { color: #c7535d; }
 .sb-insight-section article p { margin: 5px 0; color: #666d93; font-size: 9px; line-height: 1.5; }
 .sb-insight-section article small { color: #8b91ac; font-size: 8px; }
+.sb-insight-section article strong { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sb-risk-severity { padding: 2px 5px; border-radius: 4px; font-size: 8px; font-style: normal; font-weight: 600; }
+.sb-risk-severity.is-high { color: #b33145; background: #ffe5e8; }
+.sb-risk-severity.is-medium { color: #996300; background: #fff1d1; }
+.sb-risk-severity.is-low { color: #2f7f67; background: #dff6ec; }
 
 .sb-report-role-grid {
   display: grid;
@@ -2084,6 +2089,18 @@ button.sb-role-card {
 .sb-action-plan strong { color: #333876; font-size: 9px; }
 .sb-action-plan p { margin: 4px 0 0; color: #72799c; font-size: 8px; line-height: 1.45; }
 .sb-action-plan small { grid-column: 2; color: #5c49db; font-size: 8px; }
+.sb-action-plan input { width: 16px; height: 16px; accent-color: #5c49db; }
+.sb-report-actions { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.sb-report-actions button { display: inline-flex; align-items: center; gap: 6px; }
+.sb-model-badge { margin-left: auto; color: #5c49db; background: #f0edff; border-radius: 999px; padding: 3px 7px; font-size: 8px; font-style: normal; }
+.sb-scenario-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.sb-scenario-grid article { min-height: 86px; padding: 10px; border: 1px solid var(--sb-line); border-radius: 6px; background: #fbfbff; }
+.sb-scenario-grid article.is-optimistic { background: #f1fbf5; }
+.sb-scenario-grid article.is-pessimistic { background: #fff5f5; }
+.sb-scenario-grid strong { color: #3d437d; font-size: 9px; }
+.sb-scenario-grid p { margin: 6px 0; color: #656c92; font-size: 8px; line-height: 1.45; }
+.sb-scenario-grid small { color: #8b91ac; font-size: 8px; line-height: 1.45; }
+.sb-assumption-list { display: grid; gap: 6px; margin: 8px 0 0; padding-left: 18px; color: #656c92; font-size: 9px; line-height: 1.5; }
 
 .sb-validation-list {
   display: grid;

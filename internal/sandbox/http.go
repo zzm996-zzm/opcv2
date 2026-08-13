@@ -72,6 +72,11 @@ type V2AnalyticsApplication interface {
 	RecordSandboxEvent(context.Context, SandboxAnalyticsInput) (SandboxAnalyticsReceipt, error)
 }
 
+type V2HandoffHTTPApplication interface {
+	CreateSandboxTasks(context.Context, SandboxTaskHandoffInput) (SandboxTaskHandoffResult, error)
+	CreateSandboxGrowthHandoff(context.Context, int64, int64) (SandboxGrowthHandoff, error)
+}
+
 type HTTPHandler struct {
 	app Application
 }
@@ -117,11 +122,55 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/sandbox-runs/:id/stream", h.streamV2Events)
 	router.GET("/sandbox-runs/:id/report", h.getV2Report)
 	router.POST("/sandbox-runs/:id/report", h.generateV2Report)
+	router.POST("/sandbox-runs/:id/report/tasks", h.createSandboxTasks)
+	router.POST("/sandbox-runs/:id/report/growth-handoff", h.createSandboxGrowthHandoff)
 	router.GET("/sandbox-runs/:id/follow-ups", h.listV2FollowUps)
 	router.POST("/sandbox-runs/:id/follow-ups", h.askV2Role)
 	router.POST("/sandbox-runs/:id/exports", h.createV2Export)
 	router.POST("/sandbox-runs/:id/report/export", h.createV2Export)
 	router.GET("/sandbox-runs/:id/exports/:export_id/download", h.downloadV2Export)
+}
+
+func (h *HTTPHandler) createSandboxTasks(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request SandboxTaskHandoffInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID, request.RunID = c.GetInt64(auth.UserIDContextKey), id
+	app, ok := h.app.(V2HandoffHTTPApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	result, err := app.CreateSandboxTasks(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, result)
+}
+
+func (h *HTTPHandler) createSandboxGrowthHandoff(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.app.(V2HandoffHTTPApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	result, err := app.CreateSandboxGrowthHandoff(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *HTTPHandler) recordSandboxAnalytics(c *gin.Context) {

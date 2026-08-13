@@ -159,16 +159,17 @@ func main() {
 	supportService := support.NewService(supportRepository)
 	supportHTTP := support.NewHTTPHandler(supportService)
 	sandboxRepository := sandbox.NewPostgresRepository(db)
+	tasksRepository := tasks.NewPostgresRepository(db)
+	tasksService := tasks.NewService(tasksRepository, tasks.WithMembershipProvider(membershipService), tasks.WithTaskGenerator(aiService))
 	sandboxService := sandbox.NewService(
 		sandboxRepository,
 		aiService,
 		sandbox.WithQuotaConsumer(membershipService),
 		sandbox.WithProfileContextProvider(accountService),
 		sandbox.WithQueue(taskqueue.NewClient(cfg.RedisAddr)),
+		sandbox.WithTaskCreator(tasksService),
 	)
 	sandboxHTTP := sandbox.NewHTTPHandler(sandboxService)
-	tasksRepository := tasks.NewPostgresRepository(db)
-	tasksService := tasks.NewService(tasksRepository, tasks.WithMembershipProvider(membershipService), tasks.WithTaskGenerator(aiService))
 	tasksHTTP := tasks.NewHTTPHandler(tasksService)
 	dashboardRepository := dashboard.NewPostgresRepository(db)
 	dashboardService := dashboard.NewService(dashboardRepository)

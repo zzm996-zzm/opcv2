@@ -55,20 +55,26 @@ type BatchTaskIDsInput struct {
 }
 
 type CreateInput struct {
-	UserID      int64      `json:"-"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Assignee    string     `json:"assignee"`
-	Project     string     `json:"project"`
-	Priority    string     `json:"priority"`
-	Tags        []string   `json:"tags"`
-	DueAt       *time.Time `json:"due_at,omitempty"`
-	Tools       []string   `json:"tools"`
-	Learning    string     `json:"learning"`
-	SourceType  string     `json:"source_type"`
-	SourceID    *int64     `json:"source_id,omitempty"`
-	SourceTitle string     `json:"source_title"`
-	SourceURL   string     `json:"source_url"`
+	UserID         int64      `json:"-"`
+	Title          string     `json:"title"`
+	Description    string     `json:"description"`
+	Assignee       string     `json:"assignee"`
+	Project        string     `json:"project"`
+	Priority       string     `json:"priority"`
+	Tags           []string   `json:"tags"`
+	DueAt          *time.Time `json:"due_at,omitempty"`
+	Tools          []string   `json:"tools"`
+	Learning       string     `json:"learning"`
+	SourceType     string     `json:"source_type"`
+	SourceID       *int64     `json:"source_id,omitempty"`
+	SourceTitle    string     `json:"source_title"`
+	SourceURL      string     `json:"source_url"`
+	IdempotencyKey string     `json:"-"`
+}
+
+type BatchCreateInput struct {
+	UserID int64         `json:"-"`
+	Tasks  []CreateInput `json:"tasks"`
 }
 
 type GenerateTasksInput struct {
@@ -186,22 +192,23 @@ type Stats struct {
 }
 
 type Task struct {
-	ID          int64      `json:"id"`
-	UserID      int64      `json:"user_id"`
-	Title       string     `json:"title"`
-	Description string     `json:"description"`
-	Assignee    string     `json:"assignee"`
-	Project     string     `json:"project"`
-	Status      string     `json:"status"`
-	Priority    string     `json:"priority"`
-	Tags        []string   `json:"tags"`
-	DueAt       *time.Time `json:"due_at,omitempty"`
-	Tools       []string   `json:"tools"`
-	Learning    string     `json:"learning"`
-	SourceType  string     `json:"source_type"`
-	SourceID    *int64     `json:"source_id,omitempty"`
-	SourceTitle string     `json:"source_title"`
-	SourceURL   string     `json:"source_url"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID             int64      `json:"id"`
+	UserID         int64      `json:"user_id"`
+	Title          string     `json:"title"`
+	Description    string     `json:"description"`
+	Assignee       string     `json:"assignee"`
+	Project        string     `json:"project"`
+	Status         string     `json:"status"`
+	Priority       string     `json:"priority"`
+	Tags           []string   `json:"tags"`
+	DueAt          *time.Time `json:"due_at,omitempty"`
+	Tools          []string   `json:"tools"`
+	Learning       string     `json:"learning"`
+	SourceType     string     `json:"source_type"`
+	SourceID       *int64     `json:"source_id,omitempty"`
+	SourceTitle    string     `json:"source_title"`
+	SourceURL      string     `json:"source_url"`
+	IdempotencyKey string     `json:"-"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
 }

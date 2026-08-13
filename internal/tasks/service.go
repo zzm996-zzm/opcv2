@@ -72,24 +72,44 @@ func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, erro
 		return Task{}, ErrInvalidTaskSource
 	}
 	task := Task{
-		UserID:      input.UserID,
-		Title:       strings.TrimSpace(input.Title),
-		Description: strings.TrimSpace(input.Description),
-		Assignee:    strings.TrimSpace(input.Assignee),
-		Project:     strings.TrimSpace(input.Project),
-		Status:      StatusTodo,
-		Priority:    normalizePriority(input.Priority),
-		Tags:        normalizeUniqueStrings(input.Tags),
-		DueAt:       input.DueAt,
-		Tools:       normalizeStrings(input.Tools),
-		Learning:    strings.TrimSpace(input.Learning),
-		SourceType:  input.SourceType,
-		SourceID:    input.SourceID,
-		SourceTitle: input.SourceTitle,
-		SourceURL:   input.SourceURL,
-		CreatedAt:   s.now(),
+		UserID:         input.UserID,
+		Title:          strings.TrimSpace(input.Title),
+		Description:    strings.TrimSpace(input.Description),
+		Assignee:       strings.TrimSpace(input.Assignee),
+		Project:        strings.TrimSpace(input.Project),
+		Status:         StatusTodo,
+		Priority:       normalizePriority(input.Priority),
+		Tags:           normalizeUniqueStrings(input.Tags),
+		DueAt:          input.DueAt,
+		Tools:          normalizeStrings(input.Tools),
+		Learning:       strings.TrimSpace(input.Learning),
+		SourceType:     input.SourceType,
+		SourceID:       input.SourceID,
+		SourceTitle:    input.SourceTitle,
+		SourceURL:      input.SourceURL,
+		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
+		CreatedAt:      s.now(),
 	}
 	return s.repository.CreateTask(ctx, task)
+}
+
+func (s *Service) CreateTasks(ctx context.Context, input BatchCreateInput) ([]Task, error) {
+	if s.repository == nil || input.UserID <= 0 || len(input.Tasks) == 0 || len(input.Tasks) > 20 {
+		return nil, ErrInvalidTaskBatch
+	}
+	created := make([]Task, 0, len(input.Tasks))
+	for _, item := range input.Tasks {
+		item.UserID = input.UserID
+		item.SourceType = strings.TrimSpace(item.SourceType)
+		item.SourceTitle = strings.TrimSpace(item.SourceTitle)
+		item.SourceURL = strings.TrimSpace(item.SourceURL)
+		if !validCreateInput(item) {
+			return nil, ErrInvalidTaskBatch
+		}
+		now := s.now()
+		created = append(created, Task{UserID: input.UserID, Title: strings.TrimSpace(item.Title), Description: strings.TrimSpace(item.Description), Assignee: strings.TrimSpace(item.Assignee), Project: strings.TrimSpace(item.Project), Status: StatusTodo, Priority: normalizePriority(item.Priority), Tags: normalizeUniqueStrings(item.Tags), DueAt: item.DueAt, Tools: normalizeStrings(item.Tools), Learning: strings.TrimSpace(item.Learning), SourceType: item.SourceType, SourceID: item.SourceID, SourceTitle: item.SourceTitle, SourceURL: item.SourceURL, IdempotencyKey: strings.TrimSpace(item.IdempotencyKey), CreatedAt: now})
+	}
+	return s.repository.CreateTasks(ctx, created)
 }
 
 func validTaskSource(sourceType string, sourceID *int64, sourceTitle, sourceURL string) bool {
