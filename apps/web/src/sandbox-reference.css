@@ -2634,6 +2634,8 @@ button.sb-role-card {
   .sb-report-two-col,
   .sb-report-bottom-grid,
   .sb-report-role-grid,
+  .sb-insight-section > div,
+  .sb-scenario-grid,
   .sb-action-plan,
   .sb-quota-benefits { grid-template-columns: 1fr; }
   .sb-question-focus { padding: 18px 14px; }
@@ -2650,6 +2652,14 @@ button.sb-role-card {
   .sb-start-assurance { order: 3; }
   .sb-run-heading,
   .sb-report-heading { align-items: flex-start; flex-direction: column; }
+  .sb-report-heading > div,
+  .sb-report-heading .sb-export-button { width: 100%; }
+  .sb-report-heading .sb-export-button { justify-content: center; }
+  .sb-report-actions { align-items: stretch; flex-direction: column; }
+  .sb-report-actions button { justify-content: center; width: 100%; }
+  .sb-report-footer { display: grid; grid-template-columns: 1fr; }
+  .sb-report-footer > a,
+  .sb-report-footer > button { justify-content: center; width: 100%; }
   .sb-run-message { grid-template-columns: 28px 1fr; }
   .sb-run-message p { grid-column: 2; }
   .sb-run-side-panel { grid-template-columns: 1fr; }

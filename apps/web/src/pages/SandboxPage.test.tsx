@@ -80,6 +80,20 @@ describe("SandboxPage V1.2 flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "去增长测算" })); await waitFor(() => expect(screen.getByText("增长测算")).toBeInTheDocument());
   });
 
+  it("creates a separate run when starting another simulation", async () => {
+    signIn(); const completed = fixture({ status: "done", done: true, completeness: 1, report }); const created = fixture({ id: 77, name: "企业 AI 运营平台 - 再次推演", status: "clarifying" }); vi.spyOn(window, "confirm").mockReturnValue(true); const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => { const url = String(input); if (url === "/api/v1/sandbox-runs/42" && init?.method === "GET") return response(completed); if (url === "/api/v1/sandbox-runs" && init?.method === "POST") return response(created, 201); if (url === "/api/v1/sandbox-runs/77" && init?.method === "GET") return response(created); return Promise.reject(new Error(`unexpected ${url}`)); });
+    render(<MemoryRouter initialEntries={["/sandbox-runs/42/report"]}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole("button", { name: "再次推演" }));
+    expect(await screen.findByRole("heading", { name: "核心卖点是什么？" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox-runs", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "企业 AI 运营平台 - 再次推演", product: completed.product, context: completed.context }) }));
+  });
+
+  it("renders historical reports whose optional collections are null", async () => {
+    signIn(); const nullable = { ...report, missing_roles: null, assumptions: null, disagreements: null, role_takeaways: [{ ...report.role_takeaways[0], key_points: null }] } as unknown as SandboxReport; const completed = fixture({ status: "done", done: true, report: nullable }); vi.spyOn(globalThis, "fetch").mockImplementation((input) => String(input) === "/api/v1/sandbox-runs/42" ? response(completed) : Promise.reject(new Error(`unexpected ${String(input)}`)));
+    render(<MemoryRouter initialEntries={["/sandbox-runs/42/report"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "企业 AI 运营平台" })).toBeInTheDocument(); expect(screen.getByText("本次推演基于以下假设")).toBeInTheDocument();
+  });
+
   it("loads server-filtered history and uses canonical report links", async () => {
     signIn(); const completed = fixture({ status: "done", done: true, report }); const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => String(input).startsWith("/api/v1/sandbox-runs?") ? response({ runs: [completed], page: 1, limit: 20 }) : Promise.reject(new Error(`unexpected ${String(input)}`)));
     render(<MemoryRouter initialEntries={["/sandbox/history"]}><App /></MemoryRouter>); expect(await screen.findByText("企业 AI 运营平台")).toBeInTheDocument(); expect(screen.getByRole("link", { name: "查看报告" })).toHaveAttribute("href", "/sandbox-runs/42/report"); fireEvent.change(screen.getByLabelText("搜索产品名称"), { target: { value: "门店" } }); await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).includes("product=%E9%97%A8%E5%BA%97"))).toBe(true));

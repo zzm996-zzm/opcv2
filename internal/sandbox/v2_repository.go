@@ -266,7 +266,7 @@ func (r *PostgresRepository) getV2Report(ctx context.Context, runID int64) (V2Sa
 	if err := json.Unmarshal(data, &report); err != nil {
 		return V2SandboxReport{}, err
 	}
-	return report, nil
+	return completeV2Report(report, nil), nil
 }
 
 func (r *PostgresRepository) RecordSandboxEvent(ctx context.Context, event SandboxAnalyticsEvent) (bool, error) {

@@ -57,6 +57,29 @@ func completedV2Run() V2SandboxRun {
 	}
 }
 
+func TestCompleteV2ReportNormalizesNullableCollections(t *testing.T) {
+	report := completeV2Report(V2SandboxReport{
+		Summary:          "可验证",
+		RoleTakeaways:    []V2RoleTakeaway{{Role: "customer"}},
+		DimensionSummary: []V2DimensionSummary{{Dimension: "pain"}},
+		Disagreements:    []V2Disagreement{{Topic: "投入"}},
+	}, nil)
+	if report.MissingRoles == nil || report.Assumptions == nil || report.Opportunity == nil || report.Risk == nil || report.Advice == nil || report.Scenarios == nil {
+		t.Fatalf("report collections were not normalized: %+v", report)
+	}
+	if report.RoleTakeaways[0].KeyPoints == nil || report.RoleTakeaways[0].DimensionScores == nil || report.DimensionSummary[0].SupportingRoles == nil || report.DimensionSummary[0].OpposingRoles == nil || report.Disagreements[0].Views == nil {
+		t.Fatalf("nested collections were not normalized: %+v", report)
+	}
+}
+
+func TestRenderV2SandboxPDFWrapsLongRunName(t *testing.T) {
+	run := completedV2Run()
+	run.Name = "面向连锁门店的 AI 运营助手，验证小范围付费试点和渠道合作"
+	if _, err := RenderV2SandboxPDF(run); err != nil && !errors.Is(err, errV2PDFFontUnavailable) {
+		t.Fatalf("RenderV2SandboxPDF() error = %v", err)
+	}
+}
+
 func TestCreateV2ExportRendersRealPDFPayload(t *testing.T) {
 	run := completedV2Run()
 	repository := &fakeV2ExportRepository{fakeV2Repository: newFakeV2Repository()}

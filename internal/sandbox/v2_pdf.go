@@ -53,7 +53,10 @@ func RenderV2SandboxPDF(run V2SandboxRun) ([]byte, error) {
 	pdf.AddPage()
 	pdf.SetFont("sandbox", "B", 22)
 	pdf.SetTextColor(26, 33, 45)
-	pdf.CellFormat(0, 12, nonEmpty(run.Name, "未命名项目"), "", 1, "L", false, 0, "")
+	for _, line := range splitV2PDFLines(pdf, nonEmpty(run.Name, "未命名项目"), 178) {
+		pdf.CellFormat(178, 10, line, "", 1, "L", false, 0, "")
+	}
+	pdf.Ln(1)
 	pdf.SetFont("sandbox", "", 11)
 	pdf.SetTextColor(90, 99, 112)
 	pdf.CellFormat(0, 8, "商业沙盘分析报告", "", 1, "L", false, 0, "")
@@ -156,6 +159,28 @@ func writeV2PDFParagraph(pdf *fpdf.Fpdf, text string) {
 	pdf.SetTextColor(58, 66, 80)
 	pdf.MultiCell(178, 5.5, strings.TrimSpace(text), "", "L", false)
 	pdf.Ln(2)
+}
+
+func splitV2PDFLines(pdf *fpdf.Fpdf, text string, width float64) []string {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return []string{""}
+	}
+	lines := make([]string, 0, 2)
+	line := ""
+	for _, char := range []rune(text) {
+		candidate := line + string(char)
+		if line != "" && pdf.GetStringWidth(candidate) > width {
+			lines = append(lines, line)
+			line = string(char)
+			continue
+		}
+		line = candidate
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 func writeV2PDFInsights(pdf *fpdf.Fpdf, title string, items []V2Insight, fields func(V2Insight) (string, string)) {

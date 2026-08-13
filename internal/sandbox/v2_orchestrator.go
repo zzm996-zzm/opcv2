@@ -375,6 +375,51 @@ func completeV2Report(report V2SandboxReport, outputs []V2RoleOutput) V2SandboxR
 			report.Advice[i].Effort = "mid"
 		}
 	}
+	if report.Opportunity == nil {
+		report.Opportunity = []V2Insight{}
+	}
+	if report.Risk == nil {
+		report.Risk = []V2ReportRisk{}
+	}
+	if report.Advice == nil {
+		report.Advice = []V2Advice{}
+	}
+	if report.RoleTakeaways == nil {
+		report.RoleTakeaways = []V2RoleTakeaway{}
+	}
+	if report.DimensionSummary == nil {
+		report.DimensionSummary = []V2DimensionSummary{}
+	}
+	if report.Disagreements == nil {
+		report.Disagreements = []V2Disagreement{}
+	}
+	if report.MissingRoles == nil {
+		report.MissingRoles = []string{}
+	}
+	if report.Assumptions == nil {
+		report.Assumptions = []string{}
+	}
+	for index := range report.RoleTakeaways {
+		if report.RoleTakeaways[index].KeyPoints == nil {
+			report.RoleTakeaways[index].KeyPoints = []string{}
+		}
+		if report.RoleTakeaways[index].DimensionScores == nil {
+			report.RoleTakeaways[index].DimensionScores = []V2DimensionScore{}
+		}
+	}
+	for index := range report.DimensionSummary {
+		if report.DimensionSummary[index].SupportingRoles == nil {
+			report.DimensionSummary[index].SupportingRoles = []string{}
+		}
+		if report.DimensionSummary[index].OpposingRoles == nil {
+			report.DimensionSummary[index].OpposingRoles = []string{}
+		}
+	}
+	for index := range report.Disagreements {
+		if report.Disagreements[index].Views == nil {
+			report.Disagreements[index].Views = []V2RoleView{}
+		}
+	}
 	return report
 }
 
