@@ -201,6 +201,7 @@ func (s *Service) processV2Role(ctx context.Context, repository V2OrchestrationR
 		return 0
 	}
 	_, _ = repository.AppendV2Event(ctx, V2ProgressEvent{RunID: run.ID, RoleCode: role.RoleCode, Event: V2EventRoleStart, Payload: map[string]any{"session_id": role.RoleSessionID}}, run.UserID)
+	s.recordV2RoleLifecycle(ctx, SandboxEventRoleStart, run, role, map[string]any{})
 	prompt, err := json.Marshal(map[string]any{
 		"role_code": role.RoleCode, "role_session_id": role.RoleSessionID,
 		"analysis_dimensions": role.Dimensions, "product": run.Product, "context": run.Context,
@@ -240,6 +241,7 @@ func (s *Service) processV2Role(ctx context.Context, repository V2OrchestrationR
 		if err != nil {
 			_ = repository.FailV2Role(ctx, run.UserID, run.ID, role.RoleCode, safeV2ErrorCode(err))
 			_, _ = repository.AppendV2Event(ctx, V2ProgressEvent{RunID: run.ID, RoleCode: role.RoleCode, Event: V2EventRoleFailed, Payload: map[string]any{"code": safeV2ErrorCode(err)}}, run.UserID)
+			s.recordV2RoleLifecycle(ctx, SandboxEventRoleFailed, run, role, map[string]any{"error_code": safeV2ErrorCode(err)})
 			return 0
 		}
 		content = result.Content
@@ -258,6 +260,7 @@ func (s *Service) processV2Role(ctx context.Context, repository V2OrchestrationR
 	}
 	_, _ = repository.AppendV2Event(ctx, V2ProgressEvent{RunID: run.ID, RoleCode: role.RoleCode, Event: V2EventToken, Payload: map[string]any{"input_tokens": inputTokens, "output_tokens": outputTokens}}, run.UserID)
 	_, _ = repository.AppendV2Event(ctx, V2ProgressEvent{RunID: run.ID, RoleCode: role.RoleCode, Event: V2EventRoleDone, Payload: map[string]any{"stance": output.Stance}}, run.UserID)
+	s.recordV2RoleLifecycle(ctx, SandboxEventRoleDone, run, role, map[string]any{"dimension_coverage": 1.0, "latency_ms": latency, "tokens": inputTokens + outputTokens})
 	return inputTokens + outputTokens
 }
 

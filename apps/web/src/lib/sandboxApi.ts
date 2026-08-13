@@ -186,6 +186,10 @@ export type SandboxAnalyticsInput = {
   properties?: Record<string, unknown>;
 };
 
+const sandboxVisitorKey = "opcv2:sandbox-analytics-visitor";
+function analyticsID(prefix: string) { const value = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`; return `${prefix}-${value}`; }
+function sandboxVisitor() { try { const stored = window.localStorage.getItem(sandboxVisitorKey); if (stored) return stored; const value = analyticsID("visitor"); window.localStorage.setItem(sandboxVisitorKey, value); return value; } catch { return analyticsID("visitor"); } }
+
 export type CreateSandboxRunInput = {
   name?: string;
   product: SandboxProduct;
@@ -336,6 +340,6 @@ export const sandboxApi = {
   },
 
   track(input: SandboxAnalyticsInput) {
-    return apiRequest<void>("/api/v1/sandbox/analytics", { method: "POST", body: JSON.stringify(input) });
+    return apiRequest<void>("/api/v1/sandbox/analytics", { method: "POST", body: JSON.stringify({ ...input, event_id: input.event_id || analyticsID("event"), visitor_key: sandboxVisitor(), route: typeof window === "undefined" ? "/sandbox" : `${window.location.pathname}${window.location.search}` }) });
   }
 };

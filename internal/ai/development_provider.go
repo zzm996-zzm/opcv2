@@ -123,7 +123,7 @@ func (p *DevelopmentProvider) responseFor(request ProviderRequest) []byte {
 				{"key":"success_criteria","title":"这次推演最希望验证哪些关键结果？","hint":"列出决定继续、调整或停止项目的判断标准。","placeholder":"例如：客户愿意付费、数据合规可控、单店交付成本在预算内。","required":true,"max_length":1500,"position":5}
 			]
 		}`)
-	case "sandbox.follow_up":
+	case "sandbox.follow_up", "sandbox.follow_up_v2":
 		return []byte(`{
 			"answer":"从当前推演结果看，我会优先关注付费客户留存、单店交付成本和获客回收周期。建议先用 3 家教培机构做 4 周试点，并用真实的响应时长、有效线索率和续费意愿决定是否扩大投入。"
 		}`)

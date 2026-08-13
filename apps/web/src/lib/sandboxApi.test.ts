@@ -97,6 +97,8 @@ describe("sandboxApi V1.2", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/sandbox-runs/99/follow-ups", expect.objectContaining({ method: "POST" }));
     expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/sandbox-runs/99/report/tasks", expect.objectContaining({ body: JSON.stringify({ advice_indexes: [0, 2] }) }));
     expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/sandbox-runs/99/report/growth-handoff", expect.objectContaining({ method: "POST" }));
-    expect(fetchMock).toHaveBeenNthCalledWith(5, "/api/v1/sandbox/analytics", expect.objectContaining({ body: JSON.stringify({ event: "sandbox_report_view", event_id: "evt-1", run_id: 99, properties: { status: "done" } }) }));
+    const analyticsRequest = fetchMock.mock.calls[4]?.[1];
+    expect(fetchMock.mock.calls[4]?.[0]).toBe("/api/v1/sandbox/analytics");
+    expect(JSON.parse(String(analyticsRequest?.body))).toEqual(expect.objectContaining({ event: "sandbox_report_view", event_id: "evt-1", run_id: 99, route: "/", visitor_key: expect.stringMatching(/^visitor-/), properties: { status: "done" } }));
   });
 });

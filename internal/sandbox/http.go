@@ -68,6 +68,10 @@ type V2HomeApplication interface {
 	GetV2Home(ctx context.Context, userID int64) (V2SandboxHome, error)
 }
 
+type V2AnalyticsApplication interface {
+	RecordSandboxEvent(context.Context, SandboxAnalyticsInput) (SandboxAnalyticsReceipt, error)
+}
+
 type HTTPHandler struct {
 	app Application
 }
@@ -81,6 +85,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/sandbox/examples", h.listExamples)
 	router.GET("/sandbox/roles", h.listRoles)
 	router.GET("/sandbox/home", h.v2Home)
+	router.POST("/sandbox/analytics", h.recordSandboxAnalytics)
 	router.POST("/sandbox/sessions/intake", h.createIntake)
 	router.POST("/sandbox/intake", h.createIntake)
 	router.POST("/sandbox/sessions", h.createSession)
@@ -112,9 +117,73 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/sandbox-runs/:id/stream", h.streamV2Events)
 	router.GET("/sandbox-runs/:id/report", h.getV2Report)
 	router.POST("/sandbox-runs/:id/report", h.generateV2Report)
+	router.GET("/sandbox-runs/:id/follow-ups", h.listV2FollowUps)
+	router.POST("/sandbox-runs/:id/follow-ups", h.askV2Role)
 	router.POST("/sandbox-runs/:id/exports", h.createV2Export)
 	router.POST("/sandbox-runs/:id/report/export", h.createV2Export)
 	router.GET("/sandbox-runs/:id/exports/:export_id/download", h.downloadV2Export)
+}
+
+func (h *HTTPHandler) recordSandboxAnalytics(c *gin.Context) {
+	var request SandboxAnalyticsInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	app, ok := h.app.(V2AnalyticsApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	receipt, err := app.RecordSandboxEvent(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, receipt)
+}
+
+func (h *HTTPHandler) listV2FollowUps(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	app, ok := h.app.(V2FollowUpApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	items, err := app.ListV2FollowUps(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"follow_ups": httpapi.EnsureSlice(items)})
+}
+
+func (h *HTTPHandler) askV2Role(c *gin.Context) {
+	id, ok := sessionID(c)
+	if !ok {
+		return
+	}
+	var request AskV2RoleInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID, request.RunID = c.GetInt64(auth.UserIDContextKey), id
+	app, ok := h.app.(V2FollowUpApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	item, err := app.AskV2Role(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
 }
 
 func (h *HTTPHandler) listExamples(c *gin.Context) {
@@ -835,6 +904,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusConflict, "revision_conflict")
 	case errors.Is(err, ErrV2ExportExpired):
 		httpapi.Error(c, http.StatusGone, "export_expired")
+	case errors.Is(err, ErrV2InvalidEvent):
+		httpapi.BadRequest(c, "invalid_event")
 	case errors.Is(err, ErrSessionNotFound):
 		httpapi.Error(c, http.StatusNotFound, "session_not_found")
 	case errors.Is(err, ErrServiceNotReady):

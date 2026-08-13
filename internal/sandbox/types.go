@@ -57,6 +57,7 @@ var (
 	ErrV2StartConflict  = errors.New("sandbox run start conflict")
 	ErrV2Revision       = errors.New("sandbox run revision conflict")
 	ErrV2ExportExpired  = errors.New("sandbox export expired")
+	ErrV2InvalidEvent   = errors.New("invalid sandbox analytics event")
 )
 
 var V2RoleCodes = []string{"customer", "investor", "competitor", "channel", "supply", "expert", "skeptic", "partner"}
@@ -66,6 +67,61 @@ type Role struct {
 	Label       string `json:"label"`
 	Description string `json:"description"`
 	Badge       string `json:"badge"`
+}
+
+const (
+	SandboxEventHomeView     = "sandbox_home_view"
+	SandboxEventDraftCreate  = "sandbox_draft_create"
+	SandboxEventClarifyRound = "sandbox_clarify_round"
+	SandboxEventRolesSelect  = "sandbox_roles_select"
+	SandboxEventRunStart     = "sandbox_run_start"
+	SandboxEventRoleStart    = "sandbox_role_start"
+	SandboxEventRoleDone     = "sandbox_role_done"
+	SandboxEventRoleFailed   = "sandbox_role_failed"
+	SandboxEventReportView   = "sandbox_report_view"
+	SandboxEventReportAction = "sandbox_report_action"
+	SandboxEventHistoryView  = "sandbox_history_view"
+	SandboxEventQuotaBlock   = "sandbox_quota_block"
+)
+
+type SandboxAnalyticsInput struct {
+	UserID     int64          `json:"-"`
+	EventID    string         `json:"event_id"`
+	EventName  string         `json:"event"`
+	VisitorKey string         `json:"visitor_key,omitempty"`
+	Route      string         `json:"route,omitempty"`
+	RunID      int64          `json:"run_id,omitempty"`
+	Properties map[string]any `json:"properties,omitempty"`
+}
+
+type SandboxAnalyticsReceipt struct {
+	EventID   string `json:"event_id"`
+	Accepted  bool   `json:"accepted"`
+	Duplicate bool   `json:"duplicate"`
+}
+type SandboxAnalyticsEvent struct {
+	EventID, EventName, VisitorHash, Route string
+	UserID                                 *int64
+	RunID                                  *int64
+	Properties                             map[string]any
+	OccurredAt, CreatedAt                  time.Time
+}
+
+type AskV2RoleInput struct {
+	UserID   int64  `json:"-"`
+	RunID    int64  `json:"-"`
+	RoleCode string `json:"role_code"`
+	Question string `json:"question"`
+}
+type V2FollowUp struct {
+	ID               int64     `json:"id"`
+	RunID            int64     `json:"run_id"`
+	UserID           int64     `json:"-"`
+	RoleCode         string    `json:"role_code"`
+	Question         string    `json:"question"`
+	Answer           string    `json:"answer"`
+	InputContextHash string    `json:"-"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type CreateInput struct {

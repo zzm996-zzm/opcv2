@@ -268,3 +268,37 @@ func (r *PostgresRepository) getV2Report(ctx context.Context, runID int64) (V2Sa
 	}
 	return report, nil
 }
+
+func (r *PostgresRepository) RecordSandboxEvent(ctx context.Context, event SandboxAnalyticsEvent) (bool, error) {
+	var id int64
+	err := r.db.QueryRow(ctx, `INSERT INTO sandbox_analytics_events (event_id,event_name,user_id,visitor_hash,run_id,route,properties,occurred_at,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (event_id) DO NOTHING RETURNING id`, event.EventID, event.EventName, event.UserID, event.VisitorHash, event.RunID, event.Route, event.Properties, event.OccurredAt, event.CreatedAt).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (r *PostgresRepository) CreateV2FollowUp(ctx context.Context, followUp V2FollowUp) (V2FollowUp, error) {
+	err := r.db.QueryRow(ctx, `INSERT INTO sandbox_run_follow_ups (run_id,user_id,role_code,question,answer,input_context_hash,created_at) SELECT s.id,s.user_id,r.role_code,$4,$5,$6,$7 FROM sandbox_sessions s JOIN sandbox_run_roles r ON r.run_id=s.id AND r.role_code=$3 AND r.status='done' WHERE s.id=$1 AND s.user_id=$2 AND s.sandbox_version=2 RETURNING id,created_at`, followUp.RunID, followUp.UserID, followUp.RoleCode, followUp.Question, followUp.Answer, followUp.InputContextHash, followUp.CreatedAt).Scan(&followUp.ID, &followUp.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return V2FollowUp{}, ErrV2RunNotFound
+	}
+	return followUp, err
+}
+
+func (r *PostgresRepository) ListV2FollowUps(ctx context.Context, userID, runID int64) ([]V2FollowUp, error) {
+	rows, err := r.db.Query(ctx, `SELECT id,run_id,role_code,question,answer,created_at FROM sandbox_run_follow_ups WHERE user_id=$1 AND run_id=$2 ORDER BY id`, userID, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := make([]V2FollowUp, 0)
+	for rows.Next() {
+		var item V2FollowUp
+		if err := rows.Scan(&item.ID, &item.RunID, &item.RoleCode, &item.Question, &item.Answer, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}

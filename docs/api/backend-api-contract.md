@@ -3837,6 +3837,8 @@ All endpoints are protected. V1.2 runs use isolated role sessions; legacy
 | `GET` | `/api/v1/sandbox-runs/{id}` | Run, role, and report snapshot |
 | `POST/GET` | `/api/v1/sandbox-runs/{id}/report` | Read the idempotent synthesized report |
 | `POST` | `/api/v1/sandbox-runs/{id}/report/export` | Create a seven-day export |
+| `POST` | `/api/v1/sandbox/analytics` | Record a whitelisted, idempotent product event |
+| `GET/POST` | `/api/v1/sandbox-runs/{id}/follow-ups` | List or create a post-run role follow-up |
 | `GET` | `/api/v1/sandbox-runs` | List run history |
 | `PATCH` | `/api/v1/sandbox-runs/{id}` | Rename a non-running run |
 | `DELETE` | `/api/v1/sandbox-runs/{id}` | Delete a non-running run |
@@ -3845,6 +3847,17 @@ All endpoints are protected. V1.2 runs use isolated role sessions; legacy
 for quota exhaustion. One active run per user, a 40k token budget, 60-second
 role timeout, 300-second run timeout, and three-role concurrency limit remain
 active as cost and reliability guards.
+
+Sandbox analytics accept the PRD `sandbox_*` event dictionary only. `event_id`
+is the idempotency key, the raw visitor key is stored only as SHA-256, and a
+provided `run_id` must belong to the authenticated user. Role lifecycle events
+are also recorded by the worker from persisted role snapshots.
+
+V1.2 follow-ups are available only for terminal runs and a selected role whose
+snapshot is `done`. The follow-up model receives the shared run facts, the
+selected frozen role profile, and that role's output only; other role outputs
+are excluded. Questions are limited to 2,000 characters and follow-up rows are
+owned by both `user_id` and `run_id`.
 
 ### Create GEO Analysis Request
 
