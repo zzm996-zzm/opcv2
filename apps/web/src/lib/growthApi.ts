@@ -1,4 +1,4 @@
-import { apiRequest } from "./apiRequest";
+import { apiRequest, apiStreamRequest } from "./apiRequest";
 
 export type GrowthAssumptions = {
   monthly_visits: number;
@@ -162,6 +162,14 @@ export const growthApi = {
     return apiRequest<{ model: GrowthModel; snapshot: GrowthSnapshot }>(`/api/v1/growth/models/${id}/recalculate`, {
       method: "POST"
     });
+  },
+
+  async exportModel(id: number) {
+    const response = await apiStreamRequest(`/api/v1/growth/models/${id}/export`, {
+      method: "POST",
+      body: JSON.stringify({ format: "json" })
+    });
+    return response.blob();
   },
 
   createModel(input: {

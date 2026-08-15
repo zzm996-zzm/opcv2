@@ -1771,6 +1771,26 @@ Errors:
 - `400 invalid_model_id`
 - `404 model_not_found`
 
+### Export Model Report
+
+`POST /api/v1/growth/models/{id}/export`
+
+Request:
+
+```json
+{
+  "format": "json"
+}
+```
+
+MVP supports `json` only. Response `200` is an authenticated JSON attachment named `growth-report-{id}.json` containing the owned model, three scenarios, forecast, recommendations, disclaimer, model version, and export time.
+
+Errors:
+
+- `400 invalid_model_id`
+- `400 invalid_export_format`
+- `404 model_not_found`
+
 ## Leads
 
 All lead endpoints are protected.

@@ -38,6 +38,10 @@ type recalculateApplication interface {
 	RecalculateModel(context.Context, int64, int64) (RecalculateResult, error)
 }
 
+type exportApplication interface {
+	ExportModel(context.Context, ExportModelInput) (GrowthReportExport, error)
+}
+
 func NewHTTPHandler(app Application) *HTTPHandler {
 	return &HTTPHandler{app: app}
 }
@@ -55,6 +59,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/growth/models/:id/recommendations", h.modelRecommendations)
 	router.GET("/growth/models/:id/snapshots", h.listSnapshots)
 	router.POST("/growth/models/:id/recalculate", h.recalculateModel)
+	router.POST("/growth/models/:id/export", h.exportModel)
 }
 
 func (h *HTTPHandler) createDraft(c *gin.Context) {
@@ -275,6 +280,37 @@ func (h *HTTPHandler) recalculateModel(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func (h *HTTPHandler) exportModel(c *gin.Context) {
+	id, ok := modelIDParam(c)
+	if !ok {
+		return
+	}
+	app, ok := h.app.(exportApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	var request ExportModelInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.ModelID = id
+	if strings.ToLower(strings.TrimSpace(request.Format)) != "json" {
+		httpapi.BadRequest(c, "invalid_export_format")
+		return
+	}
+	export, err := app.ExportModel(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Header("Content-Type", "application/json; charset=utf-8")
+	c.Header("Content-Disposition", `attachment; filename="growth-report-`+strconv.FormatInt(id, 10)+`.json"`)
+	c.JSON(http.StatusOK, export)
+}
+
 func modelIDParam(c *gin.Context) (int64, bool) {
 	return resourceIDParam(c, "invalid_model_id")
 }
@@ -298,6 +334,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusConflict, "draft_not_ready")
 	case errors.Is(err, ErrInvalidAnswers):
 		httpapi.BadRequest(c, "invalid_answers")
+	case errors.Is(err, ErrInvalidExportFormat):
+		httpapi.BadRequest(c, "invalid_export_format")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

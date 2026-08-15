@@ -147,6 +147,40 @@ func (s *Service) RecalculateModel(ctx context.Context, userID, id int64) (Recal
 	return RecalculateResult{Model: model, Snapshot: snapshot}, nil
 }
 
+func (s *Service) ExportModel(ctx context.Context, input ExportModelInput) (GrowthReportExport, error) {
+	if s.repository == nil {
+		return GrowthReportExport{}, ErrServiceNotReady
+	}
+	if strings.ToLower(strings.TrimSpace(input.Format)) != "json" {
+		return GrowthReportExport{}, ErrInvalidExportFormat
+	}
+	model, err := s.GetModel(ctx, input.UserID, input.ModelID)
+	if err != nil {
+		return GrowthReportExport{}, err
+	}
+	scenarios, err := s.ModelScenarios(ctx, input.UserID, input.ModelID)
+	if err != nil {
+		return GrowthReportExport{}, err
+	}
+	forecast, err := s.ModelForecast(ctx, input.UserID, input.ModelID)
+	if err != nil {
+		return GrowthReportExport{}, err
+	}
+	recommendations, err := s.ModelRecommendations(ctx, input.UserID, input.ModelID)
+	if err != nil {
+		return GrowthReportExport{}, err
+	}
+	return GrowthReportExport{
+		Model:           model,
+		Scenarios:       scenarios,
+		Forecast:        forecast,
+		Recommendations: recommendations,
+		Disclaimer:      "本报告为经营预测，仅供决策参考，不构成财务审计、融资承诺或收益保证。",
+		ModelVersion:    growthModelVersion,
+		GeneratedAt:     s.now(),
+	}, nil
+}
+
 func (s *Service) createSnapshot(ctx context.Context, userID int64, model Model) (ModelSnapshot, error) {
 	scenarios, err := s.ModelScenarios(ctx, userID, model.ID)
 	if err != nil {

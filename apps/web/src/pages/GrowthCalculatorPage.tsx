@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Download } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
@@ -121,6 +122,9 @@ function GrowthCalculatorPage() {
   const [taskSyncError, setTaskSyncError] = useState("");
   const [taskDraft, setTaskDraft] = useState<TaskAIDraft | null>(null);
   const [forecastViewMode, setForecastViewMode] = useState("月度");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [exportError, setExportError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -333,6 +337,29 @@ function GrowthCalculatorPage() {
     }
   }
 
+  async function exportReport() {
+    if (!latestModel || isExporting) return;
+    setIsExporting(true);
+    setExportMessage("");
+    setExportError("");
+    try {
+      const blob = await growthApi.exportModel(latestModel.id);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `growth-report-${latestModel.id}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setExportMessage("报告已导出");
+    } catch (error) {
+      setExportError(apiErrorMessage(error, "报告导出失败，请稍后重试"));
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   function closeTaskDraft() {
     setTaskDraft(null);
     setTaskSyncMessage("任务草稿已取消，尚未创建正式任务");
@@ -376,6 +403,10 @@ function GrowthCalculatorPage() {
           </div>
           <div className="growth-page-actions">
             <Link to="/growth-calculator/history">测算历史</Link>
+            <button className="growth-export-button" disabled={!latestModel || isExporting} onClick={() => void exportReport()} type="button">
+              <Download aria-hidden="true" size={16} />
+              {isExporting ? "导出中..." : "导出报告"}
+            </button>
             {snapshots.length > 0 ? (
               <label>
                 <span>历史测算</span>
@@ -392,6 +423,8 @@ function GrowthCalculatorPage() {
             </button>
           </div>
         </div>
+        {exportMessage ? <p className="form-success" role="status">{exportMessage}</p> : null}
+        {exportError ? <p className="form-error" role="alert">{exportError}</p> : null}
         {isLoading ? <p className="module-loading" role="status">正在读取测算数据...</p> : null}
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
 

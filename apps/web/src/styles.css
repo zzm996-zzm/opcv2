@@ -17016,6 +17016,25 @@ a:active {
   border-radius: 8px;
 }
 
+.growth-export-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  color: #3156a4;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.growth-export-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .growth-intake-field,
 .growth-question-row,
 .growth-assumption-list,

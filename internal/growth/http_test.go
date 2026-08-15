@@ -29,6 +29,8 @@ type fakeApplication struct {
 	calculateInput  CalculateDraftInput
 	snapshots       []ModelSnapshot
 	recalculate     RecalculateResult
+	export          GrowthReportExport
+	exportInput     ExportModelInput
 }
 
 type fakePagedApplication struct {
@@ -70,6 +72,12 @@ func (a *fakeApplication) CalculateDraft(_ context.Context, input CalculateDraft
 func (a *fakeApplication) RecalculateModel(_ context.Context, userID, id int64) (RecalculateResult, error) {
 	a.userID, a.modelID = userID, id
 	return a.recalculate, a.err
+}
+
+func (a *fakeApplication) ExportModel(_ context.Context, input ExportModelInput) (GrowthReportExport, error) {
+	a.exportInput = input
+	a.userID, a.modelID = input.UserID, input.ModelID
+	return a.export, a.err
 }
 
 func (a *fakeApplication) CreateModel(_ context.Context, input CreateInput) (Model, error) {
@@ -218,6 +226,43 @@ func TestRecalculateModelEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"model"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestExportModelEndpointReturnsAttachmentForAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{export: GrowthReportExport{
+		Model:      Model{ID: 99, UserID: 42, Name: "标准方案"},
+		Disclaimer: "仅供决策参考",
+	}}
+	router := growthTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/growth/models/99/export", strings.NewReader(`{"format":"json"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.exportInput.UserID != 42 || app.exportInput.ModelID != 99 || app.exportInput.Format != "json" {
+		t.Fatalf("status/input = %d/%+v body=%s", recorder.Code, app.exportInput, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Content-Disposition"); got != `attachment; filename="growth-report-99.json"` {
+		t.Fatalf("content disposition = %q", got)
+	}
+	if !strings.Contains(recorder.Body.String(), `"disclaimer":"仅供决策参考"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestExportModelEndpointRejectsUnsupportedFormat(t *testing.T) {
+	app := &fakeApplication{}
+	router := growthTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/growth/models/99/export", strings.NewReader(`{"format":"pdf"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"error":"invalid_export_format"`) {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }
 

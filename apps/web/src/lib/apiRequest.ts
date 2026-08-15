@@ -54,6 +54,7 @@ const errorMessages: Record<string, string> = {
   intake_incomplete: "请完成或明确跳过所有补充问题",
   model_not_found: "测算模型不存在或已无权限访问",
   invalid_model_id: "测算模型 ID 不正确",
+  invalid_export_format: "暂不支持该报告格式",
   scan_not_found: "竞品扫描不存在或已无权限访问",
   invalid_scan_id: "竞品扫描 ID 不正确",
   course_not_found: "课程不存在或已下架",

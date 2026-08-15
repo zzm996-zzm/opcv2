@@ -177,3 +177,34 @@ func TestServiceRecalculatesModelIntoNewSnapshot(t *testing.T) {
 		t.Fatalf("result = %+v", result)
 	}
 }
+
+func TestServiceExportsStructuredReport(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	repository := &fakeRepository{model: Model{
+		ID: 99, UserID: 42, Name: "SaaS 增长模型",
+		Assumptions: Assumptions{MonthlyVisits: 24000, LeadRate: 0.068, DealRate: 0.14, AverageOrder: 820, AcquisitionCost: 42, DeliveryCost: 51000},
+		Result:      Result{MonthlyRevenue: 186960, Leads: 1632, Deals: 228},
+		UpdatedAt:   now,
+	}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	export, err := service.ExportModel(context.Background(), ExportModelInput{UserID: 42, ModelID: 99, Format: "json"})
+	if err != nil {
+		t.Fatalf("ExportModel() error = %v", err)
+	}
+	if export.Model.ID != 99 || len(export.Scenarios.Scenarios) != 3 || len(export.Forecast.Months) != 5 || export.ModelVersion != "growth-calculator-v1" || export.GeneratedAt != now {
+		t.Fatalf("export = %+v", export)
+	}
+	if export.Disclaimer == "" || len(export.Recommendations.ActionItems) == 0 {
+		t.Fatalf("export metadata = %+v", export)
+	}
+}
+
+func TestServiceRejectsUnsupportedExportFormat(t *testing.T) {
+	service := NewService(&fakeRepository{})
+	_, err := service.ExportModel(context.Background(), ExportModelInput{UserID: 42, ModelID: 99, Format: "pdf"})
+	if !errors.Is(err, ErrInvalidExportFormat) {
+		t.Fatalf("err = %v, want ErrInvalidExportFormat", err)
+	}
+}

@@ -6,11 +6,12 @@ import (
 )
 
 var (
-	ErrServiceNotReady = errors.New("growth service is not configured")
-	ErrModelNotFound   = errors.New("growth model not found")
-	ErrDraftNotFound   = errors.New("growth draft not found")
-	ErrDraftNotReady   = errors.New("growth draft is not ready")
-	ErrInvalidAnswers  = errors.New("growth draft answers are invalid")
+	ErrServiceNotReady     = errors.New("growth service is not configured")
+	ErrModelNotFound       = errors.New("growth model not found")
+	ErrDraftNotFound       = errors.New("growth draft not found")
+	ErrDraftNotReady       = errors.New("growth draft is not ready")
+	ErrInvalidAnswers      = errors.New("growth draft answers are invalid")
+	ErrInvalidExportFormat = errors.New("growth export format is invalid")
 )
 
 const (
@@ -18,6 +19,8 @@ const (
 	DraftStatusReady      = "ready"
 	DraftStatusCalculated = "calculated"
 )
+
+const growthModelVersion = "growth-calculator-v1"
 
 type CreateInput struct {
 	UserID          int64   `json:"-"`
@@ -118,6 +121,22 @@ type DraftCalculation struct {
 type RecalculateResult struct {
 	Model    Model         `json:"model"`
 	Snapshot ModelSnapshot `json:"snapshot"`
+}
+
+type ExportModelInput struct {
+	UserID  int64  `json:"-"`
+	ModelID int64  `json:"-"`
+	Format  string `json:"format"`
+}
+
+type GrowthReportExport struct {
+	Model           Model                 `json:"model"`
+	Scenarios       GrowthScenarios       `json:"scenarios"`
+	Forecast        GrowthForecast        `json:"forecast"`
+	Recommendations GrowthRecommendations `json:"recommendations"`
+	Disclaimer      string                `json:"disclaimer"`
+	ModelVersion    string                `json:"model_version"`
+	GeneratedAt     time.Time             `json:"generated_at"`
 }
 
 type ModelSnapshot struct {

@@ -115,4 +115,25 @@ describe("growthApi", () => {
       expect.objectContaining({ method: "GET" })
     );
   });
+
+  it("downloads a JSON report export", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ model: { id: 99 }, disclaimer: "仅供决策参考" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    );
+
+    const blob = await growthApi.exportModel(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/99/export",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ format: "json" })
+      })
+    );
+    expect(blob.type).toBe("application/json");
+    expect(blob.size).toBeGreaterThan(0);
+  });
 });
