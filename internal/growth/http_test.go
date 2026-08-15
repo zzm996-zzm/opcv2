@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
@@ -408,6 +409,31 @@ func TestListModelsEndpointSupportsSearchAndPagination(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"total":31`) || !strings.Contains(recorder.Body.String(), `"models"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestListModelsEndpointParsesDateRange(t *testing.T) {
+	app := &fakePagedApplication{fakeApplication: &fakeApplication{}, page: ModelPage{Models: []Model{}}}
+	router := growthTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/growth/models?from=2026-08-01&to=2026-08-15", nil))
+
+	if recorder.Code != http.StatusOK || app.pageInput.From == nil || app.pageInput.To == nil {
+		t.Fatalf("status/date range = %d/%v/%v body=%s", recorder.Code, app.pageInput.From, app.pageInput.To, recorder.Body.String())
+	}
+	if !app.pageInput.From.Equal(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)) || !app.pageInput.To.Equal(time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("date range = %v/%v", app.pageInput.From, app.pageInput.To)
+	}
+}
+
+func TestListModelsEndpointRejectsInvalidDateRange(t *testing.T) {
+	app := &fakePagedApplication{fakeApplication: &fakeApplication{}}
+	router := growthTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/growth/models?from=2026-08-20&to=2026-08-15", nil))
+
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"error":"invalid_date_range"`) {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }
 

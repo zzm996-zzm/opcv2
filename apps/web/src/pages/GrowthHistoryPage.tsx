@@ -8,6 +8,8 @@ import { growthApi, type GrowthModelPage } from "../lib/growthApi";
 
 const pageSize = 10;
 
+type HistoryPeriod = "all" | "7" | "30" | "90";
+
 function pageFromQuery(value: string | null) {
   const page = Number(value);
   return Number.isInteger(page) && page > 0 ? page : 1;
@@ -25,10 +27,20 @@ function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function dateFromPeriod(period: HistoryPeriod) {
+  if (period === "all") return undefined;
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - Number(period) + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 function GrowthHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q")?.trim() ?? "";
   const currentPage = pageFromQuery(searchParams.get("page"));
+  const periodValue = searchParams.get("period") ?? "all";
+  const period: HistoryPeriod = periodValue === "7" || periodValue === "30" || periodValue === "90" ? periodValue : "all";
   const [searchInput, setSearchInput] = useState(query);
   const [page, setPage] = useState<GrowthModelPage>({ models: [], total: 0, limit: pageSize, offset: 0 });
   const [loading, setLoading] = useState(true);
@@ -41,7 +53,7 @@ function GrowthHistoryPage() {
     let active = true;
     setLoading(true);
     setError("");
-    growthApi.listModels({ q: query || undefined, limit: pageSize, offset: (currentPage - 1) * pageSize })
+    growthApi.listModels({ q: query || undefined, from: dateFromPeriod(period), limit: pageSize, offset: (currentPage - 1) * pageSize })
       .then((result) => {
         if (!active) return;
         setPage({
@@ -63,12 +75,21 @@ function GrowthHistoryPage() {
     return () => {
       active = false;
     };
-  }, [currentPage, query]);
+  }, [currentPage, period, query]);
 
   function applySearch() {
     const next = new URLSearchParams();
     const normalized = searchInput.trim();
     if (normalized) next.set("q", normalized);
+    if (period !== "all") next.set("period", period);
+    setSearchParams(next);
+  }
+
+  function changePeriod(nextPeriod: string) {
+    const next = new URLSearchParams(searchParams);
+    if (nextPeriod === "all") next.delete("period");
+    else next.set("period", nextPeriod);
+    next.delete("page");
     setSearchParams(next);
   }
 
@@ -141,6 +162,15 @@ function GrowthHistoryPage() {
           }} type="button">
             <RefreshCw aria-hidden="true" size={16} />重置
           </button>
+          <label className="growth-history-period-filter">
+            <span>时间范围</span>
+            <select aria-label="历史时间范围" onChange={(event) => changePeriod(event.target.value)} value={period}>
+              <option value="all">全部</option>
+              <option value="7">近 7 天</option>
+              <option value="30">近 30 天</option>
+              <option value="90">近 90 天</option>
+            </select>
+          </label>
           <button className="primary" disabled={loading || selectedModelIDs.length < 2} onClick={compareSelected} type="button">
             对比测算{selectedModelIDs.length > 0 ? ` (${selectedModelIDs.length}/4)` : ""}
           </button>

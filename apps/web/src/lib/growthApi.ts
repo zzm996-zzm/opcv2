@@ -31,6 +31,8 @@ export type GrowthModelFilters = {
   q?: string;
   limit?: number;
   offset?: number;
+  from?: string;
+  to?: string;
 };
 
 export type GrowthModelPage = {
@@ -188,6 +190,8 @@ function modelQueryString(filters: GrowthModelFilters) {
   if (filters.q) search.set("q", filters.q);
   if (filters.limit !== undefined) search.set("limit", String(filters.limit));
   if (filters.offset !== undefined) search.set("offset", String(filters.offset));
+  if (filters.from) search.set("from", filters.from);
+  if (filters.to) search.set("to", filters.to);
   const encoded = search.toString();
   return encoded ? `?${encoded}` : "";
 }

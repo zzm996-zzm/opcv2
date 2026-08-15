@@ -51210,6 +51210,24 @@ a:active {
   outline: 0;
 }
 
+.growth-history-period-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.growth-history-period-filter select {
+  min-height: 40px;
+  padding: 0 28px 0 10px;
+  color: #344054;
+  background: #fff;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+}
+
 .growth-history-toolbar button,
 .growth-history-pagination button {
   display: inline-flex;

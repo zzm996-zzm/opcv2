@@ -188,7 +188,9 @@ func (r *PostgresRepository) ListModelPage(ctx context.Context, input ListModels
 		FROM growth_models
 		WHERE user_id = $1
 		  AND ($2 = '' OR name ILIKE '%' || $2 || '%')
-	`, input.UserID, input.Query).Scan(&total); err != nil {
+		  AND ($3::timestamptz IS NULL OR created_at >= $3)
+		  AND ($4::timestamptz IS NULL OR created_at < $4)
+	`, input.UserID, input.Query, input.From, input.To).Scan(&total); err != nil {
 		return ModelPage{}, err
 	}
 	rows, err := r.db.Query(ctx, `
@@ -196,9 +198,11 @@ func (r *PostgresRepository) ListModelPage(ctx context.Context, input ListModels
 		FROM growth_models
 		WHERE user_id = $1
 		  AND ($2 = '' OR name ILIKE '%' || $2 || '%')
+		  AND ($3::timestamptz IS NULL OR created_at >= $3)
+		  AND ($4::timestamptz IS NULL OR created_at < $4)
 		ORDER BY created_at DESC, id DESC
-		LIMIT $3 OFFSET $4
-	`, input.UserID, input.Query, input.Limit, input.Offset)
+		LIMIT $5 OFFSET $6
+	`, input.UserID, input.Query, input.From, input.To, input.Limit, input.Offset)
 	if err != nil {
 		return ModelPage{}, err
 	}

@@ -1630,11 +1630,13 @@ Response `200`: `GrowthModel`
 
 ### List Models
 
-`GET /api/v1/growth/models?q=培训&limit=20&offset=0`
+`GET /api/v1/growth/models?q=培训&from=2026-08-01&to=2026-08-15&limit=20&offset=0`
 
 Query parameters:
 
 - `q`: optional name search, up to 100 Unicode characters.
+- `from`: optional inclusive creation date in `YYYY-MM-DD` format.
+- `to`: optional inclusive creation date in `YYYY-MM-DD` format.
 - `limit`: page size, default `20`, maximum `100`.
 - `offset`: zero-based offset, default `0`.
 

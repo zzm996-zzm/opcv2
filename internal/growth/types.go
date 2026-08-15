@@ -66,6 +66,8 @@ type ListModelsInput struct {
 	Query  string
 	Limit  int
 	Offset int
+	From   *time.Time
+	To     *time.Time
 }
 
 type ModelPage struct {

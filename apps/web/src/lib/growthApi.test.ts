@@ -108,10 +108,10 @@ describe("growthApi", () => {
       new Response(JSON.stringify({ models: [], total: 0, limit: 10, offset: 20 }), { status: 200 })
     );
 
-    await growthApi.listModels({ q: "SaaS", limit: 10, offset: 20 });
+    await growthApi.listModels({ q: "SaaS", from: "2026-08-01", to: "2026-08-15", limit: 10, offset: 20 });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/growth/models?q=SaaS&limit=10&offset=20",
+      "/api/v1/growth/models?q=SaaS&limit=10&offset=20&from=2026-08-01&to=2026-08-15",
       expect.objectContaining({ method: "GET" })
     );
   });

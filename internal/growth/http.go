@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
@@ -193,9 +194,14 @@ func (h *HTTPHandler) listModels(c *gin.Context) {
 		httpapi.BadRequest(c, "invalid_query")
 		return
 	}
+	from, to, ok := modelDateRange(c.Query("from"), c.Query("to"))
+	if !ok {
+		httpapi.BadRequest(c, "invalid_date_range")
+		return
+	}
 	if app, supportsPaging := h.app.(modelPageApplication); supportsPaging {
 		page, err := app.ListModelPage(c.Request.Context(), ListModelsInput{
-			UserID: c.GetInt64(auth.UserIDContextKey), Query: query, Limit: limit, Offset: offset,
+			UserID: c.GetInt64(auth.UserIDContextKey), Query: query, Limit: limit, Offset: offset, From: from, To: to,
 		})
 		if err != nil {
 			writeError(c, err)
@@ -211,6 +217,36 @@ func (h *HTTPHandler) listModels(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"models": httpapi.EnsureSlice(models), "total": len(models), "limit": limit, "offset": offset})
+}
+
+func modelDateRange(fromValue, toValue string) (*time.Time, *time.Time, bool) {
+	parse := func(value string) (*time.Time, bool) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, true
+		}
+		parsed, err := time.ParseInLocation("2006-01-02", value, time.UTC)
+		if err != nil {
+			return nil, false
+		}
+		return &parsed, true
+	}
+	from, ok := parse(fromValue)
+	if !ok {
+		return nil, nil, false
+	}
+	to, ok := parse(toValue)
+	if !ok {
+		return nil, nil, false
+	}
+	if to != nil {
+		exclusive := to.AddDate(0, 0, 1)
+		to = &exclusive
+	}
+	if from != nil && to != nil && !from.Before(*to) {
+		return nil, nil, false
+	}
+	return from, to, true
 }
 
 func (h *HTTPHandler) getModel(c *gin.Context) {
