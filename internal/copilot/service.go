@@ -17,6 +17,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/membership"
+	"github.com/zzm/opcv2/internal/tasks"
 )
 
 type Repository interface {
@@ -26,6 +27,9 @@ type Repository interface {
 	UpdateThreadTitle(ctx context.Context, userID, id int64, title string) (Thread, error)
 	ArchiveThread(ctx context.Context, userID, id int64) error
 	CreateMessage(ctx context.Context, message Message) (Message, error)
+	GetMessage(ctx context.Context, userID, threadID, messageID int64) (Message, error)
+	ClaimToolPreview(ctx context.Context, userID, threadID, messageID int64) (Message, error)
+	UpdateMessageContentMetadata(ctx context.Context, userID, threadID, messageID int64, content string, metadata json.RawMessage) (Message, error)
 	ListMessages(ctx context.Context, userID, threadID int64, limit int) ([]Message, error)
 	ListMemories(ctx context.Context, userID int64, limit int) ([]Memory, error)
 	UpsertMemory(ctx context.Context, memory Memory) (Memory, error)
@@ -50,6 +54,11 @@ type ToolExecutor interface {
 	Execute(ctx context.Context, userID, sourceMessageID int64, call ToolCall) (ToolExecutionResult, error)
 }
 
+type TaskContextProvider interface {
+	GetTask(ctx context.Context, userID, id int64) (tasks.Task, error)
+	ListSubtasks(ctx context.Context, userID, taskID int64) ([]tasks.Subtask, error)
+}
+
 type QuotaConsumer interface {
 	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
 	RefundUsage(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
@@ -58,13 +67,14 @@ type QuotaConsumer interface {
 type Option func(*Service)
 
 type Service struct {
-	repository Repository
-	generator  JSONGenerator
-	streamer   TextStreamer
-	tools      ToolExecutor
-	models     []ModelOption
-	quota      QuotaConsumer
-	now        func() time.Time
+	repository  Repository
+	generator   JSONGenerator
+	streamer    TextStreamer
+	tools       ToolExecutor
+	taskContext TaskContextProvider
+	models      []ModelOption
+	quota       QuotaConsumer
+	now         func() time.Time
 }
 
 type chatAIResult struct {
@@ -77,9 +87,13 @@ type modelSmokeAIResult struct {
 }
 
 type messageMetadata struct {
-	Kind         string               `json:"kind,omitempty"`
-	ReferenceIDs []int64              `json:"reference_ids,omitempty"`
-	ToolResult   *ToolExecutionResult `json:"tool_result,omitempty"`
+	Kind          string               `json:"kind,omitempty"`
+	ReferenceIDs  []int64              `json:"reference_ids,omitempty"`
+	TaskID        int64                `json:"task_id,omitempty"`
+	CurrentView   string               `json:"current_view,omitempty"`
+	ActiveFilters map[string]string    `json:"active_filters,omitempty"`
+	ToolResult    *ToolExecutionResult `json:"tool_result,omitempty"`
+	ToolPreview   *ToolPreview         `json:"tool_preview,omitempty"`
 }
 
 const (
@@ -128,6 +142,10 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 	if err != nil {
 		return SendMessageResult{}, err
 	}
+	taskContext, err := s.loadTaskContext(ctx, input)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
 	memories, _ := s.repository.ListMemories(ctx, input.UserID, 20)
 	messages, _ := s.repository.ListMessages(ctx, input.UserID, thread.ID, 12)
 	quotaKey := "copilot-message-" + s.normalizeRequestID(input.RequestID, input.UserID, input.ThreadID)
@@ -136,7 +154,7 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 	}
 	userMessage, err := s.repository.CreateMessage(ctx, Message{
 		UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleUser, Content: content,
-		Status: MessageStatusCompleted, Model: model, Metadata: referenceMetadata(input.ReferenceIDs), CreatedAt: s.now(),
+		Status: MessageStatusCompleted, Model: model, Metadata: sendMessageMetadata(input), CreatedAt: s.now(),
 	})
 	if err != nil {
 		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "user-message")
@@ -146,19 +164,8 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "client")
 		return SendMessageResult{}, err
 	}
-	if toolCall := s.detectToolCall(ctx, input.UserID, content, model); toolCall != nil && s.tools != nil {
-		toolResult, err := s.tools.Execute(ctx, input.UserID, userMessage.ID, *toolCall)
-		if err != nil {
-			s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "tool-execution")
-			return SendMessageResult{}, err
-		}
-		if err := onEvent(StreamEvent{Type: StreamEventDelta, Delta: toolResult.Message}); err != nil {
-			return SendMessageResult{}, err
-		}
-		assistantMessage, err := s.repository.CreateMessage(ctx, Message{
-			UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleAssistant, Content: toolResult.Message,
-			Status: MessageStatusCompleted, Model: model, Metadata: toolResultMetadata(toolResult), CreatedAt: s.now(),
-		})
+	if toolCall := s.detectToolCall(ctx, input.UserID, content, model, taskContext); toolCall != nil && s.tools != nil {
+		assistantMessage, err := s.createToolPreview(ctx, input, model, userMessage.ID, *toolCall)
 		if err != nil {
 			return SendMessageResult{}, err
 		}
@@ -170,7 +177,7 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 	streamResult, err := s.streamer.GenerateTextStream(ctx, ai.GenerateTextRequest{
 		UserID: input.UserID, Feature: "copilot.chat_stream", PromptVersion: "copilot_chat_stream_v1", Model: model,
 		SystemPrompt: "你是智活 Copilot，回答要直接、可执行。请使用清晰的 Markdown，不要返回 JSON。",
-		UserPrompt:   buildUserPrompt(thread, memories, messages, references, content),
+		UserPrompt:   buildUserPrompt(thread, memories, messages, references, taskContext, content),
 	}, func(delta []byte) error {
 		return onEvent(StreamEvent{Type: StreamEventDelta, Delta: string(delta)})
 	})
@@ -198,14 +205,14 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 	return SendMessageResult{UserMessage: userMessage, AssistantMessage: assistantMessage}, nil
 }
 
-func (s *Service) detectToolCall(ctx context.Context, userID int64, content, model string) *ToolCall {
+func (s *Service) detectToolCall(ctx context.Context, userID int64, content, model string, taskContext *TaskContext) *ToolCall {
 	if s.generator == nil || !likelyToolRequest(content) {
 		return nil
 	}
 	result, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID: userID, Feature: "copilot.tool_intent", PromptVersion: "copilot_tool_intent_v1", Model: model,
 		SystemPrompt: "识别用户是否明确要求代执行。只允许 create_task、project_match、none。不得从普通咨询推断执行意图。必须返回 JSON。",
-		UserPrompt:   fmt.Sprintf("用户请求：%s\n返回 {\"tool\":\"create_task|project_match|none\",\"arguments\":{\"title\":\"\",\"description\":\"\",\"priority\":\"low|medium|high\",\"tags\":[],\"intent\":\"\"}}", content),
+		UserPrompt:   fmt.Sprintf("%s\n用户请求：%s\n返回 {\"tool\":\"create_task|project_match|none\",\"arguments\":{\"title\":\"\",\"description\":\"\",\"priority\":\"low|medium|high\",\"tags\":[],\"intent\":\"\"}}", taskContextPrompt(taskContext), content),
 		SchemaName:   "copilot_tool_intent", Validate: validateToolCallJSON, RepairAttempts: 1,
 	})
 	if err != nil {
@@ -270,6 +277,169 @@ func toolResultMetadata(result ToolExecutionResult) []byte {
 	return data
 }
 
+func (s *Service) createToolPreview(ctx context.Context, input SendMessageInput, model string, sourceMessageID int64, call ToolCall) (Message, error) {
+	preview := ToolPreview{
+		ID:              fmt.Sprintf("tool-%d", sourceMessageID),
+		SourceMessageID: sourceMessageID,
+		Call:            normalizeToolCall(call),
+		Status:          ToolPreviewPending,
+		ExpiresAt:       s.now().Add(30 * time.Minute),
+	}
+	metadata, _ := json.Marshal(messageMetadata{ToolPreview: &preview})
+	return s.repository.CreateMessage(ctx, Message{
+		UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleAssistant,
+		Content: toolPreviewContent(preview.Call), Status: MessageStatusCompleted,
+		Model: model, Metadata: metadata, CreatedAt: s.now(),
+	})
+}
+
+func toolPreviewContent(call ToolCall) string {
+	switch call.Tool {
+	case ToolCreateTask:
+		return fmt.Sprintf("我准备创建任务“%s”。确认后会进入正式任务统计，并可能向相关成员发送通知。", call.Arguments.Title)
+	case ToolProjectMatch:
+		return fmt.Sprintf("我准备发起项目匹配“%s”。确认后会创建一条正式匹配会话。", call.Arguments.Intent)
+	default:
+		return "我准备执行一项操作，请确认。"
+	}
+}
+
+func (s *Service) ConfirmTool(ctx context.Context, input ToolConfirmationInput) (ToolConfirmationResult, error) {
+	if s.repository == nil || s.tools == nil || input.UserID <= 0 || input.ThreadID <= 0 || input.MessageID <= 0 {
+		return ToolConfirmationResult{}, ErrInvalidInput
+	}
+	decision := strings.ToLower(strings.TrimSpace(input.Decision))
+	if decision != "confirm" && decision != "cancel" {
+		return ToolConfirmationResult{}, ErrInvalidInput
+	}
+	message, err := s.repository.GetMessage(ctx, input.UserID, input.ThreadID, input.MessageID)
+	if err != nil {
+		return ToolConfirmationResult{}, err
+	}
+	metadata, preview, err := toolPreviewFromMessage(message)
+	if err != nil {
+		return ToolConfirmationResult{}, err
+	}
+	if !s.now().Before(preview.ExpiresAt) && preview.Status == ToolPreviewPending {
+		claimed, claimErr := s.repository.ClaimToolPreview(ctx, input.UserID, input.ThreadID, input.MessageID)
+		if claimErr != nil {
+			return ToolConfirmationResult{}, claimErr
+		}
+		_, preview, err = toolPreviewFromMessage(claimed)
+		if err != nil {
+			return ToolConfirmationResult{}, err
+		}
+		preview.Status = ToolPreviewExpired
+		data, _ := json.Marshal(messageMetadata{ToolPreview: preview})
+		updated, updateErr := s.repository.UpdateMessageContentMetadata(ctx, input.UserID, input.ThreadID, input.MessageID, "这条执行预览已过期，请重新发起请求。", data)
+		if updateErr != nil {
+			return ToolConfirmationResult{}, updateErr
+		}
+		return ToolConfirmationResult{Message: updated}, ErrToolPreviewExpired
+	}
+	if decision == "cancel" {
+		if preview.Status == ToolPreviewCancelled || preview.Status == ToolPreviewExpired {
+			return ToolConfirmationResult{Message: message}, nil
+		}
+		if preview.Status != ToolPreviewPending {
+			return ToolConfirmationResult{}, ErrToolPreviewConflict
+		}
+		claimed, claimErr := s.repository.ClaimToolPreview(ctx, input.UserID, input.ThreadID, input.MessageID)
+		if claimErr != nil {
+			return ToolConfirmationResult{}, claimErr
+		}
+		_, preview, err = toolPreviewFromMessage(claimed)
+		if err != nil {
+			return ToolConfirmationResult{}, err
+		}
+		preview.Status = ToolPreviewCancelled
+		data, _ := json.Marshal(messageMetadata{ToolPreview: preview})
+		updated, err := s.repository.UpdateMessageContentMetadata(ctx, input.UserID, input.ThreadID, input.MessageID, "已取消这项操作。", data)
+		if err != nil {
+			return ToolConfirmationResult{}, err
+		}
+		return ToolConfirmationResult{Message: updated}, nil
+	}
+	if preview.Status == ToolPreviewConfirmed && metadata.ToolResult != nil {
+		return ToolConfirmationResult{Message: message, ToolResult: metadata.ToolResult}, nil
+	}
+	if preview.Status != ToolPreviewPending {
+		return ToolConfirmationResult{}, ErrToolPreviewConflict
+	}
+	claimed, err := s.repository.ClaimToolPreview(ctx, input.UserID, input.ThreadID, input.MessageID)
+	if err != nil {
+		return ToolConfirmationResult{}, err
+	}
+	_, preview, err = toolPreviewFromMessage(claimed)
+	if err != nil {
+		return ToolConfirmationResult{}, err
+	}
+	toolResult, err := s.tools.Execute(ctx, input.UserID, preview.SourceMessageID, preview.Call)
+	if err != nil {
+		preview.Status = ToolPreviewPending
+		preview.Error = "上次执行失败，可以重试。"
+		failedMetadata, _ := json.Marshal(messageMetadata{ToolPreview: preview})
+		_, _ = s.repository.UpdateMessageContentMetadata(ctx, input.UserID, input.ThreadID, input.MessageID, toolPreviewContent(preview.Call), failedMetadata)
+		return ToolConfirmationResult{}, err
+	}
+	preview.Status = ToolPreviewConfirmed
+	preview.Error = ""
+	metadata = messageMetadata{ToolPreview: preview, ToolResult: &toolResult}
+	data, _ := json.Marshal(metadata)
+	updated, err := s.repository.UpdateMessageContentMetadata(ctx, input.UserID, input.ThreadID, input.MessageID, toolResult.Message, data)
+	if err != nil {
+		return ToolConfirmationResult{}, err
+	}
+	return ToolConfirmationResult{Message: updated, ToolResult: &toolResult}, nil
+}
+
+func toolPreviewFromMessage(message Message) (messageMetadata, *ToolPreview, error) {
+	var metadata messageMetadata
+	if err := json.Unmarshal(message.Metadata, &metadata); err != nil || metadata.ToolPreview == nil {
+		return messageMetadata{}, nil, ErrToolPreviewNotFound
+	}
+	return metadata, metadata.ToolPreview, nil
+}
+
+func (s *Service) loadTaskContext(ctx context.Context, input SendMessageInput) (*TaskContext, error) {
+	view := strings.TrimSpace(input.CurrentView)
+	filters := normalizeContextFilters(input.ActiveFilters)
+	if input.TaskID <= 0 {
+		if view == "" && len(filters) == 0 {
+			return nil, nil
+		}
+		return &TaskContext{CurrentView: view, ActiveFilters: filters}, nil
+	}
+	if s.taskContext == nil {
+		return nil, ErrServiceNotReady
+	}
+	task, err := s.taskContext.GetTask(ctx, input.UserID, input.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.taskContext.ListSubtasks(ctx, input.UserID, input.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	context := &TaskContext{
+		ID: task.ID, Title: task.Title, Description: task.Description,
+		Assignee: task.Assignee, Project: task.Project, Status: task.Status,
+		Priority: task.Priority, Progress: task.Progress, DueAt: task.DueAt,
+		CurrentView: view, ActiveFilters: filters, TotalSubtasks: len(items),
+		Subtasks: make([]TaskSubtaskContext, 0, len(items)),
+	}
+	for _, item := range items {
+		if item.Completed {
+			context.CompletedSubtasks++
+		}
+		context.Subtasks = append(context.Subtasks, TaskSubtaskContext{
+			ID: item.ID, ParentSubtaskID: item.ParentSubtaskID, Title: item.Title,
+			Assignee: item.Assignee, DueAt: item.DueAt, Completed: item.Completed,
+		})
+	}
+	return context, nil
+}
+
 func NewServiceWithModels(repository Repository, generator JSONGenerator, models []ModelOption, options ...Option) *Service {
 	service := NewService(repository, generator, options...)
 	service.models = normalizeModelOptions(models)
@@ -285,6 +455,12 @@ func WithQuotaConsumer(quota QuotaConsumer) Option {
 func WithToolExecutor(executor ToolExecutor) Option {
 	return func(service *Service) {
 		service.tools = executor
+	}
+}
+
+func WithTaskContextProvider(provider TaskContextProvider) Option {
+	return func(service *Service) {
+		service.taskContext = provider
 	}
 }
 
@@ -418,6 +594,10 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 	if err != nil {
 		return SendMessageResult{}, err
 	}
+	taskContext, err := s.loadTaskContext(ctx, input)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
 	quotaKey := "copilot-message-" + s.normalizeRequestID(input.RequestID, input.UserID, input.ThreadID)
 	if err := s.consumeQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey); err != nil {
 		return SendMessageResult{}, err
@@ -429,14 +609,21 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 		Content:   content,
 		Status:    MessageStatusCompleted,
 		Model:     model,
-		Metadata:  referenceMetadata(input.ReferenceIDs),
+		Metadata:  sendMessageMetadata(input),
 		CreatedAt: now,
 	})
 	if err != nil {
 		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "user-message")
 		return SendMessageResult{}, err
 	}
-	aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, references)
+	if toolCall := s.detectToolCall(ctx, input.UserID, content, model, taskContext); toolCall != nil && s.tools != nil {
+		assistantMessage, previewErr := s.createToolPreview(ctx, input, model, userMessage.ID, *toolCall)
+		if previewErr != nil {
+			return SendMessageResult{}, previewErr
+		}
+		return SendMessageResult{UserMessage: userMessage, AssistantMessage: assistantMessage}, nil
+	}
+	aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, references, taskContext)
 	if err != nil {
 		_, _ = s.repository.CreateMessage(ctx, Message{
 			UserID:    input.UserID,
@@ -446,7 +633,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 			Status:    MessageStatusFailed,
 			Model:     model,
 			ErrorCode: "invalid_ai_result",
-			Metadata:  referenceMetadata(input.ReferenceIDs),
+			Metadata:  sendMessageMetadata(input),
 			CreatedAt: s.now(),
 		})
 		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "generation")
@@ -510,7 +697,7 @@ func (s *Service) CompareMessages(ctx context.Context, input CompareMessagesInpu
 	answers := make([]CompareAnswer, 0, len(models))
 	failedCalls := 0
 	for _, model := range models {
-		aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, nil)
+		aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, nil, nil)
 		if err != nil {
 			failedCalls++
 			message, _ := s.repository.CreateMessage(ctx, Message{
@@ -797,7 +984,7 @@ func (s *Service) referenceFiles(ctx context.Context, userID int64, ids []int64)
 	return files, nil
 }
 
-func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread, content, model string, references []File) (ai.GenerateJSONResult, chatAIResult, error) {
+func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread, content, model string, references []File, taskContext *TaskContext) (ai.GenerateJSONResult, chatAIResult, error) {
 	memories, _ := s.repository.ListMemories(ctx, userID, 20)
 	messages, _ := s.repository.ListMessages(ctx, userID, thread.ID, 12)
 	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
@@ -806,7 +993,7 @@ func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread
 		PromptVersion:  "copilot_chat_v1",
 		Model:          model,
 		SystemPrompt:   "你是智活 Copilot，回答要直接、可执行。必须只返回 JSON，字段严格匹配 copilot_chat_response。",
-		UserPrompt:     buildUserPrompt(thread, memories, messages, references, content),
+		UserPrompt:     buildUserPrompt(thread, memories, messages, references, taskContext, content),
 		SchemaName:     "copilot_chat_response",
 		Validate:       validateChatJSON,
 		RepairAttempts: 1,
@@ -850,7 +1037,7 @@ func (s *Service) generateSummary(ctx context.Context, userID int64, prompt, mod
 	return aiResult, result, nil
 }
 
-func buildUserPrompt(thread Thread, memories []Memory, messages []Message, references []File, content string) string {
+func buildUserPrompt(thread Thread, memories []Memory, messages []Message, references []File, taskContext *TaskContext, content string) string {
 	var builder strings.Builder
 	builder.WriteString("会话标题：")
 	builder.WriteString(thread.Title)
@@ -881,10 +1068,26 @@ func buildUserPrompt(thread Thread, memories []Memory, messages []Message, refer
 			builder.WriteString("\n")
 		}
 	}
+	if taskContext != nil {
+		builder.WriteString("\n")
+		builder.WriteString(taskContextPrompt(taskContext))
+		builder.WriteString("\n")
+	}
 	builder.WriteString("\n用户当前问题：")
 	builder.WriteString(content)
 	builder.WriteString("\n\n返回 JSON：{\"reply\":\"...\",\"memory_candidates\":[{\"key\":\"...\",\"value\":\"...\",\"confidence\":0.9,\"source\":\"copilot\"}]}")
 	return builder.String()
+}
+
+func taskContextPrompt(taskContext *TaskContext) string {
+	if taskContext == nil {
+		return "当前任务上下文：无"
+	}
+	payload, err := json.Marshal(taskContext)
+	if err != nil {
+		return "当前任务上下文：无"
+	}
+	return "当前任务上下文（已按当前用户权限读取）：" + string(payload)
 }
 
 func buildCompareSummaryPrompt(thread Thread, content string, answers []CompareAnswer) (string, error) {
@@ -1143,6 +1346,39 @@ func referenceMetadata(ids []int64) []byte {
 	}
 	data, _ := json.Marshal(messageMetadata{ReferenceIDs: ids})
 	return data
+}
+
+func sendMessageMetadata(input SendMessageInput) []byte {
+	metadata := messageMetadata{
+		ReferenceIDs:  normalizeReferenceIDs(input.ReferenceIDs),
+		TaskID:        input.TaskID,
+		CurrentView:   strings.TrimSpace(input.CurrentView),
+		ActiveFilters: normalizeContextFilters(input.ActiveFilters),
+	}
+	if len(metadata.ReferenceIDs) == 0 && metadata.TaskID == 0 && metadata.CurrentView == "" && len(metadata.ActiveFilters) == 0 {
+		return nil
+	}
+	data, _ := json.Marshal(metadata)
+	return data
+}
+
+func normalizeContextFilters(filters map[string]string) map[string]string {
+	if len(filters) == 0 {
+		return nil
+	}
+	normalized := make(map[string]string, min(len(filters), 12))
+	for key, value := range filters {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" || len(normalized) >= 12 {
+			continue
+		}
+		normalized[key] = value
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
 
 func truncateForPrompt(content string, maxBytes int) string {

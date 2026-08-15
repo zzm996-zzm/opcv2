@@ -136,6 +136,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const [isSavingMemory, setIsSavingMemory] = useState(false);
   const [isSavingFile, setIsSavingFile] = useState(false);
   const [isTestingModel, setIsTestingModel] = useState(false);
+	const [toolBusyID, setToolBusyID] = useState<number | null>(null);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [error, setError] = useState("");
   const chatAreaRef = useRef<HTMLDivElement | null>(null);
@@ -467,6 +468,20 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     setError("已暂停本次对话");
   }
 
+	async function handleToolDecision(message: CopilotMessage, decision: "confirm" | "cancel") {
+	  if (!activeThreadID || toolBusyID !== null) return;
+	  setToolBusyID(message.id);
+	  setError("");
+	  try {
+	    const result = await copilotApi.confirmTool(activeThreadID, message.id, decision);
+	    setMessages((current) => current.map((item) => item.id === result.message.id ? result.message : item));
+	  } catch (requestError) {
+	    setError(requestError instanceof Error ? requestError.message : "操作失败，请稍后重试");
+	  } finally {
+	    setToolBusyID(null);
+	  }
+	}
+
   async function handleNewThread() {
     try {
       await startThread();
@@ -669,13 +684,15 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
                 summary={compareSummary}
               />
             ) : (
-              <ChatThread
+	              <ChatThread
                 messages={messages}
                 isSending={isSending}
                 streamingContent={streamingContent}
                 typewriterContent={typewriterContent}
-                onPrompt={(prompt) => setDraft(prompt)}
-              />
+	                onPrompt={(prompt) => setDraft(prompt)}
+	                onToolDecision={handleToolDecision}
+	                toolBusyID={toolBusyID}
+	              />
             )}
           </div>
 
@@ -821,13 +838,17 @@ function ChatThread({
   isSending,
   streamingContent,
   typewriterContent,
-  onPrompt
+  onPrompt,
+  onToolDecision,
+  toolBusyID
 }: {
   messages: CopilotMessage[];
   isSending: boolean;
   streamingContent: string;
   typewriterContent?: Record<number, string>;
   onPrompt: (prompt: string) => void;
+  onToolDecision: (message: CopilotMessage, decision: "confirm" | "cancel") => void;
+  toolBusyID: number | null;
 }) {
   if (messages.length > 0) {
     return (
@@ -847,6 +868,13 @@ function ChatThread({
             ) : (
               <div className={"copilot-bubble compact " + (typewriterContent && message.id in typewriterContent ? "typing" : "")}>
                 <p>{typewriterContent?.[message.id] ?? message.content}</p>
+                {message.metadata?.tool_preview?.status === "pending" && (
+                  <ToolPreviewCard
+                    preview={message.metadata.tool_preview}
+                    busy={toolBusyID === message.id}
+                    onDecision={(decision) => onToolDecision(message, decision)}
+                  />
+                )}
                 {message.metadata?.tool_result && <ToolResultCard result={message.metadata.tool_result} />}
                 <time>{formatTime(message.created_at)}</time>
               </div>
@@ -864,6 +892,31 @@ function ChatThread({
       {streamingContent ? <StreamingMessage content={streamingContent} /> : <ThinkingMessage />}
     </div>
   ) : <EmptyConversation onPrompt={onPrompt} />;
+}
+
+function ToolPreviewCard({
+  preview,
+  busy,
+  onDecision
+}: {
+  preview: NonNullable<NonNullable<CopilotMessage["metadata"]>["tool_preview"]>;
+  busy: boolean;
+  onDecision: (decision: "confirm" | "cancel") => void;
+}) {
+  const isTask = preview.call.tool === "create_task";
+  const title = isTask ? preview.call.arguments.title : preview.call.arguments.intent;
+  return (
+    <div className="copilot-tool-preview" role="group" aria-label="待确认的 Copilot 操作">
+      <strong>{isTask ? "准备创建任务" : "准备发起项目匹配"}</strong>
+      <p>{title || "未命名操作"}</p>
+      {isTask && <small>确认后进入正式任务统计，并按任务权限处理通知。</small>}
+      {!isTask && <small>确认后创建正式项目匹配会话。</small>}
+      <div>
+        <button disabled={busy} onClick={() => onDecision("cancel")} type="button">取消</button>
+        <button disabled={busy} onClick={() => onDecision("confirm")} type="button">{busy ? "执行中..." : "确认执行"}</button>
+      </div>
+    </div>
+  );
 }
 
 function ToolResultCard({ result }: { result: NonNullable<NonNullable<CopilotMessage["metadata"]>["tool_result"]> }) {

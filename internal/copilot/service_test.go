@@ -12,6 +12,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/membership"
+	"github.com/zzm/opcv2/internal/tasks"
 )
 
 type fakeRepository struct {
@@ -91,6 +92,43 @@ func (r *fakeRepository) CreateMessage(_ context.Context, message Message) (Mess
 	r.messages = append(r.messages, message)
 	r.createdMessages = append(r.createdMessages, message)
 	return message, r.err
+}
+
+func (r *fakeRepository) GetMessage(_ context.Context, userID, threadID, messageID int64) (Message, error) {
+	for _, message := range r.messages {
+		if message.UserID == userID && message.ThreadID == threadID && message.ID == messageID {
+			return message, nil
+		}
+	}
+	return Message{}, ErrToolPreviewNotFound
+}
+
+func (r *fakeRepository) ClaimToolPreview(_ context.Context, userID, threadID, messageID int64) (Message, error) {
+	for index, message := range r.messages {
+		if message.UserID != userID || message.ThreadID != threadID || message.ID != messageID {
+			continue
+		}
+		var metadata messageMetadata
+		if json.Unmarshal(message.Metadata, &metadata) != nil || metadata.ToolPreview == nil || metadata.ToolPreview.Status != ToolPreviewPending {
+			return Message{}, ErrToolPreviewConflict
+		}
+		metadata.ToolPreview.Status = ToolPreviewExecuting
+		data, _ := json.Marshal(metadata)
+		r.messages[index].Metadata = data
+		return r.messages[index], nil
+	}
+	return Message{}, ErrToolPreviewConflict
+}
+
+func (r *fakeRepository) UpdateMessageContentMetadata(_ context.Context, userID, threadID, messageID int64, content string, metadata json.RawMessage) (Message, error) {
+	for index, message := range r.messages {
+		if message.UserID == userID && message.ThreadID == threadID && message.ID == messageID {
+			r.messages[index].Content = content
+			r.messages[index].Metadata = metadata
+			return r.messages[index], nil
+		}
+	}
+	return Message{}, ErrToolPreviewNotFound
 }
 
 func (r *fakeRepository) ListMessages(_ context.Context, userID, threadID int64, limit int) ([]Message, error) {
@@ -238,6 +276,7 @@ func (g *fakeTextStreamer) GenerateJSON(_ context.Context, request ai.GenerateJS
 type fakeToolExecutor struct {
 	call   ToolCall
 	userID int64
+	calls  int
 	result ToolExecutionResult
 	err    error
 }
@@ -245,7 +284,28 @@ type fakeToolExecutor struct {
 func (e *fakeToolExecutor) Execute(_ context.Context, userID, _ int64, call ToolCall) (ToolExecutionResult, error) {
 	e.userID = userID
 	e.call = call
+	e.calls++
 	return e.result, e.err
+}
+
+type fakeTaskContextProvider struct {
+	task     tasks.Task
+	subtasks []tasks.Subtask
+	userID   int64
+	taskID   int64
+	err      error
+}
+
+func (p *fakeTaskContextProvider) GetTask(_ context.Context, userID, taskID int64) (tasks.Task, error) {
+	p.userID = userID
+	p.taskID = taskID
+	return p.task, p.err
+}
+
+func (p *fakeTaskContextProvider) ListSubtasks(_ context.Context, userID, taskID int64) ([]tasks.Subtask, error) {
+	p.userID = userID
+	p.taskID = taskID
+	return p.subtasks, p.err
 }
 
 func (g *fakeTextStreamer) GenerateTextStream(_ context.Context, request ai.GenerateTextRequest, onDelta func([]byte) error) (ai.GenerateTextResult, error) {
@@ -436,7 +496,7 @@ func TestServiceStreamsMessageDeltasAndPersistsFinalReply(t *testing.T) {
 	}
 }
 
-func TestServiceExecutesWhitelistedToolIntentAndPersistsResultMetadata(t *testing.T) {
+func TestServicePreviewsWhitelistedToolAndExecutesOnlyAfterConfirmation(t *testing.T) {
 	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "执行计划", Mode: ModeChat}}}
 	streamer := &fakeTextStreamer{jsonContent: []byte(`{"tool":"create_task","arguments":{"title":"访谈10位客户","description":"记录高频问题","priority":"high"}}`)}
 	executor := &fakeToolExecutor{result: ToolExecutionResult{
@@ -455,17 +515,78 @@ func TestServiceExecutesWhitelistedToolIntentAndPersistsResultMetadata(t *testin
 	if err != nil {
 		t.Fatalf("StreamMessage() error = %v", err)
 	}
-	if executor.call.Tool != ToolCreateTask || executor.userID != 42 || executor.call.Arguments.Title != "访谈10位客户" {
-		t.Fatalf("executor = %+v", executor)
+	if executor.call.Tool != "" || executor.userID != 0 {
+		t.Fatalf("tool executed before confirmation: %+v", executor)
 	}
-	if result.AssistantMessage.Content != "已创建任务：访谈10位客户" || !strings.Contains(string(result.AssistantMessage.Metadata), "tool_result") {
+	if !strings.Contains(result.AssistantMessage.Content, "准备创建任务") || !strings.Contains(string(result.AssistantMessage.Metadata), "tool_preview") || !strings.Contains(string(result.AssistantMessage.Metadata), ToolPreviewPending) {
 		t.Fatalf("assistant = %+v", result.AssistantMessage)
 	}
-	if len(events) != 3 || events[1].Delta != "已创建任务：访谈10位客户" || events[2].Type != StreamEventAssistantMessage {
+	if len(events) != 2 || events[1].Type != StreamEventAssistantMessage {
 		t.Fatalf("events = %+v", events)
 	}
 	if streamer.request.Feature != "" {
-		t.Fatalf("text stream should not run for tool execution: %+v", streamer.request)
+		t.Fatalf("text stream should not run for tool preview: %+v", streamer.request)
+	}
+
+	confirmed, err := service.ConfirmTool(context.Background(), ToolConfirmationInput{
+		UserID: 42, ThreadID: 99, MessageID: result.AssistantMessage.ID, Decision: "confirm",
+	})
+	if err != nil {
+		t.Fatalf("ConfirmTool() error = %v", err)
+	}
+	if executor.call.Tool != ToolCreateTask || executor.userID != 42 || executor.call.Arguments.Title != "访谈10位客户" {
+		t.Fatalf("executor = %+v", executor)
+	}
+	if confirmed.ToolResult == nil || confirmed.ToolResult.EntityID != 81 || !strings.Contains(string(confirmed.Message.Metadata), "tool_result") {
+		t.Fatalf("confirmed = %+v", confirmed)
+	}
+
+	repeated, err := service.ConfirmTool(context.Background(), ToolConfirmationInput{
+		UserID: 42, ThreadID: 99, MessageID: result.AssistantMessage.ID, Decision: "confirm",
+	})
+	if err != nil || repeated.ToolResult == nil || repeated.ToolResult.EntityID != 81 {
+		t.Fatalf("repeated confirmation = %+v, %v", repeated, err)
+	}
+	if executor.calls != 1 {
+		t.Fatalf("executor calls = %d, want 1", executor.calls)
+	}
+}
+
+func TestServiceCancelsToolPreviewWithoutExecution(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "执行计划", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{jsonContent: []byte(`{"tool":"create_task","arguments":{"title":"整理访谈记录"}}`)}
+	executor := &fakeToolExecutor{}
+	service := NewService(repository, streamer, WithToolExecutor(executor))
+	result, err := service.SendMessage(context.Background(), SendMessageInput{UserID: 42, ThreadID: 99, Content: "创建任务：整理访谈记录"})
+	if err != nil {
+		t.Fatalf("SendMessage() error = %v", err)
+	}
+	confirmed, err := service.ConfirmTool(context.Background(), ToolConfirmationInput{UserID: 42, ThreadID: 99, MessageID: result.AssistantMessage.ID, Decision: "cancel"})
+	if err != nil {
+		t.Fatalf("ConfirmTool(cancel) error = %v", err)
+	}
+	if executor.calls != 0 || !strings.Contains(confirmed.Message.Content, "取消") {
+		t.Fatalf("cancelled = %+v, executor = %+v", confirmed.Message, executor)
+	}
+}
+
+func TestServiceIncludesAuthorizedTaskContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "任务分析", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合任务上下文回答"}}
+	provider := &fakeTaskContextProvider{
+		task:     tasks.Task{ID: 7, UserID: 42, Title: "上线任务中心", Status: tasks.StatusInProgress, Priority: tasks.PriorityHigh, Progress: 35},
+		subtasks: []tasks.Subtask{{ID: 1, TaskID: 7, Title: "检查接口", Completed: true}, {ID: 2, TaskID: 7, Title: "验证页面", Completed: false}},
+	}
+	service := NewService(repository, streamer, WithTaskContextProvider(provider))
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "总结当前任务", TaskID: 7, CurrentView: "list",
+		ActiveFilters: map[string]string{"status": "in_progress"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.userID != 42 || provider.taskID != 7 || !strings.Contains(streamer.request.UserPrompt, "上线任务中心") || !strings.Contains(streamer.request.UserPrompt, `"completed_subtasks":1`) || !strings.Contains(streamer.request.UserPrompt, `"current_view":"list"`) {
+		t.Fatalf("task context not included: %s", streamer.request.UserPrompt)
 	}
 }
 

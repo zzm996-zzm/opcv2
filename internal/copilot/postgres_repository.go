@@ -129,6 +129,48 @@ func (r *PostgresRepository) CreateMessage(ctx context.Context, message Message)
 	return message, nil
 }
 
+func (r *PostgresRepository) GetMessage(ctx context.Context, userID, threadID, messageID int64) (Message, error) {
+	message, err := scanMessage(r.db.QueryRow(ctx, `
+		SELECT id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at
+		FROM copilot_messages
+		WHERE user_id = $1 AND thread_id = $2 AND id = $3
+	`, userID, threadID, messageID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Message{}, ErrToolPreviewNotFound
+	}
+	return message, err
+}
+
+func (r *PostgresRepository) ClaimToolPreview(ctx context.Context, userID, threadID, messageID int64) (Message, error) {
+	message, err := scanMessage(r.db.QueryRow(ctx, `
+		UPDATE copilot_messages
+		SET metadata = jsonb_set(metadata, '{tool_preview,status}', to_jsonb($4::TEXT), true)
+		WHERE user_id = $1 AND thread_id = $2 AND id = $3
+		  AND metadata->'tool_preview'->>'status' = 'pending'
+		RETURNING id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at
+	`, userID, threadID, messageID, ToolPreviewExecuting))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Message{}, ErrToolPreviewConflict
+	}
+	return message, err
+}
+
+func (r *PostgresRepository) UpdateMessageContentMetadata(ctx context.Context, userID, threadID, messageID int64, content string, metadata json.RawMessage) (Message, error) {
+	if len(metadata) == 0 {
+		metadata = json.RawMessage(`{}`)
+	}
+	message, err := scanMessage(r.db.QueryRow(ctx, `
+		UPDATE copilot_messages
+		SET content = $4, metadata = $5
+		WHERE user_id = $1 AND thread_id = $2 AND id = $3
+		RETURNING id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at
+	`, userID, threadID, messageID, content, []byte(metadata)))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Message{}, ErrToolPreviewNotFound
+	}
+	return message, err
+}
+
 func (r *PostgresRepository) ListMessages(ctx context.Context, userID, threadID int64, limit int) ([]Message, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at

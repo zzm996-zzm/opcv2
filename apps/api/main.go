@@ -226,6 +226,7 @@ func main() {
 		copilotModelOptions(cfg),
 		copilot.WithQuotaConsumer(membershipService),
 		copilot.WithToolExecutor(copilot.NewToolRegistry(tasksService, projectsService)),
+		copilot.WithTaskContextProvider(tasksService),
 	)
 	copilotHTTP := copilot.NewHTTPHandler(copilotService)
 

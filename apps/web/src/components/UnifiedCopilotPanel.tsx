@@ -29,6 +29,9 @@ type UnifiedCopilotPanelProps = {
   showComposer?: boolean;
   subtitle?: string;
   userPrompt?: string;
+  taskID?: number;
+  currentView?: string;
+  activeFilters?: Record<string, string>;
 };
 
 const defaultActions: readonly UnifiedCopilotAction[] = [
@@ -50,7 +53,10 @@ function UnifiedCopilotPanel({
   response = "好的，我会结合当前页面信息，为你整理重点并给出下一步建议。",
   showComposer = true,
   subtitle = "你的全球 AI 助手，随时为你提供帮助",
-  userPrompt
+	userPrompt,
+	taskID,
+	currentView,
+	activeFilters
 }: UnifiedCopilotPanelProps) {
   const session = useAuthSession();
   const panel = useRegisteredCopilotPanel();
@@ -129,9 +135,12 @@ function UnifiedCopilotPanel({
           {showComposer && <MiniCopilotForm
             className="unified-copilot-input"
             inputAriaLabel={inputAriaLabel}
-            sendIcon="➤"
-            threadTitlePrefix="页面助手："
-          />}
+	            sendIcon="➤"
+	            threadTitlePrefix="页面助手："
+	            taskID={taskID}
+	            currentView={currentView}
+	            activeFilters={activeFilters}
+	          />}
       </div>
     </aside>
   );

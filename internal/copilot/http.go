@@ -24,6 +24,7 @@ type Application interface {
 	ArchiveThread(ctx context.Context, userID, id int64) error
 	ListMessages(ctx context.Context, userID, threadID int64, limit int) ([]Message, error)
 	SendMessage(ctx context.Context, input SendMessageInput) (SendMessageResult, error)
+	ConfirmTool(ctx context.Context, input ToolConfirmationInput) (ToolConfirmationResult, error)
 	CompareMessages(ctx context.Context, input CompareMessagesInput) (CompareMessagesResult, error)
 	SummarizeComparison(ctx context.Context, input CompareSummaryInput) (CompareSummaryResult, error)
 	SmokeModel(ctx context.Context, input ModelSmokeInput) (ModelSmokeResult, error)
@@ -60,6 +61,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/copilot/threads/:id/messages", h.listMessages)
 	router.POST("/copilot/threads/:id/messages", h.sendMessage)
 	router.POST("/copilot/threads/:id/messages/stream", h.sendMessageStream)
+	router.POST("/copilot/threads/:id/messages/:message_id/tool-confirmation", h.confirmTool)
 	router.POST("/copilot/threads/:id/compare", h.compareMessages)
 	router.POST("/copilot/threads/:id/compare/summary", h.summarizeComparison)
 	router.GET("/copilot/memories", h.listMemories)
@@ -214,6 +216,31 @@ func (h *HTTPHandler) sendMessageStream(c *gin.Context) {
 		return
 	}
 	_ = writeSSEEvent(c, "done", map[string]bool{"ok": true})
+}
+
+func (h *HTTPHandler) confirmTool(c *gin.Context) {
+	threadID, ok := parseID(c, "id", "invalid_thread_id")
+	if !ok {
+		return
+	}
+	messageID, ok := parseID(c, "message_id", "invalid_message_id")
+	if !ok {
+		return
+	}
+	var request ToolConfirmationInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.ThreadID = threadID
+	request.MessageID = messageID
+	result, err := h.app.ConfirmTool(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func writeSSEEvent(c *gin.Context, event string, payload any) error {
@@ -473,6 +500,12 @@ func writeError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ErrThreadNotFound):
 		httpapi.Error(c, http.StatusNotFound, "thread_not_found")
+	case errors.Is(err, ErrToolPreviewNotFound):
+		httpapi.Error(c, http.StatusNotFound, "tool_preview_not_found")
+	case errors.Is(err, ErrToolPreviewExpired):
+		httpapi.Error(c, http.StatusConflict, "tool_preview_expired")
+	case errors.Is(err, ErrToolPreviewConflict):
+		httpapi.Error(c, http.StatusConflict, "tool_preview_conflict")
 	case errors.Is(err, ErrMemoryNotFound):
 		httpapi.Error(c, http.StatusNotFound, "memory_not_found")
 	case errors.Is(err, ErrFileNotFound):

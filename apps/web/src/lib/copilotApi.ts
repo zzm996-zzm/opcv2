@@ -24,6 +24,10 @@ export type CopilotMessage = {
   output_tokens?: number;
   metadata?: {
     kind?: "compare_question" | "compare_answer" | "compare_summary" | string;
+    task_id?: number;
+    current_view?: string;
+    active_filters?: Record<string, string>;
+    tool_preview?: CopilotToolPreview;
     tool_result?: {
       tool: "create_task" | "project_match" | string;
       status: string;
@@ -34,6 +38,29 @@ export type CopilotMessage = {
     };
   };
   created_at: string;
+};
+
+export type CopilotToolPreview = {
+  id: string;
+  source_message_id: number;
+  call: {
+    tool: "create_task" | "project_match" | string;
+    arguments: {
+      title?: string;
+      description?: string;
+      priority?: string;
+      tags?: string[];
+      intent?: string;
+    };
+  };
+  status: "pending" | "executing" | "confirmed" | "cancelled" | "expired" | string;
+  expires_at: string;
+  error?: string;
+};
+
+export type ToolConfirmationResult = {
+  message: CopilotMessage;
+  tool_result?: NonNullable<CopilotMessage["metadata"]>["tool_result"];
 };
 
 export type CopilotMemory = {
@@ -179,7 +206,7 @@ export const copilotApi = {
     });
   },
 
-  sendMessage(threadId: number, input: { content: string; model?: string; reference_ids?: number[]; request_id?: string }, signal?: AbortSignal) {
+  sendMessage(threadId: number, input: { content: string; model?: string; reference_ids?: number[]; request_id?: string; task_id?: number; current_view?: string; active_filters?: Record<string, string> }, signal?: AbortSignal) {
     return apiRequest<SendMessageResult>(`/api/v1/copilot/threads/${threadId}/messages`, {
       method: "POST",
       signal,
@@ -187,9 +214,16 @@ export const copilotApi = {
     });
   },
 
+  confirmTool(threadId: number, messageId: number, decision: "confirm" | "cancel") {
+    return apiRequest<ToolConfirmationResult>(`/api/v1/copilot/threads/${threadId}/messages/${messageId}/tool-confirmation`, {
+      method: "POST",
+      body: JSON.stringify({ decision })
+    });
+  },
+
   async streamMessage(
     threadId: number,
-    input: { content: string; model?: string; reference_ids?: number[]; request_id?: string },
+    input: { content: string; model?: string; reference_ids?: number[]; request_id?: string; task_id?: number; current_view?: string; active_filters?: Record<string, string> },
     handlers: StreamMessageHandlers = {},
     signal?: AbortSignal
   ): Promise<SendMessageResult> {

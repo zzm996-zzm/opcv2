@@ -39,6 +39,7 @@ func (r *ToolRegistry) Execute(ctx context.Context, userID, sourceMessageID int6
 			Priority: call.Arguments.Priority, Tags: call.Arguments.Tags,
 			SourceType: tasks.SourceCopilotMessage, SourceID: &sourceID,
 			SourceTitle: "Copilot 代执行", SourceURL: "/copilot",
+			IdempotencyKey: fmt.Sprintf("copilot-tool-task-%d", sourceMessageID),
 		})
 		if err != nil {
 			return ToolExecutionResult{}, err

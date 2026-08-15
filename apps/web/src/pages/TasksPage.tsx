@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Eye, EyeOff, P
 import { Link, useSearchParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import UnifiedCopilotPanel from "../components/UnifiedCopilotPanel";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { ApiRequestError } from "../lib/apiRequest";
 import { tasksApi, type ReminderRecurrence, type Task, type TaskActivity, type TaskAIDraft, type TaskAttachment, type TaskComment, type TaskGroup, type TaskListColumn, type TaskPriority, type TaskReminder, type TaskSort, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
@@ -1600,10 +1601,19 @@ function TasksPage() {
           <button onClick={() => void openTaskDetail(task.id)} type="button">查看任务详情</button>
         </div>
       </article>
-    );
-  }
+	    );
+	  }
 
-  return (
+	  const taskCopilotFilters: Record<string, string> = {};
+	  if (searchQuery) taskCopilotFilters.query = searchQuery;
+	  if (selectedStatus) taskCopilotFilters.status = selectedStatus;
+	  if (selectedProject) taskCopilotFilters.project = selectedProject;
+	  if (selectedPriority) taskCopilotFilters.priority = selectedPriority;
+	  if (selectedTag) taskCopilotFilters.tag = selectedTag;
+	  if (selectedSort) taskCopilotFilters.sort = selectedSort;
+	  if (selectedGroup) taskCopilotFilters.group = selectedGroup;
+
+	  return (
     <V4PageShell>
       <section className="module-page tasks-page" aria-label="任务中心">
         <div className="page-title-row">
@@ -1744,7 +1754,7 @@ function TasksPage() {
           </div>
         ) : null}
 
-        <section className={`task-workbench ${activeView === "list" ? "" : "full-width"}`}>
+	        <section className="task-workbench">
           <div className="task-list-panel">
             <div className="module-section-head">
               <div>
@@ -2119,20 +2129,32 @@ function TasksPage() {
             ) : null}
           </div>
 
-          {activeView === "list" ? (
-            <aside className="task-board-panel" aria-label="任务看板预览">
-              <h2>跨项目看板</h2>
-              <p>切换到看板视图可按状态处理跨项目任务</p>
-              <div>
-                {boardColumns.map(([title, items]) => (
-                  <section key={title}>
-                    <strong>{title}</strong>
-                    {items.length === 0 ? <span>暂无任务</span> : items.map((item) => <span key={item}>{item}</span>)}
-                  </section>
-                ))}
-              </div>
-            </aside>
-          ) : null}
+	          <div className="task-side-rail">
+	            {activeView === "list" ? (
+	              <aside className="task-board-panel" aria-label="任务看板预览">
+	                <h2>跨项目看板</h2>
+	                <p>切换到看板视图可按状态处理跨项目任务</p>
+	                <div>
+	                  {boardColumns.map(([title, items]) => (
+	                    <section key={title}>
+	                      <strong>{title}</strong>
+	                      {items.length === 0 ? <span>暂无任务</span> : items.map((item) => <span key={item}>{item}</span>)}
+	                    </section>
+	                  ))}
+	                </div>
+	              </aside>
+	            ) : null}
+	            <UnifiedCopilotPanel
+	              activeFilters={taskCopilotFilters}
+	              ariaLabel="任务中心 Copilot"
+	              className="tasks-copilot-panel"
+	              currentView={activeView}
+	              inputAriaLabel="向任务中心 Copilot 提问"
+	              response={activeView === "board" ? "我会结合当前看板状态识别阻塞、临期和在制任务。" : activeView === "calendar" ? "我会结合当前月份和筛选条件检查排期、临期与逾期风险。" : "我会结合当前列表筛选和任务详情，整理优先级与下一步。"}
+	              taskID={detailTask?.id}
+	              userPrompt={detailTask ? `分析任务：${detailTask.title}` : "分析当前任务中心"}
+	            />
+	          </div>
         </section>
         {detailTaskID !== null ? (
           <div className="task-modal-backdrop">

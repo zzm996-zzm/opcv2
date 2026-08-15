@@ -390,6 +390,19 @@ describe("CopilotPage", () => {
     expect(screen.getByRole("link", { name: "查看任务" })).toHaveAttribute("href", "/tasks");
   });
 
+	it("shows confirmation controls for a persisted Copilot tool preview", async () => {
+	  const fetchMock = mockCopilotBackend({ previewMessage: true });
+	  renderPage();
+
+	  expect(await screen.findByRole("group", { name: "待确认的 Copilot 操作" })).toBeInTheDocument();
+	  expect(screen.getByRole("button", { name: "确认执行" })).toBeInTheDocument();
+	  fireEvent.click(screen.getByRole("button", { name: "确认执行" }));
+	  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+	    "/api/v1/copilot/threads/99/messages/41/tool-confirmation",
+	    expect.objectContaining({ body: JSON.stringify({ decision: "confirm" }) })
+	  ));
+	});
+
   it("uses selected compare models when submitting comparison", async () => {
     const fetchMock = mockCopilotBackend();
     renderPage("compare");
@@ -517,7 +530,7 @@ describe("CopilotPage", () => {
   });
 });
 
-function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean; toolMessage?: boolean } = {}) {
+function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean; toolMessage?: boolean; previewMessage?: boolean } = {}) {
   return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = String(input);
     if (url === "/api/v1/copilot/threads?limit=20") {
@@ -624,8 +637,21 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
         output_tokens: 1
       }), { status: 200 }));
     }
-    if (url === "/api/v1/copilot/threads/99/messages?limit=50") {
-	  if (options.toolMessage) {
+	    if (url === "/api/v1/copilot/threads/99/messages?limit=50") {
+		  if (options.previewMessage) {
+			return Promise.resolve(new Response(JSON.stringify({ messages: [{
+			  id: 41,
+			  user_id: 7,
+			  thread_id: 99,
+			  role: "assistant",
+			  content: "我准备创建任务“访谈10位客户”。",
+			  status: "completed",
+			  model: "deepseek",
+			  metadata: { tool_preview: { id: "tool-40", source_message_id: 40, call: { tool: "create_task", arguments: { title: "访谈10位客户" } }, status: "pending", expires_at: "2026-12-31T00:00:00Z" } },
+			  created_at: "2026-07-01T09:57:00Z"
+			}] }), { status: 200 }));
+		  }
+		  if (options.toolMessage) {
 		return Promise.resolve(new Response(JSON.stringify({ messages: [{
 		  id: 41,
 		  user_id: 7,
@@ -637,7 +663,7 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
 		  metadata: { tool_result: { tool: "create_task", status: "completed", entity_id: 81, title: "访谈10位客户", url: "/tasks", message: "已创建任务：访谈10位客户" } },
 		  created_at: "2026-07-01T09:57:00Z"
 		}] }), { status: 200 }));
-	  }
+	    }
       if (options.historicalCompare) {
         return Promise.resolve(new Response(JSON.stringify({ messages: [
           {
@@ -686,8 +712,20 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
           }
         ] }), { status: 200 }));
       }
-      return Promise.resolve(new Response(JSON.stringify({ messages: [] }), { status: 200 }));
-    }
+	      return Promise.resolve(new Response(JSON.stringify({ messages: [] }), { status: 200 }));
+	    }
+	    if (url === "/api/v1/copilot/threads/99/messages/41/tool-confirmation" && init?.method === "POST") {
+	      return Promise.resolve(new Response(JSON.stringify({ message: {
+	        id: 41,
+	        user_id: 7,
+	        thread_id: 99,
+	        role: "assistant",
+	        content: "已创建任务：访谈10位客户",
+	        status: "completed",
+	        metadata: { tool_result: { tool: "create_task", status: "completed", entity_id: 81, title: "访谈10位客户", url: "/tasks", message: "已创建任务：访谈10位客户" } },
+	        created_at: "2026-07-01T09:58:00Z"
+	      } }), { status: 200 }));
+	    }
     if (url === "/api/v1/copilot/threads/99/compare" && init?.method === "POST") {
       const response = new Response(JSON.stringify({
         user_message: {

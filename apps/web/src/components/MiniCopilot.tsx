@@ -17,6 +17,9 @@ type MiniCopilotFormProps = {
   sendIcon?: ReactNode;
   model?: string;
   threadTitlePrefix?: string;
+  taskID?: number;
+  currentView?: string;
+  activeFilters?: Record<string, string>;
 };
 
 type MiniCopilotProps = Omit<MiniCopilotFormProps, "className"> & {
@@ -33,7 +36,9 @@ type MiniCopilotProps = Omit<MiniCopilotFormProps, "className"> & {
 
 type LiveMessage = {
   id: string;
+  messageID?: number;
   content: string;
+  metadata?: CopilotMessage["metadata"];
   role: "assistant" | "user";
 };
 
@@ -46,12 +51,16 @@ export function MiniCopilotForm({
   onAttach,
   sendIcon = "⌁",
   model,
-  threadTitlePrefix = ""
+	threadTitlePrefix = "",
+	taskID,
+	currentView,
+	activeFilters
 }: MiniCopilotFormProps) {
   const [draft, setDraft] = useState("");
   const [threadID, setThreadID] = useState<number | null>(null);
   const [liveMessages, setLiveMessages] = useState<LiveMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
+	const [toolBusyID, setToolBusyID] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   async function submit(event: FormEvent) {
@@ -73,7 +82,13 @@ export function MiniCopilotForm({
         nextThreadID = thread.id;
         setThreadID(thread.id);
       }
-      const result = await copilotApi.sendMessage(nextThreadID, { content, model });
+	      const result = await copilotApi.sendMessage(nextThreadID, {
+	        content,
+	        model,
+	        task_id: taskID,
+	        current_view: currentView,
+	        active_filters: activeFilters
+	      });
       setLiveMessages((current) => replaceOptimisticMessage(current, optimisticID, result.user_message, result.assistant_message));
     } catch (requestError) {
       setDraft(content);
@@ -83,6 +98,20 @@ export function MiniCopilotForm({
       setIsSending(false);
     }
   }
+
+	async function decideTool(message: LiveMessage, decision: "confirm" | "cancel") {
+	  if (!threadID || !message.messageID || toolBusyID !== null) return;
+	  setToolBusyID(message.messageID);
+	  setError("");
+	  try {
+	    const result = await copilotApi.confirmTool(threadID, message.messageID, decision);
+	    setLiveMessages((current) => current.map((item) => item.messageID === result.message.id ? liveMessageFrom(result.message) : item));
+	  } catch (requestError) {
+	    setError(requestError instanceof Error ? requestError.message : "操作失败，请稍后重试");
+	  } finally {
+	    setToolBusyID(null);
+	  }
+	}
 
   return (
     <>
@@ -98,11 +127,22 @@ export function MiniCopilotForm({
       </form>
       {(liveMessages.length > 0 || error) && (
         <div className="mini-copilot-live-thread" aria-live="polite">
-          {liveMessages.map((message) => (
-            <article className={message.role === "user" ? "user" : ""} key={message.id}>
-              {message.role === "assistant" && <span className="ai-avatar">A</span>}
-              <p>{message.content}</p>
-            </article>
+	          {liveMessages.map((message) => (
+	            <article className={message.role === "user" ? "user" : ""} key={message.id}>
+	              {message.role === "assistant" && <span className="ai-avatar">A</span>}
+	              <div>
+	                <p>{message.content}</p>
+	                {message.metadata?.tool_preview?.status === "pending" && (
+	                  <div className="mini-copilot-tool-actions" aria-label="待确认操作">
+	                    <button disabled={toolBusyID !== null} onClick={() => void decideTool(message, "cancel")} type="button">取消</button>
+	                    <button disabled={toolBusyID !== null} onClick={() => void decideTool(message, "confirm")} type="button">
+	                      {toolBusyID === message.messageID ? "执行中..." : "确认执行"}
+	                    </button>
+	                  </div>
+	                )}
+	                {message.metadata?.tool_preview?.status === "cancelled" && <small>操作已取消</small>}
+	              </div>
+	            </article>
           ))}
           {error && <p className="mini-copilot-error" role="alert">{error}</p>}
         </div>
@@ -156,11 +196,21 @@ function replaceOptimisticMessage(
   assistantMessage: CopilotMessage
 ) {
   const withoutOptimistic = current.filter((message) => message.id !== optimisticID);
-  return [
-    ...withoutOptimistic,
-    { id: `user-${userMessage.id}`, role: "user" as const, content: userMessage.content },
-    { id: `assistant-${assistantMessage.id}`, role: "assistant" as const, content: assistantMessage.content }
-  ];
+	  return [
+	    ...withoutOptimistic,
+	    liveMessageFrom(userMessage),
+	    liveMessageFrom(assistantMessage)
+	  ];
+}
+
+function liveMessageFrom(message: CopilotMessage): LiveMessage {
+	return {
+	  id: `${message.role}-${message.id}`,
+	  messageID: message.id,
+	  role: message.role === "user" ? "user" : "assistant",
+	  content: message.content,
+	  metadata: message.metadata
+	};
 }
 
 export default MiniCopilot;

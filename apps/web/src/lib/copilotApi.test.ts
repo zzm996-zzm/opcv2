@@ -48,6 +48,28 @@ describe("copilotApi", () => {
     );
   });
 
+	it("sends task context and confirms a persisted tool preview", async () => {
+	  const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(
+	    new Response(JSON.stringify({ message: { id: 17 }, tool_result: { entity_id: 81 } }), { status: 200 })
+	  ));
+
+	  await copilotApi.sendMessage(99, {
+	    content: "分析当前任务",
+	    task_id: 7,
+	    current_view: "board",
+	    active_filters: { status: "in_progress" }
+	  });
+	  await copilotApi.confirmTool(99, 17, "confirm");
+
+	  expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/copilot/threads/99/messages", expect.objectContaining({
+	    body: JSON.stringify({ content: "分析当前任务", task_id: 7, current_view: "board", active_filters: { status: "in_progress" } })
+	  }));
+	  expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/copilot/threads/99/messages/17/tool-confirmation", expect.objectContaining({
+	    method: "POST",
+	    body: JSON.stringify({ decision: "confirm" })
+	  }));
+	});
+
   it("streams message deltas and returns persisted messages", async () => {
     const userMessage = { id: 1, content: "分析机会" };
     const assistantMessage = { id: 2, content: "实时回答" };

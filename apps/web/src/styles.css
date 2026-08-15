@@ -15027,8 +15027,19 @@ a:active {
 
 .task-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
   gap: 16px;
+}
+
+.task-side-rail {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 16px;
+}
+
+.tasks-copilot-panel {
+  min-width: 0;
 }
 
 .task-list-panel,
@@ -30724,7 +30735,7 @@ a:active {
 }
 
 .task-workbench {
-  grid-template-columns: minmax(0, 1fr) 276px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
   gap: 14px;
 }
 
@@ -33450,6 +33461,58 @@ a:active {
   color: #245dff;
   font-size: 11px;
   font-weight: 800;
+}
+
+.copilot-tool-preview {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  background: #f4f8ff;
+  border: 1px solid #c9d9f7;
+  border-radius: 8px;
+}
+
+.copilot-tool-preview p,
+.copilot-tool-preview small {
+  margin: 0;
+}
+
+.copilot-tool-preview small {
+  color: #60739e;
+  line-height: 1.5;
+}
+
+.copilot-tool-preview > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.copilot-tool-preview button,
+.mini-copilot-tool-actions button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: #1e4f9d;
+  background: #fff;
+  border: 1px solid #aac1ec;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.copilot-tool-preview button:last-child,
+.mini-copilot-tool-actions button:last-child {
+  color: #fff;
+  background: #1767f2;
+  border-color: #1767f2;
+}
+
+.mini-copilot-tool-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 @keyframes copilot-cursor-blink {

@@ -27,6 +27,9 @@ var (
 	ErrServiceNotReady     = errors.New("copilot service is not configured")
 	ErrInvalidInput        = errors.New("invalid copilot input")
 	ErrInvalidAIResult     = errors.New("invalid copilot ai result")
+	ErrToolPreviewNotFound = errors.New("copilot tool preview not found")
+	ErrToolPreviewExpired  = errors.New("copilot tool preview expired")
+	ErrToolPreviewConflict = errors.New("copilot tool preview is no longer pending")
 	ErrThreadNotFound      = errors.New("copilot thread not found")
 	ErrMemoryNotFound      = errors.New("copilot memory not found")
 	ErrFileNotFound        = errors.New("copilot file not found")
@@ -44,12 +47,15 @@ type CreateThreadInput struct {
 }
 
 type SendMessageInput struct {
-	UserID       int64   `json:"-"`
-	ThreadID     int64   `json:"-"`
-	Content      string  `json:"content"`
-	Model        string  `json:"model,omitempty"`
-	ReferenceIDs []int64 `json:"reference_ids,omitempty"`
-	RequestID    string  `json:"request_id,omitempty"`
+	UserID        int64             `json:"-"`
+	ThreadID      int64             `json:"-"`
+	Content       string            `json:"content"`
+	Model         string            `json:"model,omitempty"`
+	ReferenceIDs  []int64           `json:"reference_ids,omitempty"`
+	RequestID     string            `json:"request_id,omitempty"`
+	TaskID        int64             `json:"task_id,omitempty"`
+	CurrentView   string            `json:"current_view,omitempty"`
+	ActiveFilters map[string]string `json:"active_filters,omitempty"`
 }
 
 type CompareMessagesInput struct {
@@ -186,6 +192,18 @@ type SendMessageResult struct {
 	AssistantMessage Message `json:"assistant_message"`
 }
 
+type ToolConfirmationInput struct {
+	UserID    int64  `json:"-"`
+	ThreadID  int64  `json:"-"`
+	MessageID int64  `json:"-"`
+	Decision  string `json:"decision"`
+}
+
+type ToolConfirmationResult struct {
+	Message    Message              `json:"message"`
+	ToolResult *ToolExecutionResult `json:"tool_result,omitempty"`
+}
+
 const (
 	StreamEventUserMessage      = "user_message"
 	StreamEventDelta            = "delta"
@@ -200,9 +218,14 @@ type StreamEvent struct {
 }
 
 const (
-	ToolNone         = "none"
-	ToolCreateTask   = "create_task"
-	ToolProjectMatch = "project_match"
+	ToolNone             = "none"
+	ToolCreateTask       = "create_task"
+	ToolProjectMatch     = "project_match"
+	ToolPreviewPending   = "pending"
+	ToolPreviewExecuting = "executing"
+	ToolPreviewConfirmed = "confirmed"
+	ToolPreviewCancelled = "cancelled"
+	ToolPreviewExpired   = "expired"
 )
 
 type ToolArguments struct {
@@ -216,6 +239,41 @@ type ToolArguments struct {
 type ToolCall struct {
 	Tool      string        `json:"tool"`
 	Arguments ToolArguments `json:"arguments"`
+}
+
+type ToolPreview struct {
+	ID              string    `json:"id"`
+	SourceMessageID int64     `json:"source_message_id"`
+	Call            ToolCall  `json:"call"`
+	Status          string    `json:"status"`
+	ExpiresAt       time.Time `json:"expires_at"`
+	Error           string    `json:"error,omitempty"`
+}
+
+type TaskContext struct {
+	ID                int64                `json:"id"`
+	Title             string               `json:"title"`
+	Description       string               `json:"description,omitempty"`
+	Assignee          string               `json:"assignee,omitempty"`
+	Project           string               `json:"project,omitempty"`
+	Status            string               `json:"status"`
+	Priority          string               `json:"priority"`
+	Progress          int                  `json:"progress"`
+	DueAt             *time.Time           `json:"due_at,omitempty"`
+	Subtasks          []TaskSubtaskContext `json:"subtasks,omitempty"`
+	CompletedSubtasks int                  `json:"completed_subtasks"`
+	TotalSubtasks     int                  `json:"total_subtasks"`
+	CurrentView       string               `json:"current_view,omitempty"`
+	ActiveFilters     map[string]string    `json:"active_filters,omitempty"`
+}
+
+type TaskSubtaskContext struct {
+	ID              int64      `json:"id"`
+	ParentSubtaskID *int64     `json:"parent_subtask_id,omitempty"`
+	Title           string     `json:"title"`
+	Assignee        string     `json:"assignee,omitempty"`
+	DueAt           *time.Time `json:"due_at,omitempty"`
+	Completed       bool       `json:"completed"`
 }
 
 type ToolExecutionResult struct {

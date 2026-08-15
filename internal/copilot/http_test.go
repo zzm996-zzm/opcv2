@@ -17,31 +17,32 @@ import (
 )
 
 type fakeApplication struct {
-	createThreadInput CreateThreadInput
-	sendMessageInput  SendMessageInput
-	compareInput      CompareMessagesInput
-	summaryInput      CompareSummaryInput
-	smokeInput        ModelSmokeInput
-	memoryInput       MemoryInput
-	fileInput         FileInput
-	uploadInput       UploadFileInput
-	fileID            int64
-	userID            int64
-	threadID          int64
-	memoryID          int64
-	limit             int
-	thread            Thread
-	threads           []Thread
-	messages          []Message
-	memories          []Memory
-	files             []File
-	models            []ModelOption
-	aiRuns            []AIRun
-	sendResult        SendMessageResult
-	compareResult     CompareMessagesResult
-	summaryResult     CompareSummaryResult
-	smokeResult       ModelSmokeResult
-	err               error
+	createThreadInput     CreateThreadInput
+	sendMessageInput      SendMessageInput
+	toolConfirmationInput ToolConfirmationInput
+	compareInput          CompareMessagesInput
+	summaryInput          CompareSummaryInput
+	smokeInput            ModelSmokeInput
+	memoryInput           MemoryInput
+	fileInput             FileInput
+	uploadInput           UploadFileInput
+	fileID                int64
+	userID                int64
+	threadID              int64
+	memoryID              int64
+	limit                 int
+	thread                Thread
+	threads               []Thread
+	messages              []Message
+	memories              []Memory
+	files                 []File
+	models                []ModelOption
+	aiRuns                []AIRun
+	sendResult            SendMessageResult
+	compareResult         CompareMessagesResult
+	summaryResult         CompareSummaryResult
+	smokeResult           ModelSmokeResult
+	err                   error
 }
 
 func (a *fakeApplication) CreateThread(_ context.Context, input CreateThreadInput) (Thread, error) {
@@ -84,6 +85,11 @@ func (a *fakeApplication) ListMessages(_ context.Context, userID, threadID int64
 func (a *fakeApplication) SendMessage(_ context.Context, input SendMessageInput) (SendMessageResult, error) {
 	a.sendMessageInput = input
 	return a.sendResult, a.err
+}
+
+func (a *fakeApplication) ConfirmTool(_ context.Context, input ToolConfirmationInput) (ToolConfirmationResult, error) {
+	a.toolConfirmationInput = input
+	return ToolConfirmationResult{Message: Message{ID: input.MessageID, ThreadID: input.ThreadID, UserID: input.UserID}}, a.err
 }
 
 func (a *fakeApplication) StreamMessage(_ context.Context, input SendMessageInput, onEvent func(StreamEvent) error) (SendMessageResult, error) {
@@ -234,6 +240,24 @@ func TestSendMessageEndpointUsesAuthenticatedUserAndThread(t *testing.T) {
 	}
 	if app.sendMessageInput.UserID != 42 || app.sendMessageInput.ThreadID != 99 || app.sendMessageInput.Content != "你好" {
 		t.Fatalf("input = %+v", app.sendMessageInput)
+	}
+}
+
+func TestConfirmToolEndpointBindsAuthenticatedUserThreadAndMessage(t *testing.T) {
+	app := &fakeApplication{}
+	router := copilotTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/copilot/threads/99/messages/17/tool-confirmation", strings.NewReader(`{"decision":"confirm"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	input := app.toolConfirmationInput
+	if input.UserID != 42 || input.ThreadID != 99 || input.MessageID != 17 || input.Decision != "confirm" {
+		t.Fatalf("input = %+v", input)
 	}
 }
 
