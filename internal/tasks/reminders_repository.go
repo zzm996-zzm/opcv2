@@ -12,8 +12,9 @@ import (
 func (r *PostgresRepository) GetTaskReminder(ctx context.Context, userID, taskID int64) (*TaskReminder, error) {
 	reminder, err := scanTaskReminder(r.db.QueryRow(ctx, `
 		SELECT id, task_id, user_id, remind_at, recurrence, sent_at, created_at, updated_at
-		FROM task_reminders
-		WHERE user_id = $1 AND task_id = $2
+		FROM task_reminders AS reminder
+		JOIN tasks AS task ON task.id = reminder.task_id AND task.deleted_at IS NULL
+		WHERE reminder.user_id = $1 AND reminder.task_id = $2
 	`, userID, taskID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -29,7 +30,7 @@ func (r *PostgresRepository) UpsertTaskReminder(ctx context.Context, reminder Ta
 		INSERT INTO task_reminders (task_id, user_id, remind_at, recurrence, created_at, updated_at)
 		SELECT t.id, t.user_id, $3, $4, $5, $5
 		FROM tasks t
-		WHERE t.id = $1 AND t.user_id = $2
+		WHERE t.id = $1 AND t.user_id = $2 AND t.deleted_at IS NULL
 		ON CONFLICT (task_id) DO UPDATE
 		SET remind_at = EXCLUDED.remind_at,
 		    recurrence = EXCLUDED.recurrence,
@@ -45,8 +46,10 @@ func (r *PostgresRepository) UpsertTaskReminder(ctx context.Context, reminder Ta
 
 func (r *PostgresRepository) DeleteTaskReminder(ctx context.Context, userID, taskID int64) error {
 	tag, err := r.db.Exec(ctx, `
-		DELETE FROM task_reminders
-		WHERE user_id = $1 AND task_id = $2
+		DELETE FROM task_reminders AS reminder
+		USING tasks AS task
+		WHERE reminder.user_id = $1 AND reminder.task_id = $2
+		  AND task.id = reminder.task_id AND task.deleted_at IS NULL
 	`, userID, taskID)
 	if err != nil {
 		return err
@@ -71,9 +74,12 @@ func (r *PostgresRepository) DispatchDueTaskReminders(ctx context.Context, now t
 			    updated_at = $1
 			WHERE reminder.id IN (
 				SELECT candidate.id
-				FROM task_reminders AS candidate
-				WHERE (candidate.recurrence <> 'once' OR candidate.sent_at IS NULL)
-				  AND candidate.remind_at <= $1
+					FROM task_reminders AS candidate
+					JOIN tasks AS task ON task.id = candidate.task_id
+					WHERE (candidate.recurrence <> 'once' OR candidate.sent_at IS NULL)
+					  AND candidate.remind_at <= $1
+					  AND task.deleted_at IS NULL
+					  AND task.status NOT IN ('completed', 'cancelled')
 				ORDER BY candidate.remind_at, candidate.id
 				LIMIT $2
 				FOR UPDATE SKIP LOCKED

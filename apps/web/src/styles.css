@@ -8380,6 +8380,30 @@ a:active {
   background: #e9fbf3;
 }
 
+.task-undo-message {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-undo-message button {
+  min-height: 32px;
+  padding: 0 12px;
+  color: #087b58;
+  background: #fff;
+  border: 1px solid rgba(8, 123, 88, 0.24);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.task-undo-message button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .module-quota-inline {
   display: inline-grid;
   grid-template-columns: 1fr auto;

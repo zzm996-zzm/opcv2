@@ -11,7 +11,7 @@ func (r *PostgresRepository) ListSubtasks(ctx context.Context, userID, taskID in
 	rows, err := r.db.Query(ctx, `
 		SELECT s.id, s.task_id, s.user_id, s.title, s.assignee, s.due_at, s.completed, s.created_at, s.updated_at
 		FROM task_subtasks s
-		JOIN tasks t ON t.id = s.task_id AND t.user_id = $1
+		JOIN tasks t ON t.id = s.task_id AND t.user_id = $1 AND t.deleted_at IS NULL
 		WHERE s.user_id = $1 AND s.task_id = $2
 		ORDER BY s.created_at, s.id
 	`, userID, taskID)
@@ -39,7 +39,7 @@ func (r *PostgresRepository) CreateSubtask(ctx context.Context, item Subtask) (S
 		INSERT INTO task_subtasks (task_id, user_id, title, assignee, due_at, created_at, updated_at)
 		SELECT t.id, t.user_id, $3, $4, $5, $6, $6
 		FROM tasks t
-		WHERE t.id = $1 AND t.user_id = $2
+		WHERE t.id = $1 AND t.user_id = $2 AND t.deleted_at IS NULL
 		RETURNING id, task_id, user_id, title, assignee, due_at, completed, created_at, updated_at
 	`, item.TaskID, item.UserID, item.Title, item.Assignee, optionalTime(item.DueAt), item.CreatedAt))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -57,6 +57,10 @@ func (r *PostgresRepository) UpdateSubtask(ctx context.Context, userID, taskID, 
 		    completed = COALESCE($5, completed),
 		    updated_at = NOW()
 		WHERE user_id = $6 AND task_id = $7 AND id = $8
+		  AND EXISTS (
+		      SELECT 1 FROM tasks t
+		      WHERE t.id = $7 AND t.user_id = $6 AND t.deleted_at IS NULL
+		  )
 		RETURNING id, task_id, user_id, title, assignee, due_at, completed, created_at, updated_at
 	`, optionalString(update.Title), optionalString(update.Assignee), optionalTime(update.DueAt), update.ClearDueAt, update.Completed, userID, taskID, id))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -69,6 +73,10 @@ func (r *PostgresRepository) DeleteSubtask(ctx context.Context, userID, taskID, 
 	tag, err := r.db.Exec(ctx, `
 		DELETE FROM task_subtasks
 		WHERE user_id = $1 AND task_id = $2 AND id = $3
+		  AND EXISTS (
+		      SELECT 1 FROM tasks t
+		      WHERE t.id = $2 AND t.user_id = $1 AND t.deleted_at IS NULL
+		  )
 	`, userID, taskID, id)
 	if err != nil {
 		return err

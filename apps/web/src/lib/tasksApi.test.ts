@@ -16,16 +16,17 @@ describe("tasksApi", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ total: 1, todo: 0, in_progress: 1, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 99, status: "completed" }), { status: 200 }));
 
-    await tasksApi.createTask({ title: "整理客户名单", project: "AI线索开发", priority: "high", tools: ["CRM"], learning: "线索评分" });
+    await tasksApi.createTask({ title: "整理客户名单", project: "AI线索开发", priority: "high", tools: ["CRM"], learning: "线索评分", idempotencyKey: "task-99" });
     await tasksApi.listTasks({ status: "in_progress", project: "商业沙盘", q: "接口", limit: 10 });
     await tasksApi.stats();
-    await tasksApi.updateTask(99, { status: "completed" });
+    await tasksApi.updateTask(99, { status: "completed", version: 4 });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       "/api/v1/tasks",
       expect.objectContaining({
         method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "task-99" }),
         body: JSON.stringify({ title: "整理客户名单", project: "AI线索开发", priority: "high", tools: ["CRM"], learning: "线索评分" })
       })
     );
@@ -38,8 +39,16 @@ describe("tasksApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       4,
       "/api/v1/tasks/99",
-      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "completed" }) })
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "completed", version: 4 }) })
     );
+  });
+
+  it("restores a soft-deleted task", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await tasksApi.restoreTask(99);
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/99/restore", expect.objectContaining({ method: "POST" }));
   });
 
   it("generates a task plan from a goal", async () => {

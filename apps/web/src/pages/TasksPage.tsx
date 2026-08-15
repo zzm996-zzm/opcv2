@@ -20,6 +20,8 @@ type TaskRow = {
   learning: string;
   sourceTitle?: string;
   sourceURL?: string;
+  version: number;
+  progress: number;
 };
 
 type TaskView = "list" | "board" | "calendar";
@@ -37,6 +39,7 @@ type TaskEditForm = {
   tags: string;
   tools: string;
   learning: string;
+  progress: number;
 };
 
 const emptyTaskStats = [
@@ -49,7 +52,10 @@ const emptyTaskStats = [
 const boardColumnLabels: Array<{ label: string; status: TaskStatus }> = [
   { label: "待开始", status: "todo" },
   { label: "进行中", status: "in_progress" },
+  { label: "评审中", status: "review" },
+  { label: "阻塞", status: "blocked" },
   { label: "已完成", status: "completed" },
+  { label: "已取消", status: "cancelled" },
   { label: "提醒中", status: "reminder" }
 ];
 
@@ -68,7 +74,10 @@ const taskViewDescriptions: Record<TaskView, string> = {
 const statusLabels: Record<TaskStatus, string> = {
   todo: "待开始",
   in_progress: "进行中",
+  review: "评审中",
+  blocked: "阻塞",
   completed: "已完成",
+  cancelled: "已取消",
   reminder: "提醒中"
 };
 
@@ -82,7 +91,10 @@ const statusFilters: Array<{ label: string; value?: TaskStatus }> = [
   { label: "全部" },
   { label: "待开始", value: "todo" },
   { label: "进行中", value: "in_progress" },
+  { label: "评审中", value: "review" },
+  { label: "阻塞", value: "blocked" },
   { label: "已完成", value: "completed" },
+  { label: "已取消", value: "cancelled" },
   { label: "提醒中", value: "reminder" }
 ];
 
@@ -123,7 +135,8 @@ function toTaskEditForm(task: Task): TaskEditForm {
     dueAt: toDateTimeLocal(task.due_at),
     tags: (task.tags ?? []).join("，"),
     tools: task.tools.join("，"),
-    learning: task.learning
+    learning: task.learning,
+    progress: task.progress ?? 0
   };
 }
 
@@ -148,7 +161,9 @@ function toTaskRow(task: Task): TaskRow {
     tools: task.tools,
     learning: task.learning,
     sourceTitle: task.source_title,
-    sourceURL: task.source_url
+    sourceURL: task.source_url,
+    version: task.version,
+    progress: task.progress ?? 0
   };
 }
 
@@ -159,7 +174,7 @@ function buildTaskStats(tasks: Task[]) {
       acc[task.status] += 1;
       return acc;
     },
-    { todo: 0, in_progress: 0, completed: 0, reminder: 0 }
+    { todo: 0, in_progress: 0, review: 0, blocked: 0, completed: 0, cancelled: 0, reminder: 0 }
   );
   return [
     ["今日待办", String(countByStatus.todo + countByStatus.in_progress + countByStatus.reminder)],
@@ -174,8 +189,24 @@ function statsFromApi(stats: TaskStats) {
     ["今日待办", String(stats.todo + stats.in_progress + stats.reminder)],
     ["进行中", String(stats.in_progress)],
     ["已完成", String(stats.completed)],
-    ["提醒中", String(stats.reminder)]
+    ["提醒中", String(stats.reminder)],
+    ["48小时内到期", String(stats.due_soon ?? 0)],
+    ["48小时内超时", String(stats.timed_out ?? 0)],
+    ["严重逾期", String(stats.overdue ?? 0)]
   ] as const;
+}
+
+function taskStatusOptions(status: TaskStatus) {
+  const allowed: Record<TaskStatus, TaskStatus[]> = {
+    todo: ["todo", "in_progress", "reminder", "completed", "cancelled"],
+    in_progress: ["in_progress", "todo", "review", "blocked", "reminder", "completed", "cancelled"],
+    review: ["review", "in_progress", "blocked", "completed", "cancelled"],
+    blocked: ["blocked", "todo", "in_progress", "completed", "cancelled"],
+    completed: ["completed", "todo", "in_progress"],
+    cancelled: ["cancelled", "todo"],
+    reminder: ["reminder", "todo", "in_progress", "review", "blocked", "completed", "cancelled"]
+  };
+  return allowed[status].map((value) => ({ value, label: statusLabels[value] }));
 }
 
 function taskStatusAction(status: TaskStatus) {
@@ -183,6 +214,7 @@ function taskStatusAction(status: TaskStatus) {
     case "todo":
       return { label: "开始任务", nextStatus: "in_progress" as TaskStatus };
     case "completed":
+    case "cancelled":
       return { label: "重新打开", nextStatus: "todo" as TaskStatus };
     default:
       return { label: "标记完成", nextStatus: "completed" as TaskStatus };
@@ -243,6 +275,9 @@ function TasksPage() {
   const [reminderError, setReminderError] = useState("");
   const [reminderMessage, setReminderMessage] = useState("");
   const [reminderNeedsUpgrade, setReminderNeedsUpgrade] = useState(false);
+  const [deletedTasks, setDeletedTasks] = useState<Task[]>([]);
+  const [deletedTasksMessage, setDeletedTasksMessage] = useState("");
+  const [restoringTasks, setRestoringTasks] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -311,6 +346,13 @@ function TasksPage() {
   const hasActiveFilters = Boolean(selectedStatus || selectedProject || selectedPriority || selectedTag || searchQuery);
   const currentPageTaskIDs = apiTasks.map((task) => task.id);
   const allCurrentPageSelected = currentPageTaskIDs.length > 0 && currentPageTaskIDs.every((id) => selectedTaskIDs.has(id));
+  const selectedTasks = apiTasks.filter((task) => selectedTaskIDs.has(task.id));
+  const batchStatusOptions = boardColumnLabels.filter((option) =>
+    selectedTasks.length > 0 && selectedTasks.every((task) => taskStatusOptions(task.status).some((item) => item.value === option.status))
+  );
+  const selectedBatchStatus = batchStatusOptions.some((option) => option.status === batchStatus)
+    ? batchStatus
+    : (batchStatusOptions[0]?.status ?? "completed");
 
   useEffect(() => {
     if (taskPage > totalPages) setTaskPage(totalPages);
@@ -394,11 +436,11 @@ function TasksPage() {
       (!normalizedQuery || [task.title, task.description ?? "", task.assignee ?? "", task.project, ...(task.tags ?? []), task.learning].some((value) => value.toLowerCase().includes(normalizedQuery)));
   }
 
-  async function updateTaskStatus(taskID: number, currentStatus: TaskStatus) {
+  async function updateTaskStatus(taskID: number, currentStatus: TaskStatus, version: number) {
     const action = taskStatusAction(currentStatus);
     setSavingTaskID(taskID);
     try {
-      const updated = await tasksApi.updateTask(taskID, { status: action.nextStatus });
+      const updated = await tasksApi.updateTask(taskID, { status: action.nextStatus, version });
       const remainsVisible = taskMatchesCurrentFilters(updated);
       setApiTasks((current) => !remainsVisible
         ? current.filter((task) => task.id !== taskID)
@@ -439,14 +481,14 @@ function TasksPage() {
     setBatchBusy(true);
     setBatchMessage("");
     try {
-      await tasksApi.batchUpdateStatus(ids, batchStatus);
+      await tasksApi.batchUpdateStatus(ids, selectedBatchStatus);
       const selectedIDs = new Set(ids);
-      const removedCount = apiTasks.filter((task) => selectedIDs.has(task.id) && !taskMatchesCurrentFilters({ ...task, status: batchStatus })).length;
+      const removedCount = apiTasks.filter((task) => selectedIDs.has(task.id) && !taskMatchesCurrentFilters({ ...task, status: selectedBatchStatus })).length;
       setApiTasks((current) => current
-        .map((task) => selectedIDs.has(task.id) ? { ...task, status: batchStatus } : task)
+        .map((task) => selectedIDs.has(task.id) ? { ...task, status: selectedBatchStatus } : task)
         .filter(taskMatchesCurrentFilters));
       if (removedCount > 0) setTaskTotal((current) => Math.max(0, current - removedCount));
-      if (removedCount > 0) setListRevision((current) => current + 1);
+      setListRevision((current) => current + 1);
       setSelectedTaskIDs(new Set());
       setConfirmBatchDelete(false);
       setListError("");
@@ -469,7 +511,10 @@ function TasksPage() {
     setBatchBusy(true);
     setBatchMessage("");
     try {
+      const deleted = apiTasks.filter((task) => ids.includes(task.id));
       await tasksApi.batchDelete(ids);
+      setDeletedTasks(deleted);
+      setDeletedTasksMessage(`已删除 ${ids.length} 条任务`);
       const selectedIDs = new Set(ids);
       setApiTasks((current) => current.filter((task) => !selectedIDs.has(task.id)));
       setTaskTotal((current) => Math.max(0, current - ids.length));
@@ -477,7 +522,7 @@ function TasksPage() {
       setSelectedTaskIDs(new Set());
       setConfirmBatchDelete(false);
       setListError("");
-      setBatchMessage(`已删除 ${ids.length} 条任务`);
+      setBatchMessage("");
       await refreshTaskStats();
     } catch (error) {
       setListError(apiErrorMessage(error, "暂时无法批量删除任务"));
@@ -496,6 +541,8 @@ function TasksPage() {
     setIsCreatingTask(true);
     setCreateError("");
     setCreateMessage("");
+    setDeletedTasks([]);
+    setDeletedTasksMessage("");
     try {
       const result = await tasksApi.generateTasks(title);
       const matchingTasks = result.tasks.filter(taskMatchesCurrentFilters);
@@ -703,7 +750,9 @@ function TasksPage() {
         dueAt: detailForm.dueAt ? new Date(detailForm.dueAt).toISOString() : undefined,
         clearDueAt: !detailForm.dueAt && Boolean(detailTask.due_at) ? true : undefined,
         tools: parseList(detailForm.tools),
-        learning: detailForm.learning.trim()
+        learning: detailForm.learning.trim(),
+        progress: detailForm.progress !== (detailTask.progress ?? 0) ? detailForm.progress : undefined,
+        version: detailTask.version
       });
       const remainsVisible = taskMatchesCurrentFilters(updated);
       setApiTasks((current) => !remainsVisible
@@ -712,6 +761,8 @@ function TasksPage() {
       if (!remainsVisible) setTaskTotal((current) => Math.max(0, current - 1));
       await refreshTaskStats();
       setCreateMessage(`已更新任务：${updated.title}`);
+      setDeletedTasks([]);
+      setDeletedTasksMessage("");
       setListError("");
       setDetailTaskID(null);
       setDetailTask(null);
@@ -728,11 +779,14 @@ function TasksPage() {
     setDetailDeleting(true);
     setDetailError("");
     try {
+      const deleted = detailTask;
       await tasksApi.deleteTask(detailTask.id);
+      setDeletedTasks([deleted]);
+      setDeletedTasksMessage(`已删除任务：${deleted.title}`);
       setApiTasks((current) => current.filter((task) => task.id !== detailTask.id));
       setTaskTotal((current) => Math.max(0, current - 1));
       await refreshTaskStats();
-      setCreateMessage(`已删除任务：${detailTask.title}`);
+      setCreateMessage("");
       setListError("");
       setDetailTaskID(null);
       setDetailTask(null);
@@ -742,6 +796,25 @@ function TasksPage() {
       setDetailError(apiErrorMessage(error, "暂时无法删除任务"));
     } finally {
       setDetailDeleting(false);
+    }
+  }
+
+  async function restoreDeletedTasks() {
+    if (deletedTasks.length === 0 || restoringTasks) return;
+    const tasksToRestore = deletedTasks;
+    setRestoringTasks(true);
+    setListError("");
+    try {
+      await Promise.all(tasksToRestore.map((task) => tasksApi.restoreTask(task.id)));
+      setDeletedTasks([]);
+      setDeletedTasksMessage("");
+      setCreateMessage(`已恢复 ${tasksToRestore.length} 条任务`);
+      setListRevision((current) => current + 1);
+      await refreshTaskStats();
+    } catch (error) {
+      setListError(apiErrorMessage(error, "暂时无法恢复任务"));
+    } finally {
+      setRestoringTasks(false);
     }
   }
 
@@ -761,6 +834,7 @@ function TasksPage() {
         <div className="task-view-card-meta">
           <span className="task-state">{statusLabels[task.status]}</span>
           <span>{task.due_at ? `截止 ${formatDueAt(task.due_at)}` : "待安排"}</span>
+          <span>进度 {task.progress ?? 0}%</span>
         </div>
         {task.tags?.length ? (
           <div aria-label="任务标签" className="task-label-list">
@@ -774,7 +848,7 @@ function TasksPage() {
         <div className="task-view-card-actions">
           <button
             disabled={savingTaskID === task.id}
-            onClick={() => void updateTaskStatus(task.id, task.status)}
+            onClick={() => void updateTaskStatus(task.id, task.status, task.version)}
             type="button"
           >
             {savingTaskID === task.id ? "更新中..." : action.label}
@@ -798,6 +872,14 @@ function TasksPage() {
         {listError ? <p className="form-error" role="alert">{listError}</p> : null}
         {createMessage ? <p className="form-success" role="status">{createMessage}</p> : null}
         {batchMessage ? <p className="form-success" role="status">{batchMessage}</p> : null}
+        {deletedTasks.length > 0 ? (
+          <div className="form-success task-undo-message" role="status">
+            <span>{deletedTasksMessage}</span>
+            <button disabled={restoringTasks} onClick={() => void restoreDeletedTasks()} type="button">
+              {restoringTasks ? "恢复中..." : "撤销删除"}
+            </button>
+          </div>
+        ) : null}
 
         <section className="module-overview-card tasks-hero">
           <div className="module-overview-copy">
@@ -949,9 +1031,9 @@ function TasksPage() {
                         setBatchStatus(event.target.value as TaskStatus);
                         setConfirmBatchDelete(false);
                       }}
-                      value={batchStatus}
+                      value={selectedBatchStatus}
                     >
-                      {boardColumnLabels.map((option) => <option key={option.status} value={option.status}>{option.label}</option>)}
+                      {batchStatusOptions.map((option) => <option key={option.status} value={option.status}>{option.label}</option>)}
                     </select>
                     <button disabled={batchBusy} onClick={() => void applyBatchStatus()} type="button">应用状态</button>
                     <button className="danger" disabled={batchBusy} onClick={() => void deleteSelectedTasks()} type="button">
@@ -976,7 +1058,7 @@ function TasksPage() {
                       <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
                     <div>
                       <h3>{task.title}</h3>
-                      <small>{task.project} · 负责人 {task.assignee || "未指定"} · 截止 {task.due}</small>
+                      <small>{task.project} · 负责人 {task.assignee || "未指定"} · 截止 {task.due} · 进度 {task.progress}%</small>
                       {task.tags.length ? (
                         <div aria-label="任务标签" className="task-label-list">
                           {task.tags.map((tag) => <span key={tag}>{tag}</span>)}
@@ -990,7 +1072,7 @@ function TasksPage() {
                       <div className="task-row-actions">
                         <button
                           disabled={savingTaskID === task.id}
-                          onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus)}
+                          onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus, task.version)}
                           type="button"
                         >
                           {savingTaskID === task.id ? "更新中..." : taskStatusAction(task.statusCode).label}
@@ -1130,7 +1212,7 @@ function TasksPage() {
                     <label>
                       <span>任务状态</span>
                       <select onChange={(event) => updateDetailField("status", event.target.value as TaskStatus)} value={detailForm.status}>
-                        {statusFilters.filter((item) => item.value).map((item) => (
+                        {taskStatusOptions(detailTask.status).map((item) => (
                           <option key={item.value} value={item.value}>{item.label}</option>
                         ))}
                       </select>
@@ -1142,6 +1224,17 @@ function TasksPage() {
                         <option value="medium">中</option>
                         <option value="high">高</option>
                       </select>
+                    </label>
+                    <label>
+                      <span>完成进度 {detailForm.progress}%</span>
+                      <input
+                        aria-label="任务进度"
+                        max={100}
+                        min={0}
+                        onChange={(event) => updateDetailField("progress", Number(event.target.value))}
+                        type="range"
+                        value={detailForm.progress}
+                      />
                     </label>
                     <label className="wide">
                       <span>建议工具</span>
@@ -1272,7 +1365,7 @@ function TasksPage() {
                   {detailError ? <p className="form-error" role="alert">{detailError}</p> : null}
                   {confirmDelete ? (
                     <div className="task-delete-confirm" role="alert">
-                      <span>删除后无法恢复，请确认当前任务不再需要。</span>
+                      <span>任务会从当前列表隐藏，可在顶部提示中撤销删除。</span>
                       <button disabled={detailDeleting} onClick={() => void deleteTaskDetail()} type="button">
                         {detailDeleting ? "删除中..." : "确认删除"}
                       </button>

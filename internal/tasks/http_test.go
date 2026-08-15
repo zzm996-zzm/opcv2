@@ -18,6 +18,7 @@ type fakeApplication struct {
 	userID          int64
 	taskID          int64
 	deleted         bool
+	restored        bool
 	filters         ListFilters
 	update          TaskUpdate
 	task            Task
@@ -109,6 +110,13 @@ func (a *fakeApplication) DeleteTask(_ context.Context, userID, id int64) error 
 	return a.err
 }
 
+func (a *fakeApplication) RestoreTask(_ context.Context, userID, id int64) error {
+	a.userID = userID
+	a.taskID = id
+	a.restored = true
+	return a.err
+}
+
 func (a *fakeApplication) BatchUpdateTaskStatus(_ context.Context, userID int64, ids []int64, status string) (int, error) {
 	a.userID, a.batchIDs, a.batchStatus = userID, append([]int64(nil), ids...), status
 	return a.batchCount, a.err
@@ -181,6 +189,7 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 		"source_url":"/competitor-data"
 	}`))
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "manual-task-99")
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -188,7 +197,7 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" || app.input.Assignee != "李明" || len(app.input.Tags) != 2 || app.input.SourceType != SourceCompetitorScan || app.input.SourceID == nil || *app.input.SourceID != 11 {
+	if app.input.UserID != 42 || app.input.Title == "" || app.input.Description != "完成首批客户画像并安排访谈" || app.input.Assignee != "李明" || len(app.input.Tags) != 2 || app.input.SourceType != SourceCompetitorScan || app.input.SourceID == nil || *app.input.SourceID != 11 || app.input.IdempotencyKey != "manual-task-99" {
 		t.Fatalf("input = %+v", app.input)
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"todo"`) {
@@ -454,7 +463,7 @@ func TestTaskStatsEndpointUsesAuthenticatedUser(t *testing.T) {
 func TestUpdateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	app := &fakeApplication{task: Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: StatusCompleted}}
 	router := tasksTestRouter(app)
-	request := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/99", strings.NewReader(`{"status":"completed"}`))
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/99", strings.NewReader(`{"status":"completed","progress":80,"version":4}`))
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 
@@ -463,8 +472,47 @@ func TestUpdateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.userID != 42 || app.taskID != 99 || app.update.Status == nil || *app.update.Status != StatusCompleted {
+	if app.userID != 42 || app.taskID != 99 || app.update.Status == nil || *app.update.Status != StatusCompleted || app.update.Progress == nil || *app.update.Progress != 80 || app.update.Version == nil || *app.update.Version != 4 {
 		t.Fatalf("user/task/update = %d/%d/%+v", app.userID, app.taskID, app.update)
+	}
+}
+
+func TestUpdateTaskEndpointRejectsInvalidProgressAndVersion(t *testing.T) {
+	tests := []string{`{"progress":101}`, `{"progress":-1}`, `{"version":0}`}
+	for _, body := range tests {
+		app := &fakeApplication{}
+		router := tasksTestRouter(app)
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/99", strings.NewReader(body))
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+
+		router.ServeHTTP(recorder, request)
+
+		if recorder.Code != http.StatusBadRequest || app.update.Progress != nil || app.update.Version != nil {
+			t.Fatalf("body/status/update = %s/%d/%+v", body, recorder.Code, app.update)
+		}
+	}
+}
+
+func TestUpdateTaskEndpointReturnsLifecycleConflicts(t *testing.T) {
+	for _, test := range []struct {
+		err  error
+		code string
+	}{
+		{err: ErrInvalidTaskStatusTransition, code: "invalid_status_transition"},
+		{err: ErrTaskVersionConflict, code: "task_version_conflict"},
+	} {
+		app := &fakeApplication{err: test.err}
+		router := tasksTestRouter(app)
+		request := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/99", strings.NewReader(`{"status":"completed","version":1}`))
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+
+		router.ServeHTTP(recorder, request)
+
+		if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), test.code) {
+			t.Fatalf("err/status/body = %v/%d/%s", test.err, recorder.Code, recorder.Body.String())
+		}
 	}
 }
 
@@ -670,6 +718,19 @@ func TestDeleteTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if !app.deleted || app.userID != 42 || app.taskID != 99 {
 		t.Fatalf("deleted/user/task = %t/%d/%d", app.deleted, app.userID, app.taskID)
+	}
+}
+
+func TestRestoreTaskEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/99/restore", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent || app.userID != 42 || app.taskID != 99 || !app.restored {
+		t.Fatalf("status/app = %d/%+v", recorder.Code, app)
 	}
 }
 

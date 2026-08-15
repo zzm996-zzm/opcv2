@@ -98,7 +98,7 @@ describe("TasksPage", () => {
     renderTasksPage();
 
     expect(await screen.findByRole("heading", { name: "联调商业沙盘接口" })).toBeInTheDocument();
-    expect(screen.getByText("商业沙盘 · 负责人 未指定 · 截止 06/30 18:00")).toBeInTheDocument();
+    expect(screen.getByText("商业沙盘 · 负责人 未指定 · 截止 06/30 18:00 · 进度 0%")).toBeInTheDocument();
     expect(screen.getByText("建议工具：沙盘推演 / 任务中心")).toBeInTheDocument();
     const inProgressStat = screen.getAllByText("进行中").find((node) => node.tagName.toLowerCase() === "small")?.closest("article");
     expect(inProgressStat).not.toBeNull();
@@ -475,6 +475,9 @@ describe("TasksPage", () => {
     expect(boardButton).toHaveAttribute("aria-pressed", "true");
     const board = await screen.findByRole("region", { name: "任务看板" });
     expect(within(board).getByRole("heading", { name: "待开始" })).toBeInTheDocument();
+    expect(within(board).getByRole("heading", { name: "评审中" })).toBeInTheDocument();
+    expect(within(board).getByRole("heading", { name: "阻塞" })).toBeInTheDocument();
+    expect(within(board).getByRole("heading", { name: "已取消" })).toBeInTheDocument();
     expect(within(board).getByRole("heading", { name: "提醒中" })).toBeInTheDocument();
     expect(within(board).getByRole("heading", { name: "整理客户访谈提纲" })).toBeInTheDocument();
     expect(within(board).getByRole("heading", { name: "跟进试用反馈" })).toBeInTheDocument();
@@ -558,6 +561,8 @@ describe("TasksPage", () => {
       source_id: 11,
       source_title: "竞品扫描：商业沙盘竞品",
       source_url: "/competitor-data",
+      progress: 30,
+      version: 4,
       created_at: "2026-07-10T08:00:00Z",
       updated_at: "2026-07-10T08:00:00Z"
     };
@@ -587,6 +592,8 @@ describe("TasksPage", () => {
           due_at: undefined,
           tools: ["CRM", "任务中心"],
           learning: "访谈复盘",
+          progress: 65,
+          version: 5,
           updated_at: "2026-07-10T10:00:00Z"
         }), { status: 200 }));
       }
@@ -612,6 +619,7 @@ describe("TasksPage", () => {
     fireEvent.change(within(dialog).getByLabelText("截止时间"), { target: { value: "" } });
     fireEvent.change(within(dialog).getByLabelText("建议工具"), { target: { value: "CRM，任务中心" } });
     fireEvent.change(within(dialog).getByLabelText("补课内容"), { target: { value: "访谈复盘" } });
+    fireEvent.change(within(dialog).getByLabelText("任务进度"), { target: { value: "65" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "保存修改" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
@@ -627,7 +635,9 @@ describe("TasksPage", () => {
           tags: ["客户", "执行"],
           clear_due_at: true,
           tools: ["CRM", "任务中心"],
-          learning: "访谈复盘"
+          learning: "访谈复盘",
+          progress: 65,
+          version: 4
         })
       })
     ));
@@ -834,6 +844,10 @@ describe("TasksPage", () => {
         deleted = true;
         return Promise.resolve(new Response(null, { status: 204 }));
       }
+      if (url === "/api/v1/tasks/96/restore" && init?.method === "POST") {
+        deleted = false;
+        return Promise.resolve(new Response(null, { status: 204 }));
+      }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
 
@@ -854,6 +868,13 @@ describe("TasksPage", () => {
     expect(await screen.findByText("已删除任务：清理过期跟进任务")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "清理过期跟进任务" })).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "任务详情" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "撤销删除" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/96/restore",
+      expect.objectContaining({ method: "POST" })
+    ));
+    expect(await screen.findByRole("heading", { name: "清理过期跟进任务" })).toBeInTheDocument();
   });
 
   it("searches tasks and combines project and priority filters", async () => {
@@ -977,6 +998,7 @@ describe("TasksPage", () => {
 
   it("selects the current page and updates task statuses in a batch", async () => {
     let statsRequests = 0;
+    let batchCompleted = false;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/tasks?limit=20") {
@@ -987,7 +1009,7 @@ describe("TasksPage", () => {
               user_id: 7,
               title: "整理销售话术",
               project: "销售增长",
-              status: "todo",
+              status: batchCompleted ? "completed" : "todo",
               priority: "high",
               tools: ["CRM"],
               learning: "销售方法",
@@ -999,7 +1021,7 @@ describe("TasksPage", () => {
               user_id: 7,
               title: "复盘客户反馈",
               project: "客户验证",
-              status: "in_progress",
+              status: batchCompleted ? "completed" : "in_progress",
               priority: "medium",
               tools: ["客户管理"],
               learning: "客户访谈",
@@ -1024,6 +1046,7 @@ describe("TasksPage", () => {
         }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/batch" && init?.method === "PATCH") {
+        batchCompleted = true;
         return Promise.resolve(new Response(JSON.stringify({ updated: 2 }), { status: 200 }));
       }
       return Promise.reject(new Error(`unexpected request: ${url}`));
@@ -1035,7 +1058,9 @@ describe("TasksPage", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "全选当前页任务" }));
     expect(screen.getByText("已选择 2 项")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("combobox", { name: "批量设置状态" }), { target: { value: "completed" } });
+    const batchStatusSelect = screen.getByRole("combobox", { name: "批量设置状态" });
+    expect(within(batchStatusSelect).getAllByRole("option").map((option) => option.textContent)).toEqual(["待开始", "进行中", "已完成", "已取消", "提醒中"]);
+    fireEvent.change(batchStatusSelect, { target: { value: "completed" } });
     fireEvent.click(screen.getByRole("button", { name: "应用状态" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
@@ -1047,7 +1072,8 @@ describe("TasksPage", () => {
     ));
     expect(await screen.findByText("已更新 2 条任务状态")).toBeInTheDocument();
     expect(screen.queryByText("已选择 2 项")).not.toBeInTheDocument();
-    expect(screen.getAllByText("已完成").filter((node) => node.classList.contains("task-state"))).toHaveLength(2);
+    await waitFor(() => expect(document.querySelectorAll(".task-state")).toHaveLength(2));
+    expect(Array.from(document.querySelectorAll(".task-state")).map((node) => node.textContent)).toEqual(["已完成", "已完成"]);
     await waitFor(() => expect(statsRequests).toBe(2));
   });
 

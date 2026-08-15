@@ -14,6 +14,7 @@ type fakeRepository struct {
 	createdTasks []Task
 	updated      Task
 	deleted      Task
+	restored     Task
 	task         Task
 	tasks        []Task
 	projects     []string
@@ -176,6 +177,30 @@ func (r *fakeRepository) UpdateTask(_ context.Context, userID, id int64, update 
 	if update.Tags != nil {
 		r.task.Tags = *update.Tags
 	}
+	if update.Description != nil {
+		r.task.Description = *update.Description
+	}
+	if update.Project != nil {
+		r.task.Project = *update.Project
+	}
+	if update.Tools != nil {
+		r.task.Tools = *update.Tools
+	}
+	if update.Learning != nil {
+		r.task.Learning = *update.Learning
+	}
+	if update.Progress != nil {
+		r.task.Progress = *update.Progress
+	}
+	if update.Status != nil {
+		if *update.Status == StatusCompleted {
+			now := time.Now()
+			r.task.CompletedAt = &now
+		} else {
+			r.task.CompletedAt = nil
+		}
+	}
+	r.task.Version++
 	r.updated = r.task
 	return r.task, nil
 }
@@ -188,6 +213,17 @@ func (r *fakeRepository) DeleteTask(_ context.Context, userID, id int64) error {
 		return ErrTaskNotFound
 	}
 	r.deleted = r.task
+	return nil
+}
+
+func (r *fakeRepository) RestoreTask(_ context.Context, userID, id int64) error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.task.UserID != userID || r.task.ID != id {
+		return ErrTaskNotFound
+	}
+	r.restored = r.task
 	return nil
 }
 
@@ -429,6 +465,61 @@ func TestServiceUpdatesOwnedTask(t *testing.T) {
 	if task.Status != StatusCompleted || repository.updated.Status != StatusCompleted {
 		t.Fatalf("task = %+v", task)
 	}
+}
+
+func TestServiceRejectsInvalidStatusTransition(t *testing.T) {
+	repository := &fakeRepository{task: Task{ID: 99, UserID: 42, Title: "整理客户", Status: StatusTodo, Version: 1}}
+	service := NewService(repository)
+	status := StatusReview
+
+	_, err := service.UpdateTask(context.Background(), 42, 99, TaskUpdate{Status: &status, Version: int64Pointer(1)})
+
+	if !errors.Is(err, ErrInvalidTaskStatusTransition) {
+		t.Fatalf("err = %v, want ErrInvalidTaskStatusTransition", err)
+	}
+}
+
+func TestServiceRejectsTaskVersionConflict(t *testing.T) {
+	repository := &fakeRepository{task: Task{ID: 99, UserID: 42, Title: "整理客户", Status: StatusTodo, Version: 3}}
+	service := NewService(repository)
+	title := "更新后的标题"
+
+	_, err := service.UpdateTask(context.Background(), 42, 99, TaskUpdate{Title: &title, Version: int64Pointer(2)})
+
+	if !errors.Is(err, ErrTaskVersionConflict) {
+		t.Fatalf("err = %v, want ErrTaskVersionConflict", err)
+	}
+	if repository.updated.ID != 0 {
+		t.Fatalf("repository updated task = %+v", repository.updated)
+	}
+}
+
+func TestServiceRejectsTaskProgressOutsideRange(t *testing.T) {
+	repository := &fakeRepository{task: Task{ID: 99, UserID: 42, Status: StatusTodo, Version: 1}}
+	service := NewService(repository)
+	progress := 101
+
+	_, err := service.UpdateTask(context.Background(), 42, 99, TaskUpdate{Progress: &progress, Version: int64Pointer(1)})
+
+	if !errors.Is(err, ErrInvalidTaskProgress) {
+		t.Fatalf("err = %v, want ErrInvalidTaskProgress", err)
+	}
+}
+
+func TestServiceRestoresOwnedTask(t *testing.T) {
+	repository := &fakeRepository{task: Task{ID: 99, UserID: 42, Status: StatusTodo}}
+	service := NewService(repository)
+
+	if err := service.RestoreTask(context.Background(), 42, 99); err != nil {
+		t.Fatalf("RestoreTask() error = %v", err)
+	}
+	if repository.restored.ID != 99 {
+		t.Fatalf("restored = %+v", repository.restored)
+	}
+}
+
+func int64Pointer(value int64) *int64 {
+	return &value
 }
 
 func TestServiceNormalizesUpdatedTaskFields(t *testing.T) {

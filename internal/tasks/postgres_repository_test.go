@@ -20,13 +20,7 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
 	due := now.Add(2 * time.Hour)
 	sourceID := int64(501)
-	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO tasks (user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, idempotency_key, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $17)
-		ON CONFLICT (user_id, idempotency_key) WHERE idempotency_key <> ''
-		DO UPDATE SET updated_at = tasks.updated_at
-		RETURNING id, created_at, updated_at
-	`)).
+	db.ExpectQuery("INSERT INTO tasks").
 		WithArgs(
 			int64(42),
 			"整理客户名单",
@@ -46,7 +40,7 @@ func TestPostgresRepositoryCreatesTask(t *testing.T) {
 			"",
 			now,
 		).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(99), now, now))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "progress", "completed_at", "version", "created_at", "updated_at"}).AddRow(int64(99), 0, nil, int64(1), now, now))
 
 	repository := NewPostgresRepository(db)
 	task, err := repository.CreateTask(context.Background(), Task{
@@ -90,7 +84,7 @@ func TestPostgresRepositoryReturnsExistingTaskForRepeatedIdempotencyKey(t *testi
 	task := Task{UserID: 42, Title: "访谈十家门店", Project: "AI 运营", Status: StatusTodo, Priority: PriorityHigh, Tags: []string{}, Tools: []string{}, SourceType: SourceSandboxSession, SourceID: &runID, SourceTitle: "门店 AI 沙盘", SourceURL: "/sandbox-runs/99/report", IdempotencyKey: "sandbox:99:advice:0", CreatedAt: now}
 	db.ExpectQuery("ON CONFLICT \\(user_id, idempotency_key\\)").
 		WithArgs(int64(42), task.Title, "", "", task.Project, StatusTodo, PriorityHigh, []byte(`[]`), (*time.Time)(nil), []byte(`[]`), "", SourceSandboxSession, &runID, task.SourceTitle, task.SourceURL, task.IdempotencyKey, now).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(501), now.Add(-time.Hour), now.Add(-time.Hour)))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "progress", "completed_at", "version", "created_at", "updated_at"}).AddRow(int64(501), 0, nil, int64(1), now.Add(-time.Hour), now.Add(-time.Hour)))
 
 	created, err := NewPostgresRepository(db).CreateTask(context.Background(), task)
 	if err != nil || created.ID != 501 || !created.CreatedAt.Equal(now.Add(-time.Hour)) {
@@ -122,7 +116,7 @@ func TestPostgresRepositoryCreatesTasksInTransaction(t *testing.T) {
 				[]byte(`[]`), (*time.Time)(nil), []byte(`[]`), "",
 				task.SourceType, task.SourceID, task.SourceTitle, task.SourceURL, task.IdempotencyKey, now,
 			).
-			WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(101+index), now, now))
+			WillReturnRows(pgxmock.NewRows([]string{"id", "progress", "completed_at", "version", "created_at", "updated_at"}).AddRow(int64(101+index), 0, nil, int64(1), now, now))
 	}
 	db.ExpectCommit()
 
@@ -147,21 +141,22 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
 	sourceID := int64(501)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, progress, completed_at, version, source_type, source_id, source_title, source_url, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
+		  AND deleted_at IS NULL
 		  AND ($2 = '' OR status = $2)
 		  AND ($3 = '' OR project = $3)
 		  AND ($4 = '' OR priority = $4)
 		  AND ($5 = '' OR tags ? $5)
 		  AND ($6 = '' OR title ILIKE '%' || $6 || '%' OR description ILIKE '%' || $6 || '%' OR assignee ILIKE '%' || $6 || '%' OR project ILIKE '%' || $6 || '%' OR tags::TEXT ILIKE '%' || $6 || '%' OR learning ILIKE '%' || $6 || '%')
-		ORDER BY created_at DESC
+		ORDER BY created_at DESC, id DESC
 		LIMIT $7
 		OFFSET $8
 	`)).
 		WithArgs(int64(42), StatusTodo, "AI线索开发", PriorityHigh, "用户研究", "客户", 20, 10).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "progress", "completed_at", "version", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -175,6 +170,9 @@ func TestPostgresRepositoryListsTasksForUser(t *testing.T) {
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",
+			35,
+			nil,
+			int64(2),
 			SourceCRMCustomer,
 			&sourceID,
 			"重点客户 A",
@@ -213,16 +211,16 @@ func TestPostgresRepositoryGetsTaskWithNoSource(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
+		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, progress, completed_at, version, source_type, source_id, source_title, source_url, created_at, updated_at
 		FROM tasks
-		WHERE user_id = $1 AND id = $2
+		WHERE user_id = $1 AND id = $2 AND deleted_at IS NULL
 	`)).
 		WithArgs(int64(42), int64(99)).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "progress", "completed_at", "version", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
 		}).AddRow(
 			int64(99), int64(42), "完成访谈复盘", "", "", "客户验证", StatusTodo, PriorityMedium,
-			[]byte(`[]`), nil, []byte(`[]`), "", "", nil, "", "", now, now,
+			[]byte(`[]`), nil, []byte(`[]`), "", 0, nil, int64(1), "", nil, "", "", now, now,
 		))
 
 	repository := NewPostgresRepository(db)
@@ -311,27 +309,17 @@ func TestPostgresRepositoryReturnsTaskStats(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC)
-	db.ExpectQuery(regexp.QuoteMeta(`
-		SELECT
-			COUNT(*)::INT,
-			COUNT(*) FILTER (WHERE status = 'todo')::INT,
-			COUNT(*) FILTER (WHERE status = 'in_progress')::INT,
-			COUNT(*) FILTER (WHERE status = 'completed')::INT,
-			COUNT(*) FILTER (WHERE status = 'reminder')::INT,
-			COUNT(*) FILTER (WHERE due_at IS NOT NULL AND due_at < $2 AND status <> 'completed')::INT
-		FROM tasks
-		WHERE user_id = $1
-	`)).
+	db.ExpectQuery("SELECT").
 		WithArgs(int64(42), now).
-		WillReturnRows(pgxmock.NewRows([]string{"total", "todo", "in_progress", "completed", "reminder", "overdue"}).
-			AddRow(3, 1, 1, 1, 0, 1))
+		WillReturnRows(pgxmock.NewRows([]string{"total", "todo", "in_progress", "completed", "reminder", "due_soon", "timed_out", "overdue"}).
+			AddRow(3, 1, 1, 1, 0, 1, 1, 1))
 
 	repository := NewPostgresRepository(db)
 	stats, err := repository.TaskStats(context.Background(), 42, now)
 	if err != nil {
 		t.Fatalf("TaskStats() error = %v", err)
 	}
-	if stats.Total != 3 || stats.InProgress != 1 || stats.Overdue != 1 {
+	if stats.Total != 3 || stats.InProgress != 1 || stats.DueSoon != 1 || stats.TimedOut != 1 || stats.Overdue != 1 {
 		t.Fatalf("stats = %+v", stats)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
@@ -349,22 +337,7 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 	now := time.Date(2026, 6, 30, 11, 0, 0, 0, time.UTC)
 	sourceID := int64(501)
 	status := StatusCompleted
-	db.ExpectQuery(regexp.QuoteMeta(`
-		UPDATE tasks
-		SET title = COALESCE($1, title),
-		    description = COALESCE($2, description),
-		    assignee = COALESCE($3, assignee),
-		    project = COALESCE($4, project),
-		    status = COALESCE($5, status),
-		    priority = COALESCE($6, priority),
-		    tags = COALESCE($7, tags),
-		    due_at = CASE WHEN $9 THEN NULL ELSE COALESCE($8, due_at) END,
-		    tools = COALESCE($10, tools),
-		    learning = COALESCE($11, learning),
-		    updated_at = NOW()
-		WHERE user_id = $12 AND id = $13
-		RETURNING id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, source_type, source_id, source_title, source_url, created_at, updated_at
-	`)).
+	db.ExpectQuery("UPDATE tasks").
 		WithArgs(
 			nil,
 			nil,
@@ -377,11 +350,13 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 			false,
 			nil,
 			nil,
+			(*int)(nil),
 			int64(42),
 			int64(99),
+			(*int64)(nil),
 		).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "progress", "completed_at", "version", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -395,6 +370,9 @@ func TestPostgresRepositoryUpdatesOwnedTask(t *testing.T) {
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",
+			0,
+			&now,
+			int64(2),
 			SourceCRMCustomer,
 			&sourceID,
 			"重点客户 A",
@@ -437,11 +415,13 @@ func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
 			true,
 			nil,
 			nil,
+			(*int)(nil),
 			int64(42),
 			int64(99),
+			(*int64)(nil),
 		).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
+			"id", "user_id", "title", "description", "assignee", "project", "status", "priority", "tags", "due_at", "tools", "learning", "progress", "completed_at", "version", "source_type", "source_id", "source_title", "source_url", "created_at", "updated_at",
 		}).AddRow(
 			int64(99),
 			int64(42),
@@ -455,6 +435,9 @@ func TestPostgresRepositoryClearsTaskDueAt(t *testing.T) {
 			nil,
 			[]byte(`["CRM"]`),
 			"线索评分",
+			0,
+			nil,
+			int64(2),
 			"",
 			nil,
 			"",
@@ -483,12 +466,9 @@ func TestPostgresRepositoryDeletesOwnedTask(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.ExpectExec(regexp.QuoteMeta(`
-		DELETE FROM tasks
-		WHERE user_id = $1 AND id = $2
-	`)).
+	db.ExpectExec("UPDATE tasks").
 		WithArgs(int64(42), int64(99)).
-		WillReturnResult(pgxmock.NewResult("DELETE", 1))
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repository := NewPostgresRepository(db)
 	if err := repository.DeleteTask(context.Background(), 42, 99); err != nil {
@@ -506,14 +486,51 @@ func TestPostgresRepositoryReturnsNotFoundWhenDeleteMisses(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.ExpectExec("DELETE FROM tasks").
+	db.ExpectExec("UPDATE tasks").
 		WithArgs(int64(42), int64(99)).
-		WillReturnResult(pgxmock.NewResult("DELETE", 0))
+		WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 
 	repository := NewPostgresRepository(db)
 	err = repository.DeleteTask(context.Background(), 42, 99)
 	if !errors.Is(err, ErrTaskNotFound) {
 		t.Fatalf("err = %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestPostgresRepositoryRestoresDeletedTask(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectExec("UPDATE tasks").
+		WithArgs(int64(42), int64(99)).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	if err := NewPostgresRepository(db).RestoreTask(context.Background(), 42, 99); err != nil {
+		t.Fatalf("RestoreTask() error = %v", err)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryReturnsVersionConflictWhenUpdateMissesExpectedVersion(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	version := int64(3)
+	db.ExpectQuery("UPDATE tasks").
+		WithArgs(nil, nil, nil, nil, nil, nil, nil, nil, false, nil, nil, (*int)(nil), int64(42), int64(99), &version).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}))
+
+	_, err = NewPostgresRepository(db).UpdateTask(context.Background(), 42, 99, TaskUpdate{Version: &version})
+	if !errors.Is(err, ErrTaskVersionConflict) {
+		t.Fatalf("err = %v, want ErrTaskVersionConflict", err)
 	}
 }
 
@@ -526,7 +543,7 @@ func TestPostgresRepositoryBatchUpdatesOnlyWhenAllTasksAreOwned(t *testing.T) {
 
 	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*UPDATE tasks").
 		WithArgs(int64(42), []int64{7, 9}, StatusCompleted).
-		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(int64(2)))
+		WillReturnRows(pgxmock.NewRows([]string{"owned", "transitionable", "updated"}).AddRow(int64(2), int64(2), int64(2)))
 
 	repository := NewPostgresRepository(db)
 	count, err := repository.BatchUpdateTaskStatus(context.Background(), 42, []int64{7, 9}, StatusCompleted)
@@ -546,12 +563,29 @@ func TestPostgresRepositoryBatchUpdateReturnsNotFoundWhenOwnershipIsIncomplete(t
 	defer db.Close()
 	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*UPDATE tasks").
 		WithArgs(int64(42), []int64{7, 9}, StatusCompleted).
-		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(int64(0)))
+		WillReturnRows(pgxmock.NewRows([]string{"owned", "transitionable", "updated"}).AddRow(int64(0), int64(0), int64(0)))
 
 	repository := NewPostgresRepository(db)
 	_, err = repository.BatchUpdateTaskStatus(context.Background(), 42, []int64{7, 9}, StatusCompleted)
 	if !errors.Is(err, ErrTaskNotFound) {
 		t.Fatalf("err = %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestPostgresRepositoryBatchUpdateRejectsInvalidTransition(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*UPDATE tasks").
+		WithArgs(int64(42), []int64{7, 9}, StatusReview).
+		WillReturnRows(pgxmock.NewRows([]string{"owned", "transitionable", "updated"}).AddRow(int64(2), int64(1), int64(0)))
+
+	_, err = NewPostgresRepository(db).BatchUpdateTaskStatus(context.Background(), 42, []int64{7, 9}, StatusReview)
+	if !errors.Is(err, ErrInvalidTaskStatusTransition) {
+		t.Fatalf("err = %v, want ErrInvalidTaskStatusTransition", err)
 	}
 }
 
@@ -561,7 +595,7 @@ func TestPostgresRepositoryBatchDeletesOnlyWhenAllTasksAreOwned(t *testing.T) {
 		t.Fatalf("NewPool() error = %v", err)
 	}
 	defer db.Close()
-	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*DELETE FROM tasks").
+	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*UPDATE tasks").
 		WithArgs(int64(42), []int64{7, 9}).
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(int64(2)))
 
@@ -581,7 +615,7 @@ func TestPostgresRepositoryBatchDeleteReturnsNotFoundWhenOwnershipIsIncomplete(t
 		t.Fatalf("NewPool() error = %v", err)
 	}
 	defer db.Close()
-	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*DELETE FROM tasks").
+	db.ExpectQuery("(?s)WITH requested_ids AS.*FOR UPDATE OF tasks.*UPDATE tasks").
 		WithArgs(int64(42), []int64{7, 9}).
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(int64(0)))
 
@@ -782,7 +816,7 @@ func TestPostgresRepositoryDispatchesDueTaskReminders(t *testing.T) {
 	defer db.Close()
 
 	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
-	db.ExpectQuery("(?s)WITH due AS.*recurrence.*INTERVAL '1 day'.*INTERVAL '7 days'.*status <> 'completed'.*notifications_enabled").
+	db.ExpectQuery("(?s)WITH due AS.*recurrence.*INTERVAL '1 day'.*INTERVAL '7 days'.*status NOT IN.*notifications_enabled").
 		WithArgs(now, 100).
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
 

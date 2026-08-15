@@ -22,6 +22,7 @@ type Application interface {
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
 	DeleteTask(ctx context.Context, userID, id int64) error
+	RestoreTask(ctx context.Context, userID, id int64) error
 	BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error)
 	BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error)
 	ListSubtasks(ctx context.Context, userID, taskID int64) ([]Subtask, error)
@@ -54,6 +55,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/:id", h.getTask)
 	router.PATCH("/tasks/:id", h.updateTask)
 	router.DELETE("/tasks/:id", h.deleteTask)
+	router.POST("/tasks/:id/restore", h.restoreTask)
 	router.GET("/tasks/:id/subtasks", h.listSubtasks)
 	router.POST("/tasks/:id/subtasks", h.createSubtask)
 	router.PATCH("/tasks/:id/subtasks/:subtask_id", h.updateSubtask)
@@ -74,6 +76,10 @@ func (h *HTTPHandler) createTaskBatch(c *gin.Context) {
 		httpapi.BadRequest(c, "invalid_request")
 		return
 	}
+	baseIdempotencyKey, ok := requestIdempotencyKey(c)
+	if !ok {
+		return
+	}
 	for index := range request.Tasks {
 		item := &request.Tasks[index]
 		item.Title = strings.TrimSpace(item.Title)
@@ -83,6 +89,9 @@ func (h *HTTPHandler) createTaskBatch(c *gin.Context) {
 		item.SourceType = strings.TrimSpace(item.SourceType)
 		item.SourceTitle = strings.TrimSpace(item.SourceTitle)
 		item.SourceURL = strings.TrimSpace(item.SourceURL)
+		if baseIdempotencyKey != "" {
+			item.IdempotencyKey = baseIdempotencyKey + ":" + strconv.Itoa(index)
+		}
 		if !validCreateInput(*item) {
 			httpapi.BadRequest(c, "invalid_request")
 			return
@@ -184,6 +193,11 @@ func (h *HTTPHandler) createTask(c *gin.Context) {
 		return
 	}
 	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	idempotencyKey, ok := requestIdempotencyKey(c)
+	if !ok {
+		return
+	}
+	request.IdempotencyKey = idempotencyKey
 	task, err := h.app.CreateTask(c.Request.Context(), request)
 	if err != nil {
 		writeError(c, err)
@@ -313,6 +327,18 @@ func (h *HTTPHandler) deleteTask(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *HTTPHandler) restoreTask(c *gin.Context) {
+	id, ok := taskID(c)
+	if !ok {
+		return
+	}
+	if err := h.app.RestoreTask(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func validTaskUpdate(update TaskUpdate) bool {
 	if update.Title != nil {
 		title := strings.TrimSpace(*update.Title)
@@ -341,6 +367,12 @@ func validTaskUpdate(update TaskUpdate) bool {
 	if update.ClearDueAt && update.DueAt != nil {
 		return false
 	}
+	if update.Progress != nil && (*update.Progress < 0 || *update.Progress > 100) {
+		return false
+	}
+	if update.Version != nil && *update.Version <= 0 {
+		return false
+	}
 	return true
 }
 
@@ -358,11 +390,20 @@ func validTags(tags []string) bool {
 
 func validStatus(status string) bool {
 	switch status {
-	case StatusTodo, StatusInProgress, StatusCompleted, StatusReminder:
+	case StatusTodo, StatusInProgress, StatusReview, StatusBlocked, StatusCompleted, StatusCancelled, StatusReminder:
 		return true
 	default:
 		return false
 	}
+}
+
+func requestIdempotencyKey(c *gin.Context) (string, bool) {
+	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if len(key) > 200 {
+		httpapi.BadRequest(c, "invalid_idempotency_key")
+		return "", false
+	}
+	return key, true
 }
 
 func validPriority(priority string) bool {
@@ -407,6 +448,12 @@ func writeError(c *gin.Context, err error) {
 		httpapi.BadRequest(c, "invalid_source")
 	case errors.Is(err, ErrInvalidTaskBatch):
 		httpapi.BadRequest(c, "invalid_request")
+	case errors.Is(err, ErrInvalidTaskStatusTransition):
+		httpapi.Error(c, http.StatusConflict, "invalid_status_transition")
+	case errors.Is(err, ErrInvalidTaskProgress):
+		httpapi.BadRequest(c, "invalid_progress")
+	case errors.Is(err, ErrTaskVersionConflict):
+		httpapi.Error(c, http.StatusConflict, "task_version_conflict")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

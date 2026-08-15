@@ -8,7 +8,10 @@ import (
 const (
 	StatusTodo       = "todo"
 	StatusInProgress = "in_progress"
+	StatusReview     = "review"
+	StatusBlocked    = "blocked"
 	StatusCompleted  = "completed"
+	StatusCancelled  = "cancelled"
 	StatusReminder   = "reminder"
 
 	PriorityLow    = "low"
@@ -43,6 +46,9 @@ var (
 	ErrInvalidGeneratedTasks               = errors.New("invalid generated task plan")
 	ErrInvalidTaskSource                   = errors.New("invalid task source")
 	ErrInvalidTaskBatch                    = errors.New("invalid task batch")
+	ErrInvalidTaskStatusTransition         = errors.New("invalid task status transition")
+	ErrInvalidTaskProgress                 = errors.New("invalid task progress")
+	ErrTaskVersionConflict                 = errors.New("task version conflict")
 )
 
 type BatchTaskStatusInput struct {
@@ -163,6 +169,8 @@ type TaskUpdate struct {
 	ClearDueAt  bool       `json:"clear_due_at,omitempty"`
 	Tools       *[]string  `json:"tools,omitempty"`
 	Learning    *string    `json:"learning,omitempty"`
+	Progress    *int       `json:"progress,omitempty"`
+	Version     *int64     `json:"version,omitempty"`
 }
 
 type ListFilters struct {
@@ -188,6 +196,8 @@ type Stats struct {
 	InProgress int `json:"in_progress"`
 	Completed  int `json:"completed"`
 	Reminder   int `json:"reminder"`
+	DueSoon    int `json:"due_soon"`
+	TimedOut   int `json:"timed_out"`
 	Overdue    int `json:"overdue"`
 }
 
@@ -204,6 +214,9 @@ type Task struct {
 	DueAt          *time.Time `json:"due_at,omitempty"`
 	Tools          []string   `json:"tools"`
 	Learning       string     `json:"learning"`
+	Progress       int        `json:"progress"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty"`
+	Version        int64      `json:"version"`
 	SourceType     string     `json:"source_type"`
 	SourceID       *int64     `json:"source_id,omitempty"`
 	SourceTitle    string     `json:"source_title"`

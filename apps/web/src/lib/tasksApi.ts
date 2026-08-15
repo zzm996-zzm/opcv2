@@ -1,6 +1,6 @@
 import { apiRequest } from "./apiRequest";
 
-export type TaskStatus = "todo" | "in_progress" | "completed" | "reminder";
+export type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "completed" | "cancelled" | "reminder";
 export type TaskPriority = "low" | "medium" | "high";
 export type ReminderRecurrence = "once" | "daily" | "weekly";
 export type TaskSourceType =
@@ -13,7 +13,8 @@ export type TaskSourceType =
   | "lead_task"
   | "crm_customer"
   | "learning_diagnosis"
-  | "growth_model";
+  | "growth_model"
+  | "copilot_message";
 
 export type Task = {
   id: number;
@@ -28,6 +29,9 @@ export type Task = {
   due_at?: string;
   tools: string[];
   learning: string;
+  progress: number;
+  completed_at?: string;
+  version: number;
   source_type?: TaskSourceType;
   source_id?: number;
   source_title?: string;
@@ -59,6 +63,8 @@ export type TaskStats = {
   in_progress: number;
   completed: number;
   reminder: number;
+  due_soon: number;
+  timed_out: number;
   overdue: number;
 };
 
@@ -129,6 +135,7 @@ export type CreateTaskInput = {
   sourceId?: number;
   sourceTitle?: string;
   sourceUrl?: string;
+  idempotencyKey?: string;
 };
 
 export type UpdateTaskInput = Partial<{
@@ -143,6 +150,8 @@ export type UpdateTaskInput = Partial<{
   clearDueAt: boolean;
   tools: string[];
   learning: string;
+  progress: number;
+  version: number;
 }>;
 
 function toCreatePayload(input: CreateTaskInput) {
@@ -175,7 +184,9 @@ function toUpdatePayload(input: UpdateTaskInput) {
     due_at: input.dueAt,
     clear_due_at: input.clearDueAt,
     tools: input.tools,
-    learning: input.learning
+    learning: input.learning,
+    progress: input.progress,
+    version: input.version
   };
 }
 
@@ -204,7 +215,8 @@ export const tasksApi = {
   createTask(input: CreateTaskInput) {
     return apiRequest<Task>("/api/v1/tasks", {
       method: "POST",
-      body: JSON.stringify(toCreatePayload(input))
+      body: JSON.stringify(toCreatePayload(input)),
+      ...(input.idempotencyKey ? { headers: { "Idempotency-Key": input.idempotencyKey } } : {})
     });
   },
 
@@ -278,6 +290,12 @@ export const tasksApi = {
   deleteTask(id: number) {
     return apiRequest<void>(`/api/v1/tasks/${id}`, {
       method: "DELETE"
+    });
+  },
+
+  restoreTask(id: number) {
+    return apiRequest<void>(`/api/v1/tasks/${id}/restore`, {
+      method: "POST"
     });
   },
 

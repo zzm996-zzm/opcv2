@@ -20,6 +20,7 @@ type Repository interface {
 	GetTask(ctx context.Context, userID, id int64) (Task, error)
 	UpdateTask(ctx context.Context, userID, id int64, update TaskUpdate) (Task, error)
 	DeleteTask(ctx context.Context, userID, id int64) error
+	RestoreTask(ctx context.Context, userID, id int64) error
 	BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error)
 	BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error)
 }
@@ -88,6 +89,7 @@ func (s *Service) CreateTask(ctx context.Context, input CreateInput) (Task, erro
 		SourceTitle:    input.SourceTitle,
 		SourceURL:      input.SourceURL,
 		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
+		Version:        1,
 		CreatedAt:      s.now(),
 	}
 	return s.repository.CreateTask(ctx, task)
@@ -107,7 +109,7 @@ func (s *Service) CreateTasks(ctx context.Context, input BatchCreateInput) ([]Ta
 			return nil, ErrInvalidTaskBatch
 		}
 		now := s.now()
-		created = append(created, Task{UserID: input.UserID, Title: strings.TrimSpace(item.Title), Description: strings.TrimSpace(item.Description), Assignee: strings.TrimSpace(item.Assignee), Project: strings.TrimSpace(item.Project), Status: StatusTodo, Priority: normalizePriority(item.Priority), Tags: normalizeUniqueStrings(item.Tags), DueAt: item.DueAt, Tools: normalizeStrings(item.Tools), Learning: strings.TrimSpace(item.Learning), SourceType: item.SourceType, SourceID: item.SourceID, SourceTitle: item.SourceTitle, SourceURL: item.SourceURL, IdempotencyKey: strings.TrimSpace(item.IdempotencyKey), CreatedAt: now})
+		created = append(created, Task{UserID: input.UserID, Title: strings.TrimSpace(item.Title), Description: strings.TrimSpace(item.Description), Assignee: strings.TrimSpace(item.Assignee), Project: strings.TrimSpace(item.Project), Status: StatusTodo, Priority: normalizePriority(item.Priority), Tags: normalizeUniqueStrings(item.Tags), DueAt: item.DueAt, Tools: normalizeStrings(item.Tools), Learning: strings.TrimSpace(item.Learning), SourceType: item.SourceType, SourceID: item.SourceID, SourceTitle: item.SourceTitle, SourceURL: item.SourceURL, IdempotencyKey: strings.TrimSpace(item.IdempotencyKey), Version: 1, CreatedAt: now})
 	}
 	return s.repository.CreateTasks(ctx, created)
 }
@@ -212,9 +214,22 @@ func (s *Service) UpdateTask(ctx context.Context, userID, id int64, update TaskU
 	if s.repository == nil {
 		return Task{}, ErrServiceNotReady
 	}
+	current, err := s.repository.GetTask(ctx, userID, id)
+	if err != nil {
+		return Task{}, err
+	}
+	if update.Version != nil && *update.Version != current.Version {
+		return Task{}, ErrTaskVersionConflict
+	}
 	if update.Status != nil {
 		status := normalizeStatus(*update.Status)
+		if !validTaskStatusTransition(current.Status, status) {
+			return Task{}, ErrInvalidTaskStatusTransition
+		}
 		update.Status = &status
+	}
+	if update.Progress != nil && (*update.Progress < 0 || *update.Progress > 100) {
+		return Task{}, ErrInvalidTaskProgress
 	}
 	if update.Priority != nil {
 		priority := normalizePriority(*update.Priority)
@@ -256,6 +271,13 @@ func (s *Service) DeleteTask(ctx context.Context, userID, id int64) error {
 		return ErrServiceNotReady
 	}
 	return s.repository.DeleteTask(ctx, userID, id)
+}
+
+func (s *Service) RestoreTask(ctx context.Context, userID, id int64) error {
+	if s.repository == nil {
+		return ErrServiceNotReady
+	}
+	return s.repository.RestoreTask(ctx, userID, id)
 }
 
 func (s *Service) BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error) {
@@ -301,11 +323,42 @@ func normalizeBatchTaskIDs(ids []int64) ([]int64, bool) {
 
 func normalizeStatus(status string) string {
 	switch status {
-	case StatusInProgress, StatusCompleted, StatusReminder:
+	case StatusInProgress, StatusReview, StatusBlocked, StatusCompleted, StatusCancelled, StatusReminder:
 		return status
 	default:
 		return StatusTodo
 	}
+}
+
+func validTaskStatusTransition(from, to string) bool {
+	if from == to {
+		return true
+	}
+	if to == StatusCompleted || to == StatusCancelled {
+		return !terminalTaskStatus(from)
+	}
+	switch from {
+	case StatusTodo:
+		return to == StatusInProgress || to == StatusReminder
+	case StatusInProgress:
+		return to == StatusTodo || to == StatusReview || to == StatusBlocked || to == StatusReminder
+	case StatusReview:
+		return to == StatusInProgress || to == StatusBlocked
+	case StatusBlocked:
+		return to == StatusTodo || to == StatusInProgress
+	case StatusReminder:
+		return to == StatusTodo || to == StatusInProgress || to == StatusReview || to == StatusBlocked
+	case StatusCompleted:
+		return to == StatusTodo || to == StatusInProgress
+	case StatusCancelled:
+		return to == StatusTodo
+	default:
+		return false
+	}
+}
+
+func terminalTaskStatus(status string) bool {
+	return status == StatusCompleted || status == StatusCancelled
 }
 
 func normalizePriority(priority string) string {

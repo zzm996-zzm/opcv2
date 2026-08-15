@@ -66,6 +66,7 @@ func (s *Service) GenerateTasks(ctx context.Context, input GenerateTasksInput) (
 			SourceID:    input.SourceID,
 			SourceTitle: input.SourceTitle,
 			SourceURL:   input.SourceURL,
+			Version:     1,
 			CreatedAt:   now,
 		})
 	}
