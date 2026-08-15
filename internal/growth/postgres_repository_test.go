@@ -157,10 +157,10 @@ func TestPostgresRepositoryListsOwnedModelPage(t *testing.T) {
 	defer db.Close()
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 	db.ExpectQuery("SELECT COUNT\\(\\*\\)").
-		WithArgs(int64(42), "SaaS", (*time.Time)(nil), (*time.Time)(nil)).
+		WithArgs(int64(42), "SaaS", (*time.Time)(nil), (*time.Time)(nil), "saas", "completed", "medium").
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(21))
 	db.ExpectQuery("SELECT id, user_id, name, assumptions, result, created_at, updated_at").
-		WithArgs(int64(42), "SaaS", (*time.Time)(nil), (*time.Time)(nil), 10, 10).
+		WithArgs(int64(42), "SaaS", (*time.Time)(nil), (*time.Time)(nil), "saas", "completed", "medium", ModelSortRevenueDesc, 10, 10).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "user_id", "name", "assumptions", "result", "created_at", "updated_at",
 		}).AddRow(
@@ -168,7 +168,8 @@ func TestPostgresRepositoryListsOwnedModelPage(t *testing.T) {
 		))
 
 	page, err := NewPostgresRepository(db).ListModelPage(context.Background(), ListModelsInput{
-		UserID: 42, Query: "SaaS", Limit: 10, Offset: 10,
+		UserID: 42, Query: "SaaS", BusinessType: "saas", Status: "completed", RiskLevel: "medium",
+		Sort: ModelSortRevenueDesc, Limit: 10, Offset: 10,
 	})
 	if err != nil {
 		t.Fatalf("ListModelPage() error = %v", err)

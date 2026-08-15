@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -24,10 +25,28 @@ type Repository interface {
 type Service struct {
 	repository Repository
 	now        func() time.Time
+	riskRules  RiskRules
 }
 
-func NewService(repository Repository) *Service {
-	return &Service{repository: repository, now: time.Now}
+type ServiceOption func(*Service)
+
+func WithRiskRules(rules RiskRules) ServiceOption {
+	return func(service *Service) {
+		if rules.Version == "" {
+			rules.Version = growthRiskRuleVersion
+		}
+		service.riskRules = rules
+	}
+}
+
+func NewService(repository Repository, options ...ServiceOption) *Service {
+	service := &Service{repository: repository, now: time.Now, riskRules: defaultRiskRules}
+	for _, option := range options {
+		if option != nil {
+			option(service)
+		}
+	}
+	return service
 }
 
 func (s *Service) CreateDraft(ctx context.Context, input CreateDraftInput) (Draft, error) {
@@ -96,7 +115,7 @@ func (s *Service) CalculateDraft(ctx context.Context, input CalculateDraftInput)
 		name = draftName(draft.Input)
 	}
 	model, err := s.CreateModel(ctx, CreateInput{
-		UserID: input.UserID, Name: name,
+		UserID: input.UserID, Name: name, BusinessType: detectBusinessType(draft.Input),
 		MonthlyVisits: draft.Assumptions.MonthlyVisits, LeadRate: draft.Assumptions.LeadRate,
 		DealRate: draft.Assumptions.DealRate, AverageOrder: draft.Assumptions.AverageOrder,
 		AcquisitionCost: draft.Assumptions.AcquisitionCost, DeliveryCost: draft.Assumptions.DeliveryCost,
@@ -130,6 +149,7 @@ func (s *Service) RecalculateModel(ctx context.Context, userID, id int64) (Recal
 	model, err = s.CreateModel(ctx, CreateInput{
 		UserID:          userID,
 		Name:            model.Name,
+		BusinessType:    model.BusinessType,
 		MonthlyVisits:   model.Assumptions.MonthlyVisits,
 		LeadRate:        model.Assumptions.LeadRate,
 		DealRate:        model.Assumptions.DealRate,
@@ -345,11 +365,14 @@ func (s *Service) CreateModel(ctx context.Context, input CreateInput) (Model, er
 	}
 	now := s.now()
 	return s.repository.CreateModel(ctx, Model{
-		UserID:      input.UserID,
-		Name:        strings.TrimSpace(input.Name),
-		Assumptions: assumptions,
-		Result:      calculate(assumptions),
-		CreatedAt:   now,
+		UserID:       input.UserID,
+		Name:         strings.TrimSpace(input.Name),
+		BusinessType: normalizeBusinessType(input.BusinessType, input.Name),
+		Status:       ModelStatusCompleted,
+		RiskLevel:    modelRiskLevel(assumptions, calculate(assumptions), s.riskRules),
+		Assumptions:  assumptions,
+		Result:       calculate(assumptions),
+		CreatedAt:    now,
 	})
 }
 
@@ -360,7 +383,11 @@ func (s *Service) ListModels(ctx context.Context, userID int64, limit int) ([]Mo
 	if limit <= 0 || limit > 100 {
 		limit = 20
 	}
-	return s.repository.ListModels(ctx, userID, limit)
+	models, err := s.repository.ListModels(ctx, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	return s.decorateModels(models), nil
 }
 
 type modelPageRepository interface {
@@ -372,6 +399,7 @@ func (s *Service) ListModelPage(ctx context.Context, input ListModelsInput) (Mod
 		return ModelPage{}, ErrServiceNotReady
 	}
 	input.Query = strings.TrimSpace(input.Query)
+	input.Sort = normalizeModelSort(input.Sort)
 	if input.Limit <= 0 || input.Limit > 100 {
 		input.Limit = 20
 	}
@@ -379,12 +407,18 @@ func (s *Service) ListModelPage(ctx context.Context, input ListModelsInput) (Mod
 		input.Offset = 0
 	}
 	if repository, ok := s.repository.(modelPageRepository); ok {
-		return repository.ListModelPage(ctx, input)
+		page, err := repository.ListModelPage(ctx, input)
+		if err != nil {
+			return ModelPage{}, err
+		}
+		page.Models = s.decorateModels(page.Models)
+		return page, nil
 	}
 	models, err := s.repository.ListModels(ctx, input.UserID, input.Limit+input.Offset)
 	if err != nil {
 		return ModelPage{}, err
 	}
+	models = s.filterAndSortModels(models, input)
 	total := len(models)
 	if input.Offset >= total {
 		models = []Model{}
@@ -392,6 +426,112 @@ func (s *Service) ListModelPage(ctx context.Context, input ListModelsInput) (Mod
 		models = models[input.Offset:]
 	}
 	return ModelPage{Models: models, Total: total, Limit: input.Limit, Offset: input.Offset}, nil
+}
+
+func (s *Service) decorateModels(models []Model) []Model {
+	for index := range models {
+		models[index] = s.decorateModel(models[index])
+	}
+	return models
+}
+
+func (s *Service) decorateModel(model Model) Model {
+	if strings.TrimSpace(model.BusinessType) == "" {
+		model.BusinessType = detectBusinessType(model.Name)
+	}
+	if strings.TrimSpace(model.Status) == "" {
+		model.Status = ModelStatusCompleted
+	}
+	if strings.TrimSpace(model.RiskLevel) == "" {
+		model.RiskLevel = modelRiskLevel(model.Assumptions, model.Result, s.riskRules)
+	}
+	return model
+}
+
+func (s *Service) filterAndSortModels(models []Model, input ListModelsInput) []Model {
+	filtered := make([]Model, 0, len(models))
+	for _, model := range s.decorateModels(models) {
+		if input.BusinessType != "" && model.BusinessType != input.BusinessType {
+			continue
+		}
+		if input.Status != "" && model.Status != input.Status {
+			continue
+		}
+		if input.RiskLevel != "" && model.RiskLevel != input.RiskLevel {
+			continue
+		}
+		filtered = append(filtered, model)
+	}
+	sort.SliceStable(filtered, func(left, right int) bool {
+		a, b := filtered[left], filtered[right]
+		switch normalizeModelSort(input.Sort) {
+		case ModelSortCreatedAsc:
+			return a.CreatedAt.Before(b.CreatedAt)
+		case ModelSortRevenueDesc:
+			return a.Result.MonthlyRevenue > b.Result.MonthlyRevenue
+		case ModelSortRevenueAsc:
+			return a.Result.MonthlyRevenue < b.Result.MonthlyRevenue
+		case ModelSortMarginDesc:
+			return a.Result.NetMargin > b.Result.NetMargin
+		case ModelSortMarginAsc:
+			return a.Result.NetMargin < b.Result.NetMargin
+		default:
+			return a.CreatedAt.After(b.CreatedAt)
+		}
+	})
+	return filtered
+}
+
+func normalizeModelSort(value string) string {
+	switch strings.TrimSpace(value) {
+	case ModelSortCreatedAsc, ModelSortRevenueDesc, ModelSortRevenueAsc, ModelSortMarginDesc, ModelSortMarginAsc:
+		return strings.TrimSpace(value)
+	default:
+		return ModelSortCreatedDesc
+	}
+}
+
+func normalizeBusinessType(value, name string) string {
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "saas", "ecommerce", "education", "service", "content", "other":
+		return strings.TrimSpace(strings.ToLower(value))
+	default:
+		return detectBusinessType(name)
+	}
+}
+
+func detectBusinessType(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch {
+	case strings.Contains(value, "saas"), strings.Contains(value, "软件"), strings.Contains(value, "系统"):
+		return "saas"
+	case strings.Contains(value, "电商"), strings.Contains(value, "商城"), strings.Contains(value, "零售"):
+		return "ecommerce"
+	case strings.Contains(value, "教培"), strings.Contains(value, "培训"), strings.Contains(value, "课程"):
+		return "education"
+	case strings.Contains(value, "咨询"), strings.Contains(value, "服务"), strings.Contains(value, "顾问"):
+		return "service"
+	case strings.Contains(value, "内容"), strings.Contains(value, "自媒体"), strings.Contains(value, "社群"):
+		return "content"
+	default:
+		return "other"
+	}
+}
+
+func modelRiskLevel(assumptions Assumptions, result Result, rules RiskRules) string {
+	overall := "low"
+	levels := []string{
+		riskLevel(assumptions.DealRate, rules.DealRateHighThreshold, rules.DealRateMediumThreshold, true),
+		acquisitionRiskLevel(assumptions, rules),
+		riskLevel(result.NetMargin, rules.NetMarginHighThreshold, rules.NetMarginMediumThreshold, true),
+		paybackRiskLevel(result.PaybackDays, rules),
+	}
+	for _, level := range levels {
+		if riskRank(level) > riskRank(overall) {
+			overall = level
+		}
+	}
+	return overall
 }
 
 func (s *Service) CompareModels(ctx context.Context, input CompareModelsInput) (GrowthComparison, error) {
@@ -426,7 +566,11 @@ func (s *Service) GetModel(ctx context.Context, userID, id int64) (Model, error)
 	if s.repository == nil {
 		return Model{}, ErrServiceNotReady
 	}
-	return s.repository.GetModel(ctx, userID, id)
+	model, err := s.repository.GetModel(ctx, userID, id)
+	if err != nil {
+		return Model{}, err
+	}
+	return s.decorateModel(model), nil
 }
 
 func (s *Service) ModelScenarios(ctx context.Context, userID, id int64) (GrowthScenarios, error) {
@@ -448,27 +592,42 @@ func (s *Service) ModelScenarios(ctx context.Context, userID, id int64) (GrowthS
 }
 
 func (s *Service) ModelForecast(ctx context.Context, userID, id int64) (GrowthForecast, error) {
+	return s.ModelForecastForPeriod(ctx, userID, id, 5)
+}
+
+func (s *Service) ModelForecastForPeriod(ctx context.Context, userID, id int64, periodMonths int) (GrowthForecast, error) {
+	if periodMonths < 1 || periodMonths > 36 {
+		return GrowthForecast{}, ErrInvalidForecastPeriod
+	}
 	model, err := s.GetModel(ctx, userID, id)
 	if err != nil {
 		return GrowthForecast{}, err
 	}
 	phases := []string{"验证渠道", "优化转化", "稳定投放", "扩大渠道", "复购加成"}
 	ratios := []float64{0.45, 0.75, 1, 1.18, 1.35}
-	progress := []int{28, 44, 60, 78, 90}
-	months := make([]ForecastMonth, 0, len(ratios))
-	for index, ratio := range ratios {
+	progressValues := []float64{28, 44, 60, 78, 90}
+	months := make([]ForecastMonth, 0, periodMonths)
+	for index := 0; index < periodMonths; index++ {
+		position := 0.0
+		if periodMonths > 1 {
+			position = float64(index) / float64(periodMonths-1) * float64(len(ratios)-1)
+		}
+		ratio := interpolateForecastValue(ratios, position)
+		progress := int(math.Round(interpolateForecastValue(progressValues, position)))
+		phaseIndex := minInt(int(math.Round(position)), len(phases)-1)
 		months = append(months, ForecastMonth{
 			Month:           fmt.Sprintf("第%d月", index+1),
 			Revenue:         int(math.Round(float64(model.Result.MonthlyRevenue) * ratio)),
-			Phase:           phases[index],
-			ProgressPercent: progress[index],
+			Phase:           phases[phaseIndex],
+			ProgressPercent: progress,
 		})
 	}
 	return GrowthForecast{
-		ModelID:     model.ID,
-		ModelName:   model.Name,
-		Months:      months,
-		GeneratedAt: model.UpdatedAt,
+		ModelID:      model.ID,
+		ModelName:    model.Name,
+		PeriodMonths: periodMonths,
+		Months:       months,
+		GeneratedAt:  model.UpdatedAt,
 	}, nil
 }
 
@@ -512,23 +671,23 @@ func (s *Service) ModelRisks(ctx context.Context, userID, id int64) (GrowthRisks
 	}
 	risks := []GrowthRisk{
 		{
-			Key: "deal_rate", Name: "成交转化率", Level: riskLevel(model.Assumptions.DealRate, 0.08, 0.15, true),
-			CurrentValue: formatRate(model.Assumptions.DealRate), Threshold: "低于 8% 为高风险，低于 15% 需关注",
+			Key: "deal_rate", Name: "成交转化率", Level: riskLevel(model.Assumptions.DealRate, s.riskRules.DealRateHighThreshold, s.riskRules.DealRateMediumThreshold, true),
+			CurrentValue: formatRate(model.Assumptions.DealRate), Threshold: fmt.Sprintf("低于 %s 为高风险，低于 %s 需关注", formatRate(s.riskRules.DealRateHighThreshold), formatRate(s.riskRules.DealRateMediumThreshold)),
 			Reason: "成交转化率决定线索能否转化为真实收入。", Suggestion: "补齐顾问话术、案例证明和 24 小时内跟进节奏。",
 		},
 		{
-			Key: "acquisition_cost", Name: "获客成本占收入", Level: acquisitionRiskLevel(model.Assumptions),
-			CurrentValue: formatRate(acquisitionShare(model.Assumptions)), Threshold: "超过 30% 为高风险，超过 15% 需关注",
+			Key: "acquisition_cost", Name: "获客成本占收入", Level: acquisitionRiskLevel(model.Assumptions, s.riskRules),
+			CurrentValue: formatRate(acquisitionShare(model.Assumptions)), Threshold: fmt.Sprintf("超过 %s 为高风险，超过 %s 需关注", formatRate(s.riskRules.AcquisitionShareHigh), formatRate(s.riskRules.AcquisitionShareMedium)),
 			Reason: "获客投入过高会压缩每笔成交的可交付利润。", Suggestion: "先优化高意向渠道和线索筛选，再扩大投放预算。",
 		},
 		{
-			Key: "net_margin", Name: "净利润率", Level: riskLevel(model.Result.NetMargin, 0, 0.2, true),
-			CurrentValue: formatRate(model.Result.NetMargin), Threshold: "低于 0% 为高风险，低于 20% 需关注",
+			Key: "net_margin", Name: "净利润率", Level: riskLevel(model.Result.NetMargin, s.riskRules.NetMarginHighThreshold, s.riskRules.NetMarginMediumThreshold, true),
+			CurrentValue: formatRate(model.Result.NetMargin), Threshold: fmt.Sprintf("低于 %s 为高风险，低于 %s 需关注", formatRate(s.riskRules.NetMarginHighThreshold), formatRate(s.riskRules.NetMarginMediumThreshold)),
 			Reason: "利润率反映增长是否有足够的成本缓冲。", Suggestion: "核对交付成本和投放预算，优先提升成交质量。",
 		},
 		{
-			Key: "payback_days", Name: "回本周期", Level: paybackRiskLevel(model.Result.PaybackDays),
-			CurrentValue: fmt.Sprintf("%d 天", model.Result.PaybackDays), Threshold: "超过 90 天为高风险，超过 45 天需关注",
+			Key: "payback_days", Name: "回本周期", Level: paybackRiskLevel(model.Result.PaybackDays, s.riskRules),
+			CurrentValue: fmt.Sprintf("%d 天", model.Result.PaybackDays), Threshold: fmt.Sprintf("超过 %d 天为高风险，超过 %d 天需关注", s.riskRules.PaybackDaysHighThreshold, s.riskRules.PaybackDaysMediumThreshold),
 			Reason: "回本周期过长会放大现金流和投放试错压力。", Suggestion: "降低单条线索成本，或先用小预算验证转化率。",
 		},
 	}
@@ -538,7 +697,7 @@ func (s *Service) ModelRisks(ctx context.Context, userID, id int64) (GrowthRisks
 			overall = risk.Level
 		}
 	}
-	return GrowthRisks{ModelID: model.ID, ModelName: model.Name, OverallLevel: overall, Risks: risks, GeneratedAt: model.UpdatedAt}, nil
+	return GrowthRisks{ModelID: model.ID, ModelName: model.Name, OverallLevel: overall, RuleVersion: s.riskRules.Version, Rules: s.riskRules, Risks: risks, GeneratedAt: model.UpdatedAt}, nil
 }
 
 func (s *Service) ModelActionPlan(ctx context.Context, userID, id int64) (GrowthActionPlan, error) {
@@ -670,6 +829,20 @@ func maxInt(a, b int) int {
 	return b
 }
 
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func interpolateForecastValue(values []float64, position float64) float64 {
+	lower := minInt(int(math.Floor(position)), len(values)-1)
+	upper := minInt(lower+1, len(values)-1)
+	weight := position - float64(lower)
+	return values[lower] + (values[upper]-values[lower])*weight
+}
+
 func formatRate(value float64) string {
 	return fmt.Sprintf("%.1f%%", value*100)
 }
@@ -681,22 +854,22 @@ func acquisitionShare(input Assumptions) float64 {
 	return float64(input.AcquisitionCost) / (float64(input.AverageOrder) * input.DealRate)
 }
 
-func acquisitionRiskLevel(input Assumptions) string {
+func acquisitionRiskLevel(input Assumptions, rules RiskRules) string {
 	share := acquisitionShare(input)
-	if share > 0.3 {
+	if share > rules.AcquisitionShareHigh {
 		return "high"
 	}
-	if share > 0.15 {
+	if share > rules.AcquisitionShareMedium {
 		return "medium"
 	}
 	return "low"
 }
 
-func paybackRiskLevel(days int) string {
-	if days > 90 {
+func paybackRiskLevel(days int, rules RiskRules) string {
+	if days > rules.PaybackDaysHighThreshold {
 		return "high"
 	}
-	if days > 45 {
+	if days > rules.PaybackDaysMediumThreshold {
 		return "medium"
 	}
 	return "low"

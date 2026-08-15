@@ -1630,11 +1630,15 @@ Response `200`: `GrowthModel`
 
 ### List Models
 
-`GET /api/v1/growth/models?q=培训&from=2026-08-01&to=2026-08-15&limit=20&offset=0`
+`GET /api/v1/growth/models?q=培训&business_type=education&status=completed&risk=medium&sort=revenue_desc&from=2026-08-01&to=2026-08-15&limit=20&offset=0`
 
 Query parameters:
 
 - `q`: optional name search, up to 100 Unicode characters.
+- `business_type`: optional derived type: `saas`, `ecommerce`, `education`, `service`, `content`, or `other`.
+- `status`: optional model status. MVP models use `completed`.
+- `risk`: optional deterministic risk level: `low`, `medium`, or `high`.
+- `sort`: optional `created_desc` (default), `created_asc`, `revenue_desc`, `revenue_asc`, `margin_desc`, or `margin_asc`.
 - `from`: optional inclusive creation date in `YYYY-MM-DD` format.
 - `to`: optional inclusive creation date in `YYYY-MM-DD` format.
 - `limit`: page size, default `20`, maximum `100`.
@@ -1687,7 +1691,9 @@ Response:
 
 ### Get Model Forecast
 
-`GET /api/v1/growth/models/{id}/forecast`
+`GET /api/v1/growth/models/{id}/forecast?months=12`
+
+`months` is optional and accepts `1` through `36`; the default is `5`. The frontend exposes the MVP presets for 3, 5, and 12 months.
 
 Response:
 
@@ -1695,6 +1701,7 @@ Response:
 {
   "model_id": 99,
   "model_name": "标准方案",
+  "period_months": 12,
   "months": [
     {
       "month": "第3月",
@@ -1744,6 +1751,18 @@ Response:
   "model_id": 99,
   "model_name": "标准方案",
   "overall_level": "medium",
+  "rule_version": "growth-risk-rules-v1",
+  "rules": {
+    "deal_rate_high_threshold": 0.08,
+    "deal_rate_medium_threshold": 0.15,
+    "acquisition_share_high": 0.3,
+    "acquisition_share_medium": 0.15,
+    "net_margin_high_threshold": 0,
+    "net_margin_medium_threshold": 0.2,
+    "payback_days_high_threshold": 90,
+    "payback_days_medium_threshold": 45,
+    "version": "growth-risk-rules-v1"
+  },
   "risks": [
     {
       "key": "deal_rate",

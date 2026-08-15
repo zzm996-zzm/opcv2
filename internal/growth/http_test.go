@@ -45,6 +45,16 @@ type fakePagedApplication struct {
 	page      ModelPage
 }
 
+type fakeForecastPeriodApplication struct {
+	*fakeApplication
+	periodMonths int
+}
+
+func (a *fakeForecastPeriodApplication) ModelForecastForPeriod(_ context.Context, userID, id int64, periodMonths int) (GrowthForecast, error) {
+	a.userID, a.modelID, a.periodMonths = userID, id, periodMonths
+	return a.forecast, a.err
+}
+
 func (a *fakePagedApplication) ListModelPage(_ context.Context, input ListModelsInput) (ModelPage, error) {
 	a.pageInput = input
 	return a.page, a.err
@@ -426,6 +436,28 @@ func TestListModelsEndpointParsesDateRange(t *testing.T) {
 	}
 }
 
+func TestListModelsEndpointParsesBusinessRiskStatusAndSortFilters(t *testing.T) {
+	app := &fakePagedApplication{fakeApplication: &fakeApplication{}, page: ModelPage{Models: []Model{}}}
+	router := growthTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/growth/models?business_type=saas&status=completed&risk=medium&sort=revenue_desc", nil))
+
+	if recorder.Code != http.StatusOK || app.pageInput.BusinessType != "saas" || app.pageInput.Status != "completed" || app.pageInput.RiskLevel != "medium" || app.pageInput.Sort != ModelSortRevenueDesc {
+		t.Fatalf("status/input = %d/%+v body=%s", recorder.Code, app.pageInput, recorder.Body.String())
+	}
+}
+
+func TestListModelsEndpointRejectsInvalidFilter(t *testing.T) {
+	app := &fakePagedApplication{fakeApplication: &fakeApplication{}}
+	router := growthTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/growth/models?risk=critical", nil))
+
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"error":"invalid_model_filter"`) {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestListModelsEndpointRejectsInvalidDateRange(t *testing.T) {
 	app := &fakePagedApplication{fakeApplication: &fakeApplication{}}
 	router := growthTestRouter(app)
@@ -512,5 +544,27 @@ func TestDerivedGrowthEndpointsUseAuthenticatedUserAndModelID(t *testing.T) {
 				t.Fatalf("body = %s", recorder.Body.String())
 			}
 		})
+	}
+}
+
+func TestForecastEndpointAcceptsConfigurablePeriod(t *testing.T) {
+	app := &fakeForecastPeriodApplication{fakeApplication: &fakeApplication{forecast: GrowthForecast{ModelID: 99, PeriodMonths: 12}}}
+	router := growthTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/growth/models/99/forecast?months=12", nil))
+
+	if recorder.Code != http.StatusOK || app.periodMonths != 12 || !strings.Contains(recorder.Body.String(), `"period_months":12`) {
+		t.Fatalf("status/period/body = %d/%d/%s", recorder.Code, app.periodMonths, recorder.Body.String())
+	}
+}
+
+func TestForecastEndpointRejectsInvalidPeriod(t *testing.T) {
+	app := &fakeForecastPeriodApplication{fakeApplication: &fakeApplication{}}
+	router := growthTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/growth/models/99/forecast?months=37", nil))
+
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"error":"invalid_forecast_period"`) {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }

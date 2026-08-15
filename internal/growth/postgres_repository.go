@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -182,27 +183,54 @@ func (r *PostgresRepository) ListModels(ctx context.Context, userID int64, limit
 }
 
 func (r *PostgresRepository) ListModelPage(ctx context.Context, input ListModelsInput) (ModelPage, error) {
-	var total int
-	if err := r.db.QueryRow(ctx, `
-		SELECT COUNT(*)
-		FROM growth_models
+	businessTypeExpr := `CASE
+		WHEN name ILIKE '%saas%' OR name ILIKE '%软件%' OR name ILIKE '%系统%' THEN 'saas'
+		WHEN name ILIKE '%电商%' OR name ILIKE '%商城%' OR name ILIKE '%零售%' THEN 'ecommerce'
+		WHEN name ILIKE '%教培%' OR name ILIKE '%培训%' OR name ILIKE '%课程%' THEN 'education'
+		WHEN name ILIKE '%咨询%' OR name ILIKE '%服务%' OR name ILIKE '%顾问%' THEN 'service'
+		WHEN name ILIKE '%内容%' OR name ILIKE '%自媒体%' OR name ILIKE '%社群%' THEN 'content'
+		ELSE 'other'
+	END`
+	riskExpression := `CASE
+		WHEN COALESCE(NULLIF(result->>'net_margin', '')::numeric, 0) < 0
+			OR COALESCE(NULLIF(result->>'payback_days', '')::numeric, 0) > 90
+			OR COALESCE(NULLIF(assumptions->>'deal_rate', '')::numeric, 0) < 0.08
+			OR COALESCE(NULLIF(assumptions->>'acquisition_cost', '')::numeric, 0) /
+				NULLIF(COALESCE(NULLIF(assumptions->>'average_order', '')::numeric, 0) * COALESCE(NULLIF(assumptions->>'deal_rate', '')::numeric, 0), 0) > 0.30 THEN 'high'
+		WHEN COALESCE(NULLIF(result->>'net_margin', '')::numeric, 0) < 0.20
+			OR COALESCE(NULLIF(result->>'payback_days', '')::numeric, 0) > 45
+			OR COALESCE(NULLIF(assumptions->>'deal_rate', '')::numeric, 0) < 0.15
+			OR COALESCE(NULLIF(assumptions->>'acquisition_cost', '')::numeric, 0) /
+				NULLIF(COALESCE(NULLIF(assumptions->>'average_order', '')::numeric, 0) * COALESCE(NULLIF(assumptions->>'deal_rate', '')::numeric, 0), 0) > 0.15 THEN 'medium'
+		ELSE 'low'
+	END`
+	whereClause := fmt.Sprintf(`
 		WHERE user_id = $1
-		  AND ($2 = '' OR name ILIKE '%' || $2 || '%')
+		  AND ($2 = '' OR name ILIKE '%%' || $2 || '%%')
 		  AND ($3::timestamptz IS NULL OR created_at >= $3)
 		  AND ($4::timestamptz IS NULL OR created_at < $4)
-	`, input.UserID, input.Query, input.From, input.To).Scan(&total); err != nil {
+		  AND ($5 = '' OR (%s) = $5)
+		  AND ($6 = '' OR $6 = 'completed')
+		  AND ($7 = '' OR (%s) = $7)
+	`, businessTypeExpr, riskExpression)
+	var total int
+	if err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM growth_models "+whereClause,
+		input.UserID, input.Query, input.From, input.To, input.BusinessType, input.Status, input.RiskLevel).Scan(&total); err != nil {
 		return ModelPage{}, err
 	}
-	rows, err := r.db.Query(ctx, `
+	rows, err := r.db.Query(ctx, fmt.Sprintf(`
 		SELECT id, user_id, name, assumptions, result, created_at, updated_at
 		FROM growth_models
-		WHERE user_id = $1
-		  AND ($2 = '' OR name ILIKE '%' || $2 || '%')
-		  AND ($3::timestamptz IS NULL OR created_at >= $3)
-		  AND ($4::timestamptz IS NULL OR created_at < $4)
-		ORDER BY created_at DESC, id DESC
-		LIMIT $5 OFFSET $6
-	`, input.UserID, input.Query, input.From, input.To, input.Limit, input.Offset)
+		%s
+		ORDER BY
+		  CASE WHEN $8 = 'revenue_desc' THEN COALESCE(NULLIF(result->>'monthly_revenue', '')::numeric, 0) END DESC NULLS LAST,
+		  CASE WHEN $8 = 'revenue_asc' THEN COALESCE(NULLIF(result->>'monthly_revenue', '')::numeric, 0) END ASC NULLS LAST,
+		  CASE WHEN $8 = 'margin_desc' THEN COALESCE(NULLIF(result->>'net_margin', '')::numeric, 0) END DESC NULLS LAST,
+		  CASE WHEN $8 = 'margin_asc' THEN COALESCE(NULLIF(result->>'net_margin', '')::numeric, 0) END ASC NULLS LAST,
+		  CASE WHEN $8 = 'created_asc' THEN created_at END ASC NULLS LAST,
+		  created_at DESC, id DESC
+		LIMIT $9 OFFSET $10
+	`, whereClause), input.UserID, input.Query, input.From, input.To, input.BusinessType, input.Status, input.RiskLevel, input.Sort, input.Limit, input.Offset)
 	if err != nil {
 		return ModelPage{}, err
 	}

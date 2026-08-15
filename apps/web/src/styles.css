@@ -17392,6 +17392,27 @@ a:active {
   cursor: not-allowed;
 }
 
+.growth-action-card .growth-linked-tasks {
+  padding-top: 12px;
+  border-top: 1px solid #dbe5f6;
+}
+
+.growth-linked-tasks > strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.growth-linked-tasks a {
+  color: #3151c6;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.growth-linked-tasks a:hover {
+  text-decoration: underline;
+}
+
 .geo-acquisition-page {
   max-width: 1240px;
 }
@@ -51186,6 +51207,7 @@ a:active {
 }
 
 .growth-history-toolbar {
+  flex-wrap: wrap;
   gap: 10px;
   padding: 14px 0;
   border-top: 1px solid #e4e7ec;
@@ -51210,11 +51232,16 @@ a:active {
   outline: 0;
 }
 
-.growth-history-period-filter {
+.growth-history-toolbar .growth-history-period-filter {
   display: inline-flex;
+  width: auto;
+  min-height: auto;
+  padding: 0;
   align-items: center;
   gap: 8px;
   color: #667085;
+  background: transparent;
+  border: 0;
   font-size: 12px;
   font-weight: 700;
 }

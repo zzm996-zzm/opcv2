@@ -21,6 +21,9 @@ export type GrowthModel = {
   id: number;
   user_id: number;
   name: string;
+  business_type?: "saas" | "ecommerce" | "education" | "service" | "content" | "other";
+  status?: "completed";
+  risk_level?: "low" | "medium" | "high";
   assumptions: GrowthAssumptions;
   result: GrowthResult;
   created_at: string;
@@ -29,6 +32,10 @@ export type GrowthModel = {
 
 export type GrowthModelFilters = {
   q?: string;
+  businessType?: "saas" | "ecommerce" | "education" | "service" | "content" | "other";
+  status?: "completed";
+  risk?: "low" | "medium" | "high";
+  sort?: "created_desc" | "created_asc" | "revenue_desc" | "revenue_asc" | "margin_desc" | "margin_asc";
   limit?: number;
   offset?: number;
   from?: string;
@@ -72,6 +79,7 @@ export type ForecastMonth = {
 export type GrowthForecast = {
   model_id: number;
   model_name: string;
+  period_months?: number;
   months: ForecastMonth[];
   generated_at: string;
 };
@@ -106,6 +114,18 @@ export type GrowthRisks = {
   model_id: number;
   model_name: string;
   overall_level: "low" | "medium" | "high";
+  rule_version?: string;
+  rules?: {
+    deal_rate_high_threshold: number;
+    deal_rate_medium_threshold: number;
+    acquisition_share_high: number;
+    acquisition_share_medium: number;
+    net_margin_high_threshold: number;
+    net_margin_medium_threshold: number;
+    payback_days_high_threshold: number;
+    payback_days_medium_threshold: number;
+    version: string;
+  };
   risks: GrowthRisk[];
   generated_at: string;
 };
@@ -188,6 +208,10 @@ export type GrowthSnapshot = {
 function modelQueryString(filters: GrowthModelFilters) {
   const search = new URLSearchParams();
   if (filters.q) search.set("q", filters.q);
+  if (filters.businessType) search.set("business_type", filters.businessType);
+  if (filters.status) search.set("status", filters.status);
+  if (filters.risk) search.set("risk", filters.risk);
+  if (filters.sort) search.set("sort", filters.sort);
   if (filters.limit !== undefined) search.set("limit", String(filters.limit));
   if (filters.offset !== undefined) search.set("offset", String(filters.offset));
   if (filters.from) search.set("from", filters.from);
@@ -288,8 +312,9 @@ export const growthApi = {
     });
   },
 
-  modelForecast(id: number) {
-    return apiRequest<GrowthForecast>(`/api/v1/growth/models/${id}/forecast`, {
+  modelForecast(id: number, months?: number) {
+    const query = months && months !== 5 ? `?months=${months}` : "";
+    return apiRequest<GrowthForecast>(`/api/v1/growth/models/${id}/forecast${query}`, {
       method: "GET"
     });
   },

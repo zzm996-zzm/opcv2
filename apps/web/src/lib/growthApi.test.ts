@@ -108,10 +108,33 @@ describe("growthApi", () => {
       new Response(JSON.stringify({ models: [], total: 0, limit: 10, offset: 20 }), { status: 200 })
     );
 
-    await growthApi.listModels({ q: "SaaS", from: "2026-08-01", to: "2026-08-15", limit: 10, offset: 20 });
+    await growthApi.listModels({
+      q: "SaaS",
+      businessType: "saas",
+      status: "completed",
+      risk: "medium",
+      sort: "revenue_desc",
+      from: "2026-08-01",
+      to: "2026-08-15",
+      limit: 10,
+      offset: 20
+    });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/growth/models?q=SaaS&limit=10&offset=20&from=2026-08-01&to=2026-08-15",
+      "/api/v1/growth/models?q=SaaS&business_type=saas&status=completed&risk=medium&sort=revenue_desc&limit=10&offset=20&from=2026-08-01&to=2026-08-15",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("requests a configurable forecast period", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ model_id: 99, period_months: 12, months: [] }), { status: 200 })
+    );
+
+    await growthApi.modelForecast(99, 12);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/99/forecast?months=12",
       expect.objectContaining({ method: "GET" })
     );
   });

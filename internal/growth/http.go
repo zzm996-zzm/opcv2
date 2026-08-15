@@ -51,6 +51,10 @@ type risksApplication interface {
 	ModelRisks(context.Context, int64, int64) (GrowthRisks, error)
 }
 
+type forecastPeriodApplication interface {
+	ModelForecastForPeriod(context.Context, int64, int64, int) (GrowthForecast, error)
+}
+
 type actionPlanApplication interface {
 	ModelActionPlan(context.Context, int64, int64) (GrowthActionPlan, error)
 }
@@ -199,9 +203,17 @@ func (h *HTTPHandler) listModels(c *gin.Context) {
 		httpapi.BadRequest(c, "invalid_date_range")
 		return
 	}
+	businessType, status, riskLevel, sortValue, ok := modelListFilters(
+		c.Query("business_type"), c.Query("status"), c.Query("risk"), c.Query("sort"),
+	)
+	if !ok {
+		httpapi.BadRequest(c, "invalid_model_filter")
+		return
+	}
 	if app, supportsPaging := h.app.(modelPageApplication); supportsPaging {
 		page, err := app.ListModelPage(c.Request.Context(), ListModelsInput{
-			UserID: c.GetInt64(auth.UserIDContextKey), Query: query, Limit: limit, Offset: offset, From: from, To: to,
+			UserID: c.GetInt64(auth.UserIDContextKey), Query: query, BusinessType: businessType,
+			Status: status, RiskLevel: riskLevel, Sort: sortValue, Limit: limit, Offset: offset, From: from, To: to,
 		})
 		if err != nil {
 			writeError(c, err)
@@ -217,6 +229,31 @@ func (h *HTTPHandler) listModels(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"models": httpapi.EnsureSlice(models), "total": len(models), "limit": limit, "offset": offset})
+}
+
+func modelListFilters(businessType, status, riskLevel, sortValue string) (string, string, string, string, bool) {
+	businessType = strings.ToLower(strings.TrimSpace(businessType))
+	status = strings.ToLower(strings.TrimSpace(status))
+	riskLevel = strings.ToLower(strings.TrimSpace(riskLevel))
+	sortValue = strings.ToLower(strings.TrimSpace(sortValue))
+	if businessType != "" && businessType != "saas" && businessType != "ecommerce" && businessType != "education" && businessType != "service" && businessType != "content" && businessType != "other" {
+		return "", "", "", "", false
+	}
+	if status != "" && status != ModelStatusCompleted {
+		return "", "", "", "", false
+	}
+	if riskLevel != "" && riskLevel != "low" && riskLevel != "medium" && riskLevel != "high" {
+		return "", "", "", "", false
+	}
+	switch sortValue {
+	case "", ModelSortCreatedDesc, ModelSortCreatedAsc, ModelSortRevenueDesc, ModelSortRevenueAsc, ModelSortMarginDesc, ModelSortMarginAsc:
+	default:
+		return "", "", "", "", false
+	}
+	if sortValue == "" {
+		sortValue = ModelSortCreatedDesc
+	}
+	return businessType, status, riskLevel, sortValue, true
 }
 
 func modelDateRange(fromValue, toValue string) (*time.Time, *time.Time, bool) {
@@ -280,7 +317,22 @@ func (h *HTTPHandler) modelForecast(c *gin.Context) {
 	if !ok {
 		return
 	}
-	forecast, err := h.app.ModelForecast(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	periodMonths := 5
+	if value := strings.TrimSpace(c.Query("months")); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 1 || parsed > 36 {
+			httpapi.BadRequest(c, "invalid_forecast_period")
+			return
+		}
+		periodMonths = parsed
+	}
+	var forecast GrowthForecast
+	var err error
+	if app, supportsPeriod := h.app.(forecastPeriodApplication); supportsPeriod {
+		forecast, err = app.ModelForecastForPeriod(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, periodMonths)
+	} else {
+		forecast, err = h.app.ModelForecast(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	}
 	if err != nil {
 		writeError(c, err)
 		return
@@ -475,6 +527,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.BadRequest(c, "invalid_export_format")
 	case errors.Is(err, ErrInvalidComparison):
 		httpapi.BadRequest(c, "invalid_comparison")
+	case errors.Is(err, ErrInvalidForecastPeriod):
+		httpapi.BadRequest(c, "invalid_forecast_period")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

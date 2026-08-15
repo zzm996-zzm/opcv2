@@ -166,6 +166,54 @@ func TestServiceDerivesGrowthViewsFromModel(t *testing.T) {
 	}
 }
 
+func TestServiceSupportsForecastPeriodsAndConfigurableRiskRules(t *testing.T) {
+	model := Model{
+		ID: 99, UserID: 42, Name: "SaaS 增长模型",
+		Assumptions: Assumptions{MonthlyVisits: 24000, LeadRate: 0.068, DealRate: 0.14, AverageOrder: 820, AcquisitionCost: 42, DeliveryCost: 51000},
+		Result:      Result{MonthlyRevenue: 186960, PaybackDays: 20, NetMargin: 0.36},
+	}
+	rules := defaultRiskRules
+	rules.DealRateHighThreshold = 0.20
+	rules.Version = "test-risk-rules"
+	service := NewService(&fakeRepository{model: model}, WithRiskRules(rules))
+
+	forecast, err := service.ModelForecastForPeriod(context.Background(), 42, 99, 12)
+	if err != nil {
+		t.Fatalf("ModelForecastForPeriod() error = %v", err)
+	}
+	if forecast.PeriodMonths != 12 || len(forecast.Months) != 12 || forecast.Months[0].Revenue == forecast.Months[11].Revenue {
+		t.Fatalf("forecast = %+v", forecast)
+	}
+	if _, err := service.ModelForecastForPeriod(context.Background(), 42, 99, 37); !errors.Is(err, ErrInvalidForecastPeriod) {
+		t.Fatalf("invalid forecast period error = %v", err)
+	}
+
+	risks, err := service.ModelRisks(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ModelRisks() error = %v", err)
+	}
+	if risks.RuleVersion != "test-risk-rules" || risks.Rules.DealRateHighThreshold != 0.20 || risks.Risks[0].Level != "high" {
+		t.Fatalf("risks = %+v", risks)
+	}
+}
+
+func TestServiceFiltersAndSortsModelPageWithoutRepositoryPaging(t *testing.T) {
+	repository := &fakeRepository{models: []Model{
+		{ID: 1, UserID: 42, Name: "SaaS 增长", CreatedAt: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC), Result: Result{MonthlyRevenue: 100, NetMargin: 0.2}},
+		{ID: 2, UserID: 42, Name: "企业培训", CreatedAt: time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC), Result: Result{MonthlyRevenue: 300, NetMargin: 0.4}},
+		{ID: 3, UserID: 42, Name: "电商商城", CreatedAt: time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC), Result: Result{MonthlyRevenue: 200, NetMargin: -0.1}},
+	}}
+	service := NewService(repository)
+
+	page, err := service.ListModelPage(context.Background(), ListModelsInput{UserID: 42, BusinessType: "saas", Sort: ModelSortRevenueDesc, Limit: 10})
+	if err != nil {
+		t.Fatalf("ListModelPage() error = %v", err)
+	}
+	if page.Total != 1 || len(page.Models) != 1 || page.Models[0].ID != 1 || page.Models[0].BusinessType != "saas" {
+		t.Fatalf("page = %+v", page)
+	}
+}
+
 func TestServiceRecalculatesModelIntoNewSnapshot(t *testing.T) {
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 	repository := &fakeRepository{model: Model{

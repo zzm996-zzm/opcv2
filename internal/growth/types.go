@@ -6,26 +6,62 @@ import (
 )
 
 var (
-	ErrServiceNotReady     = errors.New("growth service is not configured")
-	ErrModelNotFound       = errors.New("growth model not found")
-	ErrDraftNotFound       = errors.New("growth draft not found")
-	ErrDraftNotReady       = errors.New("growth draft is not ready")
-	ErrInvalidAnswers      = errors.New("growth draft answers are invalid")
-	ErrInvalidExportFormat = errors.New("growth export format is invalid")
-	ErrInvalidComparison   = errors.New("growth model comparison is invalid")
+	ErrServiceNotReady       = errors.New("growth service is not configured")
+	ErrModelNotFound         = errors.New("growth model not found")
+	ErrDraftNotFound         = errors.New("growth draft not found")
+	ErrDraftNotReady         = errors.New("growth draft is not ready")
+	ErrInvalidAnswers        = errors.New("growth draft answers are invalid")
+	ErrInvalidExportFormat   = errors.New("growth export format is invalid")
+	ErrInvalidComparison     = errors.New("growth model comparison is invalid")
+	ErrInvalidForecastPeriod = errors.New("growth forecast period is invalid")
 )
 
 const (
 	DraftStatusNeedsInput = "needs_input"
 	DraftStatusReady      = "ready"
 	DraftStatusCalculated = "calculated"
+	ModelStatusCompleted  = "completed"
+
+	ModelSortCreatedDesc = "created_desc"
+	ModelSortCreatedAsc  = "created_asc"
+	ModelSortRevenueDesc = "revenue_desc"
+	ModelSortRevenueAsc  = "revenue_asc"
+	ModelSortMarginDesc  = "margin_desc"
+	ModelSortMarginAsc   = "margin_asc"
 )
 
 const growthModelVersion = "growth-calculator-v1"
 
+const growthRiskRuleVersion = "growth-risk-rules-v1"
+
+type RiskRules struct {
+	DealRateHighThreshold      float64 `json:"deal_rate_high_threshold"`
+	DealRateMediumThreshold    float64 `json:"deal_rate_medium_threshold"`
+	AcquisitionShareHigh       float64 `json:"acquisition_share_high"`
+	AcquisitionShareMedium     float64 `json:"acquisition_share_medium"`
+	NetMarginHighThreshold     float64 `json:"net_margin_high_threshold"`
+	NetMarginMediumThreshold   float64 `json:"net_margin_medium_threshold"`
+	PaybackDaysHighThreshold   int     `json:"payback_days_high_threshold"`
+	PaybackDaysMediumThreshold int     `json:"payback_days_medium_threshold"`
+	Version                    string  `json:"version"`
+}
+
+var defaultRiskRules = RiskRules{
+	DealRateHighThreshold:      0.08,
+	DealRateMediumThreshold:    0.15,
+	AcquisitionShareHigh:       0.30,
+	AcquisitionShareMedium:     0.15,
+	NetMarginHighThreshold:     0,
+	NetMarginMediumThreshold:   0.20,
+	PaybackDaysHighThreshold:   90,
+	PaybackDaysMediumThreshold: 45,
+	Version:                    growthRiskRuleVersion,
+}
+
 type CreateInput struct {
 	UserID          int64   `json:"-"`
 	Name            string  `json:"name"`
+	BusinessType    string  `json:"business_type"`
 	MonthlyVisits   int     `json:"monthly_visits"`
 	LeadRate        float64 `json:"lead_rate"`
 	DealRate        float64 `json:"deal_rate"`
@@ -52,22 +88,29 @@ type Result struct {
 }
 
 type Model struct {
-	ID          int64       `json:"id"`
-	UserID      int64       `json:"user_id"`
-	Name        string      `json:"name"`
-	Assumptions Assumptions `json:"assumptions"`
-	Result      Result      `json:"result"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID           int64       `json:"id"`
+	UserID       int64       `json:"user_id"`
+	Name         string      `json:"name"`
+	BusinessType string      `json:"business_type"`
+	Status       string      `json:"status"`
+	RiskLevel    string      `json:"risk_level"`
+	Assumptions  Assumptions `json:"assumptions"`
+	Result       Result      `json:"result"`
+	CreatedAt    time.Time   `json:"created_at"`
+	UpdatedAt    time.Time   `json:"updated_at"`
 }
 
 type ListModelsInput struct {
-	UserID int64
-	Query  string
-	Limit  int
-	Offset int
-	From   *time.Time
-	To     *time.Time
+	UserID       int64
+	Query        string
+	BusinessType string
+	Status       string
+	RiskLevel    string
+	Sort         string
+	Limit        int
+	Offset       int
+	From         *time.Time
+	To           *time.Time
 }
 
 type ModelPage struct {
@@ -188,10 +231,11 @@ type ForecastMonth struct {
 }
 
 type GrowthForecast struct {
-	ModelID     int64           `json:"model_id"`
-	ModelName   string          `json:"model_name"`
-	Months      []ForecastMonth `json:"months"`
-	GeneratedAt time.Time       `json:"generated_at"`
+	ModelID      int64           `json:"model_id"`
+	ModelName    string          `json:"model_name"`
+	PeriodMonths int             `json:"period_months"`
+	Months       []ForecastMonth `json:"months"`
+	GeneratedAt  time.Time       `json:"generated_at"`
 }
 
 type CostItem struct {
@@ -224,6 +268,8 @@ type GrowthRisks struct {
 	ModelID      int64        `json:"model_id"`
 	ModelName    string       `json:"model_name"`
 	OverallLevel string       `json:"overall_level"`
+	RuleVersion  string       `json:"rule_version"`
+	Rules        RiskRules    `json:"rules"`
 	Risks        []GrowthRisk `json:"risks"`
 	GeneratedAt  time.Time    `json:"generated_at"`
 }

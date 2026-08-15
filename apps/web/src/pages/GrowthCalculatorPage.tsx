@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { tasksApi, type TaskAIDraft } from "../lib/tasksApi";
+import { tasksApi, type Task, type TaskAIDraft } from "../lib/tasksApi";
 import {
   growthApi,
   type GrowthActionPlan,
@@ -137,7 +137,9 @@ function GrowthCalculatorPage() {
   const [taskSyncMessage, setTaskSyncMessage] = useState("");
   const [taskSyncError, setTaskSyncError] = useState("");
   const [taskDraft, setTaskDraft] = useState<TaskAIDraft | null>(null);
-  const [forecastViewMode, setForecastViewMode] = useState("月度");
+  const [createdGrowthTasks, setCreatedGrowthTasks] = useState<Task[]>([]);
+  const [forecastViewMode, setForecastViewMode] = useState("5个月");
+  const [forecastMonths, setForecastMonths] = useState(5);
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState("");
   const [exportError, setExportError] = useState("");
@@ -167,7 +169,7 @@ function GrowthCalculatorPage() {
         }
         const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload, actionPlanPayload, inputsPayload] = await Promise.all([
           growthApi.modelScenarios(model.id).catch(() => null),
-          growthApi.modelForecast(model.id).catch(() => null),
+          growthApi.modelForecast(model.id, forecastMonths).catch(() => null),
           growthApi.modelRecommendations(model.id).catch(() => null),
           growthApi.modelRisks(model.id).catch(() => null),
           growthApi.modelActionPlan(model.id).catch(() => null),
@@ -202,7 +204,7 @@ function GrowthCalculatorPage() {
     return () => {
       active = false;
     };
-  }, [requestedModelID]);
+  }, [forecastMonths, requestedModelID]);
 
   const visibleStats = latestModel ? statsForModel(latestModel) : emptyGrowthStats;
   const visibleAssumptions = latestModel ? assumptionsForModel(latestModel) : emptyAssumptions;
@@ -218,7 +220,7 @@ function GrowthCalculatorPage() {
   async function loadModelViews(model: GrowthModel) {
     const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload, actionPlanPayload, inputsPayload] = await Promise.all([
       growthApi.modelScenarios(model.id).catch(() => null),
-      growthApi.modelForecast(model.id).catch(() => null),
+      growthApi.modelForecast(model.id, forecastMonths).catch(() => null),
       growthApi.modelRecommendations(model.id).catch(() => null),
       growthApi.modelRisks(model.id).catch(() => null),
       growthApi.modelActionPlan(model.id).catch(() => null),
@@ -293,6 +295,7 @@ function GrowthCalculatorPage() {
     setDraftAnswers({});
     setDraftError("");
     setTaskDraft(null);
+    setCreatedGrowthTasks([]);
     setTaskSyncMessage("");
     setTaskSyncError("");
   }
@@ -326,8 +329,11 @@ function GrowthCalculatorPage() {
     setTaskSyncMessage("");
     setTaskSyncError("");
     try {
+      const actionPlanContext = actionPlanView?.phases.flatMap((phase) => phase.items.map((item) =>
+        `[${phase.name}][${item.id}] ${item.title}：${item.detail} 目标：${item.target_metric} 预期：${item.expected_result}`
+      )).join("；") ?? "";
       const result = await tasksApi.generateTasks(
-        `执行${recommendationView.model_name}的增长优化：${recommendationView.action_items.join("；")}`,
+        `执行${recommendationView.model_name}的增长优化：${recommendationView.action_items.join("；")}。90 天阶段计划：${actionPlanContext}`,
         {
           sourceType: "growth_model",
           sourceId: recommendationView.model_id,
@@ -358,7 +364,7 @@ function GrowthCalculatorPage() {
           assignee: task.assignee,
           project: task.project,
           priority: task.priority,
-          tags: task.tags,
+          tags: Array.from(new Set([...(task.tags ?? []), "growth-model", "growth-plan"])),
           dueAt: task.due_at,
           tools: task.tools,
           learning: task.learning
@@ -366,6 +372,7 @@ function GrowthCalculatorPage() {
         `growth-model-${latestModel?.id ?? 0}-task-draft-${taskDraft.id}`
       );
       setTaskDraft(null);
+      setCreatedGrowthTasks(result.tasks ?? []);
       setTaskSyncMessage(`已创建 ${result.tasks.length} 个增长任务`);
     } catch (error) {
       setTaskSyncError(apiErrorMessage(error, "创建增长任务失败，请稍后重试"));
@@ -617,19 +624,6 @@ function GrowthCalculatorPage() {
               <h2>情景对比</h2>
               <p>同一套漏斗假设下，对比预算强度和转化效率对收入的影响</p>
             </div>
-            <div className="module-chip-row compact">
-              {["月度", "季度", "半年"].map((view) => (
-                <button
-                  aria-pressed={forecastViewMode === view}
-                  className={forecastViewMode === view ? "active" : ""}
-                  key={view}
-                  onClick={() => setForecastViewMode(view)}
-                  type="button"
-                >
-                  {view}
-                </button>
-              ))}
-            </div>
           </div>
           <div className="growth-scenario-grid">
             {visibleScenarios.length === 0 ? (
@@ -717,8 +711,24 @@ function GrowthCalculatorPage() {
                 <h2>收入预测</h2>
                 <p>按月展示模型推演结果，方便评估节奏和资源缺口</p>
               </div>
+              <div className="module-chip-row compact" aria-label="预测周期">
+                {[{ label: "3个月", months: 3 }, { label: "5个月", months: 5 }, { label: "12个月", months: 12 }].map((view) => (
+                  <button
+                    aria-pressed={forecastViewMode === view.label}
+                    className={forecastViewMode === view.label ? "active" : ""}
+                    key={view.label}
+                    onClick={() => {
+                      setForecastViewMode(view.label);
+                      setForecastMonths(view.months);
+                    }}
+                    type="button"
+                  >
+                    {view.label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="growth-chart" aria-label="5个月收入预测">
+            <div className="growth-chart" aria-label={`${forecastMonths}个月收入预测`}>
               {visibleForecast.length === 0 ? (
                 <div className="module-empty-state" role="status">暂无收入预测</div>
               ) : visibleForecast.map(([month, revenue, phase, height]) => (
@@ -745,6 +755,14 @@ function GrowthCalculatorPage() {
             </button>
             {taskSyncMessage ? <p className="form-success" role="status">{taskSyncMessage}</p> : null}
             {taskSyncError ? <p className="form-error" role="alert">{taskSyncError}</p> : null}
+            {createdGrowthTasks.length > 0 ? (
+              <div className="growth-linked-tasks" aria-label="已关联增长任务">
+                <strong>已关联任务</strong>
+                {createdGrowthTasks.map((task) => (
+                  <Link key={task.id} to="/tasks">#{task.id} {task.title}</Link>
+                ))}
+              </div>
+            ) : null}
           </aside>
         </section>
       </section>

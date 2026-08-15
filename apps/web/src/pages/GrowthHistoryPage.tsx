@@ -9,6 +9,8 @@ import { growthApi, type GrowthModelPage } from "../lib/growthApi";
 const pageSize = 10;
 
 type HistoryPeriod = "all" | "7" | "30" | "90";
+type BusinessType = "all" | "saas" | "ecommerce" | "education" | "service" | "content" | "other";
+type RiskLevel = "all" | "low" | "medium" | "high";
 
 function pageFromQuery(value: string | null) {
   const page = Number(value);
@@ -35,12 +37,35 @@ function dateFromPeriod(period: HistoryPeriod) {
   return date.toISOString().slice(0, 10);
 }
 
+function filterValue<T extends string>(value: string | null, values: readonly T[], fallback: T) {
+  return value && values.includes(value as T) ? value as T : fallback;
+}
+
+const businessTypeLabels: Record<Exclude<BusinessType, "all">, string> = {
+  saas: "SaaS/软件",
+  ecommerce: "电商/零售",
+  education: "教育/培训",
+  service: "咨询/服务",
+  content: "内容/社群",
+  other: "其他"
+};
+
+const riskLabels: Record<Exclude<RiskLevel, "all">, string> = {
+  low: "低风险",
+  medium: "中风险",
+  high: "高风险"
+};
+
 function GrowthHistoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const query = searchParams.get("q")?.trim() ?? "";
   const currentPage = pageFromQuery(searchParams.get("page"));
   const periodValue = searchParams.get("period") ?? "all";
-  const period: HistoryPeriod = periodValue === "7" || periodValue === "30" || periodValue === "90" ? periodValue : "all";
+  const period = filterValue(periodValue, ["all", "7", "30", "90"] as const, "all");
+  const businessType = filterValue(searchParams.get("business_type"), ["all", "saas", "ecommerce", "education", "service", "content", "other"] as const, "all");
+  const risk = filterValue(searchParams.get("risk"), ["all", "low", "medium", "high"] as const, "all");
+  const status = searchParams.get("status") === "completed" ? "completed" : "all";
+  const sort = filterValue(searchParams.get("sort"), ["created_desc", "created_asc", "revenue_desc", "revenue_asc", "margin_desc", "margin_asc"] as const, "created_desc");
   const [searchInput, setSearchInput] = useState(query);
   const [page, setPage] = useState<GrowthModelPage>({ models: [], total: 0, limit: pageSize, offset: 0 });
   const [loading, setLoading] = useState(true);
@@ -53,7 +78,16 @@ function GrowthHistoryPage() {
     let active = true;
     setLoading(true);
     setError("");
-    growthApi.listModels({ q: query || undefined, from: dateFromPeriod(period), limit: pageSize, offset: (currentPage - 1) * pageSize })
+    growthApi.listModels({
+      q: query || undefined,
+      businessType: businessType === "all" ? undefined : businessType,
+      status: status === "all" ? undefined : status,
+      risk: risk === "all" ? undefined : risk,
+      sort: sort === "created_desc" ? undefined : sort,
+      from: dateFromPeriod(period),
+      limit: pageSize,
+      offset: (currentPage - 1) * pageSize
+    })
       .then((result) => {
         if (!active) return;
         setPage({
@@ -75,13 +109,17 @@ function GrowthHistoryPage() {
     return () => {
       active = false;
     };
-  }, [currentPage, period, query]);
+  }, [businessType, currentPage, period, query, risk, sort, status]);
 
   function applySearch() {
     const next = new URLSearchParams();
     const normalized = searchInput.trim();
     if (normalized) next.set("q", normalized);
     if (period !== "all") next.set("period", period);
+    if (businessType !== "all") next.set("business_type", businessType);
+    if (status !== "all") next.set("status", status);
+    if (risk !== "all") next.set("risk", risk);
+    if (sort !== "created_desc") next.set("sort", sort);
     setSearchParams(next);
   }
 
@@ -97,6 +135,14 @@ function GrowthHistoryPage() {
     const next = new URLSearchParams(searchParams);
     if (nextPage <= 1) next.delete("page");
     else next.set("page", String(nextPage));
+    setSearchParams(next);
+  }
+
+  function changeFilter(key: "business_type" | "status" | "risk" | "sort", value: string) {
+    const next = new URLSearchParams(searchParams);
+    if (value === "all" || (key === "sort" && value === "created_desc")) next.delete(key);
+    else next.set(key, value);
+    next.delete("page");
     setSearchParams(next);
   }
 
@@ -171,6 +217,38 @@ function GrowthHistoryPage() {
               <option value="90">近 90 天</option>
             </select>
           </label>
+          <label className="growth-history-period-filter">
+            <span>业务类型</span>
+            <select aria-label="业务类型筛选" onChange={(event) => changeFilter("business_type", event.target.value)} value={businessType}>
+              <option value="all">全部</option>
+              {Object.entries(businessTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <label className="growth-history-period-filter">
+            <span>风险等级</span>
+            <select aria-label="风险等级筛选" onChange={(event) => changeFilter("risk", event.target.value)} value={risk}>
+              <option value="all">全部</option>
+              {Object.entries(riskLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <label className="growth-history-period-filter">
+            <span>状态</span>
+            <select aria-label="模型状态筛选" onChange={(event) => changeFilter("status", event.target.value)} value={status}>
+              <option value="all">全部</option>
+              <option value="completed">已完成</option>
+            </select>
+          </label>
+          <label className="growth-history-period-filter">
+            <span>排序</span>
+            <select aria-label="测算结果排序" onChange={(event) => changeFilter("sort", event.target.value)} value={sort}>
+              <option value="created_desc">最新创建</option>
+              <option value="created_asc">最早创建</option>
+              <option value="revenue_desc">收入从高到低</option>
+              <option value="revenue_asc">收入从低到高</option>
+              <option value="margin_desc">利润率从高到低</option>
+              <option value="margin_asc">利润率从低到高</option>
+            </select>
+          </label>
           <button className="primary" disabled={loading || selectedModelIDs.length < 2} onClick={compareSelected} type="button">
             对比测算{selectedModelIDs.length > 0 ? ` (${selectedModelIDs.length}/4)` : ""}
           </button>
@@ -209,7 +287,7 @@ function GrowthHistoryPage() {
                 <span>{model.assumptions.monthly_visits.toLocaleString("zh-CN")} 访问 · {formatPercent(model.assumptions.deal_rate)} 成交</span>
                 <strong>{formatCurrency(model.result.monthly_revenue)}</strong>
                 <span>{formatPercent(model.result.net_margin)}</span>
-                <em>已完成</em>
+                <em>{model.status === "completed" ? "已完成" : model.status || "未知状态"} · {riskLabels[model.risk_level ?? "low"]}</em>
                 <span className="growth-history-actions">
                   <Link to={`/growth-calculator/report?model_id=${model.id}`}>查看报告</Link>
                   <button disabled={recalculatingID !== null} onClick={() => void recalculate(model.id)} type="button">

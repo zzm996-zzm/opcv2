@@ -53,7 +53,7 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.queryByText("保守方案")).not.toBeInTheDocument();
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
 
-    const quarterlyButton = screen.getByRole("button", { name: "季度" });
+    const quarterlyButton = screen.getByRole("button", { name: "12个月" });
     expect(quarterlyButton).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(quarterlyButton);
     expect(quarterlyButton).toHaveAttribute("aria-pressed", "true");
@@ -151,7 +151,7 @@ describe("GrowthCalculatorPage", () => {
         created_at: "2026-06-30T08:30:00Z", updated_at: "2026-06-30T08:30:00Z"
       }
     ];
-    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/growth/models") {
         return Promise.resolve(new Response(JSON.stringify({
@@ -290,19 +290,16 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.getByText("测算参数（规则提取）")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "生成任务草稿" }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
-      "/api/v1/tasks/generate",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          goal: "执行商业沙盘标准模型的增长优化：把 CRM 跟进延迟压缩到 24 小时内；先提高成交率再增加预算",
-          source_type: "growth_model",
-          source_id: 9,
-          source_title: "商业沙盘标准模型",
-          source_url: "/growth-calculator"
-        })
-      })
-    ));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/v1/tasks/generate")).toBe(true));
+    const generateCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/tasks/generate");
+    const generateBody = JSON.parse(String(generateCall?.[1]?.body));
+    expect(generateBody).toMatchObject({
+      source_type: "growth_model",
+      source_id: 9,
+      source_title: "商业沙盘标准模型",
+      source_url: "/growth-calculator"
+    });
+    expect(generateBody.goal).toContain("90 天阶段计划");
     expect(await screen.findByRole("dialog", { name: "增长任务草稿预览" })).toBeInTheDocument();
     expect(screen.getByText("已生成 2 条任务草稿，请确认后创建")).toBeInTheDocument();
 
@@ -315,6 +312,7 @@ describe("GrowthCalculatorPage", () => {
       })
     ));
     expect(await screen.findByText("已创建 2 个增长任务")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "#801 优化高意向线索跟进" })).toHaveAttribute("href", "/tasks");
 
     fireEvent.change(await screen.findByRole("combobox", { name: "历史测算" }), { target: { value: "501" } });
     expect(await screen.findByText("商业沙盘标准模型 · 初版")).toBeInTheDocument();
