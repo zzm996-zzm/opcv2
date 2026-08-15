@@ -25,6 +25,56 @@ type fakeRepository struct {
 	batchIDs     []int64
 	batchStatus  string
 	batchCount   int
+	aiDraft      TaskAIDraft
+	activities   []TaskActivity
+}
+
+func (r *fakeRepository) ListTaskActivities(_ context.Context, _ int64, _ int64, limit, offset int) ([]TaskActivity, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	start := min(len(r.activities), offset)
+	end := min(len(r.activities), start+limit)
+	return append([]TaskActivity(nil), r.activities[start:end]...), nil
+}
+
+func (r *fakeRepository) CountTaskActivities(_ context.Context, _, _ int64) (int, error) {
+	return len(r.activities), r.err
+}
+
+func (r *fakeRepository) CreateTaskAIDraft(_ context.Context, draft TaskAIDraft) (TaskAIDraft, error) {
+	if r.err != nil {
+		return TaskAIDraft{}, r.err
+	}
+	draft.ID = 77
+	draft.UpdatedAt = draft.CreatedAt
+	r.aiDraft = draft
+	return draft, nil
+}
+
+func (r *fakeRepository) GetTaskAIDraft(_ context.Context, userID, id int64) (TaskAIDraft, error) {
+	if r.err != nil {
+		return TaskAIDraft{}, r.err
+	}
+	if r.aiDraft.UserID != userID || r.aiDraft.ID != id {
+		return TaskAIDraft{}, ErrTaskAIDraftNotFound
+	}
+	return r.aiDraft, nil
+}
+
+func (r *fakeRepository) AdoptTaskAIDraft(_ context.Context, userID, id int64, tasks []Task) ([]Task, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	if r.aiDraft.UserID != userID || r.aiDraft.ID != id {
+		return nil, ErrTaskAIDraftNotFound
+	}
+	created, err := r.CreateTasks(context.Background(), tasks)
+	if err != nil {
+		return nil, err
+	}
+	r.aiDraft.Status = TaskAIDraftStatusAdopted
+	return created, nil
 }
 
 func (r *fakeRepository) BatchUpdateTaskStatus(_ context.Context, userID int64, ids []int64, status string) (int, error) {
@@ -391,6 +441,8 @@ func TestServiceNormalizesTaskFilters(t *testing.T) {
 		Priority: " high ",
 		Tag:      " 用户研究 ",
 		Query:    " 接口 ",
+		Sort:     " due_at ",
+		Group:    " project ",
 		Limit:    500,
 		Offset:   -10,
 	})
@@ -398,7 +450,7 @@ func TestServiceNormalizesTaskFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTasks() error = %v", err)
 	}
-	if repository.filters.Status != StatusInProgress || repository.filters.Project != "商业沙盘" || repository.filters.Priority != PriorityHigh || repository.filters.Tag != "用户研究" || repository.filters.Query != "接口" || repository.filters.Limit != 100 || repository.filters.Offset != 0 {
+	if repository.filters.Status != StatusInProgress || repository.filters.Project != "商业沙盘" || repository.filters.Priority != PriorityHigh || repository.filters.Tag != "用户研究" || repository.filters.Query != "接口" || repository.filters.Sort != TaskSortDue || repository.filters.Group != TaskGroupProject || repository.filters.Limit != 100 || repository.filters.Offset != 0 {
 		t.Fatalf("filters = %+v", repository.filters)
 	}
 }
@@ -515,6 +567,20 @@ func TestServiceRestoresOwnedTask(t *testing.T) {
 	}
 	if repository.restored.ID != 99 {
 		t.Fatalf("restored = %+v", repository.restored)
+	}
+}
+
+func TestServiceListsOwnedTaskActivities(t *testing.T) {
+	repository := &fakeRepository{
+		task:       Task{ID: 99, UserID: 42, Status: StatusTodo},
+		activities: []TaskActivity{{ID: 2, TaskID: 99, UserID: 42, Action: "status_changed"}, {ID: 1, TaskID: 99, UserID: 42, Action: "created"}},
+	}
+	service := NewService(repository)
+
+	activities, total, err := service.ListTaskActivities(context.Background(), 42, 99, 1, 0)
+
+	if err != nil || total != 2 || len(activities) != 1 || activities[0].Action != "status_changed" {
+		t.Fatalf("activities/total/error = %+v/%d/%v", activities, total, err)
 	}
 }
 

@@ -39,6 +39,10 @@ type fakeApplication struct {
 	batchIDs        []int64
 	batchStatus     string
 	batchCount      int
+	aiDraft         TaskAIDraft
+	adoptInput      AdoptTaskAIDraftInput
+	idempotencyKey  string
+	activities      []TaskActivity
 }
 
 func (a *fakeApplication) CreateTasks(_ context.Context, input BatchCreateInput) ([]Task, error) {
@@ -67,6 +71,21 @@ func TestCreateTaskBatchEndpointUsesAuthenticatedUser(t *testing.T) {
 func (a *fakeApplication) GenerateTasks(_ context.Context, input GenerateTasksInput) (GenerateTasksResult, error) {
 	a.generateInput = input
 	return a.generated, a.err
+}
+
+func (a *fakeApplication) GetTaskAIDraft(_ context.Context, userID, id int64) (TaskAIDraft, error) {
+	a.userID, a.taskID = userID, id
+	return a.aiDraft, a.err
+}
+
+func (a *fakeApplication) AdoptTaskAIDraft(_ context.Context, userID, id int64, input AdoptTaskAIDraftInput, idempotencyKey string) ([]Task, error) {
+	a.userID, a.taskID, a.adoptInput, a.idempotencyKey = userID, id, input, idempotencyKey
+	return a.tasks, a.err
+}
+
+func (a *fakeApplication) ListTaskActivities(_ context.Context, userID, taskID int64, _, _ int) ([]TaskActivity, int, error) {
+	a.userID, a.taskID = userID, taskID
+	return a.activities, len(a.activities), a.err
 }
 
 func (a *fakeApplication) ListTaskPage(_ context.Context, userID int64, filters ListFilters) (TaskPage, error) {
@@ -271,6 +290,45 @@ func TestGenerateTasksEndpointRejectsMissingGoal(t *testing.T) {
 	}
 }
 
+func TestGetTaskAIDraftEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{aiDraft: TaskAIDraft{ID: 77, UserID: 42, Goal: "验证客户需求", Status: TaskAIDraftStatusDraft}}
+	router := tasksTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/tasks/ai-drafts/77", nil))
+
+	if recorder.Code != http.StatusOK || app.userID != 42 || app.taskID != 77 || !strings.Contains(recorder.Body.String(), `"status":"draft"`) {
+		t.Fatalf("status/app/body = %d/%+v/%s", recorder.Code, app, recorder.Body.String())
+	}
+}
+
+func TestAdoptTaskAIDraftEndpointUsesAuthenticatedUserAndIdempotencyKey(t *testing.T) {
+	app := &fakeApplication{tasks: []Task{{ID: 101, UserID: 42, Title: "完成访谈复盘"}}}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/ai-drafts/77/adopt", strings.NewReader(`{"tasks":[{"draft_index":1,"title":"完成访谈复盘","project":"客户验证","priority":"high"}]}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", "task-ai-draft-77")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusCreated || app.userID != 42 || app.taskID != 77 || app.idempotencyKey != "task-ai-draft-77" || len(app.adoptInput.Tasks) != 1 || app.adoptInput.Tasks[0].DraftIndex != 1 {
+		t.Fatalf("status/app/body = %d/%+v/%s", recorder.Code, app, recorder.Body.String())
+	}
+}
+
+func TestListTaskActivitiesEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{activities: []TaskActivity{{ID: 1, TaskID: 99, UserID: 42, Action: "created"}}}
+	router := tasksTestRouter(app)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/tasks/99/activities?limit=10&offset=20", nil))
+
+	if recorder.Code != http.StatusOK || app.userID != 42 || app.taskID != 99 || !strings.Contains(recorder.Body.String(), `"total":1`) || !strings.Contains(recorder.Body.String(), `"action":"created"`) {
+		t.Fatalf("status/app/body = %d/%+v/%s", recorder.Code, app, recorder.Body.String())
+	}
+}
+
 func TestCreateTaskEndpointRejectsMissingTitle(t *testing.T) {
 	app := &fakeApplication{task: Task{ID: 99, UserID: 42, Title: "整理客户名单", Status: StatusTodo}}
 	router := tasksTestRouter(app)
@@ -393,7 +451,7 @@ func TestListTaskTagsEndpointUsesAuthenticatedUser(t *testing.T) {
 func TestListTasksEndpointPassesFilters(t *testing.T) {
 	app := &fakeApplication{tasks: []Task{{ID: 99, UserID: 42, Title: "我的任务"}}, total: 21}
 	router := tasksTestRouter(app)
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&tag=用户研究&q=接口&limit=10&offset=20", nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks?status=in_progress&project=商业沙盘&priority=high&tag=用户研究&q=接口&sort=due_at&group=project&limit=10&offset=20", nil)
 	recorder := httptest.NewRecorder()
 
 	router.ServeHTTP(recorder, request)
@@ -401,11 +459,35 @@ func TestListTasksEndpointPassesFilters(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if app.filters.Status != StatusInProgress || app.filters.Project != "商业沙盘" || app.filters.Priority != PriorityHigh || app.filters.Tag != "用户研究" || app.filters.Query != "接口" || app.filters.Limit != 10 || app.filters.Offset != 20 {
+	if app.filters.Status != StatusInProgress || app.filters.Project != "商业沙盘" || app.filters.Priority != PriorityHigh || app.filters.Tag != "用户研究" || app.filters.Query != "接口" || app.filters.Sort != TaskSortDue || app.filters.Group != TaskGroupProject || app.filters.Limit != 10 || app.filters.Offset != 20 {
 		t.Fatalf("filters = %+v", app.filters)
 	}
 	if !strings.Contains(recorder.Body.String(), `"total":21`) || !strings.Contains(recorder.Body.String(), `"offset":20`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestListTasksEndpointRejectsInvalidSortAndGroup(t *testing.T) {
+	for _, test := range []struct {
+		query string
+		code  string
+	}{
+		{query: "sort=title%3BDROP%20TABLE%20tasks", code: "invalid_sort"},
+		{query: "group=tenant", code: "invalid_group"},
+	} {
+		app := &fakeApplication{}
+		router := tasksTestRouter(app)
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks?"+test.query, nil)
+		response := httptest.NewRecorder()
+
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"error":"`+test.code+`"`) {
+			t.Fatalf("query/status/body = %q/%d/%s", test.query, response.Code, response.Body.String())
+		}
+		if app.userID != 0 {
+			t.Fatalf("ListTaskPage should not be called, app = %+v", app)
+		}
 	}
 }
 

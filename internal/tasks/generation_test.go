@@ -20,7 +20,7 @@ func (g *fakeTaskGenerator) GenerateJSON(_ context.Context, request ai.GenerateJ
 	return g.result, g.err
 }
 
-func TestServiceGeneratesAndPersistsTaskPlan(t *testing.T) {
+func TestServiceGeneratesTaskDraftWithoutCreatingFormalTasks(t *testing.T) {
 	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
 	repository := &fakeRepository{}
 	generator := &fakeTaskGenerator{result: ai.GenerateJSONResult{Content: []byte(`{
@@ -44,7 +44,7 @@ func TestServiceGeneratesAndPersistsTaskPlan(t *testing.T) {
 	if generator.request.Feature != "tasks.generate" || generator.request.UserID != 42 || generator.request.Validate == nil {
 		t.Fatalf("generator request = %+v", generator.request)
 	}
-	if len(result.Tasks) != 2 || len(repository.createdTasks) != 2 {
+	if result.Draft.ID != 77 || result.Draft.Status != TaskAIDraftStatusDraft || len(result.Tasks) != 2 || len(repository.createdTasks) != 0 {
 		t.Fatalf("result/repository = %+v/%+v", result, repository.createdTasks)
 	}
 	if result.Tasks[0].Status != StatusTodo || result.Tasks[0].UserID != 42 || result.Tasks[0].DueAt == nil || !result.Tasks[0].DueAt.Equal(now.Add(24*time.Hour)) {
@@ -52,6 +52,35 @@ func TestServiceGeneratesAndPersistsTaskPlan(t *testing.T) {
 	}
 	if result.Tasks[0].SourceType != SourceLearningDiagnosis || result.Tasks[0].SourceID == nil || *result.Tasks[0].SourceID != 99 || result.Tasks[0].SourceURL != "/learning/plan" {
 		t.Fatalf("first task source = %+v", result.Tasks[0])
+	}
+}
+
+func TestServiceAdoptsSelectedEditedTaskDrafts(t *testing.T) {
+	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
+	repository := &fakeRepository{aiDraft: TaskAIDraft{
+		ID: 77, UserID: 42, Status: TaskAIDraftStatusDraft, SourceType: SourceLearningDiagnosis,
+		SourceTitle: "企业AI落地能力路径", SourceURL: "/learning/plan",
+		Tasks: []Task{
+			{Title: "整理访谈名单", Project: "客户验证", Priority: PriorityHigh, Tags: []string{"访谈"}, Tools: []string{"CRM"}},
+			{Title: "完成访谈复盘", Project: "客户验证", Priority: PriorityMedium, Tags: []string{"复盘"}, Tools: []string{"AI助手"}},
+		},
+	}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	created, err := service.AdoptTaskAIDraft(context.Background(), 42, 77, AdoptTaskAIDraftInput{Tasks: []AIDraftTaskInput{{
+		DraftIndex: 1, Title: "完成重点访谈复盘", Project: "客户验证", Priority: PriorityHigh,
+		Tags: []string{"复盘", "本周"}, Tools: []string{"AI助手"}, Learning: "需求分析",
+	}}}, "ai-draft-77")
+
+	if err != nil || len(created) != 1 {
+		t.Fatalf("AdoptTaskAIDraft() created/error = %+v/%v", created, err)
+	}
+	if created[0].Title != "完成重点访谈复盘" || created[0].SourceType != SourceLearningDiagnosis || created[0].IdempotencyKey != "ai-draft-77:1" {
+		t.Fatalf("created task = %+v", created[0])
+	}
+	if repository.aiDraft.Status != TaskAIDraftStatusAdopted {
+		t.Fatalf("draft = %+v", repository.aiDraft)
 	}
 }
 

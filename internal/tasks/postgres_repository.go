@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -91,7 +92,7 @@ func (r *PostgresRepository) CreateTasks(ctx context.Context, tasks []Task) ([]T
 }
 
 func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filters ListFilters) ([]Task, error) {
-	rows, err := r.db.Query(ctx, `
+	query := fmt.Sprintf(`
 		SELECT id, user_id, title, description, assignee, project, status, priority, tags, due_at, tools, learning, progress, completed_at, version, source_type, source_id, source_title, source_url, created_at, updated_at
 		FROM tasks
 		WHERE user_id = $1
@@ -100,11 +101,12 @@ func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filter
 		  AND ($3 = '' OR project = $3)
 		  AND ($4 = '' OR priority = $4)
 		  AND ($5 = '' OR tags ? $5)
-		  AND ($6 = '' OR title ILIKE '%' || $6 || '%' OR description ILIKE '%' || $6 || '%' OR assignee ILIKE '%' || $6 || '%' OR project ILIKE '%' || $6 || '%' OR tags::TEXT ILIKE '%' || $6 || '%' OR learning ILIKE '%' || $6 || '%')
-		ORDER BY created_at DESC, id DESC
+		  AND ($6 = '' OR title ILIKE '%%' || $6 || '%%' OR description ILIKE '%%' || $6 || '%%' OR assignee ILIKE '%%' || $6 || '%%' OR project ILIKE '%%' || $6 || '%%' OR tags::TEXT ILIKE '%%' || $6 || '%%' OR learning ILIKE '%%' || $6 || '%%')
+		ORDER BY %s
 		LIMIT $7
 		OFFSET $8
-	`, userID, filters.Status, filters.Project, filters.Priority, filters.Tag, filters.Query, filters.Limit, filters.Offset)
+	`, taskOrderClause(filters.Sort))
+	rows, err := r.db.Query(ctx, query, userID, filters.Status, filters.Project, filters.Priority, filters.Tag, filters.Query, filters.Limit, filters.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +124,21 @@ func (r *PostgresRepository) ListTasks(ctx context.Context, userID int64, filter
 		return nil, err
 	}
 	return tasks, nil
+}
+
+func taskOrderClause(sort string) string {
+	switch sort {
+	case TaskSortUpdated:
+		return "updated_at DESC, id DESC"
+	case TaskSortDue:
+		return "due_at ASC NULLS LAST, id DESC"
+	case TaskSortPriority:
+		return "CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC, created_at DESC, id DESC"
+	case TaskSortProgress:
+		return "progress DESC, updated_at DESC, id DESC"
+	default:
+		return "created_at DESC, id DESC"
+	}
 }
 
 func (r *PostgresRepository) CountTasks(ctx context.Context, userID int64, filters ListFilters) (int, error) {

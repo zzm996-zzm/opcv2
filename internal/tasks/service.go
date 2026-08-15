@@ -23,6 +23,11 @@ type Repository interface {
 	RestoreTask(ctx context.Context, userID, id int64) error
 	BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error)
 	BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error)
+	CreateTaskAIDraft(ctx context.Context, draft TaskAIDraft) (TaskAIDraft, error)
+	GetTaskAIDraft(ctx context.Context, userID, id int64) (TaskAIDraft, error)
+	AdoptTaskAIDraft(ctx context.Context, userID, id int64, tasks []Task) ([]Task, error)
+	ListTaskActivities(ctx context.Context, userID, taskID int64, limit, offset int) ([]TaskActivity, error)
+	CountTaskActivities(ctx context.Context, userID, taskID int64) (int, error)
 }
 
 type MembershipProvider interface {
@@ -155,7 +160,7 @@ func (s *Service) ListTaskPage(ctx context.Context, userID int64, filters ListFi
 	if err != nil {
 		return TaskPage{}, err
 	}
-	return TaskPage{Tasks: tasks, Total: total, Limit: filters.Limit, Offset: filters.Offset}, nil
+	return TaskPage{Tasks: tasks, Total: total, Limit: filters.Limit, Offset: filters.Offset, Sort: filters.Sort, Group: filters.Group}, nil
 }
 
 func normalizeListFilters(filters ListFilters) ListFilters {
@@ -164,11 +169,16 @@ func normalizeListFilters(filters ListFilters) ListFilters {
 	filters.Priority = strings.TrimSpace(filters.Priority)
 	filters.Tag = strings.TrimSpace(filters.Tag)
 	filters.Query = strings.TrimSpace(filters.Query)
+	filters.Sort = strings.TrimSpace(filters.Sort)
+	filters.Group = strings.TrimSpace(filters.Group)
 	if filters.Status != "" {
 		filters.Status = normalizeStatus(filters.Status)
 	}
 	if filters.Priority != "" {
 		filters.Priority = normalizePriority(filters.Priority)
+	}
+	if filters.Sort == "" {
+		filters.Sort = TaskSortCreated
 	}
 	if filters.Limit <= 0 {
 		filters.Limit = 20
@@ -300,6 +310,33 @@ func (s *Service) BatchDeleteTasks(ctx context.Context, userID int64, ids []int6
 		return 0, ErrInvalidTaskBatch
 	}
 	return s.repository.BatchDeleteTasks(ctx, userID, ids)
+}
+
+func (s *Service) ListTaskActivities(ctx context.Context, userID, taskID int64, limit, offset int) ([]TaskActivity, int, error) {
+	if s.repository == nil {
+		return nil, 0, ErrServiceNotReady
+	}
+	if _, err := s.repository.GetTask(ctx, userID, taskID); err != nil {
+		return nil, 0, err
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	activities, err := s.repository.ListTaskActivities(ctx, userID, taskID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	total, err := s.repository.CountTaskActivities(ctx, userID, taskID)
+	if err != nil {
+		return nil, 0, err
+	}
+	return activities, total, nil
 }
 
 func normalizeBatchTaskIDs(ids []int64) ([]int64, bool) {

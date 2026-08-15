@@ -43,6 +43,18 @@ describe("tasksApi", () => {
     );
   });
 
+  it("passes sort and group context and lists task activities", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ tasks: [], total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activities: [], total: 0 }), { status: 200 }));
+
+    await tasksApi.listTasks({ sort: "due_at", group: "project", limit: 20 });
+    await tasksApi.listTaskActivities(99, 20, 20);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks?sort=due_at&group=project&limit=20", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/99/activities?limit=20&offset=20", expect.objectContaining({ method: "GET" }));
+  });
+
   it("restores a soft-deleted task", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(null, { status: 204 }));
 
@@ -71,6 +83,38 @@ describe("tasksApi", () => {
         source_id: 99,
         source_title: "企业AI落地能力路径",
         source_url: "/learning/plan"
+      })
+    }));
+  });
+
+  it("adopts selected AI draft tasks with an idempotency key", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({ tasks: [{ id: 101, title: "整理访谈名单" }] }), { status: 201 }));
+
+    await tasksApi.adoptTaskAIDraft(77, [{
+      draftIndex: 0,
+      title: "整理访谈名单",
+      project: "客户验证",
+      priority: "high",
+      tags: ["访谈"],
+      tools: ["CRM"]
+    }], "task-ai-draft-77");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/ai-drafts/77/adopt", expect.objectContaining({
+      method: "POST",
+      headers: expect.objectContaining({ "Idempotency-Key": "task-ai-draft-77" }),
+      body: JSON.stringify({
+        tasks: [{
+          draft_index: 0,
+          title: "整理访谈名单",
+          description: undefined,
+          assignee: undefined,
+          project: "客户验证",
+          priority: "high",
+          tags: ["访谈"],
+          due_at: undefined,
+          tools: ["CRM"],
+          learning: undefined
+        }]
       })
     }));
   });

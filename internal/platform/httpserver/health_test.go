@@ -444,6 +444,15 @@ func (fakeTasksApp) CreateTask(context.Context, tasks.CreateInput) (tasks.Task, 
 func (fakeTasksApp) GenerateTasks(context.Context, tasks.GenerateTasksInput) (tasks.GenerateTasksResult, error) {
 	return tasks.GenerateTasksResult{Tasks: []tasks.Task{{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusTodo}}}, nil
 }
+func (fakeTasksApp) GetTaskAIDraft(context.Context, int64, int64) (tasks.TaskAIDraft, error) {
+	return tasks.TaskAIDraft{}, nil
+}
+func (fakeTasksApp) AdoptTaskAIDraft(context.Context, int64, int64, tasks.AdoptTaskAIDraftInput, string) ([]tasks.Task, error) {
+	return []tasks.Task{}, nil
+}
+func (fakeTasksApp) ListTaskActivities(context.Context, int64, int64, int, int) ([]tasks.TaskActivity, int, error) {
+	return []tasks.TaskActivity{}, 0, nil
+}
 func (fakeTasksApp) ListTaskPage(context.Context, int64, tasks.ListFilters) (tasks.TaskPage, error) {
 	return tasks.TaskPage{Tasks: []tasks.Task{{ID: 99, UserID: 42, Title: "整理客户名单", Status: tasks.StatusTodo}}, Total: 1}, nil
 }

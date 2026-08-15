@@ -18,6 +18,18 @@ const (
 	PriorityMedium = "medium"
 	PriorityHigh   = "high"
 
+	TaskSortCreated  = "created_at"
+	TaskSortUpdated  = "updated_at"
+	TaskSortDue      = "due_at"
+	TaskSortPriority = "priority"
+	TaskSortProgress = "progress"
+
+	TaskGroupStatus   = "status"
+	TaskGroupAssignee = "assignee"
+	TaskGroupProject  = "project"
+	TaskGroupPriority = "priority"
+	TaskGroupSource   = "source"
+
 	ReminderRecurrenceOnce   = "once"
 	ReminderRecurrenceDaily  = "daily"
 	ReminderRecurrenceWeekly = "weekly"
@@ -49,6 +61,14 @@ var (
 	ErrInvalidTaskStatusTransition         = errors.New("invalid task status transition")
 	ErrInvalidTaskProgress                 = errors.New("invalid task progress")
 	ErrTaskVersionConflict                 = errors.New("task version conflict")
+	ErrTaskAIDraftNotFound                 = errors.New("task ai draft not found")
+	ErrTaskAIDraftAlreadyAdopted           = errors.New("task ai draft already adopted")
+	ErrInvalidTaskAIDraft                  = errors.New("invalid task ai draft")
+)
+
+const (
+	TaskAIDraftStatusDraft   = "draft"
+	TaskAIDraftStatusAdopted = "adopted"
 )
 
 type BatchTaskStatusInput struct {
@@ -108,7 +128,41 @@ type GeneratedTaskPlan struct {
 }
 
 type GenerateTasksResult struct {
-	Tasks []Task `json:"tasks"`
+	Draft TaskAIDraft `json:"draft"`
+	Tasks []Task      `json:"tasks"`
+}
+
+type TaskAIDraft struct {
+	ID             int64      `json:"id"`
+	UserID         int64      `json:"user_id"`
+	Goal           string     `json:"goal"`
+	SourceType     string     `json:"source_type"`
+	SourceID       *int64     `json:"source_id,omitempty"`
+	SourceTitle    string     `json:"source_title"`
+	SourceURL      string     `json:"source_url"`
+	Tasks          []Task     `json:"tasks"`
+	Status         string     `json:"status"`
+	AdoptedTaskIDs []int64    `json:"adopted_task_ids,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	AdoptedAt      *time.Time `json:"adopted_at,omitempty"`
+}
+
+type AIDraftTaskInput struct {
+	DraftIndex  int        `json:"draft_index"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Assignee    string     `json:"assignee"`
+	Project     string     `json:"project"`
+	Priority    string     `json:"priority"`
+	Tags        []string   `json:"tags"`
+	DueAt       *time.Time `json:"due_at,omitempty"`
+	Tools       []string   `json:"tools"`
+	Learning    string     `json:"learning"`
+}
+
+type AdoptTaskAIDraftInput struct {
+	Tasks []AIDraftTaskInput `json:"tasks"`
 }
 
 type Subtask struct {
@@ -179,6 +233,8 @@ type ListFilters struct {
 	Priority string
 	Tag      string
 	Query    string
+	Sort     string
+	Group    string
 	Limit    int
 	Offset   int
 }
@@ -188,6 +244,8 @@ type TaskPage struct {
 	Total  int    `json:"total"`
 	Limit  int    `json:"limit"`
 	Offset int    `json:"offset"`
+	Sort   string `json:"sort"`
+	Group  string `json:"group,omitempty"`
 }
 
 type Stats struct {
@@ -199,6 +257,24 @@ type Stats struct {
 	DueSoon    int `json:"due_soon"`
 	TimedOut   int `json:"timed_out"`
 	Overdue    int `json:"overdue"`
+}
+
+type TaskActivity struct {
+	ID         int64          `json:"id"`
+	TaskID     int64          `json:"task_id"`
+	UserID     int64          `json:"user_id"`
+	Action     string         `json:"action"`
+	BeforeData map[string]any `json:"before"`
+	AfterData  map[string]any `json:"after"`
+	Metadata   map[string]any `json:"metadata"`
+	CreatedAt  time.Time      `json:"created_at"`
+}
+
+type TaskActivityPage struct {
+	Activities []TaskActivity `json:"activities"`
+	Total      int            `json:"total"`
+	Limit      int            `json:"limit"`
+	Offset     int            `json:"offset"`
 }
 
 type Task struct {

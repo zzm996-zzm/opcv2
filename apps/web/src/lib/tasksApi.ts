@@ -2,6 +2,8 @@ import { apiRequest } from "./apiRequest";
 
 export type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "completed" | "cancelled" | "reminder";
 export type TaskPriority = "low" | "medium" | "high";
+export type TaskSort = "created_at" | "updated_at" | "due_at" | "priority" | "progress";
+export type TaskGroup = "status" | "assignee" | "project" | "priority" | "source";
 export type ReminderRecurrence = "once" | "daily" | "weekly";
 export type TaskSourceType =
   | "analysis_session"
@@ -46,6 +48,8 @@ export type TaskFilters = {
   priority?: TaskPriority;
   tag?: string;
   q?: string;
+  sort?: TaskSort;
+  group?: TaskGroup;
   limit?: number;
   offset?: number;
 };
@@ -55,6 +59,8 @@ export type TaskPage = {
   total: number;
   limit: number;
   offset: number;
+  sort: TaskSort;
+  group?: TaskGroup;
 };
 
 export type TaskStats = {
@@ -68,8 +74,56 @@ export type TaskStats = {
   overdue: number;
 };
 
+export type TaskActivity = {
+  id: number;
+  task_id: number;
+  user_id: number;
+  action: "created" | "updated" | "status_changed" | "deleted" | "restored";
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type TaskActivityPage = {
+  activities: TaskActivity[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type GenerateTasksResult = {
+  draft: TaskAIDraft;
   tasks: Task[];
+};
+
+export type TaskAIDraft = {
+  id: number;
+  user_id: number;
+  goal: string;
+  source_type?: TaskSourceType;
+  source_id?: number;
+  source_title?: string;
+  source_url?: string;
+  tasks: Task[];
+  status: "draft" | "adopted";
+  adopted_task_ids?: number[];
+  created_at: string;
+  updated_at: string;
+  adopted_at?: string;
+};
+
+export type AIDraftTaskInput = {
+  draftIndex: number;
+  title: string;
+  description?: string;
+  assignee?: string;
+  project: string;
+  priority: TaskPriority;
+  tags?: string[];
+  dueAt?: string;
+  tools?: string[];
+  learning?: string;
 };
 
 export type GenerateTaskSource = {
@@ -235,6 +289,33 @@ export const tasksApi = {
     });
   },
 
+  getTaskAIDraft(id: number) {
+    return apiRequest<TaskAIDraft>(`/api/v1/tasks/ai-drafts/${id}`, {
+      method: "GET"
+    });
+  },
+
+  adoptTaskAIDraft(id: number, tasks: AIDraftTaskInput[], idempotencyKey?: string) {
+    return apiRequest<{ tasks: Task[] }>(`/api/v1/tasks/ai-drafts/${id}/adopt`, {
+      method: "POST",
+      body: JSON.stringify({
+        tasks: tasks.map((task) => ({
+          draft_index: task.draftIndex,
+          title: task.title,
+          description: task.description,
+          assignee: task.assignee,
+          project: task.project,
+          priority: task.priority,
+          tags: task.tags,
+          due_at: task.dueAt,
+          tools: task.tools,
+          learning: task.learning
+        }))
+      }),
+      ...(idempotencyKey ? { headers: { "Idempotency-Key": idempotencyKey } } : {})
+    });
+  },
+
   listTasks(filters: TaskFilters | number = {}) {
     const normalized = typeof filters === "number" ? { limit: filters } : filters;
     return apiRequest<TaskPage>(`/api/v1/tasks${queryString(normalized)}`, {
@@ -262,6 +343,12 @@ export const tasksApi = {
 
   getTask(id: number) {
     return apiRequest<Task>(`/api/v1/tasks/${id}`, {
+      method: "GET"
+    });
+  },
+
+  listTaskActivities(id: number, limit = 20, offset = 0) {
+    return apiRequest<TaskActivityPage>(`/api/v1/tasks/${id}/activities${queryString({ limit, offset: offset || undefined })}`, {
       method: "GET"
     });
   },

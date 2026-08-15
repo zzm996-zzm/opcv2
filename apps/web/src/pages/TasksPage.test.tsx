@@ -20,10 +20,10 @@ describe("TasksPage", () => {
     });
   }
 
-  function renderTasksPage() {
+  function renderTasksPage(initialEntry = "/tasks") {
     signIn();
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <TasksPage />
       </MemoryRouter>
     );
@@ -329,18 +329,31 @@ describe("TasksPage", () => {
   });
 
   it("creates a task from the goal input", async () => {
+    let adopted = false;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/tasks?limit=20") {
-        return Promise.resolve(new Response(JSON.stringify({ tasks: [] }), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify({ tasks: adopted ? [{
+          id: 88,
+          user_id: 7,
+          title: "梳理竞品重点反击动作",
+          project: "竞品应对",
+          status: "todo",
+          priority: "high",
+          tools: ["竞争对手数据"],
+          learning: "竞品分析",
+          progress: 0,
+          version: 1,
+          created_at: "2026-07-07T10:00:00Z",
+          updated_at: "2026-07-07T10:00:00Z"
+        }] : [], total: adopted ? 1 : 0 }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/stats") {
         return Promise.resolve(new Response(JSON.stringify({ total: 0, todo: 0, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/generate" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ tasks: [
+        const tasks = [
           {
-            id: 88,
             user_id: 7,
             title: "梳理竞品反击动作",
             project: "竞品应对",
@@ -352,7 +365,6 @@ describe("TasksPage", () => {
             updated_at: "2026-07-07T10:00:00Z"
           },
           {
-            id: 89,
             user_id: 7,
             title: "安排客户验证",
             project: "竞品应对",
@@ -363,7 +375,15 @@ describe("TasksPage", () => {
             created_at: "2026-07-07T10:00:00Z",
             updated_at: "2026-07-07T10:00:00Z"
           }
-        ] }), { status: 200 }));
+        ];
+        return Promise.resolve(new Response(JSON.stringify({
+          draft: { id: 77, user_id: 7, goal: "梳理竞品反击动作", status: "draft", tasks, created_at: "2026-07-07T10:00:00Z", updated_at: "2026-07-07T10:00:00Z" },
+          tasks
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/ai-drafts/77/adopt" && init?.method === "POST") {
+        adopted = true;
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [{ id: 88, title: "梳理竞品重点反击动作" }] }), { status: 201 }));
       }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
@@ -373,8 +393,19 @@ describe("TasksPage", () => {
     fireEvent.change(screen.getByLabelText("描述任务目标"), { target: { value: "梳理竞品反击动作" } });
     fireEvent.click(screen.getByRole("button", { name: "生成任务表" }));
 
-    expect(await screen.findByText("已生成 2 条任务")).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "梳理竞品反击动作" })).toBeInTheDocument();
+    const preview = await screen.findByRole("dialog", { name: "AI任务草稿预览" });
+    expect(within(preview).getByText("已选 2 条")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "梳理竞品反击动作" })).not.toBeInTheDocument();
+    fireEvent.change(within(preview).getAllByLabelText("任务标题")[0], { target: { value: "梳理竞品重点反击动作" } });
+    fireEvent.click(within(preview).getByRole("button", { name: "删除建议 安排客户验证" }));
+    fireEvent.click(within(preview).getByRole("button", { name: "采纳选中任务" }));
+
+    expect(await screen.findByText("已采纳 1 条任务")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "梳理竞品重点反击动作" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/ai-drafts/77/adopt",
+      expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "Idempotency-Key": "task-ai-draft-77" }) })
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/tasks/generate",
       expect.objectContaining({
@@ -385,6 +416,7 @@ describe("TasksPage", () => {
   });
 
   it("keeps created tasks out of the list when they do not match the active status filter", async () => {
+    let adopted = false;
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/tasks?limit=20") {
@@ -397,7 +429,7 @@ describe("TasksPage", () => {
         return Promise.resolve(new Response(JSON.stringify({ total: 0, todo: 0, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/generate" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ tasks: [{
+        const tasks = [{
           id: 88,
           user_id: 7,
           title: "梳理竞品反击动作",
@@ -408,7 +440,15 @@ describe("TasksPage", () => {
           learning: "梳理竞品反击动作",
           created_at: "2026-07-07T10:00:00Z",
           updated_at: "2026-07-07T10:00:00Z"
-        }] }), { status: 200 }));
+        }];
+        return Promise.resolve(new Response(JSON.stringify({
+          draft: { id: 78, user_id: 7, goal: "梳理竞品反击动作", status: "draft", tasks, created_at: "2026-07-07T10:00:00Z", updated_at: "2026-07-07T10:00:00Z" },
+          tasks
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/ai-drafts/78/adopt" && init?.method === "POST") {
+        adopted = true;
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [{ id: 88, title: "梳理竞品反击动作" }] }), { status: 201 }));
       }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
@@ -423,9 +463,12 @@ describe("TasksPage", () => {
     fireEvent.change(screen.getByLabelText("描述任务目标"), { target: { value: "梳理竞品反击动作" } });
     fireEvent.click(screen.getByRole("button", { name: "生成任务表" }));
 
-    expect(await screen.findByText("已生成 1 条任务")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "AI任务草稿预览" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "采纳选中任务" }));
+    expect(await screen.findByText("已采纳 1 条任务")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "梳理竞品反击动作" })).not.toBeInTheDocument();
     expect(screen.getByText("暂无任务数据")).toBeInTheDocument();
+    expect(adopted).toBe(true);
   });
 
   it("switches to a full task board grouped by every status", async () => {
@@ -482,6 +525,82 @@ describe("TasksPage", () => {
     expect(within(board).getByRole("heading", { name: "整理客户访谈提纲" })).toBeInTheDocument();
     expect(within(board).getByRole("heading", { name: "跟进试用反馈" })).toBeInTheDocument();
     expect(screen.queryByLabelText("任务看板预览")).not.toBeInTheDocument();
+  });
+
+  it("rolls a dragged card back when the optimistic status update conflicts", async () => {
+    const task = {
+      id: 91,
+      user_id: 7,
+      title: "拖拽冲突任务",
+      project: "任务中心",
+      status: "todo",
+      priority: "high",
+      tools: [],
+      learning: "",
+      progress: 20,
+      version: 4,
+      created_at: "2026-07-10T08:00:00Z",
+      updated_at: "2026-07-10T08:00:00Z"
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [task], total: 1 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 1, in_progress: 0, completed: 0, reminder: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/91" && init?.method === "PATCH") {
+        return Promise.resolve(new Response(JSON.stringify({ error: "task_version_conflict" }), { status: 409 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+    fireEvent.click(screen.getByRole("button", { name: "看板" }));
+    const heading = await screen.findByRole("heading", { name: "拖拽冲突任务" });
+    const card = heading.closest("article") as HTMLElement;
+    const dataTransfer = {
+      effectAllowed: "none",
+      dropEffect: "none",
+      setData: vi.fn(),
+      getData: vi.fn(() => "91")
+    };
+    fireEvent.dragStart(card, { dataTransfer });
+    fireEvent.drop(screen.getByRole("region", { name: "进行中任务" }), { dataTransfer });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/91",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "in_progress", version: 4 }) })
+    ));
+    expect(await screen.findByText("任务已被其他操作更新，请重新打开后再保存")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "待开始任务" })).getByRole("heading", { name: "拖拽冲突任务" })).toBeInTheDocument();
+  });
+
+  it("restores filters, sorting, grouping, page, and view from the URL", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?status=in_progress&project=%E5%AE%A2%E6%88%B7%E9%AA%8C%E8%AF%81&priority=high&tag=%E8%AE%BF%E8%B0%88&q=%E5%A4%8D%E7%9B%98&sort=due_at&group=project&limit=20&offset=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [], total: 21, limit: 20, offset: 20 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 0, todo: 0, in_progress: 0, completed: 0, reminder: 0 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage("/tasks?view=board&status=in_progress&project=%E5%AE%A2%E6%88%B7%E9%AA%8C%E8%AF%81&priority=high&tag=%E8%AE%BF%E8%B0%88&q=%E5%A4%8D%E7%9B%98&sort=due_at&group=project&page=2");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks?status=in_progress&project=%E5%AE%A2%E6%88%B7%E9%AA%8C%E8%AF%81&priority=high&tag=%E8%AE%BF%E8%B0%88&q=%E5%A4%8D%E7%9B%98&sort=due_at&group=project&limit=20&offset=20",
+      expect.objectContaining({ method: "GET" })
+    ));
+    expect(screen.getByRole("button", { name: "看板" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("搜索任务")).toHaveValue("复盘");
+    expect(screen.getByRole("combobox", { name: "按项目筛选" })).toHaveValue("客户验证");
+    expect(screen.getByRole("combobox", { name: "任务排序" })).toHaveValue("due_at");
+    expect(screen.getByRole("combobox", { name: "任务分组" })).toHaveValue("project");
+    expect(await screen.findByText(/第\s*2\s*\/\s*2\s*页/)).toBeInTheDocument();
   });
 
   it("groups calendar tasks by due date and restores the list view", async () => {
@@ -580,9 +699,17 @@ describe("TasksPage", () => {
 	  if (url === "/api/v1/tasks/95/subtasks" && init?.method === "GET") {
 		return Promise.resolve(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }));
 	  }
-	  if (url === "/api/v1/tasks/95/reminder" && init?.method === "GET") {
-		return Promise.resolve(new Response(JSON.stringify({ reminder: null }), { status: 200 }));
-	  }
+	      if (url === "/api/v1/tasks/95/reminder" && init?.method === "GET") {
+			return Promise.resolve(new Response(JSON.stringify({ reminder: null }), { status: 200 }));
+		  }
+	      if (url === "/api/v1/tasks/95/activities?limit=20" && init?.method === "GET") {
+	        return Promise.resolve(new Response(JSON.stringify({
+	          activities: [{ id: 1, task_id: 95, user_id: 7, action: "created", before: {}, after: { title: "准备首轮客户访谈" }, metadata: {}, created_at: "2026-07-10T08:00:00Z" }],
+	          total: 1,
+	          limit: 20,
+	          offset: 0
+	        }), { status: 200 }));
+	      }
       if (url === "/api/v1/tasks/95" && init?.method === "PATCH") {
         return Promise.resolve(new Response(JSON.stringify({
           ...task,
@@ -610,6 +737,7 @@ describe("TasksPage", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "任务详情" });
     expect(await within(dialog).findByDisplayValue("准备首轮客户访谈")).toBeInTheDocument();
+    expect(within(dialog).getByText("创建了任务")).toBeInTheDocument();
     expect(within(dialog).getByRole("link", { name: "查看来源：竞品扫描：商业沙盘竞品" })).toHaveAttribute("href", "/competitor-data");
     fireEvent.change(within(dialog).getByLabelText("任务标题"), { target: { value: "完成客户访谈提纲" } });
     fireEvent.change(within(dialog).getByLabelText("负责人"), { target: { value: "李明" } });

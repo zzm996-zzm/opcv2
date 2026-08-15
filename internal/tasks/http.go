@@ -25,6 +25,9 @@ type Application interface {
 	RestoreTask(ctx context.Context, userID, id int64) error
 	BatchUpdateTaskStatus(ctx context.Context, userID int64, ids []int64, status string) (int, error)
 	BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error)
+	GetTaskAIDraft(ctx context.Context, userID, id int64) (TaskAIDraft, error)
+	AdoptTaskAIDraft(ctx context.Context, userID, id int64, input AdoptTaskAIDraftInput, idempotencyKey string) ([]Task, error)
+	ListTaskActivities(ctx context.Context, userID, taskID int64, limit, offset int) ([]TaskActivity, int, error)
 	ListSubtasks(ctx context.Context, userID, taskID int64) ([]Subtask, error)
 	CreateSubtask(ctx context.Context, input CreateSubtaskInput) (Subtask, error)
 	UpdateSubtask(ctx context.Context, userID, taskID, id int64, update SubtaskUpdate) (Subtask, error)
@@ -46,6 +49,8 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/tasks", h.createTask)
 	router.POST("/tasks/batch", h.createTaskBatch)
 	router.POST("/tasks/generate", h.generateTasks)
+	router.GET("/tasks/ai-drafts/:id", h.getTaskAIDraft)
+	router.POST("/tasks/ai-drafts/:id/adopt", h.adoptTaskAIDraft)
 	router.GET("/tasks", h.listTasks)
 	router.GET("/tasks/stats", h.taskStats)
 	router.GET("/tasks/projects", h.listTaskProjects)
@@ -53,6 +58,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.PATCH("/tasks/batch", h.batchUpdateTaskStatus)
 	router.DELETE("/tasks/batch", h.batchDeleteTasks)
 	router.GET("/tasks/:id", h.getTask)
+	router.GET("/tasks/:id/activities", h.listTaskActivities)
 	router.PATCH("/tasks/:id", h.updateTask)
 	router.DELETE("/tasks/:id", h.deleteTask)
 	router.POST("/tasks/:id/restore", h.restoreTask)
@@ -182,6 +188,41 @@ func (h *HTTPHandler) generateTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func (h *HTTPHandler) getTaskAIDraft(c *gin.Context) {
+	id, ok := taskID(c)
+	if !ok {
+		return
+	}
+	draft, err := h.app.GetTaskAIDraft(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, draft)
+}
+
+func (h *HTTPHandler) adoptTaskAIDraft(c *gin.Context) {
+	id, ok := taskID(c)
+	if !ok {
+		return
+	}
+	var request AdoptTaskAIDraftInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	idempotencyKey, ok := requestIdempotencyKey(c)
+	if !ok {
+		return
+	}
+	created, err := h.app.AdoptTaskAIDraft(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, request, idempotencyKey)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"tasks": httpapi.EnsureSlice(created)})
+}
+
 func (h *HTTPHandler) createTask(c *gin.Context) {
 	var request CreateInput
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -232,6 +273,16 @@ func (h *HTTPHandler) listTasks(c *gin.Context) {
 		httpapi.BadRequest(c, "invalid_priority")
 		return
 	}
+	sort := strings.TrimSpace(c.Query("sort"))
+	if sort != "" && !validTaskSort(sort) {
+		httpapi.BadRequest(c, "invalid_sort")
+		return
+	}
+	group := strings.TrimSpace(c.Query("group"))
+	if group != "" && !validTaskGroup(group) {
+		httpapi.BadRequest(c, "invalid_group")
+		return
+	}
 	offset, ok := httpapi.QueryOffset(c)
 	if !ok {
 		return
@@ -242,6 +293,8 @@ func (h *HTTPHandler) listTasks(c *gin.Context) {
 		Priority: priority,
 		Tag:      c.Query("tag"),
 		Query:    c.Query("q"),
+		Sort:     sort,
+		Group:    group,
 		Limit:    limit,
 		Offset:   offset,
 	})
@@ -291,6 +344,27 @@ func (h *HTTPHandler) getTask(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, task)
+}
+
+func (h *HTTPHandler) listTaskActivities(c *gin.Context) {
+	id, ok := taskID(c)
+	if !ok {
+		return
+	}
+	limit, ok := httpapi.QueryLimit(c, 20, 100)
+	if !ok {
+		return
+	}
+	offset, ok := httpapi.QueryOffset(c)
+	if !ok {
+		return
+	}
+	activities, total, err := h.app.ListTaskActivities(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, limit, offset)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, TaskActivityPage{Activities: httpapi.EnsureSlice(activities), Total: total, Limit: limit, Offset: offset})
 }
 
 func (h *HTTPHandler) updateTask(c *gin.Context) {
@@ -397,6 +471,24 @@ func validStatus(status string) bool {
 	}
 }
 
+func validTaskSort(sort string) bool {
+	switch sort {
+	case TaskSortCreated, TaskSortUpdated, TaskSortDue, TaskSortPriority, TaskSortProgress:
+		return true
+	default:
+		return false
+	}
+}
+
+func validTaskGroup(group string) bool {
+	switch group {
+	case TaskGroupStatus, TaskGroupAssignee, TaskGroupProject, TaskGroupPriority, TaskGroupSource:
+		return true
+	default:
+		return false
+	}
+}
+
 func requestIdempotencyKey(c *gin.Context) (string, bool) {
 	key := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
 	if len(key) > 200 {
@@ -454,6 +546,12 @@ func writeError(c *gin.Context, err error) {
 		httpapi.BadRequest(c, "invalid_progress")
 	case errors.Is(err, ErrTaskVersionConflict):
 		httpapi.Error(c, http.StatusConflict, "task_version_conflict")
+	case errors.Is(err, ErrTaskAIDraftNotFound):
+		httpapi.Error(c, http.StatusNotFound, "task_ai_draft_not_found")
+	case errors.Is(err, ErrTaskAIDraftAlreadyAdopted):
+		httpapi.Error(c, http.StatusConflict, "task_ai_draft_already_adopted")
+	case errors.Is(err, ErrInvalidTaskAIDraft):
+		httpapi.BadRequest(c, "invalid_task_ai_draft")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

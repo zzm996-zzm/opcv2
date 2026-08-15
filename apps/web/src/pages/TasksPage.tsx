@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { ApiRequestError } from "../lib/apiRequest";
-import { tasksApi, type ReminderRecurrence, type Task, type TaskPriority, type TaskReminder, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
+import { tasksApi, type ReminderRecurrence, type Task, type TaskActivity, type TaskAIDraft, type TaskGroup, type TaskPriority, type TaskReminder, type TaskSort, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
 
 type TaskRow = {
   id?: number;
@@ -40,6 +40,20 @@ type TaskEditForm = {
   tools: string;
   learning: string;
   progress: number;
+};
+
+type AIDraftPreviewItem = {
+  draftIndex: number;
+  selected: boolean;
+  title: string;
+  description: string;
+  assignee: string;
+  project: string;
+  priority: TaskPriority;
+  dueAt: string;
+  tags: string;
+  tools: string;
+  learning: string;
 };
 
 const emptyTaskStats = [
@@ -98,6 +112,63 @@ const statusFilters: Array<{ label: string; value?: TaskStatus }> = [
   { label: "提醒中", value: "reminder" }
 ];
 
+const taskSortOptions: Array<{ label: string; value: TaskSort }> = [
+  { label: "最新创建", value: "created_at" },
+  { label: "最近更新", value: "updated_at" },
+  { label: "截止时间", value: "due_at" },
+  { label: "优先级", value: "priority" },
+  { label: "进度", value: "progress" }
+];
+
+const taskGroupOptions: Array<{ label: string; value: TaskGroup | "" }> = [
+  { label: "不分组", value: "" },
+  { label: "按状态分组", value: "status" },
+  { label: "按负责人分组", value: "assignee" },
+  { label: "按项目分组", value: "project" },
+  { label: "按优先级分组", value: "priority" },
+  { label: "按来源分组", value: "source" }
+];
+
+function taskStatusFromQuery(value: string | null) {
+  return statusFilters.find((filter) => filter.value === value)?.value;
+}
+
+function taskPriorityFromQuery(value: string | null): TaskPriority | "" {
+  return value === "low" || value === "medium" || value === "high" ? value : "";
+}
+
+function taskSortFromQuery(value: string | null): TaskSort {
+  return taskSortOptions.some((option) => option.value === value) ? value as TaskSort : "created_at";
+}
+
+function taskGroupFromQuery(value: string | null): TaskGroup | "" {
+  return taskGroupOptions.some((option) => option.value === value) ? value as TaskGroup | "" : "";
+}
+
+function taskViewFromQuery(value: string | null): TaskView {
+  return taskViews.some((view) => view.value === value) ? value as TaskView : "list";
+}
+
+function taskPageFromQuery(value: string | null) {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function taskGroupLabel(task: Task, group: TaskGroup) {
+  switch (group) {
+    case "status":
+      return statusLabels[task.status];
+    case "assignee":
+      return task.assignee || "未指定负责人";
+    case "project":
+      return task.project || "未关联项目";
+    case "priority":
+      return `${priorityLabels[task.priority]}优先级`;
+    case "source":
+      return task.source_title || "手工创建";
+  }
+}
+
 function formatDueAt(dueAt?: string) {
   if (!dueAt) return "待安排";
   return new Date(dueAt).toLocaleString("zh-CN", {
@@ -137,6 +208,22 @@ function toTaskEditForm(task: Task): TaskEditForm {
     tools: task.tools.join("，"),
     learning: task.learning,
     progress: task.progress ?? 0
+  };
+}
+
+function toAIDraftPreviewItem(task: Task, draftIndex: number): AIDraftPreviewItem {
+  return {
+    draftIndex,
+    selected: true,
+    title: task.title,
+    description: task.description ?? "",
+    assignee: task.assignee ?? "",
+    project: task.project,
+    priority: task.priority,
+    dueAt: toDateTimeLocal(task.due_at),
+    tags: (task.tags ?? []).join("，"),
+    tools: (task.tools ?? []).join("，"),
+    learning: task.learning ?? ""
   };
 }
 
@@ -221,17 +308,42 @@ function taskStatusAction(status: TaskStatus) {
   }
 }
 
+function taskActivitySummary(activity: TaskActivity) {
+  if (activity.action === "created") return "创建了任务";
+  if (activity.action === "deleted") return "删除了任务";
+  if (activity.action === "restored") return "恢复了任务";
+  if (activity.action === "status_changed") {
+    const before = typeof activity.before.status === "string" ? statusLabels[activity.before.status as TaskStatus] ?? activity.before.status : "未知状态";
+    const after = typeof activity.after.status === "string" ? statusLabels[activity.after.status as TaskStatus] ?? activity.after.status : "未知状态";
+    return `将状态从${before}改为${after}`;
+  }
+  const fieldLabels: Record<string, string> = {
+    title: "标题",
+    assignee: "负责人",
+    project: "项目",
+    priority: "优先级",
+    tags: "标签",
+    due_at: "截止时间",
+    progress: "进度"
+  };
+  const changed = Object.keys(activity.after).filter((key) => key !== "version" && key !== "source_type" && JSON.stringify(activity.before[key]) !== JSON.stringify(activity.after[key]));
+  return changed.length > 0 ? `更新了${changed.map((key) => fieldLabels[key] ?? key).join("、")}` : "更新了任务";
+}
+
 function TasksPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const taskGoalRef = useRef<HTMLTextAreaElement | null>(null);
   const [apiTasks, setApiTasks] = useState<Task[]>([]);
   const [apiStats, setApiStats] = useState<TaskStats | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>();
-  const [selectedProject, setSelectedProject] = useState("");
-  const [selectedPriority, setSelectedPriority] = useState<TaskPriority | "">("");
-  const [selectedTag, setSelectedTag] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [taskPage, setTaskPage] = useState(1);
+  const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>(() => taskStatusFromQuery(searchParams.get("status")));
+  const [selectedProject, setSelectedProject] = useState(() => searchParams.get("project") ?? "");
+  const [selectedPriority, setSelectedPriority] = useState<TaskPriority | "">(() => taskPriorityFromQuery(searchParams.get("priority")));
+  const [selectedTag, setSelectedTag] = useState(() => searchParams.get("tag") ?? "");
+  const [selectedSort, setSelectedSort] = useState<TaskSort>(() => taskSortFromQuery(searchParams.get("sort")));
+  const [selectedGroup, setSelectedGroup] = useState<TaskGroup | "">(() => taskGroupFromQuery(searchParams.get("group")));
+  const [searchInput, setSearchInput] = useState(() => searchParams.get("q") ?? "");
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
+  const [taskPage, setTaskPage] = useState(() => taskPageFromQuery(searchParams.get("page")));
   const [taskTotal, setTaskTotal] = useState(0);
   const [listRevision, setListRevision] = useState(0);
   const [projectOptions, setProjectOptions] = useState<string[]>([]);
@@ -241,7 +353,7 @@ function TasksPage() {
   const [tagsLoaded, setTagsLoaded] = useState(false);
   const [tagsLoading, setTagsLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
-  const [activeView, setActiveView] = useState<TaskView>("list");
+  const [activeView, setActiveView] = useState<TaskView>(() => taskViewFromQuery(searchParams.get("view")));
   const [listError, setListError] = useState("");
   const [savingTaskID, setSavingTaskID] = useState<number | null>(null);
   const [selectedTaskIDs, setSelectedTaskIDs] = useState<Set<number>>(() => new Set());
@@ -278,6 +390,16 @@ function TasksPage() {
   const [deletedTasks, setDeletedTasks] = useState<Task[]>([]);
   const [deletedTasksMessage, setDeletedTasksMessage] = useState("");
   const [restoringTasks, setRestoringTasks] = useState(false);
+  const [aiDraft, setAIDraft] = useState<TaskAIDraft | null>(null);
+  const [aiDraftItems, setAIDraftItems] = useState<AIDraftPreviewItem[]>([]);
+  const [aiDraftBusy, setAIDraftBusy] = useState(false);
+  const [aiDraftError, setAIDraftError] = useState("");
+  const [taskActivities, setTaskActivities] = useState<TaskActivity[]>([]);
+  const [activityTotal, setActivityTotal] = useState(0);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [activitiesError, setActivitiesError] = useState("");
+  const [draggingTaskID, setDraggingTaskID] = useState<number | null>(null);
+  const [boardUpdatingTaskID, setBoardUpdatingTaskID] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -289,6 +411,8 @@ function TasksPage() {
         priority: selectedPriority || undefined,
         tag: selectedTag || undefined,
         q: searchQuery || undefined,
+        sort: selectedSort !== "created_at" ? selectedSort : undefined,
+        group: selectedGroup || undefined,
         limit: taskPageSize,
         offset: taskPage > 1 ? (taskPage - 1) * taskPageSize : undefined
       })
@@ -310,7 +434,21 @@ function TasksPage() {
     return () => {
       active = false;
     };
-  }, [selectedStatus, selectedProject, selectedPriority, selectedTag, searchQuery, taskPage, listRevision]);
+  }, [selectedStatus, selectedProject, selectedPriority, selectedTag, selectedSort, selectedGroup, searchQuery, taskPage, listRevision]);
+
+  useEffect(() => {
+    const next = new URLSearchParams();
+    if (activeView !== "list") next.set("view", activeView);
+    if (selectedStatus) next.set("status", selectedStatus);
+    if (selectedProject) next.set("project", selectedProject);
+    if (selectedPriority) next.set("priority", selectedPriority);
+    if (selectedTag) next.set("tag", selectedTag);
+    if (searchQuery) next.set("q", searchQuery);
+    if (selectedSort !== "created_at") next.set("sort", selectedSort);
+    if (selectedGroup) next.set("group", selectedGroup);
+    if (taskPage > 1) next.set("page", String(taskPage));
+    setSearchParams(next, { replace: true });
+  }, [activeView, searchQuery, selectedGroup, selectedPriority, selectedProject, selectedSort, selectedStatus, selectedTag, setSearchParams, taskPage]);
 
   useEffect(() => {
     let active = true;
@@ -342,8 +480,15 @@ function TasksPage() {
     return groups;
   }, new Map()));
   const unscheduledTasks = apiTasks.filter((task) => !task.due_at);
+  const listGroups = selectedGroup
+    ? Array.from(apiTasks.reduce<Map<string, TaskRow[]>>((groups, task) => {
+      const label = taskGroupLabel(task, selectedGroup);
+      groups.set(label, [...(groups.get(label) ?? []), toTaskRow(task)]);
+      return groups;
+    }, new Map()))
+    : [["", visibleTasks] as [string, TaskRow[]]];
   const totalPages = Math.max(1, Math.ceil(taskTotal / taskPageSize));
-  const hasActiveFilters = Boolean(selectedStatus || selectedProject || selectedPriority || selectedTag || searchQuery);
+  const hasActiveFilters = Boolean(selectedStatus || selectedProject || selectedPriority || selectedTag || searchQuery || selectedGroup || selectedSort !== "created_at");
   const currentPageTaskIDs = apiTasks.map((task) => task.id);
   const allCurrentPageSelected = currentPageTaskIDs.length > 0 && currentPageTaskIDs.every((id) => selectedTaskIDs.has(id));
   const selectedTasks = apiTasks.filter((task) => selectedTaskIDs.has(task.id));
@@ -355,13 +500,13 @@ function TasksPage() {
     : (batchStatusOptions[0]?.status ?? "completed");
 
   useEffect(() => {
-    if (taskPage > totalPages) setTaskPage(totalPages);
-  }, [taskPage, totalPages]);
+    if (taskTotal > 0 && taskPage > totalPages) setTaskPage(totalPages);
+  }, [taskPage, taskTotal, totalPages]);
 
   useEffect(() => {
     setSelectedTaskIDs(new Set());
     setConfirmBatchDelete(false);
-  }, [selectedStatus, selectedProject, selectedPriority, selectedTag, searchQuery, taskPage]);
+  }, [selectedStatus, selectedProject, selectedPriority, selectedTag, selectedSort, selectedGroup, searchQuery, taskPage]);
 
   useEffect(() => {
     const validIDs = new Set(apiTasks.map((task) => task.id));
@@ -424,6 +569,8 @@ function TasksPage() {
     setSelectedProject("");
     setSelectedPriority("");
     setSelectedTag("");
+    setSelectedSort("created_at");
+    setSelectedGroup("");
     setTaskPage(1);
   }
 
@@ -452,6 +599,33 @@ function TasksPage() {
       setListError(apiErrorMessage(error, "暂时无法更新任务状态"));
     } finally {
       setSavingTaskID(null);
+    }
+  }
+
+  async function moveTaskOnBoard(taskID: number, targetStatus: TaskStatus) {
+    if (boardUpdatingTaskID !== null) return;
+    const original = apiTasks.find((task) => task.id === taskID);
+    if (!original || original.status === targetStatus) {
+      setDraggingTaskID(null);
+      return;
+    }
+    setDraggingTaskID(null);
+    setBoardUpdatingTaskID(taskID);
+    setListError("");
+    setApiTasks((current) => current.map((task) => task.id === taskID ? { ...task, status: targetStatus } : task));
+    try {
+      const updated = await tasksApi.updateTask(taskID, { status: targetStatus, version: original.version });
+      const remainsVisible = taskMatchesCurrentFilters(updated);
+      setApiTasks((current) => !remainsVisible
+        ? current.filter((task) => task.id !== taskID)
+        : current.map((task) => task.id === taskID ? updated : task));
+      if (!remainsVisible) setTaskTotal((current) => Math.max(0, current - 1));
+      await refreshTaskStats();
+    } catch (error) {
+      setApiTasks((current) => current.map((task) => task.id === taskID ? original : task));
+      setListError(apiErrorMessage(error, "任务状态更新失败，卡片已回到原位置"));
+    } finally {
+      setBoardUpdatingTaskID(null);
     }
   }
 
@@ -545,24 +719,73 @@ function TasksPage() {
     setDeletedTasksMessage("");
     try {
       const result = await tasksApi.generateTasks(title);
-      const matchingTasks = result.tasks.filter(taskMatchesCurrentFilters);
-      if (matchingTasks.length > 0) {
-        setTaskTotal((current) => current + matchingTasks.length);
-        if (taskPage === 1) {
-          setApiTasks((current) => [...matchingTasks, ...current].slice(0, taskPageSize));
-        } else {
-          setTaskPage(1);
-        }
-      }
-      await refreshTaskStats();
-      setTaskGoal("");
+      setAIDraft(result.draft);
+      setAIDraftItems(result.tasks.map(toAIDraftPreviewItem));
+      setAIDraftError("");
       setListError("");
-      setCreateMessage(`已生成 ${result.tasks.length} 条任务`);
+      setCreateMessage("");
     } catch (error) {
       setCreateError(apiErrorMessage(error, "暂时无法生成任务"));
     } finally {
       setIsCreatingTask(false);
     }
+  }
+
+  function updateAIDraftItem<Key extends keyof AIDraftPreviewItem>(draftIndex: number, key: Key, value: AIDraftPreviewItem[Key]) {
+    setAIDraftItems((current) => current.map((item) => item.draftIndex === draftIndex ? { ...item, [key]: value } : item));
+  }
+
+  async function adoptAIDraftTasks() {
+    if (!aiDraft || aiDraftBusy) return;
+    const selected = aiDraftItems.filter((item) => item.selected);
+    if (selected.length === 0) {
+      setAIDraftError("请至少选择一条任务建议");
+      return;
+    }
+    if (selected.some((item) => !item.title.trim() || !item.project.trim())) {
+      setAIDraftError("选中任务的标题和所属项目不能为空");
+      return;
+    }
+    setAIDraftBusy(true);
+    setAIDraftError("");
+    try {
+      const result = await tasksApi.adoptTaskAIDraft(aiDraft.id, selected.map((item) => ({
+        draftIndex: item.draftIndex,
+        title: item.title.trim(),
+        description: item.description.trim(),
+        assignee: item.assignee.trim(),
+        project: item.project.trim(),
+        priority: item.priority,
+        tags: parseList(item.tags),
+        dueAt: item.dueAt ? new Date(item.dueAt).toISOString() : undefined,
+        tools: parseList(item.tools),
+        learning: item.learning.trim()
+      })), `task-ai-draft-${aiDraft.id}`);
+      setAIDraft(null);
+      setAIDraftItems([]);
+      setTaskGoal("");
+      setCreateMessage(`已采纳 ${result.tasks.length} 条任务`);
+      setListRevision((current) => current + 1);
+      await refreshTaskStats();
+    } catch (error) {
+      setAIDraftError(apiErrorMessage(error, "暂时无法采纳任务草稿"));
+    } finally {
+      setAIDraftBusy(false);
+    }
+  }
+
+  function closeAIDraftPreview() {
+    if (aiDraftBusy) return;
+    setAIDraft(null);
+    setAIDraftItems([]);
+    setAIDraftError("");
+  }
+
+  function regenerateAIDraft() {
+    if (aiDraftBusy || isCreatingTask) return;
+    if (!window.confirm("重新生成会覆盖当前草稿中的选择和修改，是否继续？")) return;
+    closeAIDraftPreview();
+    void createTaskFromGoal();
   }
 
   async function openTaskDetail(taskID: number) {
@@ -583,10 +806,15 @@ function TasksPage() {
     setReminderError("");
     setReminderMessage("");
     setReminderNeedsUpgrade(false);
-    const [taskResult, subtasksResult, reminderResult] = await Promise.allSettled([
+    setTaskActivities([]);
+    setActivityTotal(0);
+    setActivitiesLoading(true);
+    setActivitiesError("");
+    const [taskResult, subtasksResult, reminderResult, activitiesResult] = await Promise.allSettled([
       tasksApi.getTask(taskID),
       tasksApi.listSubtasks(taskID),
-      tasksApi.getReminder(taskID)
+      tasksApi.getReminder(taskID),
+      tasksApi.listTaskActivities(taskID)
     ]);
     if (taskResult.status === "fulfilled") {
       setDetailTask(taskResult.value);
@@ -606,9 +834,16 @@ function TasksPage() {
     } else {
       setReminderError(apiErrorMessage(reminderResult.reason, "暂时无法读取提醒设置"));
     }
+    if (activitiesResult.status === "fulfilled") {
+      setTaskActivities(activitiesResult.value.activities);
+      setActivityTotal(activitiesResult.value.total);
+    } else {
+      setActivitiesError(apiErrorMessage(activitiesResult.reason, "暂时无法读取操作记录"));
+    }
     setDetailLoading(false);
     setSubtasksLoading(false);
     setReminderLoading(false);
+    setActivitiesLoading(false);
   }
 
   function closeTaskDetail() {
@@ -627,6 +862,10 @@ function TasksPage() {
     setReminderError("");
     setReminderMessage("");
     setReminderNeedsUpgrade(false);
+    setTaskActivities([]);
+    setActivityTotal(0);
+    setActivitiesError("");
+    setActivitiesLoading(false);
   }
 
   function updateDetailField<Key extends keyof TaskEditForm>(key: Key, value: TaskEditForm[Key]) {
@@ -727,6 +966,21 @@ function TasksPage() {
     }
   }
 
+  async function loadMoreTaskActivities() {
+    if (!detailTaskID || activitiesLoading || taskActivities.length >= activityTotal) return;
+    setActivitiesLoading(true);
+    setActivitiesError("");
+    try {
+      const result = await tasksApi.listTaskActivities(detailTaskID, 20, taskActivities.length);
+      setTaskActivities((current) => [...current, ...result.activities]);
+      setActivityTotal(result.total);
+    } catch (error) {
+      setActivitiesError(apiErrorMessage(error, "暂时无法读取更多操作记录"));
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }
+
   async function saveTaskDetail() {
     if (!detailTask || !detailForm || detailSaving) return;
     const title = detailForm.title.trim();
@@ -818,10 +1072,21 @@ function TasksPage() {
     }
   }
 
-  function renderTaskCard(task: Task) {
+  function renderTaskCard(task: Task, enableDrag = false) {
     const action = taskStatusAction(task.status);
     return (
-      <article className="task-view-card" key={task.id}>
+      <article
+        aria-grabbed={enableDrag ? draggingTaskID === task.id : undefined}
+        className={`task-view-card${draggingTaskID === task.id ? " dragging" : ""}${boardUpdatingTaskID === task.id ? " updating" : ""}`}
+        draggable={enableDrag && boardUpdatingTaskID === null}
+        key={task.id}
+        onDragEnd={enableDrag ? () => setDraggingTaskID(null) : undefined}
+        onDragStart={enableDrag ? (event) => {
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", String(task.id));
+          setDraggingTaskID(task.id);
+        } : undefined}
+      >
         <div className="task-view-card-head">
           <div>
             <h3>{task.title}</h3>
@@ -847,7 +1112,7 @@ function TasksPage() {
         </div>
         <div className="task-view-card-actions">
           <button
-            disabled={savingTaskID === task.id}
+            disabled={savingTaskID === task.id || boardUpdatingTaskID === task.id}
             onClick={() => void updateTaskStatus(task.id, task.status, task.version)}
             type="button"
           >
@@ -913,6 +1178,93 @@ function TasksPage() {
           </form>
         </section>
 
+        {aiDraft ? (
+          <div className="task-modal-backdrop">
+            <section aria-label="AI任务草稿预览" aria-modal="true" className="task-ai-draft-dialog" role="dialog">
+              <header>
+                <span>AI 建议草稿</span>
+                <h2>确认后再进入正式任务</h2>
+                <p>{aiDraft.goal} · 共 {aiDraftItems.length} 条建议</p>
+              </header>
+              <div className="task-ai-draft-toolbar">
+                <label>
+                  <input
+                    checked={aiDraftItems.length > 0 && aiDraftItems.every((item) => item.selected)}
+                    disabled={aiDraftBusy}
+                    onChange={(event) => setAIDraftItems((current) => current.map((item) => ({ ...item, selected: event.target.checked })))}
+                    type="checkbox"
+                  />
+                  全选建议
+                </label>
+                <span>已选 {aiDraftItems.filter((item) => item.selected).length} 条</span>
+                <button disabled={aiDraftBusy || isCreatingTask} onClick={regenerateAIDraft} type="button">重新生成</button>
+              </div>
+              <div className="task-ai-draft-list">
+                {aiDraftItems.length === 0 ? <div className="module-empty-state" role="status">暂无可采纳建议</div> : null}
+                {aiDraftItems.map((item) => (
+                  <article className={item.selected ? "task-ai-draft-item selected" : "task-ai-draft-item"} key={item.draftIndex}>
+                    <label className="task-ai-draft-select">
+                      <input
+                        aria-label={`选择建议 ${item.title}`}
+                        checked={item.selected}
+                        disabled={aiDraftBusy}
+                        onChange={(event) => updateAIDraftItem(item.draftIndex, "selected", event.target.checked)}
+                        type="checkbox"
+                      />
+                    </label>
+                    <div className="task-ai-draft-fields">
+                      <label className="wide">
+                        <span>任务标题</span>
+                        <input disabled={!item.selected || aiDraftBusy} maxLength={100} onChange={(event) => updateAIDraftItem(item.draftIndex, "title", event.target.value)} value={item.title} />
+                      </label>
+                      <label>
+                        <span>所属项目</span>
+                        <input disabled={!item.selected || aiDraftBusy} onChange={(event) => updateAIDraftItem(item.draftIndex, "project", event.target.value)} value={item.project} />
+                      </label>
+                      <label>
+                        <span>负责人</span>
+                        <input disabled={!item.selected || aiDraftBusy} onChange={(event) => updateAIDraftItem(item.draftIndex, "assignee", event.target.value)} value={item.assignee} />
+                      </label>
+                      <label>
+                        <span>优先级</span>
+                        <select disabled={!item.selected || aiDraftBusy} onChange={(event) => updateAIDraftItem(item.draftIndex, "priority", event.target.value as TaskPriority)} value={item.priority}>
+                          <option value="high">高</option>
+                          <option value="medium">中</option>
+                          <option value="low">低</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>截止时间</span>
+                        <input disabled={!item.selected || aiDraftBusy} onChange={(event) => updateAIDraftItem(item.draftIndex, "dueAt", event.target.value)} type="datetime-local" value={item.dueAt} />
+                      </label>
+                      <label className="wide">
+                        <span>任务描述</span>
+                        <textarea disabled={!item.selected || aiDraftBusy} maxLength={1000} onChange={(event) => updateAIDraftItem(item.draftIndex, "description", event.target.value)} value={item.description} />
+                      </label>
+                      <label>
+                        <span>标签</span>
+                        <input disabled={!item.selected || aiDraftBusy} onChange={(event) => updateAIDraftItem(item.draftIndex, "tags", event.target.value)} value={item.tags} />
+                      </label>
+                      <label>
+                        <span>建议工具</span>
+                        <input disabled={!item.selected || aiDraftBusy} onChange={(event) => updateAIDraftItem(item.draftIndex, "tools", event.target.value)} value={item.tools} />
+                      </label>
+                    </div>
+                    <button aria-label={`删除建议 ${item.title}`} className="task-ai-draft-remove" disabled={aiDraftBusy} onClick={() => setAIDraftItems((current) => current.filter((candidate) => candidate.draftIndex !== item.draftIndex))} type="button">删除建议</button>
+                  </article>
+                ))}
+              </div>
+              {aiDraftError ? <p className="form-error" role="alert">{aiDraftError}</p> : null}
+              <footer className="task-ai-draft-footer">
+                <button disabled={aiDraftBusy} onClick={closeAIDraftPreview} type="button">稍后处理</button>
+                <button className="primary" disabled={aiDraftBusy || aiDraftItems.every((item) => !item.selected)} onClick={() => void adoptAIDraftTasks()} type="button">
+                  {aiDraftBusy ? "采纳中..." : "采纳选中任务"}
+                </button>
+              </footer>
+            </section>
+          </div>
+        ) : null}
+
         <section className={`task-workbench ${activeView === "list" ? "" : "full-width"}`}>
           <div className="task-list-panel">
             <div className="module-section-head">
@@ -972,6 +1324,7 @@ function TasksPage() {
                 value={selectedProject}
               >
                 <option value="">{projectsLoading ? "读取项目中..." : "全部项目"}</option>
+                {selectedProject && !projectOptions.includes(selectedProject) ? <option value={selectedProject}>{selectedProject}</option> : null}
                 {projectOptions.map((project) => <option key={project} value={project}>{project}</option>)}
               </select>
               <label className="sr-only" htmlFor="task-priority-filter">按优先级筛选</label>
@@ -989,8 +1342,8 @@ function TasksPage() {
                 <option value="low">低优先级</option>
               </select>
               <label className="sr-only" htmlFor="task-tag-filter">按标签筛选</label>
-              <select
-                id="task-tag-filter"
+	              <select
+	                id="task-tag-filter"
                 onChange={(event) => {
                   setTaskPage(1);
                   setSelectedTag(event.target.value);
@@ -999,9 +1352,32 @@ function TasksPage() {
                 value={selectedTag}
               >
                 <option value="">{tagsLoading ? "读取标签中..." : "全部标签"}</option>
+                {selectedTag && !tagOptions.includes(selectedTag) ? <option value={selectedTag}>{selectedTag}</option> : null}
                 {tagOptions.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
-              </select>
-              {hasActiveFilters ? <button className="task-filter-clear" onClick={clearTaskFilters} type="button">清除筛选</button> : null}
+	              </select>
+	              <label className="sr-only" htmlFor="task-sort">任务排序</label>
+	              <select
+	                id="task-sort"
+	                onChange={(event) => {
+	                  setTaskPage(1);
+	                  setSelectedSort(event.target.value as TaskSort);
+	                }}
+	                value={selectedSort}
+	              >
+	                {taskSortOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+	              </select>
+	              <label className="sr-only" htmlFor="task-group">任务分组</label>
+	              <select
+	                id="task-group"
+	                onChange={(event) => {
+	                  setTaskPage(1);
+	                  setSelectedGroup(event.target.value as TaskGroup | "");
+	                }}
+	                value={selectedGroup}
+	              >
+	                {taskGroupOptions.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}
+	              </select>
+	              {hasActiveFilters ? <button className="task-filter-clear" onClick={clearTaskFilters} type="button">清除筛选</button> : null}
             </form>
             {activeView === "list" ? (
               <>
@@ -1044,8 +1420,16 @@ function TasksPage() {
                 <div aria-label="任务列表" className="task-table">
                   {visibleTasks.length === 0 ? (
                     <div className="module-empty-state" role="status">暂无任务数据</div>
-                  ) : visibleTasks.map((task) => (
-                    <article key={task.id ?? task.title}>
+	                  ) : listGroups.map(([group, tasks]) => (
+	                    <Fragment key={group || "all-tasks"}>
+	                      {group ? (
+	                        <div className="task-list-group-heading">
+	                          <strong>{group}</strong>
+	                          <span>{tasks.length} 项</span>
+	                        </div>
+	                      ) : null}
+	                      {tasks.map((task) => (
+	                    <article key={task.id ?? task.title}>
                       {task.id ? (
                         <input
                           aria-label={`选择任务 ${task.title}`}
@@ -1082,8 +1466,10 @@ function TasksPage() {
                     ) : null}
                     <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
                     <Link to="/learning">补课：{task.learning}</Link>
-                    </article>
-                  ))}
+	                    </article>
+	                      ))}
+	                    </Fragment>
+	                  ))}
                 </div>
               </>
             ) : null}
@@ -1092,7 +1478,22 @@ function TasksPage() {
                 {boardColumnLabels.map((column) => {
                   const columnTasks = apiTasks.filter((task) => task.status === column.status);
                   return (
-                    <section aria-label={`${column.label}任务`} className="task-view-column" key={column.status}>
+	                    <section
+	                      aria-label={`${column.label}任务`}
+	                      className={draggingTaskID !== null ? "task-view-column drop-ready" : "task-view-column"}
+	                      key={column.status}
+	                      onDragOver={(event) => {
+	                        if (draggingTaskID !== null) {
+	                          event.preventDefault();
+	                          event.dataTransfer.dropEffect = "move";
+	                        }
+	                      }}
+	                      onDrop={(event) => {
+	                        event.preventDefault();
+	                        const taskID = draggingTaskID ?? Number(event.dataTransfer.getData("text/plain"));
+	                        if (Number.isInteger(taskID) && taskID > 0) void moveTaskOnBoard(taskID, column.status);
+	                      }}
+	                    >
                       <header>
                         <h3>{column.label}</h3>
                         <span>{columnTasks.length}</span>
@@ -1100,7 +1501,7 @@ function TasksPage() {
                       <div>
                         {columnTasks.length === 0
                           ? <div className="module-empty-state">暂无任务</div>
-                          : columnTasks.map(renderTaskCard)}
+	                          : columnTasks.map((task) => renderTaskCard(task, true))}
                       </div>
                     </section>
                   );
@@ -1116,7 +1517,7 @@ function TasksPage() {
                       <h3>{label}</h3>
                       <span>{tasks.length} 项</span>
                     </header>
-                    <div>{tasks.map(renderTaskCard)}</div>
+                    <div>{tasks.map((task) => renderTaskCard(task))}</div>
                   </section>
                 ))}
                 {unscheduledTasks.length > 0 ? (
@@ -1125,7 +1526,7 @@ function TasksPage() {
                       <h3>待安排</h3>
                       <span>{unscheduledTasks.length} 项</span>
                     </header>
-                    <div>{unscheduledTasks.map(renderTaskCard)}</div>
+                    <div>{unscheduledTasks.map((task) => renderTaskCard(task))}</div>
                   </section>
                 ) : null}
               </div>
@@ -1361,6 +1762,36 @@ function TasksPage() {
                       </div>
                     ) : null}
                     {subtaskError ? <p className="form-error" role="alert">{subtaskError}</p> : null}
+                  </section>
+                  <section aria-label="操作记录" className="task-activity-section">
+                    <header>
+                      <div>
+                        <h3>操作记录</h3>
+                        <p>系统自动记录任务的重要变更</p>
+                      </div>
+                      <span>{activityTotal} 条</span>
+                    </header>
+                    {activitiesLoading && taskActivities.length === 0 ? <div className="task-subtask-empty" role="status">正在读取操作记录...</div> : null}
+                    {!activitiesLoading && taskActivities.length === 0 && !activitiesError ? <div className="task-subtask-empty" role="status">暂无操作记录</div> : null}
+                    {taskActivities.length > 0 ? (
+                      <div className="task-activity-list">
+                        {taskActivities.map((activity) => (
+                          <article key={activity.id}>
+                            <span className="task-activity-dot" aria-hidden="true" />
+                            <div>
+                              <strong>{taskActivitySummary(activity)}</strong>
+                              <small>你 · {formatDueAt(activity.created_at)}</small>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                    {activitiesError ? <p className="form-error" role="alert">{activitiesError}</p> : null}
+                    {taskActivities.length < activityTotal ? (
+                      <button className="task-activity-more" disabled={activitiesLoading} onClick={() => void loadMoreTaskActivities()} type="button">
+                        {activitiesLoading ? "读取中..." : "加载更多记录"}
+                      </button>
+                    ) : null}
                   </section>
                   {detailError ? <p className="form-error" role="alert">{detailError}</p> : null}
                   {confirmDelete ? (
