@@ -34,6 +34,7 @@ function GrowthHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [recalculatingID, setRecalculatingID] = useState<number | null>(null);
+  const [selectedModelIDs, setSelectedModelIDs] = useState<number[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -49,6 +50,7 @@ function GrowthHistoryPage() {
           limit: result.limit ?? pageSize,
           offset: result.offset ?? (currentPage - 1) * pageSize
         });
+        setSelectedModelIDs((current) => current.filter((id) => (result.models ?? []).some((model) => model.id === id)));
       })
       .catch((requestError) => {
         if (!active) return;
@@ -91,6 +93,19 @@ function GrowthHistoryPage() {
     }
   }
 
+  function toggleModel(modelID: number) {
+    setSelectedModelIDs((current) => {
+      if (current.includes(modelID)) return current.filter((id) => id !== modelID);
+      if (current.length >= 4) return current;
+      return [...current, modelID];
+    });
+  }
+
+  function compareSelected() {
+    if (selectedModelIDs.length < 2 || selectedModelIDs.length > 4) return;
+    navigate(`/growth-calculator/compare?model_ids=${selectedModelIDs.join(",")}`);
+  }
+
   const pageCount = Math.max(1, Math.ceil(page.total / pageSize));
 
   return (
@@ -126,6 +141,9 @@ function GrowthHistoryPage() {
           }} type="button">
             <RefreshCw aria-hidden="true" size={16} />重置
           </button>
+          <button className="primary" disabled={loading || selectedModelIDs.length < 2} onClick={compareSelected} type="button">
+            对比测算{selectedModelIDs.length > 0 ? ` (${selectedModelIDs.length}/4)` : ""}
+          </button>
         </form>
 
         {error ? <p className="form-error" role="alert">{error}</p> : null}
@@ -137,6 +155,7 @@ function GrowthHistoryPage() {
         {!loading && page.models.length > 0 ? (
           <section className="growth-live-history-table" aria-label="测算历史列表">
             <header>
+              <span>选择</span>
               <span>测算名称</span>
               <span>创建时间</span>
               <span>核心输入</span>
@@ -147,6 +166,14 @@ function GrowthHistoryPage() {
             </header>
             {page.models.map((model) => (
               <article key={model.id}>
+                <label className="growth-history-select">
+                  <input
+                    aria-label={`选择${model.name}`}
+                    checked={selectedModelIDs.includes(model.id)}
+                    onChange={() => toggleModel(model.id)}
+                    type="checkbox"
+                  />
+                </label>
                 <span><strong>{model.name}</strong><small>模型 #{model.id}</small></span>
                 <time>{new Date(model.created_at).toLocaleString("zh-CN")}</time>
                 <span>{model.assumptions.monthly_visits.toLocaleString("zh-CN")} 访问 · {formatPercent(model.assumptions.deal_rate)} 成交</span>

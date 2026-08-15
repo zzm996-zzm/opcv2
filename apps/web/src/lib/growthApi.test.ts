@@ -136,4 +136,21 @@ describe("growthApi", () => {
     expect(blob.type).toBe("application/json");
     expect(blob.size).toBeGreaterThan(0);
   });
+
+  it("compares selected growth models", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ models: [{ id: 99 }, { id: 100 }], generated_at: "2026-08-15T12:00:00Z" }), { status: 200 })
+    );
+
+    const comparison = await growthApi.compareModels([99, 100]);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/compare",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ model_ids: [99, 100] })
+      })
+    );
+    expect(comparison.models).toHaveLength(2);
+  });
 });

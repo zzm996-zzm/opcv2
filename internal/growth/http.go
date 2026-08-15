@@ -42,6 +42,10 @@ type exportApplication interface {
 	ExportModel(context.Context, ExportModelInput) (GrowthReportExport, error)
 }
 
+type compareApplication interface {
+	CompareModels(context.Context, CompareModelsInput) (GrowthComparison, error)
+}
+
 func NewHTTPHandler(app Application) *HTTPHandler {
 	return &HTTPHandler{app: app}
 }
@@ -52,6 +56,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/growth/drafts/:id/answers", h.answerDraft)
 	router.POST("/growth/drafts/:id/calculate", h.calculateDraft)
 	router.POST("/growth/models", h.createModel)
+	router.POST("/growth/models/compare", h.compareModels)
 	router.GET("/growth/models", h.listModels)
 	router.GET("/growth/models/:id", h.getModel)
 	router.GET("/growth/models/:id/scenarios", h.modelScenarios)
@@ -311,6 +316,27 @@ func (h *HTTPHandler) exportModel(c *gin.Context) {
 	c.JSON(http.StatusOK, export)
 }
 
+func (h *HTTPHandler) compareModels(c *gin.Context) {
+	app, ok := h.app.(compareApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	var request CompareModelsInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	comparison, err := app.CompareModels(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	comparison.Models = httpapi.EnsureSlice(comparison.Models)
+	c.JSON(http.StatusOK, comparison)
+}
+
 func modelIDParam(c *gin.Context) (int64, bool) {
 	return resourceIDParam(c, "invalid_model_id")
 }
@@ -336,6 +362,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.BadRequest(c, "invalid_answers")
 	case errors.Is(err, ErrInvalidExportFormat):
 		httpapi.BadRequest(c, "invalid_export_format")
+	case errors.Is(err, ErrInvalidComparison):
+		httpapi.BadRequest(c, "invalid_comparison")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

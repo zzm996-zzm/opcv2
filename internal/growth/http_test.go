@@ -31,6 +31,8 @@ type fakeApplication struct {
 	recalculate     RecalculateResult
 	export          GrowthReportExport
 	exportInput     ExportModelInput
+	comparison      GrowthComparison
+	comparisonInput CompareModelsInput
 }
 
 type fakePagedApplication struct {
@@ -78,6 +80,12 @@ func (a *fakeApplication) ExportModel(_ context.Context, input ExportModelInput)
 	a.exportInput = input
 	a.userID, a.modelID = input.UserID, input.ModelID
 	return a.export, a.err
+}
+
+func (a *fakeApplication) CompareModels(_ context.Context, input CompareModelsInput) (GrowthComparison, error) {
+	a.comparisonInput = input
+	a.userID = input.UserID
+	return a.comparison, a.err
 }
 
 func (a *fakeApplication) CreateModel(_ context.Context, input CreateInput) (Model, error) {
@@ -262,6 +270,37 @@ func TestExportModelEndpointRejectsUnsupportedFormat(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"error":"invalid_export_format"`) {
+		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestCompareModelsEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{comparison: GrowthComparison{Models: []Model{{ID: 99}, {ID: 100}}}}
+	router := growthTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/growth/models/compare", strings.NewReader(`{"model_ids":[99,100]}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.comparisonInput.UserID != 42 || len(app.comparisonInput.ModelIDs) != 2 || app.comparisonInput.ModelIDs[1] != 100 {
+		t.Fatalf("status/input = %d/%+v body=%s", recorder.Code, app.comparisonInput, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"models"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestCompareModelsEndpointRejectsInvalidSelection(t *testing.T) {
+	app := &fakeApplication{err: ErrInvalidComparison}
+	router := growthTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/growth/models/compare", strings.NewReader(`{"model_ids":[99]}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), `"error":"invalid_comparison"`) {
 		t.Fatalf("status/body = %d/%s", recorder.Code, recorder.Body.String())
 	}
 }

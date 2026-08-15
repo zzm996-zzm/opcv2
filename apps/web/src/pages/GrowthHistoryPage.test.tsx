@@ -70,4 +70,36 @@ describe("GrowthHistoryPage", () => {
     ));
     expect(await screen.findByText("没有匹配的测算记录")).toBeInTheDocument();
   });
+
+  it("selects two models and opens the comparison page", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/growth/models/compare") {
+        return Promise.resolve(new Response(JSON.stringify({
+          models: [
+            { id: 99, user_id: 7, name: "初版", assumptions: { monthly_visits: 10000, lead_rate: 0.08, deal_rate: 0.1, average_order: 1000, acquisition_cost: 50, delivery_cost: 20000 }, result: { monthly_revenue: 80000, leads: 800, deals: 80, payback_days: 10, net_margin: 0.5 }, created_at: "2026-08-15T08:00:00Z", updated_at: "2026-08-15T08:00:00Z" },
+            { id: 100, user_id: 7, name: "优化版", assumptions: { monthly_visits: 12000, lead_rate: 0.09, deal_rate: 0.12, average_order: 1100, acquisition_cost: 45, delivery_cost: 22000 }, result: { monthly_revenue: 142560, leads: 1080, deals: 130, payback_days: 7, net_margin: 0.58 }, created_at: "2026-08-16T08:00:00Z", updated_at: "2026-08-16T08:00:00Z" }
+          ],
+          generated_at: "2026-08-16T08:30:00Z"
+        }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({
+        models: [
+          { id: 99, user_id: 7, name: "初版", assumptions: { monthly_visits: 10000, lead_rate: 0.08, deal_rate: 0.1, average_order: 1000, acquisition_cost: 50, delivery_cost: 20000 }, result: { monthly_revenue: 80000, leads: 800, deals: 80, payback_days: 10, net_margin: 0.5 }, created_at: "2026-08-15T08:00:00Z", updated_at: "2026-08-15T08:00:00Z" },
+          { id: 100, user_id: 7, name: "优化版", assumptions: { monthly_visits: 12000, lead_rate: 0.09, deal_rate: 0.12, average_order: 1100, acquisition_cost: 45, delivery_cost: 22000 }, result: { monthly_revenue: 142560, leads: 1080, deals: 130, payback_days: 7, net_margin: 0.58 }, created_at: "2026-08-16T08:00:00Z", updated_at: "2026-08-16T08:00:00Z" }
+        ], total: 2, limit: 10, offset: 0
+      }), { status: 200 }));
+    });
+
+    renderHistory();
+    expect(await screen.findByText("初版")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择初版" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择优化版" }));
+    fireEvent.click(screen.getByRole("button", { name: "对比测算 (2/4)" }));
+
+    expect(await screen.findByRole("heading", { name: "测算对比" })).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/compare",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ model_ids: [99, 100] }) })
+    ));
+  });
 });

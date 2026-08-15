@@ -40,6 +40,11 @@ export type GrowthModelPage = {
   offset: number;
 };
 
+export type GrowthComparison = {
+  models: GrowthModel[];
+  generated_at: string;
+};
+
 export type GrowthScenario = {
   name: string;
   revenue: number;
@@ -198,6 +203,13 @@ export const growthApi = {
   listModels(filters: GrowthModelFilters = {}) {
     return apiRequest<GrowthModelPage>(`/api/v1/growth/models${modelQueryString(filters)}`, {
       method: "GET"
+    });
+  },
+
+  compareModels(modelIDs: number[]) {
+    return apiRequest<GrowthComparison>("/api/v1/growth/models/compare", {
+      method: "POST",
+      body: JSON.stringify({ model_ids: modelIDs })
     });
   },
 

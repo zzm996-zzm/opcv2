@@ -1753,6 +1753,32 @@ Response:
 }
 ```
 
+### Compare Models
+
+`POST /api/v1/growth/models/compare`
+
+Request:
+
+```json
+{
+  "model_ids": [99, 100]
+}
+```
+
+Select between 2 and 4 distinct model IDs. The service checks ownership for every selected model and returns the models in the requested order:
+
+```json
+{
+  "models": [],
+  "generated_at": "2026-08-15T08:30:00Z"
+}
+```
+
+Errors:
+
+- `400 invalid_comparison`
+- `404 model_not_found`
+
 ### Recalculate Model
 
 `POST /api/v1/growth/models/{id}/recalculate`

@@ -12,6 +12,7 @@ var (
 	ErrDraftNotReady       = errors.New("growth draft is not ready")
 	ErrInvalidAnswers      = errors.New("growth draft answers are invalid")
 	ErrInvalidExportFormat = errors.New("growth export format is invalid")
+	ErrInvalidComparison   = errors.New("growth model comparison is invalid")
 )
 
 const (
@@ -72,6 +73,16 @@ type ModelPage struct {
 	Total  int     `json:"total"`
 	Limit  int     `json:"limit"`
 	Offset int     `json:"offset"`
+}
+
+type CompareModelsInput struct {
+	UserID   int64   `json:"-"`
+	ModelIDs []int64 `json:"model_ids"`
+}
+
+type GrowthComparison struct {
+	Models      []Model   `json:"models"`
+	GeneratedAt time.Time `json:"generated_at"`
 }
 
 type ClarificationQuestion struct {

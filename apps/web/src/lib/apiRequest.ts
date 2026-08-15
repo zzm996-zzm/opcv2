@@ -55,6 +55,7 @@ const errorMessages: Record<string, string> = {
   model_not_found: "测算模型不存在或已无权限访问",
   invalid_model_id: "测算模型 ID 不正确",
   invalid_export_format: "暂不支持该报告格式",
+  invalid_comparison: "请选择 2 到 4 个测算模型进行对比",
   scan_not_found: "竞品扫描不存在或已无权限访问",
   invalid_scan_id: "竞品扫描 ID 不正确",
   course_not_found: "课程不存在或已下架",

@@ -8,10 +8,11 @@ import (
 )
 
 type fakeRepository struct {
-	created Model
-	model   Model
-	models  []Model
-	err     error
+	created    Model
+	model      Model
+	modelsByID map[int64]Model
+	models     []Model
+	err        error
 }
 
 func (r *fakeRepository) CreateDraft(_ context.Context, draft Draft) (Draft, error) {
@@ -54,6 +55,12 @@ func (r *fakeRepository) ListModels(_ context.Context, userID int64, limit int) 
 func (r *fakeRepository) GetModel(_ context.Context, userID, id int64) (Model, error) {
 	if r.err != nil {
 		return Model{}, r.err
+	}
+	if model, ok := r.modelsByID[id]; ok {
+		if model.UserID != userID {
+			return Model{}, ErrModelNotFound
+		}
+		return model, nil
 	}
 	if r.model.UserID != userID || r.model.ID != id {
 		return Model{}, ErrModelNotFound
@@ -206,5 +213,33 @@ func TestServiceRejectsUnsupportedExportFormat(t *testing.T) {
 	_, err := service.ExportModel(context.Background(), ExportModelInput{UserID: 42, ModelID: 99, Format: "pdf"})
 	if !errors.Is(err, ErrInvalidExportFormat) {
 		t.Fatalf("err = %v, want ErrInvalidExportFormat", err)
+	}
+}
+
+func TestServiceComparesOwnedModels(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	repository := &fakeRepository{modelsByID: map[int64]Model{
+		99:  {ID: 99, UserID: 42, Name: "初版", UpdatedAt: now},
+		100: {ID: 100, UserID: 42, Name: "再次测算", UpdatedAt: now},
+	}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	comparison, err := service.CompareModels(context.Background(), CompareModelsInput{UserID: 42, ModelIDs: []int64{99, 100}})
+	if err != nil {
+		t.Fatalf("CompareModels() error = %v", err)
+	}
+	if len(comparison.Models) != 2 || comparison.Models[0].ID != 99 || comparison.Models[1].ID != 100 || comparison.GeneratedAt != now {
+		t.Fatalf("comparison = %+v", comparison)
+	}
+}
+
+func TestServiceRejectsInvalidComparisonSelection(t *testing.T) {
+	service := NewService(&fakeRepository{})
+	for _, ids := range [][]int64{{99}, {99, 99}, {99, 100, 101, 102, 103}} {
+		_, err := service.CompareModels(context.Background(), CompareModelsInput{UserID: 42, ModelIDs: ids})
+		if !errors.Is(err, ErrInvalidComparison) {
+			t.Fatalf("ids=%v err=%v, want ErrInvalidComparison", ids, err)
+		}
 	}
 }

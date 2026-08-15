@@ -394,6 +394,34 @@ func (s *Service) ListModelPage(ctx context.Context, input ListModelsInput) (Mod
 	return ModelPage{Models: models, Total: total, Limit: input.Limit, Offset: input.Offset}, nil
 }
 
+func (s *Service) CompareModels(ctx context.Context, input CompareModelsInput) (GrowthComparison, error) {
+	if s.repository == nil {
+		return GrowthComparison{}, ErrServiceNotReady
+	}
+	if len(input.ModelIDs) < 2 || len(input.ModelIDs) > 4 {
+		return GrowthComparison{}, ErrInvalidComparison
+	}
+	seen := make(map[int64]struct{}, len(input.ModelIDs))
+	for _, id := range input.ModelIDs {
+		if id <= 0 {
+			return GrowthComparison{}, ErrInvalidComparison
+		}
+		if _, exists := seen[id]; exists {
+			return GrowthComparison{}, ErrInvalidComparison
+		}
+		seen[id] = struct{}{}
+	}
+	models := make([]Model, 0, len(input.ModelIDs))
+	for _, id := range input.ModelIDs {
+		model, err := s.GetModel(ctx, input.UserID, id)
+		if err != nil {
+			return GrowthComparison{}, err
+		}
+		models = append(models, model)
+	}
+	return GrowthComparison{Models: models, GeneratedAt: s.now()}, nil
+}
+
 func (s *Service) GetModel(ctx context.Context, userID, id int64) (Model, error) {
 	if s.repository == nil {
 		return Model{}, ErrServiceNotReady

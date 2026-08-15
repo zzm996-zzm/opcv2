@@ -19,6 +19,7 @@ import EnterprisePage from "./pages/EnterprisePage";
 import EnterpriseReferencePage from "./pages/EnterpriseReferencePage";
 import GeoAcquisitionPage from "./pages/GeoAcquisitionPage";
 import GrowthCalculatorPage from "./pages/GrowthCalculatorPage";
+import GrowthComparisonPage from "./pages/GrowthComparisonPage";
 import GrowthHistoryPage from "./pages/GrowthHistoryPage";
 import HelpPage from "./pages/HelpPage";
 import HomePage from "./pages/HomePage";
@@ -770,6 +771,14 @@ function AppRoutes() {
           </RequireAuth>
         }
         path="/growth-calculator/history"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <GrowthComparisonPage />
+          </RequireAuth>
+        }
+        path="/growth-calculator/compare"
       />
       <Route
         element={
