@@ -23,6 +23,7 @@ type fakeApplication struct {
 	recommendations GrowthRecommendations
 	risks           GrowthRisks
 	actionPlan      GrowthActionPlan
+	inputs          GrowthInputs
 	err             error
 	draft           Draft
 	calculation     DraftCalculation
@@ -135,6 +136,12 @@ func (a *fakeApplication) ModelActionPlan(_ context.Context, userID, id int64) (
 	a.userID = userID
 	a.modelID = id
 	return a.actionPlan, a.err
+}
+
+func (a *fakeApplication) ModelInputs(_ context.Context, userID, id int64) (GrowthInputs, error) {
+	a.userID = userID
+	a.modelID = id
+	return a.inputs, a.err
 }
 
 func growthTestRouter(app Application) *gin.Engine {
@@ -453,6 +460,12 @@ func TestDerivedGrowthEndpointsUseAuthenticatedUserAndModelID(t *testing.T) {
 			path: "/api/v1/growth/models/99/action-plan",
 			app:  &fakeApplication{actionPlan: GrowthActionPlan{ModelID: 99, Phases: []GrowthActionPhase{{Name: "0–30 天"}}}},
 			want: `"phases"`,
+		},
+		{
+			name: "inputs",
+			path: "/api/v1/growth/models/99/inputs",
+			app:  &fakeApplication{inputs: GrowthInputs{ModelID: 99, CompletenessPercent: 100, Fields: []GrowthInputField{{Key: "deal_rate"}}}},
+			want: `"fields"`,
 		},
 	}
 

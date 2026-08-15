@@ -181,4 +181,18 @@ describe("growthApi", () => {
     );
     expect(plan.phases).toHaveLength(1);
   });
+
+  it("loads input provenance and completeness", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ model_id: 99, completeness_percent: 100, fields: [] }), { status: 200 })
+    );
+
+    const inputs = await growthApi.modelInputs(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/99/inputs",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(inputs.completeness_percent).toBe(100);
+  });
 });

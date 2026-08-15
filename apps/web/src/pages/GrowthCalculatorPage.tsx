@@ -9,6 +9,7 @@ import {
   type GrowthActionPlan,
   type GrowthDraft,
   type GrowthForecast,
+  type GrowthInputs,
   type GrowthModel,
   type GrowthRecommendations,
   type GrowthRisks,
@@ -40,6 +41,12 @@ function formatNumber(value: number) {
 
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
+}
+
+function inputFieldValue(field: GrowthInputs["fields"][number]) {
+  if (field.key.endsWith("rate")) return formatPercent(field.value);
+  if (field.key === "monthly_visits") return formatNumber(field.value);
+  return formatCurrency(field.value);
 }
 
 function statsForModel(model: GrowthModel) {
@@ -116,6 +123,7 @@ function GrowthCalculatorPage() {
   const [recommendationView, setRecommendationView] = useState<GrowthRecommendations | null>(null);
   const [riskView, setRiskView] = useState<GrowthRisks | null>(null);
   const [actionPlanView, setActionPlanView] = useState<GrowthActionPlan | null>(null);
+  const [inputsView, setInputsView] = useState<GrowthInputs | null>(null);
   const [loadError, setLoadError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -154,14 +162,16 @@ function GrowthCalculatorPage() {
           setRecommendationView(null);
           setRiskView(null);
           setActionPlanView(null);
+          setInputsView(null);
           return;
         }
-        const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload, actionPlanPayload] = await Promise.all([
+        const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload, actionPlanPayload, inputsPayload] = await Promise.all([
           growthApi.modelScenarios(model.id).catch(() => null),
           growthApi.modelForecast(model.id).catch(() => null),
           growthApi.modelRecommendations(model.id).catch(() => null),
           growthApi.modelRisks(model.id).catch(() => null),
-          growthApi.modelActionPlan(model.id).catch(() => null)
+          growthApi.modelActionPlan(model.id).catch(() => null),
+          growthApi.modelInputs(model.id).catch(() => null)
         ]);
         if (!active) return;
         setScenarioView(scenariosPayload);
@@ -169,6 +179,7 @@ function GrowthCalculatorPage() {
         setRecommendationView(recommendationsPayload);
         setRiskView(risksPayload);
         setActionPlanView(actionPlanPayload);
+        setInputsView(inputsPayload);
         const snapshotPayload = await growthApi.listSnapshots(model.id).catch(() => ({ snapshots: [] }));
         if (!active) return;
         setSnapshots(snapshotPayload.snapshots);
@@ -180,6 +191,7 @@ function GrowthCalculatorPage() {
         setRecommendationView(null);
         setRiskView(null);
         setActionPlanView(null);
+        setInputsView(null);
         setSnapshots([]);
         setLoadError(apiErrorMessage(error, "暂时无法读取测算模型"));
       } finally {
@@ -204,18 +216,20 @@ function GrowthCalculatorPage() {
   const modelName = latestModel?.name ?? "暂无测算模型";
 
   async function loadModelViews(model: GrowthModel) {
-    const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload, actionPlanPayload] = await Promise.all([
+    const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload, actionPlanPayload, inputsPayload] = await Promise.all([
       growthApi.modelScenarios(model.id).catch(() => null),
       growthApi.modelForecast(model.id).catch(() => null),
       growthApi.modelRecommendations(model.id).catch(() => null),
       growthApi.modelRisks(model.id).catch(() => null),
-      growthApi.modelActionPlan(model.id).catch(() => null)
+      growthApi.modelActionPlan(model.id).catch(() => null),
+      growthApi.modelInputs(model.id).catch(() => null)
     ]);
     setScenarioView(scenariosPayload);
     setForecastView(forecastPayload);
     setRecommendationView(recommendationsPayload);
     setRiskView(risksPayload);
     setActionPlanView(actionPlanPayload);
+    setInputsView(inputsPayload);
   }
 
   async function startDraft() {
@@ -301,6 +315,7 @@ function GrowthCalculatorPage() {
     setRecommendationView(snapshot.recommendations);
     setRiskView(null);
     setActionPlanView(null);
+    setInputsView(null);
     setTaskSyncMessage("");
     setTaskSyncError("");
   }
@@ -530,6 +545,30 @@ function GrowthCalculatorPage() {
               </div>
             ) : null}
           </form>
+        </section>
+
+        <section className="growth-input-trace-section" aria-label="输入来源与可信度">
+          <div className="module-section-head">
+            <div>
+              <h2>输入来源与可信度</h2>
+              <p>来源和可信度独立于预测结果，避免把规则提取误读为预测准确率。</p>
+            </div>
+            {inputsView ? <strong className="growth-input-completeness">信息完整度 {inputsView.completeness_percent}%</strong> : null}
+          </div>
+          {inputsView?.fields?.length ? (
+            <div className="growth-input-trace-grid">
+              {inputsView.fields.map((field) => (
+                <article key={field.key}>
+                  <header><strong>{field.label}</strong><span>{inputFieldValue(field)} / {field.unit}</span></header>
+                  <dl>
+                    <div><dt>来源</dt><dd>{field.source}</dd></div>
+                    <div><dt>可信度</dt><dd>{field.confidence}</dd></div>
+                    <div><dt>用户确认</dt><dd>{field.confirmed_by_user ? "是" : "否"}</dd></div>
+                  </dl>
+                </article>
+              ))}
+            </div>
+          ) : <p className="module-empty-state" role="status">暂无输入来源信息</p>}
         </section>
 
         <section className="growth-workbench">

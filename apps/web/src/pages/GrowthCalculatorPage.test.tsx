@@ -250,6 +250,15 @@ describe("GrowthCalculatorPage", () => {
           generated_at: "2026-06-30T08:30:00Z"
         }), { status: 200 }));
       }
+      if (url === "/api/v1/growth/models/9/inputs") {
+        return Promise.resolve(new Response(JSON.stringify({
+          model_id: 9,
+          model_name: "商业沙盘标准模型",
+          completeness_percent: 100,
+          fields: [{ key: "deal_rate", label: "成交转化率", value: 0.16, unit: "%", source: "测算参数（规则提取）", confidence: "待校准", confirmed_by_user: false }],
+          generated_at: "2026-06-30T08:30:00Z"
+        }), { status: 200 }));
+      }
       if (url === "/api/v1/tasks/generate" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
           draft: {
@@ -277,6 +286,8 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.getByText("把 CRM 跟进延迟压缩到 24 小时内")).toBeInTheDocument();
     expect(screen.getByText("整体风险：中风险")).toBeInTheDocument();
     expect(screen.getByText("验证首个高意向获客渠道")).toBeInTheDocument();
+    expect(screen.getByText("信息完整度 100%")).toBeInTheDocument();
+    expect(screen.getByText("测算参数（规则提取）")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "生成任务草稿" }));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(

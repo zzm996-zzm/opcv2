@@ -583,6 +583,28 @@ func (s *Service) ModelActionPlan(ctx context.Context, userID, id int64) (Growth
 	return GrowthActionPlan{ModelID: model.ID, ModelName: model.Name, Phases: phases, GeneratedAt: model.UpdatedAt}, nil
 }
 
+func (s *Service) ModelInputs(ctx context.Context, userID, id int64) (GrowthInputs, error) {
+	model, err := s.GetModel(ctx, userID, id)
+	if err != nil {
+		return GrowthInputs{}, err
+	}
+	assumptions := model.Assumptions
+	fields := []GrowthInputField{
+		{Key: "monthly_visits", Label: "当前月访问量", Value: float64(assumptions.MonthlyVisits), Unit: "次/月"},
+		{Key: "lead_rate", Label: "线索转化率", Value: assumptions.LeadRate, Unit: "%"},
+		{Key: "deal_rate", Label: "成交转化率", Value: assumptions.DealRate, Unit: "%"},
+		{Key: "average_order", Label: "平均客单价", Value: float64(assumptions.AverageOrder), Unit: "元"},
+		{Key: "acquisition_cost", Label: "单条线索获客成本", Value: float64(assumptions.AcquisitionCost), Unit: "元"},
+		{Key: "delivery_cost", Label: "每月交付成本", Value: float64(assumptions.DeliveryCost), Unit: "元/月"},
+	}
+	for index := range fields {
+		fields[index].Source = "测算参数（规则提取）"
+		fields[index].Confidence = "待校准"
+		fields[index].ConfirmedByUser = false
+	}
+	return GrowthInputs{ModelID: model.ID, ModelName: model.Name, CompletenessPercent: 100, Fields: fields, GeneratedAt: model.UpdatedAt}, nil
+}
+
 func calculate(input Assumptions) Result {
 	leads := int(math.Round(float64(input.MonthlyVisits) * input.LeadRate))
 	deals := int(math.Round(float64(leads) * input.DealRate))

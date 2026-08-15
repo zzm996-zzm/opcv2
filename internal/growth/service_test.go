@@ -274,6 +274,22 @@ func TestServiceBuildsNinetyDayActionPlan(t *testing.T) {
 	}
 }
 
+func TestServiceReportsInputSourcesAndCompleteness(t *testing.T) {
+	model := Model{
+		ID: 99, UserID: 42, Name: "SaaS 增长模型",
+		Assumptions: Assumptions{MonthlyVisits: 24000, LeadRate: 0.068, DealRate: 0.14, AverageOrder: 820, AcquisitionCost: 42, DeliveryCost: 51000},
+	}
+	service := NewService(&fakeRepository{model: model})
+
+	inputs, err := service.ModelInputs(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ModelInputs() error = %v", err)
+	}
+	if inputs.CompletenessPercent != 100 || len(inputs.Fields) != 6 || inputs.Fields[0].Source == "" || inputs.Fields[0].Confidence == "" || inputs.Fields[0].ConfirmedByUser {
+		t.Fatalf("inputs = %+v", inputs)
+	}
+}
+
 func TestServiceRejectsInvalidComparisonSelection(t *testing.T) {
 	service := NewService(&fakeRepository{})
 	for _, ids := range [][]int64{{99}, {99, 99}, {99, 100, 101, 102, 103}} {

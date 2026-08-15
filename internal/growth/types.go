@@ -248,3 +248,21 @@ type GrowthActionPlan struct {
 	Phases      []GrowthActionPhase `json:"phases"`
 	GeneratedAt time.Time           `json:"generated_at"`
 }
+
+type GrowthInputField struct {
+	Key             string  `json:"key"`
+	Label           string  `json:"label"`
+	Value           float64 `json:"value"`
+	Unit            string  `json:"unit"`
+	Source          string  `json:"source"`
+	Confidence      string  `json:"confidence"`
+	ConfirmedByUser bool    `json:"confirmed_by_user"`
+}
+
+type GrowthInputs struct {
+	ModelID             int64              `json:"model_id"`
+	ModelName           string             `json:"model_name"`
+	CompletenessPercent int                `json:"completeness_percent"`
+	Fields              []GrowthInputField `json:"fields"`
+	GeneratedAt         time.Time          `json:"generated_at"`
+}

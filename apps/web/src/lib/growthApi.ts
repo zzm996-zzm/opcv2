@@ -131,6 +131,24 @@ export type GrowthActionPlan = {
   generated_at: string;
 };
 
+export type GrowthInputField = {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+  source: string;
+  confidence: string;
+  confirmed_by_user: boolean;
+};
+
+export type GrowthInputs = {
+  model_id: number;
+  model_name: string;
+  completeness_percent: number;
+  fields: GrowthInputField[];
+  generated_at: string;
+};
+
 export type GrowthQuestion = {
   key: keyof GrowthAssumptions;
   label: string;
@@ -286,6 +304,12 @@ export const growthApi = {
 
   modelActionPlan(id: number) {
     return apiRequest<GrowthActionPlan>(`/api/v1/growth/models/${id}/action-plan`, {
+      method: "GET"
+    });
+  },
+
+  modelInputs(id: number) {
+    return apiRequest<GrowthInputs>(`/api/v1/growth/models/${id}/inputs`, {
       method: "GET"
     });
   }

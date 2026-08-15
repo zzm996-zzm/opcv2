@@ -54,6 +54,10 @@ type actionPlanApplication interface {
 	ModelActionPlan(context.Context, int64, int64) (GrowthActionPlan, error)
 }
 
+type inputsApplication interface {
+	ModelInputs(context.Context, int64, int64) (GrowthInputs, error)
+}
+
 func NewHTTPHandler(app Application) *HTTPHandler {
 	return &HTTPHandler{app: app}
 }
@@ -72,6 +76,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/growth/models/:id/recommendations", h.modelRecommendations)
 	router.GET("/growth/models/:id/risks", h.modelRisks)
 	router.GET("/growth/models/:id/action-plan", h.modelActionPlan)
+	router.GET("/growth/models/:id/inputs", h.modelInputs)
 	router.GET("/growth/models/:id/snapshots", h.listSnapshots)
 	router.POST("/growth/models/:id/recalculate", h.recalculateModel)
 	router.POST("/growth/models/:id/export", h.exportModel)
@@ -299,6 +304,25 @@ func (h *HTTPHandler) modelActionPlan(c *gin.Context) {
 		plan.Phases[index].Items = httpapi.EnsureSlice(plan.Phases[index].Items)
 	}
 	c.JSON(http.StatusOK, plan)
+}
+
+func (h *HTTPHandler) modelInputs(c *gin.Context) {
+	id, ok := modelIDParam(c)
+	if !ok {
+		return
+	}
+	app, ok := h.app.(inputsApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	inputs, err := app.ModelInputs(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	inputs.Fields = httpapi.EnsureSlice(inputs.Fields)
+	c.JSON(http.StatusOK, inputs)
 }
 
 func (h *HTTPHandler) listSnapshots(c *gin.Context) {

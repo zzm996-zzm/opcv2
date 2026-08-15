@@ -1781,6 +1781,24 @@ Response shape:
 }
 ```
 
+### Get Model Inputs
+
+`GET /api/v1/growth/models/{id}/inputs`
+
+Returns the input fields used by the current model with their unit, source label, confidence label, and whether the value was explicitly confirmed by the user. MVP values are labeled `测算参数（规则提取）` and `待校准`; this is provenance metadata, not a forecast accuracy score.
+
+Response shape:
+
+```json
+{
+  "model_id": 99,
+  "model_name": "标准方案",
+  "completeness_percent": 100,
+  "fields": [],
+  "generated_at": "2026-08-15T08:30:00Z"
+}
+```
+
 ### List Model Snapshots
 
 `GET /api/v1/growth/models/{id}/snapshots?limit=20`
