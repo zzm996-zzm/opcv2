@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
@@ -16,6 +16,13 @@ type ManualTaskForm = {
   tags: string;
   tools: string;
   learning: string;
+};
+
+type DraftSubtask = {
+  key: string;
+  title: string;
+  assignee: string;
+  dueAt: string;
 };
 
 function emptyManualTask(assignee = ""): ManualTaskForm {
@@ -39,6 +46,13 @@ function parseList(value: string) {
     .filter(Boolean)));
 }
 
+function newIdempotencyKey() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `manual-task-${crypto.randomUUID()}`;
+  }
+  return `manual-task-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function TaskCreatePage() {
   const navigate = useNavigate();
   const { user } = useAuthSession();
@@ -48,6 +62,12 @@ function TaskCreatePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [subtasks, setSubtasks] = useState<DraftSubtask[]>([]);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const idempotencyKeyRef = useRef(newIdempotencyKey());
+  const createdTaskRef = useRef<{ id: number; title: string } | null>(null);
+  const savedSubtaskKeysRef = useRef<Set<string>>(new Set());
+  const savedAttachmentKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let active = true;
@@ -67,6 +87,42 @@ function TaskCreatePage() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function updateSubtask(index: number, key: Exclude<keyof DraftSubtask, "key">, value: string) {
+    setSubtasks((current) => current.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      return { ...item, [key]: value };
+    }));
+  }
+
+  function addSubtask() {
+    setSubtasks((current) => [...current, { key: newIdempotencyKey(), title: "", assignee: defaultAssignee, dueAt: "" }]);
+  }
+
+  function removeSubtask(index: number) {
+    setSubtasks((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  const isDirty = Boolean(
+    form.title.trim() || form.description.trim() || form.project.trim() || form.dueAt ||
+    form.tags.trim() || form.tools.trim() || form.learning.trim() || subtasks.length || attachments.length
+  );
+
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  function confirmLeave(event: MouseEvent<HTMLAnchorElement>) {
+    if (isDirty && !window.confirm("还有未保存内容，确定离开吗？")) {
+      event.preventDefault();
+    }
+  }
+
   async function createTask(continueAdding: boolean) {
     if (saving) return;
     const title = form.title.trim();
@@ -80,7 +136,7 @@ function TaskCreatePage() {
     setError("");
     setMessage("");
     try {
-      const task = await tasksApi.createTask({
+      const task = createdTaskRef.current ?? await tasksApi.createTask({
         title,
         description: form.description.trim(),
         project,
@@ -89,13 +145,49 @@ function TaskCreatePage() {
         dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : undefined,
         tags: parseList(form.tags),
         tools: parseList(form.tools),
-        learning: form.learning.trim()
+        learning: form.learning.trim(),
+        idempotencyKey: idempotencyKeyRef.current
       });
+      createdTaskRef.current = { id: task.id, title: task.title };
+      const failures: string[] = [];
+      for (const subtask of subtasks) {
+        if (!subtask.title.trim() || savedSubtaskKeysRef.current.has(subtask.key)) continue;
+        try {
+          await tasksApi.createSubtask(task.id, {
+            title: subtask.title.trim(),
+            assignee: subtask.assignee.trim() || undefined,
+            dueAt: subtask.dueAt ? new Date(subtask.dueAt).toISOString() : undefined
+          });
+          savedSubtaskKeysRef.current.add(subtask.key);
+        } catch {
+          failures.push(`子任务“${subtask.title.trim()}”`);
+        }
+      }
+      for (const file of attachments) {
+        const fileKey = `${file.name}:${file.size}:${file.lastModified}`;
+        if (savedAttachmentKeysRef.current.has(fileKey)) continue;
+        try {
+          await tasksApi.uploadTaskAttachment(task.id, file);
+          savedAttachmentKeysRef.current.add(fileKey);
+        } catch {
+          failures.push(`附件“${file.name}”`);
+        }
+      }
+      if (failures.length > 0) {
+        setError(`主任务已创建，但${failures.join("、")}保存失败。请修正后再次保存，已成功的内容不会重复创建。`);
+        return;
+      }
       if (continueAdding) {
         setForm(emptyManualTask(defaultAssignee));
+        setSubtasks([]);
+        setAttachments([]);
+        idempotencyKeyRef.current = newIdempotencyKey();
+        createdTaskRef.current = null;
+        savedSubtaskKeysRef.current.clear();
+        savedAttachmentKeysRef.current.clear();
         setMessage(`已创建任务：${task.title}`);
       } else {
-        navigate("/tasks");
+        navigate(`/tasks?task_id=${task.id}`);
       }
     } catch (requestError) {
       setError(apiErrorMessage(requestError, "暂时无法创建任务"));
@@ -108,7 +200,7 @@ function TaskCreatePage() {
     <V4PageShell>
       <section className="module-page task-create-page" aria-label="新建任务">
         <div className="task-create-heading">
-          <Link aria-label="返回任务中心" to="/tasks">‹</Link>
+          <Link aria-label="返回任务中心" onClick={confirmLeave} to="/tasks">‹</Link>
           <div>
             <h1>新建任务</h1>
             <p>明确任务目标、执行时间和关联项目</p>
@@ -178,9 +270,35 @@ function TaskCreatePage() {
               </label>
             </div>
           </section>
+          <section>
+            <header>
+              <h2>子任务清单</h2>
+              <button onClick={addSubtask} type="button">添加子任务</button>
+            </header>
+            {subtasks.length === 0 ? <p className="form-hint">可选。保存任务后会按顺序创建，失败项可单独重试。</p> : null}
+            {subtasks.map((subtask, index) => {
+              const saved = savedSubtaskKeysRef.current.has(subtask.key);
+              return (
+                <div className="task-create-subtask-row" key={subtask.key}>
+                  <input aria-label={`子任务${index + 1}`} disabled={saved} onChange={(event) => updateSubtask(index, "title", event.target.value)} placeholder="输入子任务标题" value={subtask.title} />
+                  <input aria-label={`子任务${index + 1}负责人`} disabled={saved} onChange={(event) => updateSubtask(index, "assignee", event.target.value)} placeholder="负责人" value={subtask.assignee} />
+                  <input aria-label={`子任务${index + 1}截止时间`} disabled={saved} onChange={(event) => updateSubtask(index, "dueAt", event.target.value)} type="datetime-local" value={subtask.dueAt} />
+                  <button aria-label={`删除子任务${index + 1}`} disabled={saved} onClick={() => removeSubtask(index)} type="button">{saved ? "已保存" : "删除"}</button>
+                </div>
+              );
+            })}
+          </section>
+          <section>
+            <header><h2>附件</h2></header>
+            <label className="task-create-attachment-picker">
+              <span>选择附件（最多 10 个，单个不超过 10 MB）</span>
+              <input aria-label="选择附件" multiple onChange={(event) => setAttachments(Array.from(event.target.files ?? []).slice(0, 10))} type="file" />
+            </label>
+            {attachments.length > 0 ? <ul className="task-create-attachment-list">{attachments.map((file) => <li key={`${file.name}-${file.size}-${file.lastModified}`}>{file.name}</li>)}</ul> : null}
+          </section>
           {error ? <p className="form-error" role="alert">{error}</p> : null}
           <footer>
-            <Link to="/tasks">取消</Link>
+            <Link onClick={confirmLeave} to="/tasks">取消</Link>
             <button disabled={saving} onClick={() => void createTask(true)} type="button">保存并继续添加</button>
             <button className="primary" disabled={saving} type="submit">{saving ? "保存中..." : "保存任务"}</button>
           </footer>

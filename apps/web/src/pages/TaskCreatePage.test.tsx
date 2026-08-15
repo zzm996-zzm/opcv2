@@ -86,4 +86,64 @@ describe("TaskCreatePage", () => {
     expect(screen.getByLabelText("任务标题")).toHaveValue("");
     expect(screen.getByLabelText("负责人")).toHaveValue("张晨");
   });
+
+  it("creates drafted subtasks and attachments after the idempotent parent task", async () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2026-07-11T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks/projects") {
+        return Promise.resolve(new Response(JSON.stringify({ projects: [] }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 103,
+          user_id: 7,
+          title: "完成首轮客户访谈",
+          project: "客户验证",
+          status: "todo",
+          priority: "high",
+          tools: [],
+          learning: "",
+          progress: 0,
+          version: 1,
+          created_at: "2026-07-10T08:00:00Z",
+          updated_at: "2026-07-10T08:00:00Z"
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/103/subtasks" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ id: 501, task_id: 103, title: "整理访谈记录" }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/103/attachments" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ id: 601, task_id: 103, name: "brief.txt" }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/tasks/new"]}>
+        <TaskCreatePage />
+      </MemoryRouter>
+    );
+    fireEvent.change(screen.getByLabelText("任务标题"), { target: { value: "完成首轮客户访谈" } });
+    fireEvent.change(screen.getByLabelText("所属项目"), { target: { value: "客户验证" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加子任务" }));
+    fireEvent.change(screen.getByLabelText("子任务1"), { target: { value: "整理访谈记录" } });
+    fireEvent.change(screen.getByLabelText("选择附件"), { target: { files: [new File(["notes"], "brief.txt", { type: "text/plain" })] } });
+    fireEvent.click(screen.getByRole("button", { name: "保存任务" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/tasks/103/subtasks",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ title: "整理访谈记录", assignee: "张晨" }) })
+    ));
+    const attachmentCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/tasks/103/attachments");
+    expect(attachmentCall?.[1]?.body).toBeInstanceOf(FormData);
+    expect((attachmentCall?.[1]?.body as FormData).get("file")).toBeInstanceOf(File);
+    const parentCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/tasks");
+    expect(parentCall?.[1]?.headers).toEqual(expect.objectContaining({ "Idempotency-Key": expect.stringMatching(/^manual-task-/) }));
+  });
 });

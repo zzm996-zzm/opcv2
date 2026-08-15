@@ -15559,6 +15559,93 @@ a:active {
   font-weight: 900;
 }
 
+.task-create-form > section > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-create-form > section > header button {
+  min-height: 34px;
+  padding: 0 12px;
+  color: #3156a4;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.16);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.task-create-subtask-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr) minmax(190px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.task-create-subtask-row input,
+.task-create-attachment-picker {
+  min-height: 42px;
+  padding: 9px 12px;
+  color: #10265f;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.task-create-subtask-row button {
+  min-height: 42px;
+  padding: 0 12px;
+  color: #b33443;
+  background: #fff;
+  border: 1px solid rgba(179, 52, 67, 0.2);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.task-create-subtask-row button:disabled {
+  color: #7182a3;
+  background: #f2f5fa;
+  border-color: rgba(31, 68, 140, 0.1);
+  cursor: default;
+}
+
+.task-create-attachment-picker {
+  display: grid;
+  gap: 8px;
+  border-style: dashed;
+  cursor: pointer;
+}
+
+.task-create-attachment-picker input {
+  font: inherit;
+  font-size: 12px;
+}
+
+.task-create-attachment-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 0 18px;
+  color: #526b9a;
+  font-size: 12px;
+}
+
+.task-create-form .form-hint {
+  margin: 0;
+  color: #7485aa;
+  font-size: 12px;
+}
+
 .task-create-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -36765,6 +36852,14 @@ a:active {
 
   .task-create-grid label.wide {
     grid-column: 1;
+  }
+
+  .task-create-subtask-row {
+    grid-template-columns: 1fr;
+  }
+
+  .task-create-subtask-row button {
+    width: 100%;
   }
 
   .task-create-form > section {
