@@ -207,3 +207,21 @@ type GrowthRecommendations struct {
 	ActionItems []string   `json:"action_items"`
 	GeneratedAt time.Time  `json:"generated_at"`
 }
+
+type GrowthRisk struct {
+	Key          string `json:"key"`
+	Name         string `json:"name"`
+	Level        string `json:"level"`
+	CurrentValue string `json:"current_value"`
+	Threshold    string `json:"threshold"`
+	Reason       string `json:"reason"`
+	Suggestion   string `json:"suggestion"`
+}
+
+type GrowthRisks struct {
+	ModelID      int64        `json:"model_id"`
+	ModelName    string       `json:"model_name"`
+	OverallLevel string       `json:"overall_level"`
+	Risks        []GrowthRisk `json:"risks"`
+	GeneratedAt  time.Time    `json:"generated_at"`
+}

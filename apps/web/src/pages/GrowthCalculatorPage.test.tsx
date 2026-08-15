@@ -233,6 +233,15 @@ describe("GrowthCalculatorPage", () => {
           created_at: "2026-06-20T08:00:00Z"
         }] }), { status: 200 }));
       }
+      if (url === "/api/v1/growth/models/9/risks") {
+        return Promise.resolve(new Response(JSON.stringify({
+          model_id: 9,
+          model_name: "商业沙盘标准模型",
+          overall_level: "medium",
+          risks: [{ key: "deal_rate", name: "成交转化率", level: "medium", current_value: "16.0%", threshold: "低于 15% 需关注", reason: "转化效率需要持续观察", suggestion: "继续优化跟进", }],
+          generated_at: "2026-06-30T08:30:00Z"
+        }), { status: 200 }));
+      }
       if (url === "/api/v1/tasks/generate" && init?.method === "POST") {
         return Promise.resolve(new Response(JSON.stringify({
           draft: {
@@ -258,6 +267,7 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.getByText("案例页和行业内容")).toBeInTheDocument();
     expect(screen.getByText("先优化高意向成交")).toBeInTheDocument();
     expect(screen.getByText("把 CRM 跟进延迟压缩到 24 小时内")).toBeInTheDocument();
+    expect(screen.getByText("整体风险：中风险")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "生成任务草稿" }));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(

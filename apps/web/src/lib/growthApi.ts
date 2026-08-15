@@ -90,6 +90,24 @@ export type GrowthRecommendations = {
   generated_at: string;
 };
 
+export type GrowthRisk = {
+  key: string;
+  name: string;
+  level: "low" | "medium" | "high";
+  current_value: string;
+  threshold: string;
+  reason: string;
+  suggestion: string;
+};
+
+export type GrowthRisks = {
+  model_id: number;
+  model_name: string;
+  overall_level: "low" | "medium" | "high";
+  risks: GrowthRisk[];
+  generated_at: string;
+};
+
 export type GrowthQuestion = {
   key: keyof GrowthAssumptions;
   label: string;
@@ -233,6 +251,12 @@ export const growthApi = {
 
   modelRecommendations(id: number) {
     return apiRequest<GrowthRecommendations>(`/api/v1/growth/models/${id}/recommendations`, {
+      method: "GET"
+    });
+  },
+
+  modelRisks(id: number) {
+    return apiRequest<GrowthRisks>(`/api/v1/growth/models/${id}/risks`, {
       method: "GET"
     });
   }

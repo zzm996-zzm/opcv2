@@ -153,4 +153,18 @@ describe("growthApi", () => {
     );
     expect(comparison.models).toHaveLength(2);
   });
+
+  it("loads rule-based model risks", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ model_id: 99, overall_level: "medium", risks: [] }), { status: 200 })
+    );
+
+    const risks = await growthApi.modelRisks(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/99/risks",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(risks.overall_level).toBe("medium");
+  });
 });

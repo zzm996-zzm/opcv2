@@ -505,6 +505,42 @@ func (s *Service) ModelRecommendations(ctx context.Context, userID, id int64) (G
 	}, nil
 }
 
+func (s *Service) ModelRisks(ctx context.Context, userID, id int64) (GrowthRisks, error) {
+	model, err := s.GetModel(ctx, userID, id)
+	if err != nil {
+		return GrowthRisks{}, err
+	}
+	risks := []GrowthRisk{
+		{
+			Key: "deal_rate", Name: "成交转化率", Level: riskLevel(model.Assumptions.DealRate, 0.08, 0.15, true),
+			CurrentValue: formatRate(model.Assumptions.DealRate), Threshold: "低于 8% 为高风险，低于 15% 需关注",
+			Reason: "成交转化率决定线索能否转化为真实收入。", Suggestion: "补齐顾问话术、案例证明和 24 小时内跟进节奏。",
+		},
+		{
+			Key: "acquisition_cost", Name: "获客成本占收入", Level: acquisitionRiskLevel(model.Assumptions),
+			CurrentValue: formatRate(acquisitionShare(model.Assumptions)), Threshold: "超过 30% 为高风险，超过 15% 需关注",
+			Reason: "获客投入过高会压缩每笔成交的可交付利润。", Suggestion: "先优化高意向渠道和线索筛选，再扩大投放预算。",
+		},
+		{
+			Key: "net_margin", Name: "净利润率", Level: riskLevel(model.Result.NetMargin, 0, 0.2, true),
+			CurrentValue: formatRate(model.Result.NetMargin), Threshold: "低于 0% 为高风险，低于 20% 需关注",
+			Reason: "利润率反映增长是否有足够的成本缓冲。", Suggestion: "核对交付成本和投放预算，优先提升成交质量。",
+		},
+		{
+			Key: "payback_days", Name: "回本周期", Level: paybackRiskLevel(model.Result.PaybackDays),
+			CurrentValue: fmt.Sprintf("%d 天", model.Result.PaybackDays), Threshold: "超过 90 天为高风险，超过 45 天需关注",
+			Reason: "回本周期过长会放大现金流和投放试错压力。", Suggestion: "降低单条线索成本，或先用小预算验证转化率。",
+		},
+	}
+	overall := "low"
+	for _, risk := range risks {
+		if riskRank(risk.Level) > riskRank(overall) {
+			overall = risk.Level
+		}
+	}
+	return GrowthRisks{ModelID: model.ID, ModelName: model.Name, OverallLevel: overall, Risks: risks, GeneratedAt: model.UpdatedAt}, nil
+}
+
 func calculate(input Assumptions) Result {
 	leads := int(math.Round(float64(input.MonthlyVisits) * input.LeadRate))
 	deals := int(math.Round(float64(leads) * input.DealRate))
@@ -568,4 +604,66 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func formatRate(value float64) string {
+	return fmt.Sprintf("%.1f%%", value*100)
+}
+
+func acquisitionShare(input Assumptions) float64 {
+	if input.AverageOrder <= 0 || input.DealRate <= 0 {
+		return 1
+	}
+	return float64(input.AcquisitionCost) / (float64(input.AverageOrder) * input.DealRate)
+}
+
+func acquisitionRiskLevel(input Assumptions) string {
+	share := acquisitionShare(input)
+	if share > 0.3 {
+		return "high"
+	}
+	if share > 0.15 {
+		return "medium"
+	}
+	return "low"
+}
+
+func paybackRiskLevel(days int) string {
+	if days > 90 {
+		return "high"
+	}
+	if days > 45 {
+		return "medium"
+	}
+	return "low"
+}
+
+func riskLevel(value, highThreshold, mediumThreshold float64, lowerIsRisk bool) string {
+	if lowerIsRisk {
+		if value < highThreshold {
+			return "high"
+		}
+		if value < mediumThreshold {
+			return "medium"
+		}
+		return "low"
+	}
+	if value > highThreshold {
+		return "high"
+	}
+	if value > mediumThreshold {
+		return "medium"
+	}
+	return "low"
+}
+
+func riskRank(level string) int {
+	switch level {
+	case "high":
+		return 3
+	case "medium":
+		return 2
+	default:
+		return 1
+	}
 }

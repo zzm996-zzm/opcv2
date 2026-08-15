@@ -21,6 +21,7 @@ type fakeApplication struct {
 	scenarios       GrowthScenarios
 	forecast        GrowthForecast
 	recommendations GrowthRecommendations
+	risks           GrowthRisks
 	err             error
 	draft           Draft
 	calculation     DraftCalculation
@@ -121,6 +122,12 @@ func (a *fakeApplication) ModelRecommendations(_ context.Context, userID, id int
 	a.userID = userID
 	a.modelID = id
 	return a.recommendations, a.err
+}
+
+func (a *fakeApplication) ModelRisks(_ context.Context, userID, id int64) (GrowthRisks, error) {
+	a.userID = userID
+	a.modelID = id
+	return a.risks, a.err
 }
 
 func growthTestRouter(app Application) *gin.Engine {
@@ -427,6 +434,12 @@ func TestDerivedGrowthEndpointsUseAuthenticatedUserAndModelID(t *testing.T) {
 			path: "/api/v1/growth/models/99/recommendations",
 			app:  &fakeApplication{recommendations: GrowthRecommendations{ModelID: 99, ActionItems: []string{"优先优化成交率"}}},
 			want: `"action_items"`,
+		},
+		{
+			name: "risks",
+			path: "/api/v1/growth/models/99/risks",
+			app:  &fakeApplication{risks: GrowthRisks{ModelID: 99, OverallLevel: "medium", Risks: []GrowthRisk{{Name: "净利润率"}}}},
+			want: `"risks"`,
 		},
 	}
 

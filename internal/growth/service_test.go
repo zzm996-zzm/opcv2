@@ -234,6 +234,28 @@ func TestServiceComparesOwnedModels(t *testing.T) {
 	}
 }
 
+func TestServiceDerivesRuleBasedRisks(t *testing.T) {
+	model := Model{
+		ID: 99, UserID: 42, Name: "高风险模型",
+		Assumptions: Assumptions{MonthlyVisits: 10000, LeadRate: 0.05, DealRate: 0.06, AverageOrder: 1000, AcquisitionCost: 250, DeliveryCost: 20000},
+		Result:      Result{MonthlyRevenue: 30000, PaybackDays: 120, NetMargin: -0.2},
+	}
+	service := NewService(&fakeRepository{model: model})
+
+	risks, err := service.ModelRisks(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ModelRisks() error = %v", err)
+	}
+	if risks.OverallLevel != "high" || len(risks.Risks) != 4 {
+		t.Fatalf("risks = %+v", risks)
+	}
+	for _, risk := range risks.Risks {
+		if risk.Level != "high" || risk.CurrentValue == "" || risk.Threshold == "" || risk.Suggestion == "" {
+			t.Fatalf("risk = %+v", risk)
+		}
+	}
+}
+
 func TestServiceRejectsInvalidComparisonSelection(t *testing.T) {
 	service := NewService(&fakeRepository{})
 	for _, ids := range [][]int64{{99}, {99, 99}, {99, 100, 101, 102, 103}} {

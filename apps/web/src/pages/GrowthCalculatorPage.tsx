@@ -10,6 +10,7 @@ import {
   type GrowthForecast,
   type GrowthModel,
   type GrowthRecommendations,
+  type GrowthRisks,
   type GrowthScenarios,
   type GrowthSnapshot
 } from "../lib/growthApi";
@@ -101,6 +102,10 @@ function modelIDFromQuery(value: string | null) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+function riskLevelLabel(level: "low" | "medium" | "high") {
+  return level === "high" ? "高风险" : level === "medium" ? "中风险" : "低风险";
+}
+
 function GrowthCalculatorPage() {
   const [searchParams] = useSearchParams();
   const requestedModelID = modelIDFromQuery(searchParams.get("model_id"));
@@ -108,6 +113,7 @@ function GrowthCalculatorPage() {
   const [scenarioView, setScenarioView] = useState<GrowthScenarios | null>(null);
   const [forecastView, setForecastView] = useState<GrowthForecast | null>(null);
   const [recommendationView, setRecommendationView] = useState<GrowthRecommendations | null>(null);
+  const [riskView, setRiskView] = useState<GrowthRisks | null>(null);
   const [loadError, setLoadError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -144,17 +150,20 @@ function GrowthCalculatorPage() {
           setScenarioView(null);
           setForecastView(null);
           setRecommendationView(null);
+          setRiskView(null);
           return;
         }
-        const [scenariosPayload, forecastPayload, recommendationsPayload] = await Promise.all([
+        const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload] = await Promise.all([
           growthApi.modelScenarios(model.id).catch(() => null),
           growthApi.modelForecast(model.id).catch(() => null),
-          growthApi.modelRecommendations(model.id).catch(() => null)
+          growthApi.modelRecommendations(model.id).catch(() => null),
+          growthApi.modelRisks(model.id).catch(() => null)
         ]);
         if (!active) return;
         setScenarioView(scenariosPayload);
         setForecastView(forecastPayload);
         setRecommendationView(recommendationsPayload);
+        setRiskView(risksPayload);
         const snapshotPayload = await growthApi.listSnapshots(model.id).catch(() => ({ snapshots: [] }));
         if (!active) return;
         setSnapshots(snapshotPayload.snapshots);
@@ -164,6 +173,7 @@ function GrowthCalculatorPage() {
         setScenarioView(null);
         setForecastView(null);
         setRecommendationView(null);
+        setRiskView(null);
         setSnapshots([]);
         setLoadError(apiErrorMessage(error, "暂时无法读取测算模型"));
       } finally {
@@ -188,14 +198,16 @@ function GrowthCalculatorPage() {
   const modelName = latestModel?.name ?? "暂无测算模型";
 
   async function loadModelViews(model: GrowthModel) {
-    const [scenariosPayload, forecastPayload, recommendationsPayload] = await Promise.all([
+    const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload] = await Promise.all([
       growthApi.modelScenarios(model.id).catch(() => null),
       growthApi.modelForecast(model.id).catch(() => null),
-      growthApi.modelRecommendations(model.id).catch(() => null)
+      growthApi.modelRecommendations(model.id).catch(() => null),
+      growthApi.modelRisks(model.id).catch(() => null)
     ]);
     setScenarioView(scenariosPayload);
     setForecastView(forecastPayload);
     setRecommendationView(recommendationsPayload);
+    setRiskView(risksPayload);
   }
 
   async function startDraft() {
@@ -279,6 +291,7 @@ function GrowthCalculatorPage() {
     setScenarioView(snapshot.scenarios);
     setForecastView(snapshot.forecast);
     setRecommendationView(snapshot.recommendations);
+    setRiskView(null);
     setTaskSyncMessage("");
     setTaskSyncError("");
   }
@@ -585,6 +598,34 @@ function GrowthCalculatorPage() {
               </article>
             ))}
           </div>
+        </section>
+
+        <section className="growth-risk-section" aria-label="关键风险诊断">
+          <div className="module-section-head">
+            <div>
+              <h2>关键风险诊断</h2>
+              <p>风险等级由当前模型规则计算，AI 只负责解释原因和建议。</p>
+            </div>
+            {riskView ? <strong className={`growth-risk-level ${riskView.overall_level}`}>整体风险：{riskLevelLabel(riskView.overall_level)}</strong> : null}
+          </div>
+          {riskView?.risks?.length ? (
+            <div className="growth-risk-grid">
+              {riskView.risks.map((risk) => (
+                <article key={risk.key}>
+                  <header>
+                    <strong>{risk.name}</strong>
+                    <span className={`growth-risk-level ${risk.level}`}>{riskLevelLabel(risk.level)}</span>
+                  </header>
+                  <p>{risk.reason}</p>
+                  <dl>
+                    <div><dt>当前值</dt><dd>{risk.current_value}</dd></div>
+                    <div><dt>规则阈值</dt><dd>{risk.threshold}</dd></div>
+                  </dl>
+                  <small>{risk.suggestion}</small>
+                </article>
+              ))}
+            </div>
+          ) : <p className="module-empty-state" role="status">暂无风险诊断</p>}
         </section>
 
         <section className="growth-lower-grid">

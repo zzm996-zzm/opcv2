@@ -51427,12 +51427,104 @@ a:active {
   font-size: 12px;
 }
 
+.growth-risk-section {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+}
+
+.growth-risk-level {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.growth-risk-level.low {
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.growth-risk-level.medium {
+  color: #b54708;
+  background: #fffaeb;
+}
+
+.growth-risk-level.high {
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.growth-risk-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.growth-risk-grid article {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 1px solid #eaecf0;
+  border-radius: 6px;
+}
+
+.growth-risk-grid article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.growth-risk-grid article p,
+.growth-risk-grid article small {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.growth-risk-grid dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.growth-risk-grid dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.growth-risk-grid dt {
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.growth-risk-grid dd {
+  margin: 0;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: right;
+}
+
 @media (max-width: 760px) {
   .growth-history-heading,
   .growth-history-toolbar,
   .growth-comparison-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .growth-risk-grid {
+    grid-template-columns: 1fr;
   }
 
   .growth-history-toolbar label {
