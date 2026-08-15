@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-opcv2}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-opcv2-change-me}
     ports:
-      - "${OPCV2_POSTGRES_PORT:-5433}:5432"
+      - "127.0.0.1:${OPCV2_POSTGRES_PORT:-5433}:5432"
     volumes:
       - opcv2_postgres_server_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,7 +23,7 @@ services:
     container_name: opcv2-server-redis
     restart: unless-stopped
     ports:
-      - "${OPCV2_REDIS_PORT:-6391}:6379"
+      - "127.0.0.1:${OPCV2_REDIS_PORT:-6391}:6379"
     volumes:
       - opcv2_redis_server_data:/data
     healthcheck:
