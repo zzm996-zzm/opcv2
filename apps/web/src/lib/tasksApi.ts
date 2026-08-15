@@ -63,6 +63,19 @@ export type TaskPage = {
   group?: TaskGroup;
 };
 
+export type TaskCalendarFilters = Omit<TaskFilters, "sort" | "group" | "limit" | "offset"> & {
+  from: string;
+  to: string;
+};
+
+export type TaskCalendarPage = {
+  tasks: Task[];
+  unscheduled: Task[];
+  total: number;
+  from: string;
+  to: string;
+};
+
 export type TaskStats = {
   total: number;
   todo: number;
@@ -78,7 +91,7 @@ export type TaskActivity = {
   id: number;
   task_id: number;
   user_id: number;
-  action: "created" | "updated" | "status_changed" | "deleted" | "restored";
+  action: "created" | "updated" | "status_changed" | "deleted" | "restored" | "comment_added" | "comment_updated" | "comment_deleted";
   before: Record<string, unknown>;
   after: Record<string, unknown>;
   metadata: Record<string, unknown>;
@@ -87,6 +100,23 @@ export type TaskActivity = {
 
 export type TaskActivityPage = {
   activities: TaskActivity[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type TaskComment = {
+  id: number;
+  task_id: number;
+  user_id: number;
+  parent_comment_id?: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TaskCommentPage = {
+  comments: TaskComment[];
   total: number;
   limit: number;
   offset: number;
@@ -208,6 +238,21 @@ export type UpdateTaskInput = Partial<{
   version: number;
 }>;
 
+export type BatchTaskUpdateInput = {
+  ids: number[];
+  status?: TaskStatus;
+  assignee?: string;
+  priority?: TaskPriority;
+  dueAt?: string;
+  clearDueAt?: boolean;
+  tags?: string[];
+};
+
+export type BatchTaskUpdateResult = {
+  updated: number;
+  failed: Array<{ id: number; code: string; detail?: string }>;
+};
+
 function toCreatePayload(input: CreateTaskInput) {
   return {
     title: input.title,
@@ -323,6 +368,12 @@ export const tasksApi = {
     });
   },
 
+  calendar(filters: TaskCalendarFilters) {
+    return apiRequest<TaskCalendarPage>(`/api/v1/tasks/calendar${queryString(filters)}`, {
+      method: "GET"
+    });
+  },
+
   listProjects() {
     return apiRequest<{ projects: string[] }>("/api/v1/tasks/projects", {
       method: "GET"
@@ -353,6 +404,32 @@ export const tasksApi = {
     });
   },
 
+  listTaskComments(id: number, limit = 20, offset = 0) {
+    return apiRequest<TaskCommentPage>(`/api/v1/tasks/${id}/comments${queryString({ limit, offset: offset || undefined })}`, {
+      method: "GET"
+    });
+  },
+
+  createTaskComment(id: number, content: string, parentCommentID?: number) {
+    return apiRequest<TaskComment>(`/api/v1/tasks/${id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ content, parent_comment_id: parentCommentID })
+    });
+  },
+
+  updateTaskComment(taskID: number, commentID: number, content: string) {
+    return apiRequest<TaskComment>(`/api/v1/tasks/${taskID}/comments/${commentID}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content })
+    });
+  },
+
+  deleteTaskComment(taskID: number, commentID: number) {
+    return apiRequest<void>(`/api/v1/tasks/${taskID}/comments/${commentID}`, {
+      method: "DELETE"
+    });
+  },
+
   updateTask(id: number, input: UpdateTaskInput) {
     return apiRequest<Task>(`/api/v1/tasks/${id}`, {
       method: "PATCH",
@@ -364,6 +441,21 @@ export const tasksApi = {
     return apiRequest<{ updated: number }>("/api/v1/tasks/batch", {
       method: "PATCH",
       body: JSON.stringify({ ids, status })
+    });
+  },
+
+  batchUpdate(input: BatchTaskUpdateInput) {
+    return apiRequest<BatchTaskUpdateResult>("/api/v1/tasks/batch-update", {
+      method: "PATCH",
+      body: JSON.stringify({
+        ids: input.ids,
+        status: input.status,
+        assignee: input.assignee,
+        priority: input.priority,
+        due_at: input.dueAt,
+        clear_due_at: input.clearDueAt,
+        tags: input.tags
+      })
     });
   },
 

@@ -64,6 +64,9 @@ var (
 	ErrTaskAIDraftNotFound                 = errors.New("task ai draft not found")
 	ErrTaskAIDraftAlreadyAdopted           = errors.New("task ai draft already adopted")
 	ErrInvalidTaskAIDraft                  = errors.New("invalid task ai draft")
+	ErrInvalidTaskCalendarRange            = errors.New("invalid task calendar range")
+	ErrTaskCommentNotFound                 = errors.New("task comment not found")
+	ErrInvalidTaskComment                  = errors.New("invalid task comment")
 )
 
 const (
@@ -78,6 +81,27 @@ type BatchTaskStatusInput struct {
 
 type BatchTaskIDsInput struct {
 	IDs []int64 `json:"ids"`
+}
+
+type BatchTaskUpdateInput struct {
+	IDs        []int64    `json:"ids"`
+	Status     *string    `json:"status,omitempty"`
+	Assignee   *string    `json:"assignee,omitempty"`
+	Priority   *string    `json:"priority,omitempty"`
+	DueAt      *time.Time `json:"due_at,omitempty"`
+	ClearDueAt bool       `json:"clear_due_at,omitempty"`
+	Tags       *[]string  `json:"tags,omitempty"`
+}
+
+type BatchTaskUpdateFailure struct {
+	ID     int64  `json:"id"`
+	Code   string `json:"code"`
+	Detail string `json:"detail,omitempty"`
+}
+
+type BatchTaskUpdateResult struct {
+	Updated int                      `json:"updated"`
+	Failed  []BatchTaskUpdateFailure `json:"failed"`
 }
 
 type CreateInput struct {
@@ -239,6 +263,24 @@ type ListFilters struct {
 	Offset   int
 }
 
+type CalendarFilters struct {
+	Status   string
+	Project  string
+	Priority string
+	Tag      string
+	Query    string
+	From     time.Time
+	To       time.Time
+}
+
+type CalendarPage struct {
+	Tasks       []Task    `json:"tasks"`
+	Unscheduled []Task    `json:"unscheduled"`
+	Total       int       `json:"total"`
+	From        time.Time `json:"from"`
+	To          time.Time `json:"to"`
+}
+
 type TaskPage struct {
 	Tasks  []Task `json:"tasks"`
 	Total  int    `json:"total"`
@@ -275,6 +317,34 @@ type TaskActivityPage struct {
 	Total      int            `json:"total"`
 	Limit      int            `json:"limit"`
 	Offset     int            `json:"offset"`
+}
+
+type TaskComment struct {
+	ID              int64     `json:"id"`
+	TaskID          int64     `json:"task_id"`
+	UserID          int64     `json:"user_id"`
+	ParentCommentID *int64    `json:"parent_comment_id,omitempty"`
+	Content         string    `json:"content"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type TaskCommentPage struct {
+	Comments []TaskComment `json:"comments"`
+	Total    int           `json:"total"`
+	Limit    int           `json:"limit"`
+	Offset   int           `json:"offset"`
+}
+
+type CreateTaskCommentInput struct {
+	UserID          int64  `json:"-"`
+	TaskID          int64  `json:"-"`
+	ParentCommentID *int64 `json:"parent_comment_id,omitempty"`
+	Content         string `json:"content"`
+}
+
+type UpdateTaskCommentInput struct {
+	Content string `json:"content"`
 }
 
 type Task struct {

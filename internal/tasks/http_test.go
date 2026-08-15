@@ -43,6 +43,14 @@ type fakeApplication struct {
 	adoptInput      AdoptTaskAIDraftInput
 	idempotencyKey  string
 	activities      []TaskActivity
+	calendarFilters CalendarFilters
+	calendar        CalendarPage
+	batchUpdate     BatchTaskUpdateInput
+	batchResult     BatchTaskUpdateResult
+	comments        []TaskComment
+	commentInput    CreateTaskCommentInput
+	commentUpdate   UpdateTaskCommentInput
+	commentID       int64
 }
 
 func (a *fakeApplication) CreateTasks(_ context.Context, input BatchCreateInput) ([]Task, error) {
@@ -86,6 +94,36 @@ func (a *fakeApplication) AdoptTaskAIDraft(_ context.Context, userID, id int64, 
 func (a *fakeApplication) ListTaskActivities(_ context.Context, userID, taskID int64, _, _ int) ([]TaskActivity, int, error) {
 	a.userID, a.taskID = userID, taskID
 	return a.activities, len(a.activities), a.err
+}
+
+func (a *fakeApplication) ListTaskCalendar(_ context.Context, userID int64, filters CalendarFilters) (CalendarPage, error) {
+	a.userID, a.calendarFilters = userID, filters
+	return a.calendar, a.err
+}
+
+func (a *fakeApplication) BatchUpdateTaskFields(_ context.Context, userID int64, input BatchTaskUpdateInput) (BatchTaskUpdateResult, error) {
+	a.userID, a.batchUpdate = userID, input
+	return a.batchResult, a.err
+}
+
+func (a *fakeApplication) ListTaskComments(_ context.Context, userID, taskID int64, _, _ int) ([]TaskComment, int, error) {
+	a.userID, a.taskID = userID, taskID
+	return a.comments, len(a.comments), a.err
+}
+
+func (a *fakeApplication) CreateTaskComment(_ context.Context, input CreateTaskCommentInput) (TaskComment, error) {
+	a.commentInput = input
+	return TaskComment{ID: 17, TaskID: input.TaskID, UserID: input.UserID, Content: input.Content}, a.err
+}
+
+func (a *fakeApplication) UpdateTaskComment(_ context.Context, userID, taskID, id int64, input UpdateTaskCommentInput) (TaskComment, error) {
+	a.userID, a.taskID, a.commentID, a.commentUpdate = userID, taskID, id, input
+	return TaskComment{ID: id, TaskID: taskID, UserID: userID, Content: input.Content}, a.err
+}
+
+func (a *fakeApplication) DeleteTaskComment(_ context.Context, userID, taskID, id int64) error {
+	a.userID, a.taskID, a.commentID = userID, taskID, id
+	return a.err
 }
 
 func (a *fakeApplication) ListTaskPage(_ context.Context, userID int64, filters ListFilters) (TaskPage, error) {
@@ -716,6 +754,62 @@ func TestDeleteSubtaskEndpointUsesSubtaskPathID(t *testing.T) {
 
 	if recorder.Code != http.StatusNoContent || !app.subtaskDeleted || app.userID != 42 || app.taskID != 99 || app.subtaskID != 7 {
 		t.Fatalf("status/deleted/user/task/subtask = %d/%t/%d/%d/%d body=%s", recorder.Code, app.subtaskDeleted, app.userID, app.taskID, app.subtaskID, recorder.Body.String())
+	}
+}
+
+func TestTaskCalendarEndpointUsesDateRangeAndFilters(t *testing.T) {
+	app := &fakeApplication{calendar: CalendarPage{Tasks: []Task{{ID: 8}}, Unscheduled: []Task{}}}
+	router := tasksTestRouter(app)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/tasks/calendar?from=2026-08-01&to=2026-09-01&priority=high&q=%E5%AE%A2%E6%88%B7", nil)
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.userID != 42 || app.calendarFilters.Priority != PriorityHigh || app.calendarFilters.Query != "客户" {
+		t.Fatalf("status/user/filters = %d/%d/%+v body=%s", recorder.Code, app.userID, app.calendarFilters, recorder.Body.String())
+	}
+	if app.calendarFilters.From.Format("2006-01-02") != "2026-08-01" || app.calendarFilters.To.Format("2006-01-02") != "2026-09-01" {
+		t.Fatalf("range = %s/%s", app.calendarFilters.From, app.calendarFilters.To)
+	}
+}
+
+func TestBatchUpdateTaskFieldsEndpointReturnsFailureDetails(t *testing.T) {
+	app := &fakeApplication{batchResult: BatchTaskUpdateResult{Updated: 1, Failed: []BatchTaskUpdateFailure{{ID: 9, Code: "task_not_found"}}}}
+	router := tasksTestRouter(app)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/batch-update", strings.NewReader(`{"ids":[8,9],"assignee":"李明","tags":["客户"]}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.userID != 42 || len(app.batchUpdate.IDs) != 2 || app.batchUpdate.Assignee == nil || *app.batchUpdate.Assignee != "李明" {
+		t.Fatalf("status/user/input = %d/%d/%+v body=%s", recorder.Code, app.userID, app.batchUpdate, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"task_not_found"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestTaskCommentEndpointsUseAuthenticatedTaskScope(t *testing.T) {
+	app := &fakeApplication{comments: []TaskComment{{ID: 17, TaskID: 99, UserID: 42, Content: "等待客户反馈"}}}
+	router := tasksTestRouter(app)
+
+	listRecorder := httptest.NewRecorder()
+	router.ServeHTTP(listRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/tasks/99/comments", nil))
+	if listRecorder.Code != http.StatusOK || !strings.Contains(listRecorder.Body.String(), "等待客户反馈") {
+		t.Fatalf("list status/body = %d/%s", listRecorder.Code, listRecorder.Body.String())
+	}
+
+	createRecorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/99/comments", strings.NewReader(`{"content":" 补充执行记录 "}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(createRecorder, request)
+	if createRecorder.Code != http.StatusCreated || app.commentInput.UserID != 42 || app.commentInput.TaskID != 99 || app.commentInput.Content != " 补充执行记录 " {
+		t.Fatalf("create status/input/body = %d/%+v/%s", createRecorder.Code, app.commentInput, createRecorder.Body.String())
+	}
+
+	deleteRecorder := httptest.NewRecorder()
+	router.ServeHTTP(deleteRecorder, httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/99/comments/17", nil))
+	if deleteRecorder.Code != http.StatusNoContent || app.commentID != 17 || app.taskID != 99 || app.userID != 42 {
+		t.Fatalf("delete status/user/task/comment = %d/%d/%d/%d", deleteRecorder.Code, app.userID, app.taskID, app.commentID)
 	}
 }
 

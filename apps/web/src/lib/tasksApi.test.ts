@@ -55,6 +55,27 @@ describe("tasksApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/99/activities?limit=20&offset=20", expect.objectContaining({ method: "GET" }));
   });
 
+  it("loads calendar ranges, batch edits, and task comments", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ tasks: [], unscheduled: [], total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ updated: 1, failed: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ comments: [], total: 0 }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 12, content: "记录进展" }), { status: 201 }));
+
+    await tasksApi.calendar({ from: "2026-08-01", to: "2026-09-01", q: "客户" });
+    await tasksApi.batchUpdate({ ids: [8], assignee: "李明", tags: ["客户"] });
+    await tasksApi.listTaskComments(8);
+    await tasksApi.createTaskComment(8, "记录进展");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks/calendar?from=2026-08-01&to=2026-09-01&q=%E5%AE%A2%E6%88%B7", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/batch-update", expect.objectContaining({
+      method: "PATCH",
+      body: JSON.stringify({ ids: [8], assignee: "李明", tags: ["客户"] })
+    }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/tasks/8/comments?limit=20", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/tasks/8/comments", expect.objectContaining({ method: "POST", body: JSON.stringify({ content: "记录进展", parent_comment_id: undefined }) }));
+  });
+
   it("restores a soft-deleted task", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(null, { status: 204 }));
 

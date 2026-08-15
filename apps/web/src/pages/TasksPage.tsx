@@ -4,7 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { ApiRequestError } from "../lib/apiRequest";
-import { tasksApi, type ReminderRecurrence, type Task, type TaskActivity, type TaskAIDraft, type TaskGroup, type TaskPriority, type TaskReminder, type TaskSort, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
+import { tasksApi, type ReminderRecurrence, type Task, type TaskActivity, type TaskAIDraft, type TaskComment, type TaskGroup, type TaskPriority, type TaskReminder, type TaskSort, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
 
 type TaskRow = {
   id?: number;
@@ -152,6 +152,36 @@ function taskViewFromQuery(value: string | null): TaskView {
 function taskPageFromQuery(value: string | null) {
   const page = Number(value);
   return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function currentCalendarMonth() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function calendarMonthFromQuery(value: string | null) {
+  return value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : currentCalendarMonth();
+}
+
+function calendarMonthRange(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const nextYear = monthNumber === 12 ? year + 1 : year;
+  const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+  return {
+    from: `${month}-01`,
+    to: `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`
+  };
+}
+
+function shiftCalendarMonth(month: string, offset: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const shifted = new Date(year, monthNumber - 1 + offset, 1);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function calendarMonthLabel(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return `${year}年${monthNumber}月`;
 }
 
 function taskGroupLabel(task: Task, group: TaskGroup) {
@@ -312,6 +342,9 @@ function taskActivitySummary(activity: TaskActivity) {
   if (activity.action === "created") return "创建了任务";
   if (activity.action === "deleted") return "删除了任务";
   if (activity.action === "restored") return "恢复了任务";
+  if (activity.action === "comment_added") return "发表了评论";
+  if (activity.action === "comment_updated") return "编辑了评论";
+  if (activity.action === "comment_deleted") return "删除了评论";
   if (activity.action === "status_changed") {
     const before = typeof activity.before.status === "string" ? statusLabels[activity.before.status as TaskStatus] ?? activity.before.status : "未知状态";
     const after = typeof activity.after.status === "string" ? statusLabels[activity.after.status as TaskStatus] ?? activity.after.status : "未知状态";
@@ -354,10 +387,18 @@ function TasksPage() {
   const [tagsLoading, setTagsLoading] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [activeView, setActiveView] = useState<TaskView>(() => taskViewFromQuery(searchParams.get("view")));
+  const [calendarMonth, setCalendarMonth] = useState(() => calendarMonthFromQuery(searchParams.get("month")));
+  const [calendarTasks, setCalendarTasks] = useState<Task[] | null>(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [listError, setListError] = useState("");
   const [savingTaskID, setSavingTaskID] = useState<number | null>(null);
   const [selectedTaskIDs, setSelectedTaskIDs] = useState<Set<number>>(() => new Set());
   const [batchStatus, setBatchStatus] = useState<TaskStatus>("completed");
+  const [batchEditField, setBatchEditField] = useState<"assignee" | "priority" | "due_at" | "tags">("assignee");
+  const [batchAssignee, setBatchAssignee] = useState("");
+  const [batchPriority, setBatchPriority] = useState<TaskPriority>("medium");
+  const [batchDueAt, setBatchDueAt] = useState("");
+  const [batchTags, setBatchTags] = useState("");
   const [batchBusy, setBatchBusy] = useState(false);
   const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
   const [batchMessage, setBatchMessage] = useState("");
@@ -398,6 +439,14 @@ function TasksPage() {
   const [activityTotal, setActivityTotal] = useState(0);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [activitiesError, setActivitiesError] = useState("");
+  const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
+  const [commentTotal, setCommentTotal] = useState(0);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [commentSavingID, setCommentSavingID] = useState<number | "new" | null>(null);
+  const [commentContent, setCommentContent] = useState("");
+  const [commentEditingID, setCommentEditingID] = useState<number | null>(null);
+  const [commentEditingContent, setCommentEditingContent] = useState("");
+  const [commentsError, setCommentsError] = useState("");
   const [draggingTaskID, setDraggingTaskID] = useState<number | null>(null);
   const [boardUpdatingTaskID, setBoardUpdatingTaskID] = useState<number | null>(null);
 
@@ -437,8 +486,34 @@ function TasksPage() {
   }, [selectedStatus, selectedProject, selectedPriority, selectedTag, selectedSort, selectedGroup, searchQuery, taskPage, listRevision]);
 
   useEffect(() => {
+    if (activeView !== "calendar") return;
+    let active = true;
+    const range = calendarMonthRange(calendarMonth);
+    setCalendarLoading(true);
+    tasksApi.calendar({
+      ...range,
+      status: selectedStatus,
+      project: selectedProject || undefined,
+      priority: selectedPriority || undefined,
+      tag: selectedTag || undefined,
+      q: searchQuery || undefined
+    }).then((payload) => {
+      if (!active) return;
+      setCalendarTasks([...payload.tasks, ...payload.unscheduled]);
+    }).catch(() => {
+      if (active) setCalendarTasks(null);
+    }).finally(() => {
+      if (active) setCalendarLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [activeView, calendarMonth, selectedStatus, selectedProject, selectedPriority, selectedTag, searchQuery, listRevision]);
+
+  useEffect(() => {
     const next = new URLSearchParams();
     if (activeView !== "list") next.set("view", activeView);
+    if (activeView === "calendar") next.set("month", calendarMonth);
     if (selectedStatus) next.set("status", selectedStatus);
     if (selectedProject) next.set("project", selectedProject);
     if (selectedPriority) next.set("priority", selectedPriority);
@@ -448,7 +523,7 @@ function TasksPage() {
     if (selectedGroup) next.set("group", selectedGroup);
     if (taskPage > 1) next.set("page", String(taskPage));
     setSearchParams(next, { replace: true });
-  }, [activeView, searchQuery, selectedGroup, selectedPriority, selectedProject, selectedSort, selectedStatus, selectedTag, setSearchParams, taskPage]);
+  }, [activeView, calendarMonth, searchQuery, selectedGroup, selectedPriority, selectedProject, selectedSort, selectedStatus, selectedTag, setSearchParams, taskPage]);
 
   useEffect(() => {
     let active = true;
@@ -471,7 +546,8 @@ function TasksPage() {
     column.label,
     apiTasks.filter((task) => task.status === column.status).map((task) => task.title)
   ] as const);
-  const scheduledTasks = apiTasks
+  const calendarSourceTasks = calendarTasks ?? apiTasks;
+  const scheduledTasks = calendarSourceTasks
     .filter((task) => task.due_at)
     .sort((left, right) => new Date(left.due_at as string).getTime() - new Date(right.due_at as string).getTime());
   const calendarGroups = Array.from(scheduledTasks.reduce<Map<string, Task[]>>((groups, task) => {
@@ -479,7 +555,7 @@ function TasksPage() {
     groups.set(label, [...(groups.get(label) ?? []), task]);
     return groups;
   }, new Map()));
-  const unscheduledTasks = apiTasks.filter((task) => !task.due_at);
+  const unscheduledTasks = calendarSourceTasks.filter((task) => !task.due_at);
   const listGroups = selectedGroup
     ? Array.from(apiTasks.reduce<Map<string, TaskRow[]>>((groups, task) => {
       const label = taskGroupLabel(task, selectedGroup);
@@ -675,6 +751,39 @@ function TasksPage() {
     }
   }
 
+  async function applyBatchField(clearDueAt = false) {
+    const ids = currentPageTaskIDs.filter((id) => selectedTaskIDs.has(id));
+    if (ids.length === 0 || batchBusy) return;
+    const input = batchEditField === "assignee"
+      ? { ids, assignee: batchAssignee.trim() }
+      : batchEditField === "priority"
+        ? { ids, priority: batchPriority }
+        : batchEditField === "due_at"
+          ? { ids, ...(clearDueAt ? { clearDueAt: true } : { dueAt: batchDueAt ? new Date(batchDueAt).toISOString() : undefined }) }
+          : { ids, tags: batchTags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) };
+    if (batchEditField === "due_at" && !clearDueAt && !batchDueAt) {
+      setListError("请选择截止时间，或使用清除截止时间");
+      return;
+    }
+    setBatchBusy(true);
+    setBatchMessage("");
+    setListError("");
+    try {
+      const result = await tasksApi.batchUpdate(input);
+      setListRevision((current) => current + 1);
+      setSelectedTaskIDs(new Set());
+      setConfirmBatchDelete(false);
+      setBatchMessage(result.failed.length > 0
+        ? `已更新 ${result.updated} 条，${result.failed.length} 条失败`
+        : `已更新 ${result.updated} 条任务`);
+      await refreshTaskStats();
+    } catch (error) {
+      setListError(apiErrorMessage(error, "暂时无法批量更新任务"));
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
   async function deleteSelectedTasks() {
     const ids = currentPageTaskIDs.filter((id) => selectedTaskIDs.has(id));
     if (ids.length === 0 || batchBusy) return;
@@ -810,6 +919,14 @@ function TasksPage() {
     setActivityTotal(0);
     setActivitiesLoading(true);
     setActivitiesError("");
+    setTaskComments([]);
+    setCommentTotal(0);
+    setCommentContent("");
+    setCommentEditingID(null);
+    setCommentEditingContent("");
+    setCommentsError("");
+    setCommentsLoading(true);
+    void loadTaskComments(taskID);
     const [taskResult, subtasksResult, reminderResult, activitiesResult] = await Promise.allSettled([
       tasksApi.getTask(taskID),
       tasksApi.listSubtasks(taskID),
@@ -866,6 +983,13 @@ function TasksPage() {
     setActivityTotal(0);
     setActivitiesError("");
     setActivitiesLoading(false);
+    setTaskComments([]);
+    setCommentTotal(0);
+    setCommentContent("");
+    setCommentEditingID(null);
+    setCommentEditingContent("");
+    setCommentsError("");
+    setCommentsLoading(false);
   }
 
   function updateDetailField<Key extends keyof TaskEditForm>(key: Key, value: TaskEditForm[Key]) {
@@ -978,6 +1102,76 @@ function TasksPage() {
       setActivitiesError(apiErrorMessage(error, "暂时无法读取更多操作记录"));
     } finally {
       setActivitiesLoading(false);
+    }
+  }
+
+  async function loadTaskComments(taskID: number) {
+    try {
+      const result = await tasksApi.listTaskComments(taskID);
+      setTaskComments(result.comments);
+      setCommentTotal(result.total);
+      setCommentsError("");
+    } catch (error) {
+      setCommentsError(apiErrorMessage(error, "暂时无法读取评论"));
+    } finally {
+      setCommentsLoading(false);
+    }
+  }
+
+  async function createTaskComment() {
+    if (!detailTaskID || commentSavingID !== null) return;
+    const content = commentContent.trim();
+    if (!content) {
+      setCommentsError("请输入评论内容");
+      return;
+    }
+    setCommentSavingID("new");
+    setCommentsError("");
+    try {
+      const comment = await tasksApi.createTaskComment(detailTaskID, content);
+      setTaskComments((current) => [comment, ...current]);
+      setCommentTotal((current) => current + 1);
+      setCommentContent("");
+    } catch (error) {
+      setCommentsError(apiErrorMessage(error, "暂时无法发表评论"));
+    } finally {
+      setCommentSavingID(null);
+    }
+  }
+
+  async function saveTaskComment(commentID: number) {
+    if (!detailTaskID || commentSavingID !== null) return;
+    const content = commentEditingContent.trim();
+    if (!content) {
+      setCommentsError("评论内容不能为空");
+      return;
+    }
+    setCommentSavingID(commentID);
+    setCommentsError("");
+    try {
+      const comment = await tasksApi.updateTaskComment(detailTaskID, commentID, content);
+      setTaskComments((current) => current.map((item) => item.id === comment.id ? comment : item));
+      setCommentEditingID(null);
+      setCommentEditingContent("");
+    } catch (error) {
+      setCommentsError(apiErrorMessage(error, "暂时无法保存评论"));
+    } finally {
+      setCommentSavingID(null);
+    }
+  }
+
+  async function deleteTaskComment(commentID: number) {
+    if (!detailTaskID || commentSavingID !== null || !window.confirm("确定删除这条评论吗？")) return;
+    setCommentSavingID(commentID);
+    setCommentsError("");
+    try {
+      await tasksApi.deleteTaskComment(detailTaskID, commentID);
+      setTaskComments((current) => current.filter((item) => item.id !== commentID));
+      setCommentTotal((current) => Math.max(0, current - 1));
+    } catch (error) {
+      setCommentsError(apiErrorMessage(error, "暂时无法删除评论"));
+    } finally {
+      setCommentSavingID(null);
     }
   }
 
@@ -1412,6 +1606,37 @@ function TasksPage() {
                       {batchStatusOptions.map((option) => <option key={option.status} value={option.status}>{option.label}</option>)}
                     </select>
                     <button disabled={batchBusy} onClick={() => void applyBatchStatus()} type="button">应用状态</button>
+                    <label className="sr-only" htmlFor="task-batch-field">批量编辑字段</label>
+                    <select
+                      aria-label="批量编辑字段"
+                      disabled={batchBusy}
+                      id="task-batch-field"
+                      onChange={(event) => setBatchEditField(event.target.value as typeof batchEditField)}
+                      value={batchEditField}
+                    >
+                      <option value="assignee">负责人</option>
+                      <option value="priority">优先级</option>
+                      <option value="due_at">截止时间</option>
+                      <option value="tags">标签</option>
+                    </select>
+                    {batchEditField === "assignee" ? (
+                      <input aria-label="批量负责人" disabled={batchBusy} maxLength={100} onChange={(event) => setBatchAssignee(event.target.value)} placeholder="负责人，可留空" value={batchAssignee} />
+                    ) : null}
+                    {batchEditField === "priority" ? (
+                      <select aria-label="批量优先级" disabled={batchBusy} onChange={(event) => setBatchPriority(event.target.value as TaskPriority)} value={batchPriority}>
+                        <option value="high">高</option>
+                        <option value="medium">中</option>
+                        <option value="low">低</option>
+                      </select>
+                    ) : null}
+                    {batchEditField === "due_at" ? (
+                      <input aria-label="批量截止时间" disabled={batchBusy} onChange={(event) => setBatchDueAt(event.target.value)} type="datetime-local" value={batchDueAt} />
+                    ) : null}
+                    {batchEditField === "tags" ? (
+                      <input aria-label="批量标签" disabled={batchBusy} onChange={(event) => setBatchTags(event.target.value)} placeholder="标签用逗号分隔" value={batchTags} />
+                    ) : null}
+                    <button disabled={batchBusy} onClick={() => void applyBatchField()} type="button">应用字段</button>
+                    {batchEditField === "due_at" ? <button className="secondary" disabled={batchBusy} onClick={() => void applyBatchField(true)} type="button">清除截止时间</button> : null}
                     <button className="danger" disabled={batchBusy} onClick={() => void deleteSelectedTasks()} type="button">
                       {confirmBatchDelete ? `确认删除 ${selectedTaskIDs.size} 项` : "批量删除"}
                     </button>
@@ -1510,7 +1735,14 @@ function TasksPage() {
             ) : null}
             {activeView === "calendar" ? (
               <div aria-label="任务日历" className="task-calendar-view" role="region">
-                {apiTasks.length === 0 ? <div className="module-empty-state" role="status">暂无任务数据</div> : null}
+                <header className="task-calendar-toolbar">
+                  <button aria-label="上个月" disabled={calendarLoading} onClick={() => setCalendarMonth((month) => shiftCalendarMonth(month, -1))} title="上个月" type="button">‹</button>
+                  <strong>{calendarMonthLabel(calendarMonth)}</strong>
+                  <button aria-label="下个月" disabled={calendarLoading} onClick={() => setCalendarMonth((month) => shiftCalendarMonth(month, 1))} title="下个月" type="button">›</button>
+                  <button disabled={calendarLoading || calendarMonth === currentCalendarMonth()} onClick={() => setCalendarMonth(currentCalendarMonth())} type="button">今天</button>
+                  {calendarLoading ? <span role="status">正在读取完整月份...</span> : null}
+                </header>
+                {calendarSourceTasks.length === 0 ? <div className="module-empty-state" role="status">本月暂无任务数据</div> : null}
                 {calendarGroups.map(([label, tasks]) => (
                   <section aria-label={`${label}任务`} className="task-calendar-group" key={label}>
                     <header>
@@ -1531,7 +1763,7 @@ function TasksPage() {
                 ) : null}
               </div>
             ) : null}
-            {taskTotal > 0 ? (
+            {taskTotal > 0 && activeView !== "calendar" ? (
               <footer className="task-pagination" aria-label="任务分页">
                 <button
                   aria-label="上一页"
@@ -1762,6 +1994,64 @@ function TasksPage() {
                       </div>
                     ) : null}
                     {subtaskError ? <p className="form-error" role="alert">{subtaskError}</p> : null}
+                  </section>
+                  <section aria-label="任务评论" className="task-comment-section">
+                    <header>
+                      <div>
+                        <h3>协作评论</h3>
+                        <p>记录任务讨论和执行补充</p>
+                      </div>
+                      <span>{commentTotal} 条</span>
+                    </header>
+                    <div className="task-comment-create">
+                      <textarea
+                        aria-label="评论内容"
+                        disabled={commentSavingID !== null}
+                        maxLength={2000}
+                        onChange={(event) => setCommentContent(event.target.value)}
+                        placeholder="输入评论内容"
+                        value={commentContent}
+                      />
+                      <button disabled={commentSavingID !== null || !commentContent.trim()} onClick={() => void createTaskComment()} type="button">
+                        {commentSavingID === "new" ? "发表中..." : "发表评论"}
+                      </button>
+                    </div>
+                    {commentsLoading ? <div className="task-subtask-empty" role="status">正在读取评论...</div> : null}
+                    {!commentsLoading && taskComments.length === 0 && !commentsError ? <div className="task-subtask-empty" role="status">暂无评论</div> : null}
+                    {taskComments.length > 0 ? (
+                      <div className="task-comment-list">
+                        {taskComments.map((comment) => (
+                          <article key={comment.id}>
+                            {commentEditingID === comment.id ? (
+                              <textarea aria-label={`编辑评论 ${comment.id}`} disabled={commentSavingID !== null} maxLength={2000} onChange={(event) => setCommentEditingContent(event.target.value)} value={commentEditingContent} />
+                            ) : (
+                              <p>{comment.content}</p>
+                            )}
+                            <footer>
+                              <small>你 · {formatDueAt(comment.created_at)}{comment.updated_at !== comment.created_at ? " · 已编辑" : ""}</small>
+                              {commentEditingID === comment.id ? (
+                                <>
+                                  <button disabled={commentSavingID !== null} onClick={() => {
+                                    setCommentEditingID(null);
+                                    setCommentEditingContent("");
+                                  }} type="button">取消</button>
+                                  <button disabled={commentSavingID !== null || !commentEditingContent.trim()} onClick={() => void saveTaskComment(comment.id)} type="button">保存</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button disabled={commentSavingID !== null} onClick={() => {
+                                    setCommentEditingID(comment.id);
+                                    setCommentEditingContent(comment.content);
+                                  }} type="button">编辑</button>
+                                  <button className="danger" disabled={commentSavingID !== null} onClick={() => void deleteTaskComment(comment.id)} type="button">删除</button>
+                                </>
+                              )}
+                            </footer>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                    {commentsError ? <p className="form-error" role="alert">{commentsError}</p> : null}
                   </section>
                   <section aria-label="操作记录" className="task-activity-section">
                     <header>

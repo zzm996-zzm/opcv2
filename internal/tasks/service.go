@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -36,6 +37,10 @@ type MembershipProvider interface {
 
 type TaskGenerator interface {
 	GenerateJSON(context.Context, ai.GenerateJSONRequest) (ai.GenerateJSONResult, error)
+}
+
+type CalendarRepository interface {
+	ListTaskCalendar(context.Context, int64, CalendarFilters) (CalendarPage, error)
 }
 
 type Option func(*Service)
@@ -161,6 +166,28 @@ func (s *Service) ListTaskPage(ctx context.Context, userID int64, filters ListFi
 		return TaskPage{}, err
 	}
 	return TaskPage{Tasks: tasks, Total: total, Limit: filters.Limit, Offset: filters.Offset, Sort: filters.Sort, Group: filters.Group}, nil
+}
+
+func (s *Service) ListTaskCalendar(ctx context.Context, userID int64, filters CalendarFilters) (CalendarPage, error) {
+	repository, ok := s.repository.(CalendarRepository)
+	if !ok {
+		return CalendarPage{}, ErrServiceNotReady
+	}
+	filters.Status = strings.TrimSpace(filters.Status)
+	filters.Project = strings.TrimSpace(filters.Project)
+	filters.Priority = strings.TrimSpace(filters.Priority)
+	filters.Tag = strings.TrimSpace(filters.Tag)
+	filters.Query = strings.TrimSpace(filters.Query)
+	if filters.Status != "" {
+		filters.Status = normalizeStatus(filters.Status)
+	}
+	if filters.Priority != "" {
+		filters.Priority = normalizePriority(filters.Priority)
+	}
+	if filters.From.IsZero() || filters.To.IsZero() || !filters.From.Before(filters.To) || filters.To.Sub(filters.From) > 93*24*time.Hour {
+		return CalendarPage{}, ErrInvalidTaskCalendarRange
+	}
+	return repository.ListTaskCalendar(ctx, userID, filters)
 }
 
 func normalizeListFilters(filters ListFilters) ListFilters {
@@ -299,6 +326,99 @@ func (s *Service) BatchUpdateTaskStatus(ctx context.Context, userID int64, ids [
 		return 0, ErrInvalidTaskBatch
 	}
 	return s.repository.BatchUpdateTaskStatus(ctx, userID, ids, status)
+}
+
+func (s *Service) BatchUpdateTaskFields(ctx context.Context, userID int64, input BatchTaskUpdateInput) (BatchTaskUpdateResult, error) {
+	if s.repository == nil {
+		return BatchTaskUpdateResult{}, ErrServiceNotReady
+	}
+	ids, ok := normalizeBatchTaskIDs(input.IDs)
+	if !ok || !batchTaskUpdateHasFields(input) {
+		return BatchTaskUpdateResult{}, ErrInvalidTaskBatch
+	}
+	if input.Status != nil {
+		value := strings.TrimSpace(*input.Status)
+		input.Status = &value
+	}
+	if input.Assignee != nil {
+		value := strings.TrimSpace(*input.Assignee)
+		if len([]rune(value)) > 100 {
+			return BatchTaskUpdateResult{}, ErrInvalidTaskBatch
+		}
+		input.Assignee = &value
+	}
+	if input.Priority != nil {
+		value := strings.TrimSpace(*input.Priority)
+		input.Priority = &value
+	}
+	if input.Status != nil && !validStatus(*input.Status) {
+		return BatchTaskUpdateResult{}, ErrInvalidTaskBatch
+	}
+	if input.Priority != nil && !validPriority(*input.Priority) {
+		return BatchTaskUpdateResult{}, ErrInvalidTaskBatch
+	}
+	if input.Tags != nil && !validTags(*input.Tags) {
+		return BatchTaskUpdateResult{}, ErrInvalidTaskBatch
+	}
+	if input.ClearDueAt && input.DueAt != nil {
+		return BatchTaskUpdateResult{}, ErrInvalidTaskBatch
+	}
+
+	result := BatchTaskUpdateResult{Failed: make([]BatchTaskUpdateFailure, 0)}
+	for _, id := range ids {
+		current, err := s.repository.GetTask(ctx, userID, id)
+		if err != nil {
+			result.Failed = append(result.Failed, BatchTaskUpdateFailure{ID: id, Code: batchTaskFailureCode(err)})
+			continue
+		}
+		update := TaskUpdate{Version: &current.Version}
+		if input.Status != nil {
+			status := *input.Status
+			update.Status = &status
+		}
+		if input.Assignee != nil {
+			assignee := *input.Assignee
+			update.Assignee = &assignee
+		}
+		if input.Priority != nil {
+			priority := *input.Priority
+			update.Priority = &priority
+		}
+		if input.DueAt != nil {
+			dueAt := *input.DueAt
+			update.DueAt = &dueAt
+		}
+		update.ClearDueAt = input.ClearDueAt
+		if input.Tags != nil {
+			tags := append([]string(nil), (*input.Tags)...)
+			update.Tags = &tags
+		}
+		if _, err := s.UpdateTask(ctx, userID, id, update); err != nil {
+			result.Failed = append(result.Failed, BatchTaskUpdateFailure{ID: id, Code: batchTaskFailureCode(err)})
+			continue
+		}
+		result.Updated++
+	}
+	return result, nil
+}
+
+func batchTaskUpdateHasFields(input BatchTaskUpdateInput) bool {
+	return input.Status != nil || input.Assignee != nil || input.Priority != nil || input.DueAt != nil || input.ClearDueAt || input.Tags != nil
+}
+
+func batchTaskFailureCode(err error) string {
+	switch {
+	case errors.Is(err, ErrTaskNotFound):
+		return "task_not_found"
+	case errors.Is(err, ErrInvalidTaskStatusTransition):
+		return "invalid_status_transition"
+	case errors.Is(err, ErrTaskVersionConflict):
+		return "task_version_conflict"
+	case errors.Is(err, ErrInvalidTaskProgress):
+		return "invalid_progress"
+	default:
+		return "update_failed"
+	}
 }
 
 func (s *Service) BatchDeleteTasks(ctx context.Context, userID int64, ids []int64) (int, error) {

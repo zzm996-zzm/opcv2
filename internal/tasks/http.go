@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
@@ -52,13 +53,20 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/ai-drafts/:id", h.getTaskAIDraft)
 	router.POST("/tasks/ai-drafts/:id/adopt", h.adoptTaskAIDraft)
 	router.GET("/tasks", h.listTasks)
+	router.GET("/tasks/calendar", h.listTaskCalendar)
 	router.GET("/tasks/stats", h.taskStats)
 	router.GET("/tasks/projects", h.listTaskProjects)
 	router.GET("/tasks/tags", h.listTaskTags)
 	router.PATCH("/tasks/batch", h.batchUpdateTaskStatus)
+	router.POST("/tasks/batch-update", h.batchUpdateTaskFields)
+	router.PATCH("/tasks/batch-update", h.batchUpdateTaskFields)
 	router.DELETE("/tasks/batch", h.batchDeleteTasks)
 	router.GET("/tasks/:id", h.getTask)
 	router.GET("/tasks/:id/activities", h.listTaskActivities)
+	router.GET("/tasks/:id/comments", h.listTaskComments)
+	router.POST("/tasks/:id/comments", h.createTaskComment)
+	router.PATCH("/tasks/:id/comments/:comment_id", h.updateTaskComment)
+	router.DELETE("/tasks/:id/comments/:comment_id", h.deleteTaskComment)
 	router.PATCH("/tasks/:id", h.updateTask)
 	router.DELETE("/tasks/:id", h.deleteTask)
 	router.POST("/tasks/:id/restore", h.restoreTask)
@@ -69,6 +77,186 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/:id/reminder", h.getTaskReminder)
 	router.PUT("/tasks/:id/reminder", h.upsertTaskReminder)
 	router.DELETE("/tasks/:id/reminder", h.deleteTaskReminder)
+}
+
+type taskCommentApplication interface {
+	ListTaskComments(context.Context, int64, int64, int, int) ([]TaskComment, int, error)
+	CreateTaskComment(context.Context, CreateTaskCommentInput) (TaskComment, error)
+	UpdateTaskComment(context.Context, int64, int64, int64, UpdateTaskCommentInput) (TaskComment, error)
+	DeleteTaskComment(context.Context, int64, int64, int64) error
+}
+
+func (h *HTTPHandler) listTaskComments(c *gin.Context) {
+	app, ok := h.app.(taskCommentApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	taskID, ok := taskID(c)
+	if !ok {
+		return
+	}
+	limit, ok := httpapi.QueryLimit(c, 20, 100)
+	if !ok {
+		return
+	}
+	offset, ok := httpapi.QueryOffset(c)
+	if !ok {
+		return
+	}
+	comments, total, err := app.ListTaskComments(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), taskID, limit, offset)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, TaskCommentPage{Comments: httpapi.EnsureSlice(comments), Total: total, Limit: limit, Offset: offset})
+}
+
+func (h *HTTPHandler) createTaskComment(c *gin.Context) {
+	app, ok := h.app.(taskCommentApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	taskID, ok := taskID(c)
+	if !ok {
+		return
+	}
+	var request CreateTaskCommentInput
+	if err := c.ShouldBindJSON(&request); err != nil || (request.ParentCommentID != nil && *request.ParentCommentID <= 0) {
+		httpapi.BadRequest(c, "invalid_comment")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.TaskID = taskID
+	comment, err := app.CreateTaskComment(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, comment)
+}
+
+func (h *HTTPHandler) updateTaskComment(c *gin.Context) {
+	app, ok := h.app.(taskCommentApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	taskID, ok := taskID(c)
+	if !ok {
+		return
+	}
+	commentID, ok := positivePathID(c, "comment_id", "invalid_comment_id")
+	if !ok {
+		return
+	}
+	var request UpdateTaskCommentInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_comment")
+		return
+	}
+	comment, err := app.UpdateTaskComment(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), taskID, commentID, request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, comment)
+}
+
+func (h *HTTPHandler) deleteTaskComment(c *gin.Context) {
+	app, ok := h.app.(taskCommentApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	taskID, ok := taskID(c)
+	if !ok {
+		return
+	}
+	commentID, ok := positivePathID(c, "comment_id", "invalid_comment_id")
+	if !ok {
+		return
+	}
+	if err := app.DeleteTaskComment(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), taskID, commentID); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type taskBatchUpdateApplication interface {
+	BatchUpdateTaskFields(context.Context, int64, BatchTaskUpdateInput) (BatchTaskUpdateResult, error)
+}
+
+func (h *HTTPHandler) batchUpdateTaskFields(c *gin.Context) {
+	app, ok := h.app.(taskBatchUpdateApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	var request BatchTaskUpdateInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	result, err := app.BatchUpdateTaskFields(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	result.Failed = httpapi.EnsureSlice(result.Failed)
+	c.JSON(http.StatusOK, result)
+}
+
+type taskCalendarApplication interface {
+	ListTaskCalendar(context.Context, int64, CalendarFilters) (CalendarPage, error)
+}
+
+func (h *HTTPHandler) listTaskCalendar(c *gin.Context) {
+	app, ok := h.app.(taskCalendarApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	from, err := parseCalendarBoundary(c.Query("from"))
+	if err != nil {
+		httpapi.BadRequest(c, "invalid_calendar_range")
+		return
+	}
+	to, err := parseCalendarBoundary(c.Query("to"))
+	if err != nil || !from.Before(to) {
+		httpapi.BadRequest(c, "invalid_calendar_range")
+		return
+	}
+	status := strings.TrimSpace(c.Query("status"))
+	if status != "" && !validStatus(status) {
+		httpapi.BadRequest(c, "invalid_status")
+		return
+	}
+	priority := strings.TrimSpace(c.Query("priority"))
+	if priority != "" && !validPriority(priority) {
+		httpapi.BadRequest(c, "invalid_priority")
+		return
+	}
+	page, err := app.ListTaskCalendar(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), CalendarFilters{
+		Status: status, Project: c.Query("project"), Priority: priority, Tag: c.Query("tag"), Query: c.Query("q"), From: from, To: to,
+	})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	page.Tasks = httpapi.EnsureSlice(page.Tasks)
+	page.Unscheduled = httpapi.EnsureSlice(page.Unscheduled)
+	c.JSON(http.StatusOK, page)
+}
+
+func parseCalendarBoundary(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if parsed, err := time.Parse("2006-01-02", value); err == nil {
+		return parsed, nil
+	}
+	return time.Parse(time.RFC3339, value)
 }
 
 func (h *HTTPHandler) createTaskBatch(c *gin.Context) {
@@ -552,6 +740,12 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusConflict, "task_ai_draft_already_adopted")
 	case errors.Is(err, ErrInvalidTaskAIDraft):
 		httpapi.BadRequest(c, "invalid_task_ai_draft")
+	case errors.Is(err, ErrInvalidTaskCalendarRange):
+		httpapi.BadRequest(c, "invalid_calendar_range")
+	case errors.Is(err, ErrTaskCommentNotFound):
+		httpapi.Error(c, http.StatusNotFound, "task_comment_not_found")
+	case errors.Is(err, ErrInvalidTaskComment):
+		httpapi.BadRequest(c, "invalid_comment")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

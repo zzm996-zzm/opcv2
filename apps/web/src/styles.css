@@ -15106,6 +15106,7 @@ a:active {
 }
 
 .task-batch-toolbar select,
+.task-batch-toolbar input,
 .task-batch-toolbar button {
   min-height: 34px;
   padding: 0 11px;
@@ -15116,9 +15117,14 @@ a:active {
   font-weight: 800;
 }
 
-.task-batch-toolbar select {
+.task-batch-toolbar select,
+.task-batch-toolbar input {
   color: #10265f;
   background: #fff;
+}
+
+.task-batch-toolbar input {
+  min-width: 150px;
 }
 
 .task-batch-toolbar button {
@@ -15131,6 +15137,11 @@ a:active {
   color: #c23c2d;
   background: #fff;
   border-color: rgba(194, 60, 45, 0.22);
+}
+
+.task-batch-toolbar button.secondary {
+  color: #435b93;
+  background: #fff;
 }
 
 .task-batch-toolbar button:disabled,
@@ -30853,6 +30864,41 @@ a:active {
   gap: 18px;
 }
 
+.task-calendar-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.task-calendar-toolbar strong {
+  min-width: 92px;
+  color: #10245d;
+  text-align: center;
+}
+
+.task-calendar-toolbar button {
+  min-width: 34px;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #2d4fd0;
+  background: #f5f8ff;
+  border: 1px solid rgba(45, 79, 208, 0.16);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.task-calendar-toolbar button:disabled {
+  color: #9aa7c0;
+  cursor: not-allowed;
+}
+
+.task-calendar-toolbar span {
+  margin-left: auto;
+  color: #71809b;
+  font-size: 12px;
+}
+
 .task-calendar-group {
   display: grid;
   gap: 12px;
@@ -31281,6 +31327,136 @@ a:active {
   text-align: center;
   font-size: 12px;
   font-weight: 740;
+}
+
+.task-comment-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(31, 68, 140, 0.1);
+}
+
+.task-comment-section > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.task-comment-section h3,
+.task-comment-section p {
+  margin: 0;
+}
+
+.task-comment-section h3 {
+  color: #071637;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.task-comment-section header p {
+  margin-top: 4px;
+  color: #7184ad;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.task-comment-section header > span {
+  flex: 0 0 auto;
+  color: #435b93;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.task-comment-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.task-comment-create textarea,
+.task-comment-list textarea {
+  min-height: 74px;
+  padding: 10px 12px;
+  color: #10265f;
+  background: #fbfcff;
+  border: 1px solid rgba(31, 68, 140, 0.16);
+  border-radius: 8px;
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.task-comment-create textarea:focus,
+.task-comment-list textarea:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(21, 87, 255, 0.1);
+}
+
+.task-comment-create button {
+  align-self: end;
+  min-height: 40px;
+  padding: 0 15px;
+  color: #fff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-comment-list {
+  display: grid;
+  gap: 10px;
+}
+
+.task-comment-list article {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: #f8faff;
+  border: 1px solid rgba(31, 68, 140, 0.08);
+  border-radius: 8px;
+}
+
+.task-comment-list article > p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #10265f;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.task-comment-list article > footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-comment-list article > footer small {
+  margin-right: auto;
+  color: #7184ad;
+  font-size: 11px;
+}
+
+.task-comment-list article > footer button {
+  min-height: 28px;
+  padding: 0 8px;
+  color: #435b93;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.task-comment-list article > footer button.danger {
+  color: #b03830;
+  border-color: rgba(217, 54, 43, 0.2);
 }
 
 .task-activity-section {
@@ -36104,6 +36280,19 @@ a:active {
   }
 
   .task-subtask-create button {
+    width: 100%;
+  }
+
+  .task-comment-section > header {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .task-comment-create {
+    grid-template-columns: 1fr;
+  }
+
+  .task-comment-create button {
     width: 100%;
   }
 
