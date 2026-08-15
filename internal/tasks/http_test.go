@@ -713,6 +713,34 @@ func TestCreateSubtaskEndpointUsesParentTaskAndAuthenticatedUser(t *testing.T) {
 	}
 }
 
+func TestCreateSubtaskEndpointAcceptsNestedParent(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/99/subtasks", strings.NewReader(`{"title":"整理问题清单","parent_subtask_id":7}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK || app.subtaskInput.ParentSubtaskID == nil || *app.subtaskInput.ParentSubtaskID != 7 {
+		t.Fatalf("status/input = %d/%+v body=%s", recorder.Code, app.subtaskInput, recorder.Body.String())
+	}
+}
+
+func TestCreateSubtaskEndpointRejectsInvalidNestedParent(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/99/subtasks", strings.NewReader(`{"title":"整理问题清单","parent_subtask_id":0}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest || app.subtaskInput.UserID != 0 {
+		t.Fatalf("status/input = %d/%+v body=%s", recorder.Code, app.subtaskInput, recorder.Body.String())
+	}
+}
+
 func TestCreateSubtaskEndpointRejectsBlankTitle(t *testing.T) {
 	app := &fakeApplication{}
 	router := tasksTestRouter(app)

@@ -199,14 +199,14 @@ describe("tasksApi", () => {
 	  .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
 	await tasksApi.listSubtasks(99);
-	await tasksApi.createSubtask(99, { title: "整理访谈提纲", assignee: "李明" });
+	await tasksApi.createSubtask(99, { title: "整理访谈提纲", assignee: "李明", parentSubtaskId: 6 });
 	await tasksApi.updateSubtask(99, 7, { completed: true });
 	await tasksApi.deleteSubtask(99, 7);
 
 	expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks/99/subtasks", expect.objectContaining({ method: "GET" }));
 	expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/99/subtasks", expect.objectContaining({
 	  method: "POST",
-	  body: JSON.stringify({ title: "整理访谈提纲", assignee: "李明" })
+	  body: JSON.stringify({ title: "整理访谈提纲", assignee: "李明", parent_subtask_id: 6 })
 	}));
 	expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/tasks/99/subtasks/7", expect.objectContaining({
 	  method: "PATCH",

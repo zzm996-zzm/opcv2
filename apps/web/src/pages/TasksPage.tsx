@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
+import { ChevronDown, ChevronRight, Plus, Trash2, X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
@@ -161,6 +162,62 @@ function currentCalendarMonth() {
 
 function calendarMonthFromQuery(value: string | null) {
   return value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : currentCalendarMonth();
+}
+
+type SubtaskTreeRow = {
+  item: TaskSubtask;
+  depth: number;
+  descendantCount: number;
+  hasChildren: boolean;
+};
+
+function subtaskDescendantIDs(items: TaskSubtask[], parentID: number) {
+  const children = new Map<number, number[]>();
+  items.forEach((item) => {
+    if (item.parent_subtask_id === undefined) return;
+    children.set(item.parent_subtask_id, [...(children.get(item.parent_subtask_id) ?? []), item.id]);
+  });
+  const descendants: number[] = [];
+  const visited = new Set<number>([parentID]);
+  const pending = [...(children.get(parentID) ?? [])];
+  while (pending.length > 0) {
+    const id = pending.shift() as number;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    descendants.push(id);
+    pending.push(...(children.get(id) ?? []));
+  }
+  return descendants;
+}
+
+function flattenSubtaskTree(items: TaskSubtask[], collapsedIDs: Set<number>): SubtaskTreeRow[] {
+  const itemIDs = new Set(items.map((item) => item.id));
+  const children = new Map<number | null, TaskSubtask[]>();
+  items.forEach((item) => {
+    const parentID = item.parent_subtask_id !== undefined && itemIDs.has(item.parent_subtask_id)
+      ? item.parent_subtask_id
+      : null;
+    children.set(parentID, [...(children.get(parentID) ?? []), item]);
+  });
+  children.forEach((siblings) => siblings.sort((left, right) => left.created_at.localeCompare(right.created_at) || left.id - right.id));
+
+  const rows: SubtaskTreeRow[] = [];
+  const visited = new Set<number>();
+  const append = (item: TaskSubtask, depth: number) => {
+    if (visited.has(item.id)) return;
+    visited.add(item.id);
+    const childItems = children.get(item.id) ?? [];
+    rows.push({
+      item,
+      depth,
+      descendantCount: subtaskDescendantIDs(items, item.id).length,
+      hasChildren: childItems.length > 0
+    });
+    if (!collapsedIDs.has(item.id)) childItems.forEach((child) => append(child, depth + 1));
+  };
+  (children.get(null) ?? []).forEach((item) => append(item, 0));
+  items.forEach((item) => append(item, 0));
+  return rows;
 }
 
 function calendarMonthRange(month: string) {
@@ -420,6 +477,9 @@ function TasksPage() {
   const [subtaskBusyID, setSubtaskBusyID] = useState<number | null>(null);
   const [subtaskTitle, setSubtaskTitle] = useState("");
   const [subtaskError, setSubtaskError] = useState("");
+  const [subtaskParentID, setSubtaskParentID] = useState<number | null>(null);
+  const [collapsedSubtaskIDs, setCollapsedSubtaskIDs] = useState<Set<number>>(new Set());
+  const [confirmSubtaskDeleteID, setConfirmSubtaskDeleteID] = useState<number | null>(null);
   const [taskReminder, setTaskReminder] = useState<TaskReminder | null>(null);
   const [reminderLoading, setReminderLoading] = useState(false);
   const [reminderSaving, setReminderSaving] = useState(false);
@@ -568,6 +628,8 @@ function TasksPage() {
   const currentPageTaskIDs = apiTasks.map((task) => task.id);
   const allCurrentPageSelected = currentPageTaskIDs.length > 0 && currentPageTaskIDs.every((id) => selectedTaskIDs.has(id));
   const selectedTasks = apiTasks.filter((task) => selectedTaskIDs.has(task.id));
+  const subtaskTreeRows = flattenSubtaskTree(subtasks, collapsedSubtaskIDs);
+  const subtaskParent = subtasks.find((item) => item.id === subtaskParentID);
   const batchStatusOptions = boardColumnLabels.filter((option) =>
     selectedTasks.length > 0 && selectedTasks.every((task) => taskStatusOptions(task.status).some((item) => item.value === option.status))
   );
@@ -908,6 +970,9 @@ function TasksPage() {
     setSubtasksLoading(true);
     setSubtaskTitle("");
     setSubtaskError("");
+    setSubtaskParentID(null);
+    setCollapsedSubtaskIDs(new Set());
+    setConfirmSubtaskDeleteID(null);
     setTaskReminder(null);
     setReminderLoading(true);
     setReminderTime("");
@@ -973,6 +1038,9 @@ function TasksPage() {
     setSubtasks([]);
     setSubtaskTitle("");
     setSubtaskError("");
+    setSubtaskParentID(null);
+    setCollapsedSubtaskIDs(new Set());
+    setConfirmSubtaskDeleteID(null);
     setTaskReminder(null);
     setReminderTime("");
     setReminderRecurrence("once");
@@ -1006,9 +1074,13 @@ function TasksPage() {
     setSubtaskCreating(true);
     setSubtaskError("");
     try {
-      const item = await tasksApi.createSubtask(detailTaskID, { title });
+      const item = await tasksApi.createSubtask(detailTaskID, {
+        title,
+        parentSubtaskId: subtaskParentID ?? undefined
+      });
       setSubtasks((current) => [...current, item]);
       setSubtaskTitle("");
+      setSubtaskParentID(null);
     } catch (error) {
       setSubtaskError(apiErrorMessage(error, "暂时无法添加子任务"));
     } finally {
@@ -1036,7 +1108,12 @@ function TasksPage() {
     setSubtaskError("");
     try {
       await tasksApi.deleteSubtask(detailTaskID, item.id);
-      setSubtasks((current) => current.filter((subtask) => subtask.id !== item.id));
+      setSubtasks((current) => {
+        const removedIDs = new Set([item.id, ...subtaskDescendantIDs(current, item.id)]);
+        return current.filter((subtask) => !removedIDs.has(subtask.id));
+      });
+      setConfirmSubtaskDeleteID(null);
+      if (subtaskParentID === item.id) setSubtaskParentID(null);
     } catch (error) {
       setSubtaskError(apiErrorMessage(error, "暂时无法删除子任务"));
     } finally {
@@ -1942,6 +2019,12 @@ function TasksPage() {
                       </div>
                       <span>{subtasks.filter((item) => item.completed).length} / {subtasks.length} 已完成</span>
                     </header>
+                    {subtaskParent ? (
+                      <div className="task-subtask-parent-target" role="status">
+                        <span>正在为“{subtaskParent.title}”添加下级</span>
+                        <button aria-label="取消添加下级" onClick={() => setSubtaskParentID(null)} title="取消添加下级" type="button"><X aria-hidden="true" /></button>
+                      </div>
+                    ) : null}
                     <div className="task-subtask-create">
                       <input
                         aria-label="新建子任务"
@@ -1953,19 +2036,39 @@ function TasksPage() {
                           event.preventDefault();
                           void createDetailSubtask();
                         }}
-                        placeholder="输入子任务标题"
+                        placeholder={subtaskParent ? "输入下级子任务标题" : "输入子任务标题"}
                         value={subtaskTitle}
                       />
                       <button disabled={subtaskCreating || !subtaskTitle.trim()} onClick={() => void createDetailSubtask()} type="button">
-                        {subtaskCreating ? "添加中..." : "添加子任务"}
+                        {subtaskCreating ? "添加中..." : subtaskParent ? "添加下级" : "添加子任务"}
                       </button>
                     </div>
                     {subtasksLoading ? <div className="task-subtask-empty" role="status">正在读取子任务...</div> : null}
                     {!subtasksLoading && subtasks.length === 0 ? <div className="task-subtask-empty" role="status">暂无子任务</div> : null}
                     {!subtasksLoading && subtasks.length > 0 ? (
                       <div className="task-subtask-list">
-                        {subtasks.map((item) => (
-                          <article className={item.completed ? "completed" : ""} key={item.id}>
+                        {subtaskTreeRows.map(({ item, depth, descendantCount, hasChildren }) => (
+                          <article
+                            className={item.completed ? "completed" : ""}
+                            key={item.id}
+                            style={{ "--subtask-depth": Math.min(depth, 8) } as CSSProperties}
+                          >
+                            {hasChildren ? (
+                              <button
+                                aria-label={`${collapsedSubtaskIDs.has(item.id) ? "展开" : "收起"}子任务 ${item.title}`}
+                                className="task-subtask-collapse"
+                                onClick={() => setCollapsedSubtaskIDs((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(item.id)) next.delete(item.id);
+                                  else next.add(item.id);
+                                  return next;
+                                })}
+                                title={collapsedSubtaskIDs.has(item.id) ? "展开下级" : "收起下级"}
+                                type="button"
+                              >
+                                {collapsedSubtaskIDs.has(item.id) ? <ChevronRight aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+                              </button>
+                            ) : <span className="task-subtask-collapse-spacer" />}
                             <label>
                               <input
                                 aria-label={`完成子任务 ${item.title}`}
@@ -1975,20 +2078,44 @@ function TasksPage() {
                                 type="checkbox"
                               />
                             </label>
-                            <div>
+                            <div className="task-subtask-content">
                               <strong>{item.title}</strong>
                               {item.assignee || item.due_at ? (
                                 <small>{item.assignee ? `负责人 ${item.assignee}` : ""}{item.assignee && item.due_at ? " · " : ""}{item.due_at ? `截止 ${formatDueAt(item.due_at)}` : ""}</small>
                               ) : null}
                             </div>
-                            <button
-                              aria-label={`删除子任务 ${item.title}`}
-                              disabled={subtaskBusyID !== null}
-                              onClick={() => void deleteDetailSubtask(item)}
-                              type="button"
-                            >
-                              删除
-                            </button>
+                            <div className="task-subtask-actions">
+                              <button
+                                aria-label={`为子任务 ${item.title} 添加下级`}
+                                disabled={subtaskBusyID !== null}
+                                onClick={() => {
+                                  setSubtaskParentID(item.id);
+                                  setSubtaskTitle("");
+                                  setSubtaskError("");
+                                }}
+                                title="添加下级"
+                                type="button"
+                              ><Plus aria-hidden="true" /></button>
+                              {confirmSubtaskDeleteID === item.id ? (
+                                <>
+                                  <button
+                                    className="danger"
+                                    disabled={subtaskBusyID !== null}
+                                    onClick={() => void deleteDetailSubtask(item)}
+                                    type="button"
+                                  >确认删除{descendantCount > 0 ? `（含 ${descendantCount} 个下级）` : ""}</button>
+                                  <button aria-label={`取消删除子任务 ${item.title}`} onClick={() => setConfirmSubtaskDeleteID(null)} title="取消删除" type="button"><X aria-hidden="true" /></button>
+                                </>
+                              ) : (
+                                <button
+                                  aria-label={`删除子任务 ${item.title}`}
+                                  disabled={subtaskBusyID !== null}
+                                  onClick={() => setConfirmSubtaskDeleteID(item.id)}
+                                  title="删除子任务"
+                                  type="button"
+                                ><Trash2 aria-hidden="true" /></button>
+                              )}
+                            </div>
                           </article>
                         ))}
                       </div>

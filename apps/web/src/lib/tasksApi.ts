@@ -167,6 +167,7 @@ export type TaskSubtask = {
   id: number;
   task_id: number;
   user_id: number;
+  parent_subtask_id?: number;
   title: string;
   assignee?: string;
   due_at?: string;
@@ -190,6 +191,7 @@ export type CreateSubtaskInput = {
   title: string;
   assignee?: string;
   dueAt?: string;
+  parentSubtaskId?: number;
 };
 
 export type UpdateSubtaskInput = Partial<{
@@ -294,6 +296,7 @@ function toSubtaskPayload(input: CreateSubtaskInput | UpdateSubtaskInput) {
     title: input.title,
     assignee: input.assignee,
     due_at: input.dueAt,
+    parent_subtask_id: "parentSubtaskId" in input ? input.parentSubtaskId : undefined,
     clear_due_at: "clearDueAt" in input ? input.clearDueAt : undefined,
     completed: "completed" in input ? input.completed : undefined
   };

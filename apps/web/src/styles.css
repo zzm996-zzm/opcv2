@@ -31254,6 +31254,44 @@ a:active {
   cursor: pointer;
 }
 
+.task-subtask-parent-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+  padding: 7px 10px;
+  color: #28467f;
+  background: #f1f5ff;
+  border: 1px solid rgba(21, 87, 255, 0.12);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.task-subtask-parent-target button,
+.task-subtask-collapse,
+.task-subtask-actions button {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #435b93;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 7px;
+  cursor: pointer;
+  place-items: center;
+}
+
+.task-subtask-parent-target svg,
+.task-subtask-collapse svg,
+.task-subtask-actions svg {
+  width: 15px;
+  height: 15px;
+}
+
 .task-subtask-list {
   display: grid;
   border-top: 1px solid rgba(31, 68, 140, 0.08);
@@ -31261,12 +31299,17 @@ a:active {
 
 .task-subtask-list article {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  grid-template-columns: 24px 24px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   min-height: 54px;
-  padding: 9px 0;
+  padding: 9px 0 9px calc(var(--subtask-depth, 0) * 24px);
   border-bottom: 1px solid rgba(31, 68, 140, 0.08);
+}
+
+.task-subtask-collapse-spacer {
+  width: 24px;
+  height: 24px;
 }
 
 .task-subtask-list label {
@@ -31283,7 +31326,7 @@ a:active {
   accent-color: var(--blue);
 }
 
-.task-subtask-list article > div {
+.task-subtask-list .task-subtask-content {
   display: grid;
   gap: 3px;
   min-width: 0;
@@ -31307,16 +31350,27 @@ a:active {
   text-decoration: line-through;
 }
 
-.task-subtask-list article > button {
-  min-height: 32px;
+.task-subtask-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.task-subtask-actions button.danger {
+  width: auto;
+  min-width: 86px;
   padding: 0 10px;
   color: #b03830;
-  background: #fff;
   border: 1px solid rgba(217, 54, 43, 0.2);
-  border-radius: 7px;
   font-size: 11px;
   font-weight: 820;
-  cursor: pointer;
+}
+
+.task-subtask-actions button:disabled,
+.task-subtask-collapse:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .task-subtask-empty {

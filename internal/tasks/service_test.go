@@ -700,6 +700,20 @@ func TestServiceCreatesTrimmedSubtask(t *testing.T) {
 	}
 }
 
+func TestServicePreservesNestedSubtaskParent(t *testing.T) {
+	repository := &fakeSubtaskRepository{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	parentID := int64(6)
+
+	_, err := service.CreateSubtask(context.Background(), CreateSubtaskInput{
+		UserID: 42, TaskID: 99, ParentSubtaskID: &parentID, Title: "整理问题清单",
+	})
+
+	if err != nil || repository.createdSubtask.ParentSubtaskID == nil || *repository.createdSubtask.ParentSubtaskID != parentID {
+		t.Fatalf("created/error = %+v/%v", repository.createdSubtask, err)
+	}
+}
+
 func TestServiceListsOnlyParentTaskSubtasks(t *testing.T) {
 	repository := &fakeSubtaskRepository{
 		fakeRepository: &fakeRepository{},

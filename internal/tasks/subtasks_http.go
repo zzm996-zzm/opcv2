@@ -28,7 +28,7 @@ func (h *HTTPHandler) createSubtask(c *gin.Context) {
 		return
 	}
 	var input CreateSubtaskInput
-	if c.ShouldBindJSON(&input) != nil || !validSubtaskTitle(input.Title) || len([]rune(strings.TrimSpace(input.Assignee))) > 100 {
+	if c.ShouldBindJSON(&input) != nil || !validSubtaskTitle(input.Title) || len([]rune(strings.TrimSpace(input.Assignee))) > 100 || (input.ParentSubtaskID != nil && *input.ParentSubtaskID <= 0) {
 		httpapi.BadRequest(c, "invalid_request")
 		return
 	}

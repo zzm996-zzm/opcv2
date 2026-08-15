@@ -190,23 +190,25 @@ type AdoptTaskAIDraftInput struct {
 }
 
 type Subtask struct {
-	ID        int64      `json:"id"`
-	TaskID    int64      `json:"task_id"`
-	UserID    int64      `json:"user_id"`
-	Title     string     `json:"title"`
-	Assignee  string     `json:"assignee"`
-	DueAt     *time.Time `json:"due_at,omitempty"`
-	Completed bool       `json:"completed"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID              int64      `json:"id"`
+	TaskID          int64      `json:"task_id"`
+	UserID          int64      `json:"user_id"`
+	ParentSubtaskID *int64     `json:"parent_subtask_id,omitempty"`
+	Title           string     `json:"title"`
+	Assignee        string     `json:"assignee"`
+	DueAt           *time.Time `json:"due_at,omitempty"`
+	Completed       bool       `json:"completed"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }
 
 type CreateSubtaskInput struct {
-	UserID   int64      `json:"-"`
-	TaskID   int64      `json:"-"`
-	Title    string     `json:"title"`
-	Assignee string     `json:"assignee"`
-	DueAt    *time.Time `json:"due_at,omitempty"`
+	UserID          int64      `json:"-"`
+	TaskID          int64      `json:"-"`
+	ParentSubtaskID *int64     `json:"parent_subtask_id,omitempty"`
+	Title           string     `json:"title"`
+	Assignee        string     `json:"assignee"`
+	DueAt           *time.Time `json:"due_at,omitempty"`
 }
 
 type SubtaskUpdate struct {

@@ -815,7 +815,8 @@ describe("TasksPage", () => {
 		return Promise.resolve(new Response(JSON.stringify({ reminder: null }), { status: 200 }));
 	  }
 	  if (url === "/api/v1/tasks/97/subtasks" && init?.method === "POST") {
-		return Promise.resolve(new Response(JSON.stringify({ ...initialSubtask, id: 8, title: "整理访谈提纲", assignee: "" }), { status: 200 }));
+		const payload = JSON.parse(String(init.body)) as { title: string; parent_subtask_id?: number };
+		return Promise.resolve(new Response(JSON.stringify({ ...initialSubtask, id: 8, title: payload.title, assignee: "", parent_subtask_id: payload.parent_subtask_id }), { status: 200 }));
 	  }
 	  if (url === "/api/v1/tasks/97/subtasks/7" && init?.method === "PATCH") {
 		return Promise.resolve(new Response(JSON.stringify({ ...initialSubtask, completed: true }), { status: 200 }));
@@ -833,15 +834,21 @@ describe("TasksPage", () => {
 	const dialog = await screen.findByRole("dialog", { name: "任务详情" });
 	expect(await within(dialog).findByText("确认访谈名单")).toBeInTheDocument();
 
+	fireEvent.click(within(dialog).getByRole("button", { name: "为子任务 确认访谈名单 添加下级" }));
 	fireEvent.change(within(dialog).getByLabelText("新建子任务"), { target: { value: "整理访谈提纲" } });
-	fireEvent.click(within(dialog).getByRole("button", { name: "添加子任务" }));
+	fireEvent.click(within(dialog).getByRole("button", { name: "添加下级" }));
 	expect(await within(dialog).findByText("整理访谈提纲")).toBeInTheDocument();
+	expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/97/subtasks", expect.objectContaining({
+	  method: "POST",
+	  body: JSON.stringify({ title: "整理访谈提纲", parent_subtask_id: 7 })
+	}));
 
 	const completedCheckbox = within(dialog).getByRole("checkbox", { name: "完成子任务 确认访谈名单" });
 	fireEvent.click(completedCheckbox);
 	await waitFor(() => expect(completedCheckbox).toBeChecked());
 
 	fireEvent.click(within(dialog).getByRole("button", { name: "删除子任务 整理访谈提纲" }));
+	fireEvent.click(within(dialog).getByRole("button", { name: "确认删除" }));
 	await waitFor(() => expect(within(dialog).queryByText("整理访谈提纲")).not.toBeInTheDocument());
 	expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/97/subtasks/7", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ completed: true }) }));
 	expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/97/subtasks/8", expect.objectContaining({ method: "DELETE" }));

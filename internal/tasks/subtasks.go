@@ -34,12 +34,13 @@ func (s *Service) CreateSubtask(ctx context.Context, input CreateSubtaskInput) (
 		return Subtask{}, err
 	}
 	return repository.CreateSubtask(ctx, Subtask{
-		TaskID:    input.TaskID,
-		UserID:    input.UserID,
-		Title:     strings.TrimSpace(input.Title),
-		Assignee:  strings.TrimSpace(input.Assignee),
-		DueAt:     input.DueAt,
-		CreatedAt: s.now(),
+		TaskID:          input.TaskID,
+		UserID:          input.UserID,
+		ParentSubtaskID: input.ParentSubtaskID,
+		Title:           strings.TrimSpace(input.Title),
+		Assignee:        strings.TrimSpace(input.Assignee),
+		DueAt:           input.DueAt,
+		CreatedAt:       s.now(),
 	})
 }
 

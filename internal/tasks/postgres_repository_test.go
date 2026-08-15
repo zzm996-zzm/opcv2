@@ -636,8 +636,8 @@ func TestPostgresRepositoryListsOwnedTaskSubtasks(t *testing.T) {
 	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
 	db.ExpectQuery("SELECT s.id, s.task_id, s.user_id").
 		WithArgs(int64(42), int64(99)).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}).
-			AddRow(int64(7), int64(99), int64(42), "整理访谈提纲", "李明", nil, false, now, now))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "parent_subtask_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}).
+			AddRow(int64(7), int64(99), int64(42), nil, "整理访谈提纲", "李明", nil, false, now, now))
 
 	repository := NewPostgresRepository(db)
 	items, err := repository.ListSubtasks(context.Background(), 42, 99)
@@ -656,9 +656,9 @@ func TestPostgresRepositoryCreatesSubtaskOnlyForOwnedTask(t *testing.T) {
 
 	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
 	db.ExpectQuery("INSERT INTO task_subtasks").
-		WithArgs(int64(99), int64(42), "整理访谈提纲", "李明", nil, now).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}).
-			AddRow(int64(7), int64(99), int64(42), "整理访谈提纲", "李明", nil, false, now, now))
+		WithArgs(int64(99), int64(42), "整理访谈提纲", "李明", nil, nil, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "parent_subtask_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}).
+			AddRow(int64(7), int64(99), int64(42), nil, "整理访谈提纲", "李明", nil, false, now, now))
 
 	repository := NewPostgresRepository(db)
 	item, err := repository.CreateSubtask(context.Background(), Subtask{TaskID: 99, UserID: 42, Title: "整理访谈提纲", Assignee: "李明", CreatedAt: now})
@@ -676,14 +676,56 @@ func TestPostgresRepositoryReturnsTaskNotFoundWhenCreatingSubtaskForOtherUser(t 
 	defer db.Close()
 
 	db.ExpectQuery("INSERT INTO task_subtasks").
-		WithArgs(int64(99), int64(42), "整理访谈提纲", "", nil, time.Time{}).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}))
+		WithArgs(int64(99), int64(42), "整理访谈提纲", "", nil, nil, time.Time{}).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "parent_subtask_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}))
 
 	repository := NewPostgresRepository(db)
 	_, err = repository.CreateSubtask(context.Background(), Subtask{TaskID: 99, UserID: 42, Title: "整理访谈提纲"})
 
 	if !errors.Is(err, ErrTaskNotFound) {
 		t.Fatalf("err = %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestPostgresRepositoryCreatesNestedSubtaskOnlyUnderOwnedTaskSubtask(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	parentID := int64(7)
+	db.ExpectQuery("INSERT INTO task_subtasks").
+		WithArgs(int64(99), int64(42), "整理问题清单", "", nil, parentID, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "parent_subtask_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}).
+			AddRow(int64(8), int64(99), int64(42), parentID, "整理问题清单", "", nil, false, now, now))
+
+	repository := NewPostgresRepository(db)
+	item, err := repository.CreateSubtask(context.Background(), Subtask{TaskID: 99, UserID: 42, ParentSubtaskID: &parentID, Title: "整理问题清单", CreatedAt: now})
+
+	if err != nil || item.ParentSubtaskID == nil || *item.ParentSubtaskID != parentID {
+		t.Fatalf("item/error = %+v/%v", item, err)
+	}
+}
+
+func TestPostgresRepositoryRejectsNestedSubtaskUnderOtherTask(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	parentID := int64(7)
+	db.ExpectQuery("INSERT INTO task_subtasks").
+		WithArgs(int64(99), int64(42), "整理问题清单", "", nil, parentID, time.Time{}).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "parent_subtask_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}))
+
+	repository := NewPostgresRepository(db)
+	_, err = repository.CreateSubtask(context.Background(), Subtask{TaskID: 99, UserID: 42, ParentSubtaskID: &parentID, Title: "整理问题清单"})
+
+	if !errors.Is(err, ErrSubtaskNotFound) {
+		t.Fatalf("err = %v, want ErrSubtaskNotFound", err)
 	}
 }
 
@@ -698,8 +740,8 @@ func TestPostgresRepositoryUpdatesOwnedSubtask(t *testing.T) {
 	completed := true
 	db.ExpectQuery("UPDATE task_subtasks").
 		WithArgs(nil, nil, nil, false, &completed, int64(42), int64(99), int64(7)).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}).
-			AddRow(int64(7), int64(99), int64(42), "整理访谈提纲", "李明", nil, true, now, now))
+		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "parent_subtask_id", "title", "assignee", "due_at", "completed", "created_at", "updated_at"}).
+			AddRow(int64(7), int64(99), int64(42), nil, "整理访谈提纲", "李明", nil, true, now, now))
 
 	repository := NewPostgresRepository(db)
 	item, err := repository.UpdateSubtask(context.Background(), 42, 99, 7, SubtaskUpdate{Completed: &completed})
