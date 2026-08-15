@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Eye, EyeOff, P
 import { Link, useSearchParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import { useCopilotPanelVisibility } from "../components/CopilotPanelVisibility";
 import UnifiedCopilotPanel from "../components/UnifiedCopilotPanel";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { ApiRequestError } from "../lib/apiRequest";
@@ -475,6 +476,7 @@ function formatAttachmentSize(bytes: number) {
 
 function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const copilotPanel = useCopilotPanelVisibility();
   const taskGoalRef = useRef<HTMLTextAreaElement | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const taskDeepLinkRef = useRef<number | null>(null);
@@ -698,6 +700,9 @@ function TasksPage() {
     column.label,
     apiTasks.filter((task) => task.status === column.status).map((task) => task.title)
   ] as const);
+  const populatedBoardColumns = boardColumns.filter(([, items]) => items.length > 0);
+  const showBoardPreview = activeView === "list" && populatedBoardColumns.length > 0;
+  const useFullWidthWorkbench = !showBoardPreview && copilotPanel?.isPanelOpen === false;
   const calendarSourceTasks = calendarTasks ?? apiTasks;
   const scheduledTasks = calendarSourceTasks
     .filter((task) => task.due_at)
@@ -1776,7 +1781,7 @@ function TasksPage() {
           </TaskModalPortal>
         ) : null}
 
-	        <section className="task-workbench">
+	        <section className={`task-workbench${useFullWidthWorkbench ? " full-width" : ""}`}>
           <div className="task-list-panel">
             <div className="module-section-head">
               <div>
@@ -1874,7 +1879,7 @@ function TasksPage() {
                 <input
                   id="task-search"
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="搜索标题、描述、负责人、标签、项目或补课内容"
+                  placeholder="搜索任务、负责人、项目或标签"
                   value={searchInput}
                 />
                 <button type="submit">搜索</button>
@@ -2016,7 +2021,11 @@ function TasksPage() {
                 ) : null}
                 <div aria-label="任务列表" className="task-table">
                   {visibleTasks.length === 0 ? (
-                    <div className="module-empty-state" role="status">暂无任务数据</div>
+	                  <div className="module-empty-state task-empty-state" role="status">
+	                    <strong>{listLoading ? "正在读取任务..." : "暂无任务数据"}</strong>
+	                    {!listLoading && hasActiveFilters ? <button onClick={clearTaskFilters} type="button">清除筛选</button> : null}
+	                    {!listLoading && !hasActiveFilters ? <Link to="/tasks/new"><Plus aria-hidden="true" />创建首个任务</Link> : null}
+	                  </div>
 	                  ) : listGroups.map(([group, tasks]) => (
 	                    <Fragment key={group || "all-tasks"}>
 	                      {group ? (
@@ -2152,15 +2161,15 @@ function TasksPage() {
           </div>
 
 	          <div className="task-side-rail">
-	            {activeView === "list" ? (
+	            {showBoardPreview ? (
 	              <aside className="task-board-panel" aria-label="任务看板预览">
 	                <h2>跨项目看板</h2>
 	                <p>切换到看板视图可按状态处理跨项目任务</p>
 	                <div>
-	                  {boardColumns.map(([title, items]) => (
+	                  {populatedBoardColumns.map(([title, items]) => (
 	                    <section key={title}>
 	                      <strong>{title}</strong>
-	                      {items.length === 0 ? <span>暂无任务</span> : items.map((item) => <span key={item}>{item}</span>)}
+	                      {items.map((item) => <span key={item}>{item}</span>)}
 	                    </section>
 	                  ))}
 	                </div>

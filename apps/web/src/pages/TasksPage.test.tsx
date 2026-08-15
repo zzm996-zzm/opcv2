@@ -46,6 +46,8 @@ describe("TasksPage", () => {
     expect(screen.getByRole("heading", { name: "任务中心" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "生成任务表" })).toBeInTheDocument();
     expect(await screen.findByText("暂无任务数据")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "创建首个任务" })).toHaveAttribute("href", "/tasks/new");
+    expect(screen.queryByRole("heading", { name: "跨项目看板" })).not.toBeInTheDocument();
     expect(screen.queryByText("完成智能客服系统项目商业画布")).not.toBeInTheDocument();
   });
 
@@ -104,6 +106,7 @@ describe("TasksPage", () => {
     expect(within(taskRow).getByText("06/30 18:00")).toBeInTheDocument();
     expect(within(taskRow).getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("建议工具：沙盘推演 / 任务中心")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "跨项目看板" })).toBeInTheDocument();
     const inProgressStat = screen.getAllByText("进行中").find((node) => node.tagName.toLowerCase() === "small")?.closest("article");
     expect(inProgressStat).not.toBeNull();
     expect(within(inProgressStat as HTMLElement).getByText("1")).toBeInTheDocument();

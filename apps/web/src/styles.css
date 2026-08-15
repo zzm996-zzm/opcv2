@@ -30864,14 +30864,33 @@ a:active {
 
 .task-workbench {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
+  align-items: start;
   gap: 14px;
 }
 
 .task-list-panel,
 .task-board-panel {
+  align-self: start;
+  align-content: start;
   padding: 18px 20px;
   background: rgba(255, 255, 255, 0.74);
   border-radius: 14px;
+}
+
+.task-list-panel > .module-section-head {
+  margin-bottom: 0;
+}
+
+.task-list-panel > .module-chip-row.compact {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.task-list-panel > .module-chip-row.compact button {
+  flex: 0 0 auto;
 }
 
 .task-table {
@@ -30914,6 +30933,10 @@ a:active {
 
 .task-workbench.full-width {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.task-workbench.full-width .task-filter-bar {
+  grid-template-columns: minmax(260px, 1.8fr) repeat(5, minmax(110px, 1fr));
 }
 
 .task-filter-bar {
@@ -31002,6 +31025,73 @@ a:active {
   color: #6377a5;
   background: #f7faff;
   border: 1px solid rgba(31, 68, 140, 0.12);
+}
+
+.task-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 88px;
+  padding: 18px 20px;
+  color: #7184ad;
+  background: #f8faff;
+}
+
+.task-empty-state strong {
+  color: #435b93;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.task-empty-state a,
+.task-empty-state button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 13px;
+  color: #fff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-empty-state svg {
+  width: 15px;
+  height: 15px;
+}
+
+@media (max-width: 1000px) {
+  .task-workbench.full-width .task-filter-bar,
+  .task-filter-bar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .task-search-field {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .task-workbench.full-width .task-filter-bar,
+  .task-filter-bar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .task-search-field {
+    grid-column: auto;
+  }
+
+  .task-empty-state {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .task-pagination {
