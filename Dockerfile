@@ -24,8 +24,9 @@ RUN if [ -n "$ALPINE_REPOSITORY" ]; then \
     apk add --no-cache ca-certificates tzdata font-wqy-zenhei
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
-USER app
 COPY --from=builder /out/service /usr/local/bin/service
 COPY migrations ./migrations
+RUN mkdir -p /app/data && chown -R app:app /app
+USER app
 
 ENTRYPOINT ["/usr/local/bin/service"]
