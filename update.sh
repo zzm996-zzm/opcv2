@@ -81,7 +81,11 @@ if [[ -n "$REMOTE_PORT" ]]; then
   ssh_args+=(-p "$REMOTE_PORT")
 fi
 
-ssh "${ssh_args[@]}" "$REMOTE_HOST" "bash -lc $(printf '%q' "$remote_script")"
+if ((${#ssh_args[@]} > 0)); then
+  ssh "${ssh_args[@]}" "$REMOTE_HOST" "bash -lc $(printf '%q' "$remote_script")"
+else
+  ssh "$REMOTE_HOST" "bash -lc $(printf '%q' "$remote_script")"
+fi
 
 if [[ -n "$healthcheck_url" ]]; then
   healthy=false
