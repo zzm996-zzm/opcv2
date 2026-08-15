@@ -26,10 +26,10 @@ describe("GrowthCalculatorPage", () => {
     });
   }
 
-  function renderGrowthRoute() {
+  function renderGrowthRoute(route = "/growth-calculator") {
     signIn();
     render(
-      <MemoryRouter initialEntries={["/growth-calculator"]}>
+      <MemoryRouter initialEntries={[route]}>
         <App />
       </MemoryRouter>
     );
@@ -44,6 +44,7 @@ describe("GrowthCalculatorPage", () => {
 
     expect(screen.getByRole("heading", { name: "增长测算" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "业务与增长问题" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "业务与增长问题" })).toHaveAttribute("maxlength", "2000");
     expect(screen.getByRole("button", { name: "开始测算" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "增长漏斗" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "情景对比" })).toBeInTheDocument();
@@ -51,9 +52,42 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.getByText("暂无情景对比")).toBeInTheDocument();
     expect(screen.queryByText("保守方案")).not.toBeInTheDocument();
     expect(screen.queryByText("第一版正在实现")).not.toBeInTheDocument();
+
+    const quarterlyButton = screen.getByRole("button", { name: "季度" });
+    expect(quarterlyButton).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(quarterlyButton);
+    expect(quarterlyButton).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it.each([
+    "/growth-calculator/questions",
+    "/growth-calculator/history",
+    "/growth-calculator/report"
+  ])("serves the live growth workbench at %s", async (route) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ models: [] }), { status: 200 })
+    );
+
+    renderGrowthRoute(route);
+
+    expect(screen.getByRole("heading", { name: "增长测算" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "业务与增长问题" })).toBeInTheDocument();
+    expect(await screen.findByText("暂无测算模型")).toBeInTheDocument();
   });
 
   it("loads the latest growth model from API", async () => {
+    const generatedTasks = [
+      {
+        id: 801, user_id: 7, title: "优化高意向线索跟进", description: "将跟进延迟压缩到 24 小时内", assignee: "",
+        project: "增长测算", status: "todo", priority: "high", tags: ["增长"], tools: [], learning: "", progress: 0, version: 1,
+        created_at: "2026-06-30T08:30:00Z", updated_at: "2026-06-30T08:30:00Z"
+      },
+      {
+        id: 802, user_id: 7, title: "提高成交转化率", description: "先优化成交再增加预算", assignee: "",
+        project: "增长测算", status: "todo", priority: "medium", tags: ["转化"], tools: [], learning: "", progress: 0, version: 1,
+        created_at: "2026-06-30T08:30:00Z", updated_at: "2026-06-30T08:30:00Z"
+      }
+    ];
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/growth/models") {
@@ -137,7 +171,16 @@ describe("GrowthCalculatorPage", () => {
         }] }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/generate" && init?.method === "POST") {
-        return Promise.resolve(new Response(JSON.stringify({ tasks: [{ id: 801 }, { id: 802 }] }), { status: 200 }));
+        return Promise.resolve(new Response(JSON.stringify({
+          draft: {
+            id: 701, user_id: 7, goal: "执行增长优化", tasks: generatedTasks, status: "draft",
+            created_at: "2026-06-30T08:30:00Z", updated_at: "2026-06-30T08:30:00Z"
+          },
+          tasks: generatedTasks
+        }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/ai-drafts/701/adopt" && init?.method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: generatedTasks }), { status: 200 }));
       }
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
@@ -153,7 +196,7 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.getByText("先优化高意向成交")).toBeInTheDocument();
     expect(screen.getByText("把 CRM 跟进延迟压缩到 24 小时内")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "生成增长任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成任务草稿" }));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(
       "/api/v1/tasks/generate",
       expect.objectContaining({
@@ -165,6 +208,17 @@ describe("GrowthCalculatorPage", () => {
           source_title: "商业沙盘标准模型",
           source_url: "/growth-calculator"
         })
+      })
+    ));
+    expect(await screen.findByRole("dialog", { name: "增长任务草稿预览" })).toBeInTheDocument();
+    expect(screen.getByText("已生成 2 条任务草稿，请确认后创建")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "确认创建任务" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/tasks/ai-drafts/701/adopt",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Idempotency-Key": "growth-model-9-task-draft-701" })
       })
     ));
     expect(await screen.findByText("已创建 2 个增长任务")).toBeInTheDocument();

@@ -159,6 +159,24 @@ func TestDraftEndpointsUseAuthenticatedUser(t *testing.T) {
 	}
 }
 
+func TestCreateDraftEndpointRejectsInputOver2000Characters(t *testing.T) {
+	app := &fakeApplication{}
+	router := growthTestRouter(app)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/growth/drafts",
+		strings.NewReader(`{"input":"`+strings.Repeat("业", 2001)+`"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestListSnapshotsEndpointUsesOwnedModel(t *testing.T) {
 	app := &fakeApplication{snapshots: []ModelSnapshot{{ID: 501, UserID: 42, ModelID: 99}}}
 	router := growthTestRouter(app)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
-import { tasksApi } from "../lib/tasksApi";
+import { tasksApi, type TaskAIDraft } from "../lib/tasksApi";
 import {
   growthApi,
   type GrowthDraft,
@@ -100,6 +100,7 @@ function GrowthCalculatorPage() {
   const [forecastView, setForecastView] = useState<GrowthForecast | null>(null);
   const [recommendationView, setRecommendationView] = useState<GrowthRecommendations | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [draft, setDraft] = useState<GrowthDraft | null>(null);
   const [businessInput, setBusinessInput] = useState("");
@@ -110,6 +111,8 @@ function GrowthCalculatorPage() {
   const [syncingTasks, setSyncingTasks] = useState(false);
   const [taskSyncMessage, setTaskSyncMessage] = useState("");
   const [taskSyncError, setTaskSyncError] = useState("");
+  const [taskDraft, setTaskDraft] = useState<TaskAIDraft | null>(null);
+  const [forecastViewMode, setForecastViewMode] = useState("月度");
 
   useEffect(() => {
     let active = true;
@@ -146,6 +149,8 @@ function GrowthCalculatorPage() {
         setRecommendationView(null);
         setSnapshots([]);
         setLoadError(apiErrorMessage(error, "暂时无法读取测算模型"));
+      } finally {
+        if (active) setIsLoading(false);
       }
     }
     void loadModels();
@@ -236,6 +241,9 @@ function GrowthCalculatorPage() {
     setBusinessInput("");
     setDraftAnswers({});
     setDraftError("");
+    setTaskDraft(null);
+    setTaskSyncMessage("");
+    setTaskSyncError("");
   }
 
   function restoreSnapshot(snapshotID: string) {
@@ -273,17 +281,81 @@ function GrowthCalculatorPage() {
           sourceUrl: "/growth-calculator"
         }
       );
-      setTaskSyncMessage(`已创建 ${result.tasks.length} 个增长任务`);
-    } catch {
-      setTaskSyncError("同步任务失败，请稍后重试");
+      setTaskDraft(result.draft);
+      setTaskSyncMessage(`已生成 ${result.tasks.length} 条任务草稿，请确认后创建`);
+    } catch (error) {
+      setTaskSyncError(apiErrorMessage(error, "同步任务失败，请稍后重试"));
     } finally {
       setSyncingTasks(false);
     }
   }
 
+  async function adoptTaskDraft() {
+    if (!taskDraft || syncingTasks) return;
+    setSyncingTasks(true);
+    setTaskSyncError("");
+    try {
+      const result = await tasksApi.adoptTaskAIDraft(
+        taskDraft.id,
+        taskDraft.tasks.map((task, draftIndex) => ({
+          draftIndex,
+          title: task.title,
+          description: task.description,
+          assignee: task.assignee,
+          project: task.project,
+          priority: task.priority,
+          tags: task.tags,
+          dueAt: task.due_at,
+          tools: task.tools,
+          learning: task.learning
+        })),
+        `growth-model-${latestModel?.id ?? 0}-task-draft-${taskDraft.id}`
+      );
+      setTaskDraft(null);
+      setTaskSyncMessage(`已创建 ${result.tasks.length} 个增长任务`);
+    } catch (error) {
+      setTaskSyncError(apiErrorMessage(error, "创建增长任务失败，请稍后重试"));
+    } finally {
+      setSyncingTasks(false);
+    }
+  }
+
+  function closeTaskDraft() {
+    setTaskDraft(null);
+    setTaskSyncMessage("任务草稿已取消，尚未创建正式任务");
+  }
+
   return (
     <V4PageShell className="growth-calculator-shell">
       <section className="module-page growth-calculator-page" aria-label="增长测算">
+        {taskDraft ? (
+          <div className="task-modal-backdrop">
+            <section aria-label="增长任务草稿预览" aria-modal="true" className="task-ai-draft-dialog" role="dialog">
+              <header>
+                <span>任务草稿</span>
+                <h2>确认后再进入任务中心</h2>
+                <p>共 {taskDraft.tasks.length} 条建议，可取消或一次性确认创建。</p>
+              </header>
+              <div className="task-ai-draft-list">
+                {taskDraft.tasks.map((task, index) => (
+                  <article className="task-ai-draft-item selected" key={`${index}-${task.title}`}>
+                    <div className="task-ai-draft-fields">
+                      <strong>{task.title}</strong>
+                      <span>{task.project} · {task.assignee || "待指定负责人"}</span>
+                      <p>{task.description || "暂无补充说明"}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <footer className="task-ai-draft-footer">
+                <button disabled={syncingTasks} onClick={closeTaskDraft} type="button">取消</button>
+                <button className="primary" disabled={syncingTasks} onClick={() => void adoptTaskDraft()} type="button">
+                  {syncingTasks ? "创建中..." : "确认创建任务"}
+                </button>
+              </footer>
+            </section>
+          </div>
+        ) : null}
         <div className="page-title-row">
           <div>
             <h1>增长测算</h1>
@@ -306,6 +378,7 @@ function GrowthCalculatorPage() {
             </button>
           </div>
         </div>
+        {isLoading ? <p className="module-loading" role="status">正在读取测算数据...</p> : null}
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
 
         <section className="module-overview-card growth-hero">
@@ -331,6 +404,7 @@ function GrowthCalculatorPage() {
               <textarea
                 aria-label="业务与增长问题"
                 disabled={Boolean(draft)}
+                maxLength={2000}
                 onChange={(event) => setBusinessInput(event.target.value)}
                 placeholder="描述业务、获客方式、成本、客单价，以及你最想确认的增长问题"
                 value={businessInput}
@@ -436,8 +510,16 @@ function GrowthCalculatorPage() {
               <p>同一套漏斗假设下，对比预算强度和转化效率对收入的影响</p>
             </div>
             <div className="module-chip-row compact">
-              {["月度", "季度", "半年"].map((view, index) => (
-                <button className={index === 0 ? "active" : ""} key={view} type="button">{view}</button>
+              {["月度", "季度", "半年"].map((view) => (
+                <button
+                  aria-pressed={forecastViewMode === view}
+                  className={forecastViewMode === view ? "active" : ""}
+                  key={view}
+                  onClick={() => setForecastViewMode(view)}
+                  type="button"
+                >
+                  {view}
+                </button>
               ))}
             </div>
           </div>
@@ -489,7 +571,7 @@ function GrowthCalculatorPage() {
               {visibleActionItems.length === 0 ? <span>暂无行动建议</span> : visibleActionItems.map((item) => <span key={item}>{item}</span>)}
             </div>
             <button disabled={!latestModel || !recommendationView || syncingTasks} onClick={() => void syncToTaskCenter()} type="button">
-              {syncingTasks ? "生成中..." : "生成增长任务"}
+              {syncingTasks ? "生成中..." : "生成任务草稿"}
             </button>
             {taskSyncMessage ? <p className="form-success" role="status">{taskSyncMessage}</p> : null}
             {taskSyncError ? <p className="form-error" role="alert">{taskSyncError}</p> : null}

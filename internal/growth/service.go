@@ -36,7 +36,7 @@ func (s *Service) CreateDraft(ctx context.Context, input CreateDraftInput) (Draf
 	}
 	now := s.now()
 	assumptions := extractAssumptions(input.Input)
-	questions := missingQuestions(assumptions)
+	questions := missingQuestionsFor(assumptions, nil)
 	status := DraftStatusNeedsInput
 	if len(questions) == 0 {
 		status = DraftStatusReady
@@ -74,7 +74,7 @@ func (s *Service) AnswerDraft(ctx context.Context, input AnswerDraftInput) (Draf
 	for key, value := range input.Answers {
 		draft.Answers[key] = value
 	}
-	draft.Questions = missingQuestions(draft.Assumptions)
+	draft.Questions = missingQuestionsFor(draft.Assumptions, draft.Answers)
 	draft.Status = DraftStatusNeedsInput
 	if len(draft.Questions) == 0 {
 		draft.Status = DraftStatusReady
@@ -88,7 +88,7 @@ func (s *Service) CalculateDraft(ctx context.Context, input CalculateDraftInput)
 	if err != nil {
 		return DraftCalculation{}, err
 	}
-	if draft.Status != DraftStatusReady || len(missingQuestions(draft.Assumptions)) != 0 {
+	if draft.Status != DraftStatusReady || len(missingQuestionsFor(draft.Assumptions, draft.Answers)) != 0 {
 		return DraftCalculation{}, ErrDraftNotReady
 	}
 	name := strings.TrimSpace(input.Name)
@@ -189,7 +189,7 @@ var clarificationQuestions = []ClarificationQuestion{
 	{Key: "delivery_cost", Label: "每月交付成本", Unit: "元", Min: 0},
 }
 
-func missingQuestions(input Assumptions) []ClarificationQuestion {
+func missingQuestionsFor(input Assumptions, answers map[string]float64) []ClarificationQuestion {
 	missing := make([]ClarificationQuestion, 0, len(clarificationQuestions))
 	for _, question := range clarificationQuestions {
 		missingField := false
@@ -203,9 +203,11 @@ func missingQuestions(input Assumptions) []ClarificationQuestion {
 		case "average_order":
 			missingField = input.AverageOrder <= 0
 		case "acquisition_cost":
-			missingField = input.AcquisitionCost <= 0
+			_, answered := answers[question.Key]
+			missingField = input.AcquisitionCost <= 0 && !answered
 		case "delivery_cost":
-			missingField = input.DeliveryCost <= 0
+			_, answered := answers[question.Key]
+			missingField = input.DeliveryCost <= 0 && !answered
 		}
 		if missingField {
 			missing = append(missing, question)

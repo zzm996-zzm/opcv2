@@ -92,3 +92,22 @@ func TestServiceAnswersDraftThenCalculatesOwnedModel(t *testing.T) {
 		t.Fatalf("model = %+v", calculation.Model)
 	}
 }
+
+func TestServiceAcceptsExplicitZeroCostAnswers(t *testing.T) {
+	repository := &draftRepository{draft: Draft{
+		ID: 71, UserID: 42, Status: DraftStatusNeedsInput,
+		Assumptions: Assumptions{MonthlyVisits: 12000, LeadRate: 0.08, DealRate: 0.15, AverageOrder: 6000},
+	}}
+	service := NewService(repository)
+
+	draft, err := service.AnswerDraft(context.Background(), AnswerDraftInput{
+		UserID: 42, DraftID: 71,
+		Answers: map[string]float64{"acquisition_cost": 0, "delivery_cost": 0},
+	})
+	if err != nil {
+		t.Fatalf("AnswerDraft() error = %v", err)
+	}
+	if draft.Status != DraftStatusReady || len(draft.Questions) != 0 {
+		t.Fatalf("draft = %+v", draft)
+	}
+}

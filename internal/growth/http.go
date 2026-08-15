@@ -50,7 +50,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 
 func (h *HTTPHandler) createDraft(c *gin.Context) {
 	var request CreateDraftInput
-	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.Input) == "" || len([]rune(request.Input)) > 4000 {
+	if err := c.ShouldBindJSON(&request); err != nil || strings.TrimSpace(request.Input) == "" || len([]rune(request.Input)) > 2000 {
 		httpapi.BadRequest(c, "invalid_request")
 		return
 	}

@@ -754,9 +754,30 @@ function AppRoutes() {
         }
         path="/competitor-monitoring"
       />
-      <Route element={<RequireAuth><LandingReferencePage module="growth" view="questions" /></RequireAuth>} path="/growth-calculator/questions" />
-      <Route element={<RequireAuth><LandingReferencePage module="growth" view="history" /></RequireAuth>} path="/growth-calculator/history" />
-      <Route element={<RequireAuth><LandingReferencePage module="growth" view="report" /></RequireAuth>} path="/growth-calculator/report" />
+      <Route
+        element={
+          <RequireAuth>
+            <GrowthCalculatorPage />
+          </RequireAuth>
+        }
+        path="/growth-calculator/questions"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <GrowthCalculatorPage />
+          </RequireAuth>
+        }
+        path="/growth-calculator/history"
+      />
+      <Route
+        element={
+          <RequireAuth>
+            <GrowthCalculatorPage />
+          </RequireAuth>
+        }
+        path="/growth-calculator/report"
+      />
       <Route
         element={
           <RequireAuth>
