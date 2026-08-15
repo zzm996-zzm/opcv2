@@ -61,11 +61,18 @@ cp .env.server.example .env.server
 ./update.sh
 ```
 
-默认会执行 `ssh prod`，进入服务器 `~/data/www/opcv2` 后运行 `./deploy.sh`。如需覆盖：
+默认会先把当前干净分支推送到 `origin`，再执行 SSH 远程更新；远程会拉取同名分支、重建 Docker 服务并执行数据库自动迁移。默认 SSH 目标是 `prod`，进入服务器 `/data/www/opcv2` 后运行 `./deploy.sh`。如需覆盖连接参数：
 
 ```bash
-DEPLOY_HOST=prod DEPLOY_PATH=~/data/www/opcv2 ./update.sh
+DEPLOY_HOST=服务器IP \
+DEPLOY_USER=root \
+DEPLOY_PORT=SSH端口 \
+DEPLOY_PATH=/data/www/opcv2 \
+DEPLOY_HEALTHCHECK_URL=http://服务器IP:8681/health/ready \
+./update.sh
 ```
+
+`DEPLOY_PUSH=false` 可跳过本地推送，只更新服务器已有分支；`DEPLOY_HEALTHCHECK_ATTEMPTS` 可调整部署后的健康检查次数。部署要求工作区干净，避免未提交文件被远程覆盖。
 
 查看状态和日志：
 
