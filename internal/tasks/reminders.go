@@ -18,6 +18,10 @@ type ReminderDispatcherRepository interface {
 	DispatchDueTaskReminders(context.Context, time.Time, int) (int, error)
 }
 
+type TaskNotificationDispatcherRepository interface {
+	DispatchTaskNotifications(context.Context, time.Time, int) (int, error)
+}
+
 func (s *Service) reminderRepository() (ReminderRepository, error) {
 	repository, ok := s.repository.(ReminderRepository)
 	if !ok {
@@ -109,4 +113,18 @@ func (s *Service) DispatchDueTaskReminders(ctx context.Context, limit int) (int,
 		limit = 500
 	}
 	return repository.DispatchDueTaskReminders(ctx, s.now(), limit)
+}
+
+func (s *Service) DispatchTaskNotifications(ctx context.Context, limit int) (int, error) {
+	repository, ok := s.repository.(TaskNotificationDispatcherRepository)
+	if !ok {
+		return 0, ErrServiceNotReady
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	return repository.DispatchTaskNotifications(ctx, s.now(), limit)
 }

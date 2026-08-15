@@ -31589,6 +31589,146 @@ a:active {
   font-weight: 740;
 }
 
+.task-attachment-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(31, 68, 140, 0.1);
+}
+
+.task-attachment-section > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.task-attachment-section h3,
+.task-attachment-section p {
+  margin: 0;
+}
+
+.task-attachment-section h3 {
+  color: #071637;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.task-attachment-section header p,
+.task-attachment-section header > span {
+  color: #7184ad;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.task-attachment-section header p {
+  margin-top: 4px;
+}
+
+.task-attachment-section header > span {
+  flex: 0 0 auto;
+  color: #435b93;
+  font-weight: 850;
+}
+
+.task-attachment-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.task-attachment-upload {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 13px;
+  color: #fff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.task-attachment-upload svg,
+.task-attachment-list article > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.task-attachment-list {
+  display: grid;
+  gap: 8px;
+}
+
+.task-attachment-list article {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 50px;
+  padding: 8px 10px;
+  background: #f8faff;
+  border: 1px solid rgba(31, 68, 140, 0.08);
+  border-radius: 8px;
+}
+
+.task-attachment-list article > svg {
+  color: #5572b2;
+}
+
+.task-attachment-list article > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.task-attachment-list strong {
+  overflow: hidden;
+  color: #10265f;
+  font-size: 12px;
+  font-weight: 820;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-attachment-list small {
+  color: #7184ad;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.task-attachment-list article > button {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #435b93;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 7px;
+  cursor: pointer;
+  place-items: center;
+}
+
+.task-attachment-list article > button.danger {
+  color: #b03830;
+  border-color: rgba(217, 54, 43, 0.2);
+}
+
+.task-attachment-list article > button svg {
+  width: 14px;
+  height: 14px;
+}
+
 .task-comment-section {
   display: grid;
   gap: 12px;

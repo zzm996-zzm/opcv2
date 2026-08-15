@@ -92,6 +92,9 @@ func main() {
 	go tasks.RunReminderWorker(context.Background(), tasksService, time.Minute, func(err error) {
 		logger.Error("dispatch task reminders", "error", err)
 	})
+	go tasks.RunTaskNotificationWorker(context.Background(), tasksService, time.Minute, func(err error) {
+		logger.Error("dispatch task notifications", "error", err)
+	})
 	server := taskqueue.NewServer(cfg.RedisAddr)
 	mux := taskqueue.NewMux()
 	leads.RegisterWorker(mux, leadsService)

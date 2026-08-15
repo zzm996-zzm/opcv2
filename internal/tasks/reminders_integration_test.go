@@ -72,7 +72,7 @@ func TestPostgresRepositoryDispatchesReminderIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read notification: %v", err)
 	}
-	if notificationType != "task" || sourceType != "task" || sourceID != taskID || actionURL != "/tasks" {
+	if notificationType != "task" || sourceType != "task" || sourceID != taskID || actionURL != "/tasks?task_id="+fmt.Sprint(taskID) {
 		t.Fatalf("notification = %q/%q/%d/%q", notificationType, sourceType, sourceID, actionURL)
 	}
 

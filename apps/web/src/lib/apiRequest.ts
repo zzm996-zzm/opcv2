@@ -89,7 +89,15 @@ const errorMessages: Record<string, string> = {
   invalid_project_file_name: "文件名不安全，请重命名后上传",
   unsafe_project_file: "文件未通过安全扫描",
   project_file_not_ready: "文件尚未解析完成",
-  project_file_duplicate: "该文件已上传或已绑定到其他匹配记录"
+  project_file_duplicate: "该文件已上传或已绑定到其他匹配记录",
+  task_attachment_not_found: "附件不存在或已无权限访问",
+  task_attachment_too_large: "单个附件不能超过 10MB",
+  task_attachment_count_exceeded: "一个任务最多上传 10 个附件",
+  unsupported_task_attachment_type: "暂不支持该附件类型",
+  task_attachment_mime_mismatch: "附件类型与内容不一致",
+  unsafe_task_attachment: "附件未通过安全扫描",
+  invalid_attachment_signature: "附件下载链接已失效，请重新下载",
+  invalid_task_attachment: "附件参数有误，请重新上传"
 };
 
 export class ApiRequestError extends Error {

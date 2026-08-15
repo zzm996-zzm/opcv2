@@ -68,6 +68,15 @@ var (
 	ErrTaskCommentNotFound                 = errors.New("task comment not found")
 	ErrInvalidTaskComment                  = errors.New("invalid task comment")
 	ErrInvalidTaskViewPreference           = errors.New("invalid task view preference")
+	ErrTaskAttachmentNotFound              = errors.New("task attachment not found")
+	ErrTaskAttachmentTooLarge              = errors.New("task attachment is too large")
+	ErrTaskAttachmentCountExceeded         = errors.New("task attachment count exceeded")
+	ErrInvalidTaskAttachment               = errors.New("invalid task attachment")
+	ErrUnsupportedTaskAttachmentType       = errors.New("unsupported task attachment type")
+	ErrTaskAttachmentMIMEMismatch          = errors.New("task attachment MIME does not match content")
+	ErrUnsafeTaskAttachment                = errors.New("unsafe task attachment")
+	ErrTaskAttachmentSignatureInvalid      = errors.New("invalid task attachment signature")
+	ErrTaskAttachmentSignatureUnavailable  = errors.New("task attachment signing is not configured")
 )
 
 const (
@@ -353,6 +362,35 @@ type TaskComment struct {
 	Content         string    `json:"content"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type TaskAttachment struct {
+	ID         int64      `json:"id"`
+	TaskID     int64      `json:"task_id"`
+	CommentID  *int64     `json:"comment_id,omitempty"`
+	UserID     int64      `json:"-"`
+	Name       string     `json:"name"`
+	MIMEType   string     `json:"mime_type"`
+	SizeBytes  int64      `json:"size_bytes"`
+	SHA256     string     `json:"sha256"`
+	CreatedAt  time.Time  `json:"created_at"`
+	DeletedAt  *time.Time `json:"-"`
+	StorageKey string     `json:"-"`
+}
+
+type TaskAttachmentDownload struct {
+	Attachment TaskAttachment `json:"attachment"`
+	URL        string         `json:"url"`
+	ExpiresAt  time.Time      `json:"expires_at"`
+}
+
+type CreateTaskAttachmentInput struct {
+	UserID    int64
+	TaskID    int64
+	CommentID *int64
+	Name      string
+	MIMEType  string
+	Data      []byte
 }
 
 type TaskCommentPage struct {

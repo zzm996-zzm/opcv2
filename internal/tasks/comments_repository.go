@@ -93,8 +93,12 @@ func (r *PostgresRepository) CreateTaskComment(ctx context.Context, comment Task
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO task_activities (task_id, user_id, action, after_data, metadata)
-		VALUES ($1, $2, 'comment_added', jsonb_build_object('comment_id', $3::BIGINT, 'content_length', char_length($4::TEXT)), '{}'::JSONB)
-	`, created.TaskID, created.UserID, created.ID, created.Content); err != nil {
+		VALUES ($1, $2, 'comment_added', jsonb_build_object(
+			'comment_id', $3::BIGINT,
+			'content_length', char_length($4::TEXT),
+			'parent_comment_id', $5::BIGINT
+		), '{}'::JSONB)
+	`, created.TaskID, created.UserID, created.ID, created.Content, optionalInt64(created.ParentCommentID)); err != nil {
 		return TaskComment{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

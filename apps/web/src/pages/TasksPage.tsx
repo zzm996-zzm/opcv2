@@ -1,11 +1,11 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Eye, EyeOff, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Eye, EyeOff, Paperclip, Plus, RotateCcw, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { ApiRequestError } from "../lib/apiRequest";
-import { tasksApi, type ReminderRecurrence, type Task, type TaskActivity, type TaskAIDraft, type TaskComment, type TaskGroup, type TaskListColumn, type TaskPriority, type TaskReminder, type TaskSort, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
+import { tasksApi, type ReminderRecurrence, type Task, type TaskActivity, type TaskAIDraft, type TaskAttachment, type TaskComment, type TaskGroup, type TaskListColumn, type TaskPriority, type TaskReminder, type TaskSort, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
 
 type TaskRow = {
   id?: number;
@@ -446,9 +446,18 @@ function taskActivitySummary(activity: TaskActivity) {
   return changed.length > 0 ? `更新了${changed.map((key) => fieldLabels[key] ?? key).join("、")}` : "更新了任务";
 }
 
+function formatAttachmentSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const taskGoalRef = useRef<HTMLTextAreaElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const taskDeepLinkRef = useRef<number | null>(null);
+  const deepLinkedTaskID = searchParams.get("task_id");
   const [apiTasks, setApiTasks] = useState<Task[]>([]);
   const [apiStats, setApiStats] = useState<TaskStats | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<TaskStatus | undefined>(() => taskStatusFromQuery(searchParams.get("status")));
@@ -533,6 +542,10 @@ function TasksPage() {
   const [commentEditingID, setCommentEditingID] = useState<number | null>(null);
   const [commentEditingContent, setCommentEditingContent] = useState("");
   const [commentsError, setCommentsError] = useState("");
+  const [taskAttachments, setTaskAttachments] = useState<TaskAttachment[]>([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [attachmentBusyID, setAttachmentBusyID] = useState<number | "upload" | null>(null);
+  const [attachmentsError, setAttachmentsError] = useState("");
   const [draggingTaskID, setDraggingTaskID] = useState<number | null>(null);
   const [boardUpdatingTaskID, setBoardUpdatingTaskID] = useState<number | null>(null);
   const [taskColumns, setTaskColumns] = useState<TaskListColumn[]>(defaultTaskColumns);
@@ -614,8 +627,18 @@ function TasksPage() {
     if (selectedSort !== "created_at") next.set("sort", selectedSort);
     if (selectedGroup) next.set("group", selectedGroup);
     if (taskPage > 1) next.set("page", String(taskPage));
+    if (deepLinkedTaskID) next.set("task_id", deepLinkedTaskID);
     setSearchParams(next, { replace: true });
-  }, [activeView, calendarMonth, searchQuery, selectedGroup, selectedPriority, selectedProject, selectedSort, selectedStatus, selectedTag, setSearchParams, taskPage]);
+  }, [activeView, calendarMonth, deepLinkedTaskID, searchQuery, selectedGroup, selectedPriority, selectedProject, selectedSort, selectedStatus, selectedTag, setSearchParams, taskPage]);
+
+  useEffect(() => {
+    const taskID = Number(deepLinkedTaskID);
+    if (!Number.isInteger(taskID) || taskID <= 0 || taskDeepLinkRef.current === taskID) return;
+    taskDeepLinkRef.current = taskID;
+    void openTaskDetail(taskID);
+    // The ref prevents repeated loads when filters rewrite the URL around the same task deep link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkedTaskID]);
 
   useEffect(() => {
     let active = true;
@@ -1043,12 +1066,17 @@ function TasksPage() {
     setCommentEditingContent("");
     setCommentsError("");
     setCommentsLoading(true);
+    setTaskAttachments([]);
+    setAttachmentsLoading(true);
+    setAttachmentBusyID(null);
+    setAttachmentsError("");
     void loadTaskComments(taskID);
-    const [taskResult, subtasksResult, reminderResult, activitiesResult] = await Promise.allSettled([
+    const [taskResult, subtasksResult, reminderResult, activitiesResult, attachmentsResult] = await Promise.allSettled([
       tasksApi.getTask(taskID),
       tasksApi.listSubtasks(taskID),
       tasksApi.getReminder(taskID),
-      tasksApi.listTaskActivities(taskID)
+      tasksApi.listTaskActivities(taskID),
+      tasksApi.listTaskAttachments(taskID)
     ]);
     if (taskResult.status === "fulfilled") {
       setDetailTask(taskResult.value);
@@ -1074,14 +1102,20 @@ function TasksPage() {
     } else {
       setActivitiesError(apiErrorMessage(activitiesResult.reason, "暂时无法读取操作记录"));
     }
+    if (attachmentsResult.status === "fulfilled") {
+      setTaskAttachments(attachmentsResult.value.attachments);
+    } else {
+      setAttachmentsError(apiErrorMessage(attachmentsResult.reason, "暂时无法读取附件"));
+    }
     setDetailLoading(false);
     setSubtasksLoading(false);
     setReminderLoading(false);
     setActivitiesLoading(false);
+    setAttachmentsLoading(false);
   }
 
   function closeTaskDetail() {
-    if (detailSaving || detailDeleting || reminderSaving) return;
+    if (detailSaving || detailDeleting || reminderSaving || attachmentBusyID !== null) return;
     setDetailTaskID(null);
     setDetailTask(null);
     setDetailForm(null);
@@ -1110,6 +1144,10 @@ function TasksPage() {
     setCommentEditingContent("");
     setCommentsError("");
     setCommentsLoading(false);
+    setTaskAttachments([]);
+    setAttachmentsLoading(false);
+    setAttachmentBusyID(null);
+    setAttachmentsError("");
   }
 
   function updateDetailField<Key extends keyof TaskEditForm>(key: Key, value: TaskEditForm[Key]) {
@@ -1301,6 +1339,52 @@ function TasksPage() {
       setCommentsError(apiErrorMessage(error, "暂时无法删除评论"));
     } finally {
       setCommentSavingID(null);
+    }
+  }
+
+  async function uploadTaskAttachment(file: File) {
+    if (!detailTaskID || attachmentBusyID !== null) return;
+    if (file.size <= 0 || file.size > 10 * 1024 * 1024) {
+      setAttachmentsError("单个附件不能超过 10MB");
+      return;
+    }
+    setAttachmentBusyID("upload");
+    setAttachmentsError("");
+    try {
+      const attachment = await tasksApi.uploadTaskAttachment(detailTaskID, file);
+      setTaskAttachments((current) => [attachment, ...current]);
+    } catch (error) {
+      setAttachmentsError(apiErrorMessage(error, "暂时无法上传附件"));
+    } finally {
+      setAttachmentBusyID(null);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
+    }
+  }
+
+  async function downloadTaskAttachment(attachment: TaskAttachment) {
+    if (!detailTaskID || attachmentBusyID !== null) return;
+    setAttachmentBusyID(attachment.id);
+    setAttachmentsError("");
+    try {
+      await tasksApi.downloadTaskAttachment(detailTaskID, attachment.id, attachment.name);
+    } catch (error) {
+      setAttachmentsError(apiErrorMessage(error, "暂时无法下载附件"));
+    } finally {
+      setAttachmentBusyID(null);
+    }
+  }
+
+  async function deleteTaskAttachment(attachment: TaskAttachment) {
+    if (!detailTaskID || attachmentBusyID !== null || !window.confirm(`确定删除附件“${attachment.name}”吗？`)) return;
+    setAttachmentBusyID(attachment.id);
+    setAttachmentsError("");
+    try {
+      await tasksApi.deleteTaskAttachment(detailTaskID, attachment.id);
+      setTaskAttachments((current) => current.filter((item) => item.id !== attachment.id));
+    } catch (error) {
+      setAttachmentsError(apiErrorMessage(error, "暂时无法删除附件"));
+    } finally {
+      setAttachmentBusyID(null);
     }
   }
 
@@ -2293,6 +2377,66 @@ function TasksPage() {
                       </div>
                     ) : null}
                     {subtaskError ? <p className="form-error" role="alert">{subtaskError}</p> : null}
+                  </section>
+                  <section aria-label="任务附件" className="task-attachment-section">
+                    <header>
+                      <div>
+                        <h3>任务附件</h3>
+                        <p>文件受任务权限保护，下载地址会短期失效</p>
+                      </div>
+                      <span>{taskAttachments.length} / 10</span>
+                    </header>
+                    <input
+                      accept=".txt,.md,.markdown,.csv,.pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg"
+                      aria-label="选择任务附件"
+                      className="task-attachment-input"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void uploadTaskAttachment(file);
+                      }}
+                      ref={attachmentInputRef}
+                      type="file"
+                    />
+                    <button
+                      className="task-attachment-upload"
+                      disabled={attachmentsLoading || attachmentBusyID !== null || taskAttachments.length >= 10}
+                      onClick={() => attachmentInputRef.current?.click()}
+                      type="button"
+                    >
+                      <Upload aria-hidden="true" />
+                      {attachmentBusyID === "upload" ? "上传中..." : "上传附件"}
+                    </button>
+                    {attachmentsLoading ? <div className="task-subtask-empty" role="status">正在读取附件...</div> : null}
+                    {!attachmentsLoading && taskAttachments.length === 0 && !attachmentsError ? <div className="task-subtask-empty" role="status">暂无附件</div> : null}
+                    {taskAttachments.length > 0 ? (
+                      <div className="task-attachment-list">
+                        {taskAttachments.map((attachment) => (
+                          <article key={attachment.id}>
+                            <Paperclip aria-hidden="true" />
+                            <div>
+                              <strong title={attachment.name}>{attachment.name}</strong>
+                              <small>{formatAttachmentSize(attachment.size_bytes)} · {formatDueAt(attachment.created_at)}</small>
+                            </div>
+                            <button
+                              aria-label={`下载附件 ${attachment.name}`}
+                              disabled={attachmentBusyID !== null}
+                              onClick={() => void downloadTaskAttachment(attachment)}
+                              title="下载附件"
+                              type="button"
+                            ><Download aria-hidden="true" /></button>
+                            <button
+                              aria-label={`删除附件 ${attachment.name}`}
+                              className="danger"
+                              disabled={attachmentBusyID !== null}
+                              onClick={() => void deleteTaskAttachment(attachment)}
+                              title="删除附件"
+                              type="button"
+                            ><Trash2 aria-hidden="true" /></button>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                    {attachmentsError ? <p className="form-error" role="alert">{attachmentsError}</p> : null}
                   </section>
                   <section aria-label="任务评论" className="task-comment-section">
                     <header>

@@ -86,6 +86,8 @@ services:
         condition: service_healthy
     expose:
       - "8080"
+    volumes:
+      - opcv2_file_storage:/app/data
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8080/health/ready >/dev/null 2>&1"]
       interval: 5s
@@ -128,6 +130,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - opcv2_file_storage:/app/data
 
   web:
     build:
@@ -155,3 +159,4 @@ services:
 volumes:
   opcv2_postgres_server_data:
   opcv2_redis_server_data:
+  opcv2_file_storage:

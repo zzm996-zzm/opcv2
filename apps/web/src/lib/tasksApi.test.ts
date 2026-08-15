@@ -76,6 +76,25 @@ describe("tasksApi", () => {
     expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/tasks/8/comments", expect.objectContaining({ method: "POST", body: JSON.stringify({ content: "记录进展", parent_comment_id: undefined }) }));
   });
 
+  it("uploads, signs, lists, and deletes task attachments", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({ attachments: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 3, name: "notes.txt" }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ attachment: { id: 3 }, url: "/api/v1/tasks/8/attachments/3/download?expires=1&signature=x", expires_at: "2026-08-15T10:00:00Z" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const file = new File(["notes"], "notes.txt", { type: "text/plain" });
+    await tasksApi.listTaskAttachments(8);
+    await tasksApi.uploadTaskAttachment(8, file);
+    await tasksApi.getTaskAttachmentURL(8, 3);
+    await tasksApi.deleteTaskAttachment(8, 3);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks/8/attachments", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/8/attachments", expect.objectContaining({ method: "POST", body: expect.any(FormData) }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "/api/v1/tasks/8/attachments/3/url", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/tasks/8/attachments/3", expect.objectContaining({ method: "DELETE" }));
+  });
+
   it("restores a soft-deleted task", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(null, { status: 204 }));
 

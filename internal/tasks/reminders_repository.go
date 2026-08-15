@@ -11,7 +11,8 @@ import (
 
 func (r *PostgresRepository) GetTaskReminder(ctx context.Context, userID, taskID int64) (*TaskReminder, error) {
 	reminder, err := scanTaskReminder(r.db.QueryRow(ctx, `
-		SELECT id, task_id, user_id, remind_at, recurrence, sent_at, created_at, updated_at
+		SELECT reminder.id, reminder.task_id, reminder.user_id, reminder.remind_at,
+		       reminder.recurrence, reminder.sent_at, reminder.created_at, reminder.updated_at
 		FROM task_reminders AS reminder
 		JOIN tasks AS task ON task.id = reminder.task_id AND task.deleted_at IS NULL
 		WHERE reminder.user_id = $1 AND reminder.task_id = $2
@@ -84,10 +85,12 @@ func (r *PostgresRepository) DispatchDueTaskReminders(ctx context.Context, now t
 				LIMIT $2
 				FOR UPDATE SKIP LOCKED
 			)
-			RETURNING reminder.user_id, reminder.task_id
+			RETURNING reminder.id AS reminder_id, reminder.user_id, reminder.task_id, reminder.remind_at AS next_remind_at
 		), deliveries AS (
-			SELECT due.user_id,
+			SELECT due.reminder_id,
+			       due.user_id,
 			       due.task_id,
+			       due.next_remind_at,
 			       task.title,
 			       task.status,
 			       COALESCE(preference.notifications_enabled, TRUE) AS notifications_enabled
@@ -96,7 +99,7 @@ func (r *PostgresRepository) DispatchDueTaskReminders(ctx context.Context, now t
 			LEFT JOIN user_preferences AS preference ON preference.user_id = due.user_id
 		), inserted AS (
 			INSERT INTO notifications (
-				user_id, type, title, summary, body, source_type, source_id, action_label, action_url, created_at
+				user_id, type, title, summary, body, source_type, source_id, action_label, action_url, dedupe_key, created_at
 			)
 			SELECT user_id,
 			       'task',
@@ -106,11 +109,13 @@ func (r *PostgresRepository) DispatchDueTaskReminders(ctx context.Context, now t
 			       'task',
 			       task_id,
 			       '查看任务',
-			       '/tasks',
+			       '/tasks?task_id=' || task_id::TEXT,
+			       'task.reminder.' || reminder_id::TEXT || '.' || EXTRACT(EPOCH FROM next_remind_at)::BIGINT::TEXT,
 			       $1
 			FROM deliveries
 			WHERE status <> 'completed'
 			  AND notifications_enabled
+			ON CONFLICT (user_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
 			RETURNING id
 		)
 		SELECT COUNT(*)::INT FROM inserted

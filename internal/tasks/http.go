@@ -3,6 +3,8 @@ package tasks
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -79,6 +81,11 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/:id/reminder", h.getTaskReminder)
 	router.PUT("/tasks/:id/reminder", h.upsertTaskReminder)
 	router.DELETE("/tasks/:id/reminder", h.deleteTaskReminder)
+	router.GET("/tasks/:id/attachments", h.listTaskAttachments)
+	router.POST("/tasks/:id/attachments", h.uploadTaskAttachment)
+	router.GET("/tasks/:id/attachments/:attachment_id/url", h.getTaskAttachmentURL)
+	router.GET("/tasks/:id/attachments/:attachment_id/download", h.downloadTaskAttachment)
+	router.DELETE("/tasks/:id/attachments/:attachment_id", h.deleteTaskAttachment)
 }
 
 type taskCommentApplication interface {
@@ -91,6 +98,162 @@ type taskCommentApplication interface {
 type taskViewPreferenceApplication interface {
 	GetTaskViewPreference(context.Context, int64, string) (TaskViewPreference, error)
 	SaveTaskViewPreference(context.Context, UpdateTaskViewPreferenceInput) (TaskViewPreference, error)
+}
+
+type taskAttachmentApplication interface {
+	ListTaskAttachments(context.Context, int64, int64) ([]TaskAttachment, error)
+	UploadTaskAttachment(context.Context, CreateTaskAttachmentInput) (TaskAttachment, error)
+	GetTaskAttachmentDownload(context.Context, int64, int64, int64) (TaskAttachmentDownload, error)
+	DownloadTaskAttachment(context.Context, int64, int64, int64, int64, string) (TaskAttachment, []byte, error)
+	DeleteTaskAttachment(context.Context, int64, int64, int64) error
+}
+
+func (h *HTTPHandler) attachmentApp(c *gin.Context) (taskAttachmentApplication, bool) {
+	app, ok := h.app.(taskAttachmentApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) listTaskAttachments(c *gin.Context) {
+	taskID, ok := positivePathID(c, "id", "invalid_task_id")
+	if !ok {
+		return
+	}
+	app, ok := h.attachmentApp(c)
+	if !ok {
+		return
+	}
+	attachments, err := app.ListTaskAttachments(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), taskID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"attachments": httpapi.EnsureSlice(attachments)})
+}
+
+func (h *HTTPHandler) uploadTaskAttachment(c *gin.Context) {
+	taskID, ok := positivePathID(c, "id", "invalid_task_id")
+	if !ok {
+		return
+	}
+	app, ok := h.attachmentApp(c)
+	if !ok {
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, MaxTaskAttachmentSize+(1<<20))
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	if c.Request.MultipartForm != nil {
+		defer c.Request.MultipartForm.RemoveAll()
+	}
+	if fileHeader.Size > MaxTaskAttachmentSize {
+		writeError(c, ErrTaskAttachmentTooLarge)
+		return
+	}
+	stream, err := fileHeader.Open()
+	if err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	defer stream.Close()
+	data, err := io.ReadAll(io.LimitReader(stream, MaxTaskAttachmentSize+1))
+	if err != nil || len(data) > MaxTaskAttachmentSize {
+		writeError(c, ErrTaskAttachmentTooLarge)
+		return
+	}
+	var commentID *int64
+	if raw := strings.TrimSpace(c.PostForm("comment_id")); raw != "" {
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil || value <= 0 {
+			httpapi.BadRequest(c, "invalid_comment_id")
+			return
+		}
+		commentID = &value
+	}
+	attachment, err := app.UploadTaskAttachment(c.Request.Context(), CreateTaskAttachmentInput{
+		UserID: c.GetInt64(auth.UserIDContextKey), TaskID: taskID, CommentID: commentID,
+		Name: fileHeader.Filename, MIMEType: fileHeader.Header.Get("Content-Type"), Data: data,
+	})
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, attachment)
+}
+
+func (h *HTTPHandler) getTaskAttachmentURL(c *gin.Context) {
+	taskID, attachmentID, ok := positiveAttachmentIDs(c)
+	if !ok {
+		return
+	}
+	app, ok := h.attachmentApp(c)
+	if !ok {
+		return
+	}
+	download, err := app.GetTaskAttachmentDownload(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), taskID, attachmentID)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, download)
+}
+
+func (h *HTTPHandler) downloadTaskAttachment(c *gin.Context) {
+	taskID, attachmentID, ok := positiveAttachmentIDs(c)
+	if !ok {
+		return
+	}
+	expires, err := strconv.ParseInt(strings.TrimSpace(c.Query("expires")), 10, 64)
+	if err != nil || expires <= 0 {
+		httpapi.BadRequest(c, "invalid_attachment_signature")
+		return
+	}
+	app, ok := h.attachmentApp(c)
+	if !ok {
+		return
+	}
+	attachment, data, err := app.DownloadTaskAttachment(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), taskID, attachmentID, expires, c.Query("signature"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", attachment.Name))
+	c.Data(http.StatusOK, attachment.MIMEType, data)
+}
+
+func (h *HTTPHandler) deleteTaskAttachment(c *gin.Context) {
+	taskID, attachmentID, ok := positiveAttachmentIDs(c)
+	if !ok {
+		return
+	}
+	app, ok := h.attachmentApp(c)
+	if !ok {
+		return
+	}
+	if err := app.DeleteTaskAttachment(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), taskID, attachmentID); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func positiveAttachmentIDs(c *gin.Context) (int64, int64, bool) {
+	taskID, ok := positivePathID(c, "id", "invalid_task_id")
+	if !ok {
+		return 0, 0, false
+	}
+	attachmentID, err := strconv.ParseInt(c.Param("attachment_id"), 10, 64)
+	if err != nil || attachmentID <= 0 {
+		httpapi.BadRequest(c, "invalid_attachment_id")
+		return 0, 0, false
+	}
+	return taskID, attachmentID, true
 }
 
 func (h *HTTPHandler) getTaskViewPreference(c *gin.Context) {
@@ -789,6 +952,24 @@ func writeError(c *gin.Context, err error) {
 		httpapi.BadRequest(c, "invalid_comment")
 	case errors.Is(err, ErrInvalidTaskViewPreference):
 		httpapi.BadRequest(c, "invalid_view_preference")
+	case errors.Is(err, ErrTaskAttachmentNotFound):
+		httpapi.Error(c, http.StatusNotFound, "task_attachment_not_found")
+	case errors.Is(err, ErrTaskAttachmentTooLarge):
+		httpapi.Error(c, http.StatusRequestEntityTooLarge, "task_attachment_too_large")
+	case errors.Is(err, ErrTaskAttachmentCountExceeded):
+		httpapi.Error(c, http.StatusConflict, "task_attachment_count_exceeded")
+	case errors.Is(err, ErrUnsupportedTaskAttachmentType):
+		httpapi.BadRequest(c, "unsupported_task_attachment_type")
+	case errors.Is(err, ErrTaskAttachmentMIMEMismatch):
+		httpapi.BadRequest(c, "task_attachment_mime_mismatch")
+	case errors.Is(err, ErrUnsafeTaskAttachment):
+		httpapi.BadRequest(c, "unsafe_task_attachment")
+	case errors.Is(err, ErrTaskAttachmentSignatureInvalid):
+		httpapi.Error(c, http.StatusForbidden, "invalid_attachment_signature")
+	case errors.Is(err, ErrTaskAttachmentSignatureUnavailable):
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+	case errors.Is(err, ErrInvalidTaskAttachment):
+		httpapi.BadRequest(c, "invalid_task_attachment")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

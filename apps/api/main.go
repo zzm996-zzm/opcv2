@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/zzm/opcv2/internal/platform/rediscache"
 	"github.com/zzm/opcv2/internal/platform/taskqueue"
 	"github.com/zzm/opcv2/internal/projects"
+	taskfiles "github.com/zzm/opcv2/internal/projects/files"
 	"github.com/zzm/opcv2/internal/sandbox"
 	"github.com/zzm/opcv2/internal/support"
 	"github.com/zzm/opcv2/internal/tasks"
@@ -160,7 +162,17 @@ func main() {
 	supportHTTP := support.NewHTTPHandler(supportService)
 	sandboxRepository := sandbox.NewPostgresRepository(db)
 	tasksRepository := tasks.NewPostgresRepository(db)
-	tasksService := tasks.NewService(tasksRepository, tasks.WithMembershipProvider(membershipService), tasks.WithTaskGenerator(aiService))
+	taskAttachmentStorage, err := taskfiles.NewLocalStorage(filepath.Join(cfg.ProjectFileStoragePath, "task-attachments"))
+	if err != nil {
+		logger.Error("configure task attachment storage", "error", err)
+		os.Exit(1)
+	}
+	tasksService := tasks.NewService(
+		tasksRepository,
+		tasks.WithMembershipProvider(membershipService),
+		tasks.WithTaskGenerator(aiService),
+		tasks.WithTaskAttachmentStorage(taskAttachmentStorage, taskfiles.DevelopmentScanner{}, cfg.JWTSecret),
+	)
 	sandboxService := sandbox.NewService(
 		sandboxRepository,
 		aiService,

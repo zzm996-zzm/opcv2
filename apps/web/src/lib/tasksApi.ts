@@ -1,4 +1,4 @@
-import { apiRequest } from "./apiRequest";
+import { apiRequest, apiStreamRequest } from "./apiRequest";
 
 export type TaskStatus = "todo" | "in_progress" | "review" | "blocked" | "completed" | "cancelled" | "reminder";
 export type TaskPriority = "low" | "medium" | "high";
@@ -127,6 +127,23 @@ export type TaskCommentPage = {
   total: number;
   limit: number;
   offset: number;
+};
+
+export type TaskAttachment = {
+  id: number;
+  task_id: number;
+  comment_id?: number;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  sha256: string;
+  created_at: string;
+};
+
+export type TaskAttachmentDownload = {
+  attachment: TaskAttachment;
+  url: string;
+  expires_at: string;
 };
 
 export type GenerateTasksResult = {
@@ -449,6 +466,48 @@ export const tasksApi = {
 
   deleteTaskComment(taskID: number, commentID: number) {
     return apiRequest<void>(`/api/v1/tasks/${taskID}/comments/${commentID}`, {
+      method: "DELETE"
+    });
+  },
+
+  listTaskAttachments(id: number) {
+    return apiRequest<{ attachments: TaskAttachment[] }>(`/api/v1/tasks/${id}/attachments`, {
+      method: "GET"
+    });
+  },
+
+  uploadTaskAttachment(id: number, file: File, commentID?: number) {
+    const body = new FormData();
+    body.append("file", file);
+    if (commentID !== undefined) body.append("comment_id", String(commentID));
+    return apiRequest<TaskAttachment>(`/api/v1/tasks/${id}/attachments`, {
+      method: "POST",
+      body
+    });
+  },
+
+  getTaskAttachmentURL(taskID: number, attachmentID: number) {
+    return apiRequest<TaskAttachmentDownload>(`/api/v1/tasks/${taskID}/attachments/${attachmentID}/url`, {
+      method: "GET"
+    });
+  },
+
+  async downloadTaskAttachment(taskID: number, attachmentID: number, fileName: string) {
+    const signed = await this.getTaskAttachmentURL(taskID, attachmentID);
+    const response = await apiStreamRequest(signed.url, { method: "GET" });
+    const blob = await response.blob();
+    const objectURL = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectURL;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectURL);
+  },
+
+  deleteTaskAttachment(taskID: number, attachmentID: number) {
+    return apiRequest<void>(`/api/v1/tasks/${taskID}/attachments/${attachmentID}`, {
       method: "DELETE"
     });
   },

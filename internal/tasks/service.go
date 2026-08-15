@@ -46,10 +46,13 @@ type CalendarRepository interface {
 type Option func(*Service)
 
 type Service struct {
-	repository Repository
-	membership MembershipProvider
-	generator  TaskGenerator
-	now        func() time.Time
+	repository           Repository
+	membership           MembershipProvider
+	generator            TaskGenerator
+	attachmentStorage    AttachmentStorage
+	attachmentScanner    AttachmentScanner
+	attachmentSigningKey []byte
+	now                  func() time.Time
 }
 
 func NewService(repository Repository, options ...Option) *Service {

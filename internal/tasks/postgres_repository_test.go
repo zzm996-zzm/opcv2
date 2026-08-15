@@ -779,7 +779,7 @@ func TestPostgresRepositoryGetsTaskReminder(t *testing.T) {
 
 	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
 	remindAt := now.Add(2 * time.Hour)
-	db.ExpectQuery("SELECT id, task_id, user_id, remind_at, recurrence, sent_at, created_at, updated_at").
+	db.ExpectQuery("SELECT reminder.id, reminder.task_id, reminder.user_id, reminder.remind_at").
 		WithArgs(int64(42), int64(99)).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "recurrence", "sent_at", "created_at", "updated_at"}).
 			AddRow(int64(8), int64(99), int64(42), remindAt, ReminderRecurrenceOnce, nil, now, now))
@@ -799,7 +799,7 @@ func TestPostgresRepositoryReturnsNilWhenTaskReminderIsMissing(t *testing.T) {
 	}
 	defer db.Close()
 
-	db.ExpectQuery("SELECT id, task_id, user_id, remind_at, recurrence, sent_at, created_at, updated_at").
+	db.ExpectQuery("SELECT reminder.id, reminder.task_id, reminder.user_id, reminder.remind_at").
 		WithArgs(int64(42), int64(99)).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "task_id", "user_id", "remind_at", "recurrence", "sent_at", "created_at", "updated_at"}))
 
