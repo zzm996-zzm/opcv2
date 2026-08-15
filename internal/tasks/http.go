@@ -57,6 +57,8 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/tasks/stats", h.taskStats)
 	router.GET("/tasks/projects", h.listTaskProjects)
 	router.GET("/tasks/tags", h.listTaskTags)
+	router.GET("/tasks/view-preferences", h.getTaskViewPreference)
+	router.PUT("/tasks/view-preferences", h.saveTaskViewPreference)
 	router.PATCH("/tasks/batch", h.batchUpdateTaskStatus)
 	router.POST("/tasks/batch-update", h.batchUpdateTaskFields)
 	router.PATCH("/tasks/batch-update", h.batchUpdateTaskFields)
@@ -84,6 +86,45 @@ type taskCommentApplication interface {
 	CreateTaskComment(context.Context, CreateTaskCommentInput) (TaskComment, error)
 	UpdateTaskComment(context.Context, int64, int64, int64, UpdateTaskCommentInput) (TaskComment, error)
 	DeleteTaskComment(context.Context, int64, int64, int64) error
+}
+
+type taskViewPreferenceApplication interface {
+	GetTaskViewPreference(context.Context, int64, string) (TaskViewPreference, error)
+	SaveTaskViewPreference(context.Context, UpdateTaskViewPreferenceInput) (TaskViewPreference, error)
+}
+
+func (h *HTTPHandler) getTaskViewPreference(c *gin.Context) {
+	app, ok := h.app.(taskViewPreferenceApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	preference, err := app.GetTaskViewPreference(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), c.DefaultQuery("view", TaskViewList))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, preference)
+}
+
+func (h *HTTPHandler) saveTaskViewPreference(c *gin.Context) {
+	app, ok := h.app.(taskViewPreferenceApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	var input UpdateTaskViewPreferenceInput
+	if c.ShouldBindJSON(&input) != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	input.UserID = c.GetInt64(auth.UserIDContextKey)
+	preference, err := app.SaveTaskViewPreference(c.Request.Context(), input)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, preference)
 }
 
 func (h *HTTPHandler) listTaskComments(c *gin.Context) {
@@ -746,6 +787,8 @@ func writeError(c *gin.Context, err error) {
 		httpapi.Error(c, http.StatusNotFound, "task_comment_not_found")
 	case errors.Is(err, ErrInvalidTaskComment):
 		httpapi.BadRequest(c, "invalid_comment")
+	case errors.Is(err, ErrInvalidTaskViewPreference):
+		httpapi.BadRequest(c, "invalid_view_preference")
 	case errors.Is(err, ErrServiceNotReady):
 		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
 	default:

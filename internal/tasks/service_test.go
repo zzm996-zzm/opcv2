@@ -29,6 +29,50 @@ type fakeRepository struct {
 	activities   []TaskActivity
 }
 
+type fakeTaskViewPreferenceRepository struct {
+	*fakeRepository
+	preference TaskViewPreference
+	userID     int64
+}
+
+func (r *fakeTaskViewPreferenceRepository) GetTaskViewPreference(_ context.Context, userID int64, view string) (TaskViewPreference, error) {
+	r.userID = userID
+	if r.preference.View == "" {
+		r.preference = TaskViewPreference{View: view, Columns: defaultTaskListColumns()}
+	}
+	return r.preference, r.err
+}
+
+func (r *fakeTaskViewPreferenceRepository) SaveTaskViewPreference(_ context.Context, userID int64, view string, columns []string) (TaskViewPreference, error) {
+	r.userID = userID
+	r.preference = TaskViewPreference{View: view, Columns: append([]string(nil), columns...)}
+	return r.preference, r.err
+}
+
+func TestServiceGetsAndSavesTaskViewPreference(t *testing.T) {
+	repository := &fakeTaskViewPreferenceRepository{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+
+	preference, err := service.GetTaskViewPreference(context.Background(), 42, "")
+	if err != nil || repository.userID != 42 || preference.View != TaskViewList || len(preference.Columns) == 0 {
+		t.Fatalf("preference/repository/error = %+v/%+v/%v", preference, repository, err)
+	}
+	preference, err = service.SaveTaskViewPreference(context.Background(), UpdateTaskViewPreferenceInput{UserID: 42, View: TaskViewList, Columns: []string{"title", "status"}})
+	if err != nil || len(preference.Columns) != 2 || preference.Columns[1] != "status" {
+		t.Fatalf("saved/error = %+v/%v", preference, err)
+	}
+}
+
+func TestServiceRejectsInvalidTaskViewPreference(t *testing.T) {
+	service := NewService(&fakeTaskViewPreferenceRepository{fakeRepository: &fakeRepository{}})
+	for _, columns := range [][]string{{}, {"status"}, {"title", "title"}, {"title", "unsafe"}} {
+		_, err := service.SaveTaskViewPreference(context.Background(), UpdateTaskViewPreferenceInput{UserID: 42, View: TaskViewList, Columns: columns})
+		if !errors.Is(err, ErrInvalidTaskViewPreference) {
+			t.Fatalf("columns/error = %v/%v", columns, err)
+		}
+	}
+}
+
 func (r *fakeRepository) ListTaskActivities(_ context.Context, _ int64, _ int64, limit, offset int) ([]TaskActivity, error) {
 	if r.err != nil {
 		return nil, r.err

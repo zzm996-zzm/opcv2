@@ -5,6 +5,7 @@ export type TaskPriority = "low" | "medium" | "high";
 export type TaskSort = "created_at" | "updated_at" | "due_at" | "priority" | "progress";
 export type TaskGroup = "status" | "assignee" | "project" | "priority" | "source";
 export type ReminderRecurrence = "once" | "daily" | "weekly";
+export type TaskListColumn = "title" | "project" | "assignee" | "due_at" | "priority" | "status" | "tags" | "progress" | "source" | "created_at" | "updated_at";
 export type TaskSourceType =
   | "analysis_session"
   | "project_match"
@@ -85,6 +86,12 @@ export type TaskStats = {
   due_soon: number;
   timed_out: number;
   overdue: number;
+};
+
+export type TaskViewPreference = {
+  view: "list";
+  columns: TaskListColumn[];
+  updated_at: string;
 };
 
 export type TaskActivity = {
@@ -368,6 +375,19 @@ export const tasksApi = {
     const normalized = typeof filters === "number" ? { limit: filters } : filters;
     return apiRequest<TaskPage>(`/api/v1/tasks${queryString(normalized)}`, {
       method: "GET"
+    });
+  },
+
+  getViewPreference() {
+    return apiRequest<TaskViewPreference>("/api/v1/tasks/view-preferences?view=list", {
+      method: "GET"
+    });
+  },
+
+  saveViewPreference(columns: TaskListColumn[]) {
+    return apiRequest<TaskViewPreference>("/api/v1/tasks/view-preferences", {
+      method: "PUT",
+      body: JSON.stringify({ view: "list", columns })
     });
   },
 

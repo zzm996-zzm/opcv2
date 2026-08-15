@@ -98,11 +98,63 @@ describe("TasksPage", () => {
     renderTasksPage();
 
     expect(await screen.findByRole("heading", { name: "联调商业沙盘接口" })).toBeInTheDocument();
-    expect(screen.getByText("商业沙盘 · 负责人 未指定 · 截止 06/30 18:00 · 进度 0%")).toBeInTheDocument();
+    const taskRow = screen.getByRole("heading", { name: "联调商业沙盘接口" }).closest("article") as HTMLElement;
+    expect(within(taskRow).getByText("商业沙盘")).toBeInTheDocument();
+    expect(within(taskRow).getByText("未指定")).toBeInTheDocument();
+    expect(within(taskRow).getByText("06/30 18:00")).toBeInTheDocument();
+    expect(within(taskRow).getByText("0%")).toBeInTheDocument();
     expect(screen.getByText("建议工具：沙盘推演 / 任务中心")).toBeInTheDocument();
     const inProgressStat = screen.getAllByText("进行中").find((node) => node.tagName.toLowerCase() === "small")?.closest("article");
     expect(inProgressStat).not.toBeNull();
     expect(within(inProgressStat as HTMLElement).getByText("1")).toBeInTheDocument();
+  });
+
+  it("restores, edits, and saves personal list fields", async () => {
+    const task = {
+      id: 44,
+      user_id: 7,
+      title: "配置任务列表",
+      project: "任务中心",
+      status: "todo",
+      priority: "medium",
+      tools: [],
+      learning: "",
+      created_at: "2026-08-15T09:00:00Z",
+      updated_at: "2026-08-15T09:00:00Z"
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/tasks?limit=20") {
+        return Promise.resolve(new Response(JSON.stringify({ tasks: [task], total: 1 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/stats") {
+        return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 1, in_progress: 0, completed: 0, reminder: 0, due_soon: 0, timed_out: 0, overdue: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/view-preferences?view=list") {
+        return Promise.resolve(new Response(JSON.stringify({ view: "list", columns: ["title", "project", "status"], updated_at: "2026-08-15T09:00:00Z" }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/view-preferences" && init?.method === "PUT") {
+        return Promise.resolve(new Response(JSON.stringify({ view: "list", columns: ["status", "title"], updated_at: "2026-08-15T09:01:00Z" }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderTasksPage();
+
+    const heading = await screen.findByRole("heading", { name: "配置任务列表" });
+    const row = heading.closest("article") as HTMLElement;
+    expect(within(row).getByText("任务中心")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "配置列表字段" }));
+    fireEvent.click(screen.getByRole("button", { name: "隐藏字段 所属项目" }));
+    expect(within(row).queryByText("任务中心")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "上移字段 状态" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/tasks/view-preferences", expect.objectContaining({
+      method: "PUT",
+      body: JSON.stringify({ view: "list", columns: ["status", "title"] })
+    })));
+    expect(await screen.findByText("字段配置已保存")).toBeInTheDocument();
   });
 
   it("filters tasks by backend status", async () => {
@@ -730,7 +782,7 @@ describe("TasksPage", () => {
     renderTasksPage();
 
     const taskHeading = await screen.findByRole("heading", { name: "准备客户访谈" });
-    expect(screen.getByText(/负责人 张晨/)).toBeInTheDocument();
+    expect(screen.getByText("张晨")).toBeInTheDocument();
     expect(within(taskHeading.closest("article") as HTMLElement).getByText("客户")).toBeInTheDocument();
     expect(within(taskHeading.closest("article") as HTMLElement).getByRole("link", { name: "来源：竞品扫描：商业沙盘竞品" })).toHaveAttribute("href", "/competitor-data");
     fireEvent.click(within(taskHeading.closest("article") as HTMLElement).getByRole("button", { name: "查看任务详情" }));

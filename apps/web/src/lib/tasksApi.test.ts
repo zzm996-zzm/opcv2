@@ -191,7 +191,7 @@ describe("tasksApi", () => {
     }));
   });
 
-  it("lists, creates, updates, and deletes task subtasks", async () => {
+	it("lists, creates, updates, and deletes task subtasks", async () => {
 	const fetchMock = vi.spyOn(globalThis, "fetch")
 	  .mockResolvedValueOnce(new Response(JSON.stringify({ subtasks: [] }), { status: 200 }))
 	  .mockResolvedValueOnce(new Response(JSON.stringify({ id: 7, title: "整理访谈提纲" }), { status: 200 }))
@@ -213,7 +213,22 @@ describe("tasksApi", () => {
 	  body: JSON.stringify({ completed: true })
 	}));
 	expect(fetchMock).toHaveBeenNthCalledWith(4, "/api/v1/tasks/99/subtasks/7", expect.objectContaining({ method: "DELETE" }));
-  });
+	});
+
+	it("loads and saves list field preferences", async () => {
+		const fetchMock = vi.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(new Response(JSON.stringify({ view: "list", columns: ["title", "status"], updated_at: "2026-08-15T10:00:00Z" }), { status: 200 }))
+			.mockResolvedValueOnce(new Response(JSON.stringify({ view: "list", columns: ["title", "status", "assignee"], updated_at: "2026-08-15T10:01:00Z" }), { status: 200 }));
+
+		await tasksApi.getViewPreference();
+		await tasksApi.saveViewPreference(["title", "status", "assignee"]);
+
+		expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/v1/tasks/view-preferences?view=list", expect.objectContaining({ method: "GET" }));
+		expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/tasks/view-preferences", expect.objectContaining({
+			method: "PUT",
+			body: JSON.stringify({ view: "list", columns: ["title", "status", "assignee"] })
+		}));
+	});
 
   it("gets, upserts, and deletes a task reminder", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")

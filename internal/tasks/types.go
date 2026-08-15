@@ -67,6 +67,7 @@ var (
 	ErrInvalidTaskCalendarRange            = errors.New("invalid task calendar range")
 	ErrTaskCommentNotFound                 = errors.New("task comment not found")
 	ErrInvalidTaskComment                  = errors.New("invalid task comment")
+	ErrInvalidTaskViewPreference           = errors.New("invalid task view preference")
 )
 
 const (
@@ -217,6 +218,29 @@ type SubtaskUpdate struct {
 	DueAt      *time.Time `json:"due_at,omitempty"`
 	ClearDueAt bool       `json:"clear_due_at,omitempty"`
 	Completed  *bool      `json:"completed,omitempty"`
+}
+
+const TaskViewList = "list"
+
+var (
+	taskListDefaultColumns = []string{"title", "project", "assignee", "due_at", "priority", "status", "tags", "progress", "source"}
+	taskListAllowedColumns = []string{"title", "project", "assignee", "due_at", "priority", "status", "tags", "progress", "source", "created_at", "updated_at"}
+)
+
+type TaskViewPreference struct {
+	View      string    `json:"view"`
+	Columns   []string  `json:"columns"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UpdateTaskViewPreferenceInput struct {
+	UserID  int64    `json:"-"`
+	View    string   `json:"view"`
+	Columns []string `json:"columns"`
+}
+
+func defaultTaskListColumns() []string {
+	return append([]string(nil), taskListDefaultColumns...)
 }
 
 type TaskReminder struct {

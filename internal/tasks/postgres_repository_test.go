@@ -869,3 +869,63 @@ func TestPostgresRepositoryDispatchesDueTaskReminders(t *testing.T) {
 		t.Fatalf("count/error = %d/%v", count, err)
 	}
 }
+
+func TestPostgresRepositoryCreatesDefaultTaskViewPreference(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 15, 11, 0, 0, 0, time.UTC)
+	db.ExpectQuery("INSERT INTO task_view_preferences").
+		WithArgs(int64(42), TaskViewList).
+		WillReturnRows(pgxmock.NewRows([]string{"view_type", "columns", "updated_at"}).
+			AddRow(TaskViewList, []byte(`["title","project","assignee","due_at","priority","status","tags","progress","source"]`), now))
+
+	preference, err := NewPostgresRepository(db).GetTaskViewPreference(context.Background(), 42, TaskViewList)
+	if err != nil || preference.View != TaskViewList || len(preference.Columns) != 9 || preference.Columns[0] != "title" {
+		t.Fatalf("preference/error = %+v/%v", preference, err)
+	}
+}
+
+func TestPostgresRepositoryLoadsExistingTaskViewPreference(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 15, 11, 0, 0, 0, time.UTC)
+	db.ExpectQuery("INSERT INTO task_view_preferences").
+		WithArgs(int64(42), TaskViewList).
+		WillReturnRows(pgxmock.NewRows([]string{"view_type", "columns", "updated_at"}))
+	db.ExpectQuery("SELECT view_type, columns, updated_at").
+		WithArgs(int64(42), TaskViewList).
+		WillReturnRows(pgxmock.NewRows([]string{"view_type", "columns", "updated_at"}).
+			AddRow(TaskViewList, []byte(`["title","status"]`), now))
+
+	preference, err := NewPostgresRepository(db).GetTaskViewPreference(context.Background(), 42, TaskViewList)
+	if err != nil || len(preference.Columns) != 2 || preference.Columns[1] != "status" {
+		t.Fatalf("preference/error = %+v/%v", preference, err)
+	}
+}
+
+func TestPostgresRepositorySavesTaskViewPreference(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 8, 15, 11, 0, 0, 0, time.UTC)
+	db.ExpectQuery("INSERT INTO task_view_preferences").
+		WithArgs(int64(42), TaskViewList, []byte(`["title","status","assignee"]`)).
+		WillReturnRows(pgxmock.NewRows([]string{"view_type", "columns", "updated_at"}).
+			AddRow(TaskViewList, []byte(`["title","status","assignee"]`), now))
+
+	preference, err := NewPostgresRepository(db).SaveTaskViewPreference(context.Background(), 42, TaskViewList, []string{"title", "status", "assignee"})
+	if err != nil || len(preference.Columns) != 3 || preference.Columns[2] != "assignee" {
+		t.Fatalf("preference/error = %+v/%v", preference, err)
+	}
+}

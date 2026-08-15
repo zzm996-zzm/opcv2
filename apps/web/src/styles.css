@@ -15052,7 +15052,7 @@ a:active {
 
 .task-table article {
   display: grid;
-  grid-template-columns: 20px 12px minmax(220px, 1fr) 46px 72px auto;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   min-height: 76px;
@@ -15163,6 +15163,212 @@ a:active {
 
 .task-status-dot.done {
   background: #10b981;
+}
+
+.task-list-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.task-list-field {
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.task-list-field > small {
+  color: #8191b3;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.task-list-field > span:not(.task-priority):not(.task-state),
+.task-list-field > a {
+  overflow: hidden;
+  color: #28467f;
+  font-size: 12px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-list-title-value {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.task-list-title-links {
+  display: flex;
+  grid-column: 2;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.task-table .task-list-title-links a {
+  grid-column: auto;
+  color: #5870a5;
+  font-size: 10px;
+  font-weight: 740;
+}
+
+.task-list-title-value h3 {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-list-field-title {
+  min-width: 180px;
+}
+
+.task-list-field-tags .task-label-list {
+  margin-top: 0;
+  max-height: 26px;
+  overflow: hidden;
+}
+
+.task-list-field .task-priority,
+.task-list-field .task-state {
+  justify-self: start;
+}
+
+.task-table .task-source-link {
+  grid-column: auto;
+  color: var(--blue);
+}
+
+.task-column-config {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #f7faff;
+  border: 1px solid rgba(31, 68, 140, 0.12);
+  border-radius: 10px;
+}
+
+.task-column-config > header,
+.task-column-config > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-column-config h3,
+.task-column-config header span,
+.task-column-config p {
+  margin: 0;
+}
+
+.task-column-config h3 {
+  color: #10265f;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.task-column-config header span,
+.task-column-config p {
+  color: #7184ad;
+  font-size: 11px;
+  font-weight: 740;
+}
+
+.task-column-config > header > button,
+.task-column-config-list button,
+.task-column-config > footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 9px;
+  color: #435b93;
+  background: #fff;
+  border: 1px solid rgba(31, 68, 140, 0.14);
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.task-column-config svg {
+  width: 14px;
+  height: 14px;
+}
+
+.task-column-config-list {
+  display: grid;
+  gap: 6px;
+}
+
+.task-column-config-list > div {
+  display: grid;
+  grid-template-columns: 30px auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 3px 5px;
+  color: #8391ae;
+  border: 1px solid transparent;
+  border-radius: 7px;
+}
+
+.task-column-config-list > div.visible {
+  color: #28467f;
+  background: #fff;
+  border-color: rgba(31, 68, 140, 0.1);
+}
+
+.task-column-config-list > div > button {
+  width: 30px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.task-column-config-list > div > strong {
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.task-column-config-list > div > small {
+  color: #7184ad;
+  font-size: 10px;
+  font-weight: 760;
+}
+
+.task-column-order-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.task-column-order-actions button {
+  width: 28px;
+  min-height: 26px;
+  padding: 0;
+}
+
+.task-column-config button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.task-column-config > footer {
+  justify-content: flex-end;
+}
+
+.task-column-config > footer button:last-child {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
 }
 
 .task-table h3 {

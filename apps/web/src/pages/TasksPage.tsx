@@ -1,11 +1,11 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
-import { ChevronDown, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Eye, EyeOff, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { ApiRequestError } from "../lib/apiRequest";
-import { tasksApi, type ReminderRecurrence, type Task, type TaskActivity, type TaskAIDraft, type TaskComment, type TaskGroup, type TaskPriority, type TaskReminder, type TaskSort, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
+import { tasksApi, type ReminderRecurrence, type Task, type TaskActivity, type TaskAIDraft, type TaskComment, type TaskGroup, type TaskListColumn, type TaskPriority, type TaskReminder, type TaskSort, type TaskStats, type TaskStatus, type TaskSubtask } from "../lib/tasksApi";
 
 type TaskRow = {
   id?: number;
@@ -21,6 +21,8 @@ type TaskRow = {
   learning: string;
   sourceTitle?: string;
   sourceURL?: string;
+  createdAt: string;
+  updatedAt: string;
   version: number;
   progress: number;
 };
@@ -129,6 +131,28 @@ const taskGroupOptions: Array<{ label: string; value: TaskGroup | "" }> = [
   { label: "按优先级分组", value: "priority" },
   { label: "按来源分组", value: "source" }
 ];
+
+const taskColumnDefinitions: Array<{ key: TaskListColumn; label: string; required?: boolean }> = [
+  { key: "title", label: "任务标题", required: true },
+  { key: "project", label: "所属项目" },
+  { key: "assignee", label: "负责人" },
+  { key: "due_at", label: "截止时间" },
+  { key: "priority", label: "优先级" },
+  { key: "status", label: "状态" },
+  { key: "tags", label: "标签" },
+  { key: "progress", label: "进度" },
+  { key: "source", label: "来源模块" },
+  { key: "created_at", label: "创建时间" },
+  { key: "updated_at", label: "更新时间" }
+];
+
+const defaultTaskColumns: TaskListColumn[] = ["title", "project", "assignee", "due_at", "priority", "status", "tags", "progress", "source"];
+
+function validTaskColumns(columns: unknown): columns is TaskListColumn[] {
+  if (!Array.isArray(columns) || !columns.includes("title")) return false;
+  const allowed = new Set(taskColumnDefinitions.map((column) => column.key));
+  return new Set(columns).size === columns.length && columns.every((column) => typeof column === "string" && allowed.has(column as TaskListColumn));
+}
 
 function taskStatusFromQuery(value: string | null) {
   return statusFilters.find((filter) => filter.value === value)?.value;
@@ -336,6 +360,8 @@ function toTaskRow(task: Task): TaskRow {
     learning: task.learning,
     sourceTitle: task.source_title,
     sourceURL: task.source_url,
+    createdAt: formatDueAt(task.created_at),
+    updatedAt: formatDueAt(task.updated_at),
     version: task.version,
     progress: task.progress ?? 0
   };
@@ -509,6 +535,12 @@ function TasksPage() {
   const [commentsError, setCommentsError] = useState("");
   const [draggingTaskID, setDraggingTaskID] = useState<number | null>(null);
   const [boardUpdatingTaskID, setBoardUpdatingTaskID] = useState<number | null>(null);
+  const [taskColumns, setTaskColumns] = useState<TaskListColumn[]>(defaultTaskColumns);
+  const [columnConfigOpen, setColumnConfigOpen] = useState(false);
+  const [columnsLoading, setColumnsLoading] = useState(true);
+  const [columnsSaving, setColumnsSaving] = useState(false);
+  const [columnsMessage, setColumnsMessage] = useState("");
+  const [columnsError, setColumnsError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -600,6 +632,22 @@ function TasksPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    tasksApi.getViewPreference().then((preference) => {
+      if (!active) return;
+      if (validTaskColumns(preference.columns)) setTaskColumns(preference.columns);
+      setColumnsError("");
+    }).catch(() => {
+      if (active) setColumnsError("字段配置暂时无法同步，当前使用默认字段");
+    }).finally(() => {
+      if (active) setColumnsLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const visibleTasks = apiTasks.map(toTaskRow);
   const visibleStats = apiStats ? statsFromApi(apiStats) : buildTaskStats(apiTasks);
   const boardColumns = boardColumnLabels.map((column) => [
@@ -630,6 +678,10 @@ function TasksPage() {
   const selectedTasks = apiTasks.filter((task) => selectedTaskIDs.has(task.id));
   const subtaskTreeRows = flattenSubtaskTree(subtasks, collapsedSubtaskIDs);
   const subtaskParent = subtasks.find((item) => item.id === subtaskParentID);
+  const orderedColumnDefinitions = [
+    ...taskColumns.map((key) => taskColumnDefinitions.find((column) => column.key === key)).filter(Boolean),
+    ...taskColumnDefinitions.filter((column) => !taskColumns.includes(column.key))
+  ] as Array<{ key: TaskListColumn; label: string; required?: boolean }>;
   const batchStatusOptions = boardColumnLabels.filter((option) =>
     selectedTasks.length > 0 && selectedTasks.every((task) => taskStatusOptions(task.status).some((item) => item.value === option.status))
   );
@@ -1343,6 +1395,78 @@ function TasksPage() {
     }
   }
 
+  function toggleTaskColumn(column: TaskListColumn) {
+    if (column === "title") return;
+    setTaskColumns((current) => current.includes(column)
+      ? current.filter((key) => key !== column)
+      : [...current, column]);
+    setColumnsMessage("");
+  }
+
+  function moveTaskColumn(column: TaskListColumn, direction: -1 | 1) {
+    setTaskColumns((current) => {
+      const index = current.indexOf(column);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+    setColumnsMessage("");
+  }
+
+  async function saveTaskColumns() {
+    if (columnsSaving) return;
+    setColumnsSaving(true);
+    setColumnsError("");
+    setColumnsMessage("");
+    try {
+      const preference = await tasksApi.saveViewPreference(taskColumns);
+      if (validTaskColumns(preference.columns)) setTaskColumns(preference.columns);
+      setColumnsMessage("字段配置已保存");
+    } catch (error) {
+      setColumnsError(apiErrorMessage(error, "暂时无法保存字段配置"));
+    } finally {
+      setColumnsSaving(false);
+    }
+  }
+
+  function renderTaskListColumn(task: TaskRow, column: TaskListColumn) {
+    switch (column) {
+      case "title":
+        return (
+          <div className="task-list-title-value">
+            <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
+            <h3 title={task.title}>{task.title}</h3>
+            <div className="task-list-title-links">
+              <Link to="/tools">建议工具：{task.tools.join(" / ") || "待补充"}</Link>
+              <Link to="/learning">补课：{task.learning || "待补充"}</Link>
+            </div>
+          </div>
+        );
+      case "project":
+        return <span>{task.project || "未关联"}</span>;
+      case "assignee":
+        return <span>{task.assignee || "未指定"}</span>;
+      case "due_at":
+        return <span>{task.due}</span>;
+      case "priority":
+        return <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>;
+      case "status":
+        return <span className="task-state">{task.status}</span>;
+      case "tags":
+        return task.tags.length ? <div aria-label="任务标签" className="task-label-list">{task.tags.map((tag) => <span key={tag}>{tag}</span>)}</div> : <span>无标签</span>;
+      case "progress":
+        return <span>{task.progress}%</span>;
+      case "source":
+        return task.sourceTitle && task.sourceURL ? <Link className="task-source-link" to={task.sourceURL}>来源：{task.sourceTitle}</Link> : <span>{task.sourceTitle || "手工创建"}</span>;
+      case "created_at":
+        return <span>{task.createdAt}</span>;
+      case "updated_at":
+        return <span>{task.updatedAt}</span>;
+    }
+  }
+
   function renderTaskCard(task: Task, enableDrag = false) {
     const action = taskStatusAction(task.status);
     return (
@@ -1555,8 +1679,63 @@ function TasksPage() {
                     {view.label}
                   </button>
                 ))}
+                {activeView === "list" ? (
+                  <button
+                    aria-expanded={columnConfigOpen}
+                    aria-label="配置列表字段"
+                    className={columnConfigOpen ? "active" : ""}
+                    onClick={() => setColumnConfigOpen((open) => !open)}
+                    title="配置列表字段"
+                    type="button"
+                  ><SlidersHorizontal aria-hidden="true" /><span>字段</span></button>
+                ) : null}
               </div>
             </div>
+            {activeView === "list" && columnConfigOpen ? (
+              <section aria-label="字段配置" className="task-column-config">
+                <header>
+                  <div>
+                    <h3>列表字段</h3>
+                    <span>已显示 {taskColumns.length} 项</span>
+                  </div>
+                  <button aria-label="关闭字段配置" onClick={() => setColumnConfigOpen(false)} title="关闭" type="button"><X aria-hidden="true" /></button>
+                </header>
+                <div className="task-column-config-list">
+                  {orderedColumnDefinitions.map((column) => {
+                    const visible = taskColumns.includes(column.key);
+                    const index = taskColumns.indexOf(column.key);
+                    return (
+                      <div className={visible ? "visible" : ""} key={column.key}>
+                        <button
+                          aria-label={`${visible ? "隐藏" : "显示"}字段 ${column.label}`}
+                          disabled={column.required}
+                          onClick={() => toggleTaskColumn(column.key)}
+                          title={column.required ? "基础字段不可隐藏" : visible ? "隐藏字段" : "显示字段"}
+                          type="button"
+                        >{visible ? <Eye aria-hidden="true" /> : <EyeOff aria-hidden="true" />}</button>
+                        <strong>{column.label}</strong>
+                        {column.required ? <small>必选</small> : null}
+                        {visible ? (
+                          <span className="task-column-order-actions">
+                            <button aria-label={`上移字段 ${column.label}`} disabled={index <= 0} onClick={() => moveTaskColumn(column.key, -1)} title="上移" type="button"><ArrowUp aria-hidden="true" /></button>
+                            <button aria-label={`下移字段 ${column.label}`} disabled={index < 0 || index >= taskColumns.length - 1} onClick={() => moveTaskColumn(column.key, 1)} title="下移" type="button"><ArrowDown aria-hidden="true" /></button>
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                <footer>
+                  <button className="secondary" disabled={columnsSaving} onClick={() => {
+                    setTaskColumns(defaultTaskColumns);
+                    setColumnsMessage("");
+                  }} type="button"><RotateCcw aria-hidden="true" />恢复默认</button>
+                  <button disabled={columnsLoading || columnsSaving} onClick={() => void saveTaskColumns()} type="button">{columnsSaving ? "保存中..." : "保存配置"}</button>
+                </footer>
+                {columnsMessage ? <p role="status">{columnsMessage}</p> : null}
+                {columnsError ? <p className="form-error" role="alert">{columnsError}</p> : null}
+              </section>
+            ) : null}
             <div className="module-chip-row compact" aria-label="任务状态筛选">
               {statusFilters.map((filter) => (
                 <button
@@ -1741,19 +1920,14 @@ function TasksPage() {
                           type="checkbox"
                         />
                       ) : null}
-                      <span className={`task-status-dot ${task.status === "已完成" ? "done" : task.status === "进行中" ? "doing" : ""}`} aria-hidden="true" />
-                    <div>
-                      <h3>{task.title}</h3>
-                      <small>{task.project} · 负责人 {task.assignee || "未指定"} · 截止 {task.due} · 进度 {task.progress}%</small>
-                      {task.tags.length ? (
-                        <div aria-label="任务标签" className="task-label-list">
-                          {task.tags.map((tag) => <span key={tag}>{tag}</span>)}
+                    <div className="task-list-fields">
+                      {taskColumns.map((column) => (
+                        <div className={`task-list-field task-list-field-${column}`} key={column}>
+                          <small>{taskColumnDefinitions.find((definition) => definition.key === column)?.label}</small>
+                          {renderTaskListColumn(task, column)}
                         </div>
-                      ) : null}
-                      {task.sourceTitle && task.sourceURL ? <Link className="task-source-link" to={task.sourceURL}>来源：{task.sourceTitle}</Link> : null}
+                      ))}
                     </div>
-                    <span className={`task-priority ${task.priority === "高" ? "high" : task.priority === "中" ? "mid" : ""}`}>{task.priority}</span>
-                    <span className="task-state">{task.status}</span>
                     {task.id && task.statusCode ? (
                       <div className="task-row-actions">
                         <button
@@ -1766,8 +1940,6 @@ function TasksPage() {
                         <button onClick={() => void openTaskDetail(task.id as number)} type="button">查看任务详情</button>
                       </div>
                     ) : null}
-                    <Link to="/tools">建议工具：{task.tools.join(" / ")}</Link>
-                    <Link to="/learning">补课：{task.learning}</Link>
 	                    </article>
 	                      ))}
 	                    </Fragment>

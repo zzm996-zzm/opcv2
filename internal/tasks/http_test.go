@@ -51,6 +51,22 @@ type fakeApplication struct {
 	commentInput    CreateTaskCommentInput
 	commentUpdate   UpdateTaskCommentInput
 	commentID       int64
+	viewPreference  TaskViewPreference
+	viewInput       UpdateTaskViewPreferenceInput
+}
+
+func (a *fakeApplication) GetTaskViewPreference(_ context.Context, userID int64, view string) (TaskViewPreference, error) {
+	a.userID = userID
+	if a.viewPreference.View == "" {
+		a.viewPreference = TaskViewPreference{View: view, Columns: defaultTaskListColumns()}
+	}
+	return a.viewPreference, a.err
+}
+
+func (a *fakeApplication) SaveTaskViewPreference(_ context.Context, input UpdateTaskViewPreferenceInput) (TaskViewPreference, error) {
+	a.userID, a.viewInput = input.UserID, input
+	a.viewPreference = TaskViewPreference{View: input.View, Columns: input.Columns}
+	return a.viewPreference, a.err
 }
 
 func (a *fakeApplication) CreateTasks(_ context.Context, input BatchCreateInput) ([]Task, error) {
@@ -259,6 +275,35 @@ func TestCreateTaskEndpointUsesAuthenticatedUser(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), `"status":"todo"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestTaskViewPreferenceEndpointsUseAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := tasksTestRouter(app)
+	getResponse := httptest.NewRecorder()
+	router.ServeHTTP(getResponse, httptest.NewRequest(http.MethodGet, "/api/v1/tasks/view-preferences?view=list", nil))
+	if getResponse.Code != http.StatusOK || app.userID != 42 || !strings.Contains(getResponse.Body.String(), `"title"`) {
+		t.Fatalf("get status/user/body = %d/%d/%s", getResponse.Code, app.userID, getResponse.Body.String())
+	}
+
+	putResponse := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/tasks/view-preferences", strings.NewReader(`{"view":"list","columns":["title","status","assignee"]}`))
+	request.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(putResponse, request)
+	if putResponse.Code != http.StatusOK || app.viewInput.UserID != 42 || len(app.viewInput.Columns) != 3 || app.viewInput.Columns[1] != "status" {
+		t.Fatalf("put status/input/body = %d/%+v/%s", putResponse.Code, app.viewInput, putResponse.Body.String())
+	}
+}
+
+func TestTaskViewPreferenceEndpointRejectsInvalidView(t *testing.T) {
+	app := &fakeApplication{err: ErrInvalidTaskViewPreference}
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/tasks/view-preferences", strings.NewReader(`{"view":"list","columns":["status"]}`))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	tasksTestRouter(app).ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "invalid_view_preference") {
+		t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
 	}
 }
 
