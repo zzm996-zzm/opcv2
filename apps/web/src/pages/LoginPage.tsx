@@ -73,7 +73,7 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
         password: password.trim()
       };
       const result = mode === "register"
-        ? await authApi.register({
+        ? await registerWithRecovery({
             nickname: account.trim(),
             ...credentials,
             agreementAccepted
@@ -400,6 +400,28 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
       </section>
     </main>
   );
+}
+
+async function registerWithRecovery(input: Parameters<typeof authApi.register>[0]) {
+  try {
+    return await authApi.register(input);
+  } catch (error) {
+    if (!shouldRecoverRegistration(error)) throw error;
+
+    try {
+      return await authApi.login({ account: input.account, password: input.password });
+    } catch {
+      // Keep the original registration error when ownership cannot be proved.
+      throw error;
+    }
+  }
+}
+
+function shouldRecoverRegistration(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    return ["account_exists", "internal_error", "service_not_ready", "request_failed"].includes(error.code);
+  }
+  return error instanceof TypeError || (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError");
 }
 
 function resolveError(error: unknown, mode: AuthMode) {

@@ -46,8 +46,8 @@ func TestLoadUsesDevelopmentDefaults(t *testing.T) {
 	if cfg.DatabaseURL != "postgres://opcv2:opcv2@localhost:5432/opcv2?sslmode=disable" {
 		t.Fatalf("DatabaseURL = %q, want development database", cfg.DatabaseURL)
 	}
-	if cfg.RedisAddr != "localhost:6379" {
-		t.Fatalf("RedisAddr = %q, want localhost:6379", cfg.RedisAddr)
+	if cfg.RedisAddr != "localhost:6390" {
+		t.Fatalf("RedisAddr = %q, want localhost:6390", cfg.RedisAddr)
 	}
 	if cfg.JWTSecret == "" || cfg.SMSProvider != "development" || cfg.SMSDevCode != "246810" {
 		t.Fatalf("development auth defaults = %+v", cfg)

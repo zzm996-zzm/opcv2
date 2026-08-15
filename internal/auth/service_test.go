@@ -36,13 +36,14 @@ func (p *fakeSMSProvider) SendCode(_ context.Context, phone, code string) error 
 }
 
 type fakeUserRepository struct {
-	user         User
-	created      bool
-	findErr      error
-	account      string
-	passwordHash string
-	registered   bool
-	recordedMeta LoginMeta
+	user          User
+	created       bool
+	findErr       error
+	account       string
+	passwordHash  string
+	accountExists bool
+	registered    bool
+	recordedMeta  LoginMeta
 }
 
 func (r *fakeUserRepository) FindOrCreateByPhone(_ context.Context, nickname, phone string, _ time.Time) (User, bool, error) {
@@ -56,6 +57,9 @@ func (r *fakeUserRepository) FindOrCreateByPhone(_ context.Context, nickname, ph
 }
 
 func (r *fakeUserRepository) RegisterAccount(_ context.Context, nickname, account, passwordHash string, _ time.Time) (User, error) {
+	if r.accountExists {
+		return User{}, ErrAccountExists
+	}
 	if r.findErr != nil {
 		return User{}, r.findErr
 	}
@@ -221,6 +225,67 @@ func TestRegisterWithAccountPasswordHashesPasswordAndCreatesSession(t *testing.T
 	}
 	if users.recordedMeta.IP != "127.0.0.1" || users.recordedMeta.UserAgent != "test-agent" {
 		t.Fatalf("login meta = %+v", users.recordedMeta)
+	}
+}
+
+func TestRegisterWithExistingAccountAndCorrectPasswordIsIdempotent(t *testing.T) {
+	hash, err := hashPassword("secret123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	users := &fakeUserRepository{
+		account:       "deploy_user",
+		passwordHash:  hash,
+		accountExists: true,
+		user:          User{ID: 42, Nickname: "部署测试", Account: "deploy_user", Status: "active"},
+	}
+	service := NewService(Dependencies{
+		Users:    users,
+		Tokens:   fakeTokenManager{},
+		Sessions: &fakeSessionStore{},
+	})
+
+	result, err := service.Register(context.Background(), RegisterInput{
+		Nickname:          "部署测试",
+		Account:           "deploy_user",
+		Password:          "secret123",
+		AgreementAccepted: true,
+	})
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	if result.User.ID != 42 || result.AccessToken != "access-token" || result.RefreshToken != "refresh-token" {
+		t.Fatalf("Register() result = %+v", result)
+	}
+	if result.IsNewUser {
+		t.Fatal("Register() IsNewUser = true, want false for an existing account")
+	}
+}
+
+func TestRegisterWithExistingAccountAndWrongPasswordDoesNotLogin(t *testing.T) {
+	hash, err := hashPassword("secret123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(Dependencies{
+		Users: &fakeUserRepository{
+			account:       "deploy_user",
+			passwordHash:  hash,
+			accountExists: true,
+			user:          User{ID: 42, Nickname: "部署测试", Account: "deploy_user", Status: "active"},
+		},
+		Tokens:   fakeTokenManager{},
+		Sessions: &fakeSessionStore{},
+	})
+
+	_, err = service.Register(context.Background(), RegisterInput{
+		Nickname:          "部署测试",
+		Account:           "deploy_user",
+		Password:          "wrong-password",
+		AgreementAccepted: true,
+	})
+	if !errors.Is(err, ErrAccountExists) {
+		t.Fatalf("Register() error = %v, want ErrAccountExists", err)
 	}
 }
 

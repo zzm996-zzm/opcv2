@@ -156,12 +156,19 @@ describe("LoginPage", () => {
   });
 
   it("shows a specific registration error when the account already exists", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ error: "account_exists", message: "这个账号已经注册过了，请直接登录" }),
-        { status: 409 }
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: "account_exists", message: "这个账号已经注册过了，请直接登录" }),
+          { status: 409 }
+        )
       )
-    );
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: "invalid_credentials", message: "账号或密码不正确，请重新输入" }),
+          { status: 401 }
+        )
+      );
 
     render(
       <MemoryRouter>
@@ -183,6 +190,51 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "注册并创建账号" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("这个账号已经注册过了，请直接登录");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers a registration whose response was lost by logging in with the same password", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: "internal_error", message: "服务开小差了，请稍后再试" }),
+          { status: 500 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            access_token: "recovered-access-token",
+            access_token_expires_at: new Date(Date.now() + 60000).toISOString(),
+            user: {
+              id: 42,
+              nickname: "deploy_user",
+              account: "deploy_user",
+              phone: "",
+              status: "active"
+            },
+            is_new_user: false
+          }),
+          { status: 200 }
+        )
+      );
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "注册" }));
+    fireEvent.change(screen.getByLabelText("账号"), { target: { value: "deploy_user" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "secret123" } });
+    fireEvent.change(screen.getByLabelText("确认密码"), { target: { value: "secret123" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
+    fireEvent.click(screen.getByRole("button", { name: "注册并创建账号" }));
+
+    expect(await screen.findByText("注册成功，正在进入工作台")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(authSession.get().accessToken).toBe("recovered-access-token");
   });
 
   it("returns to the requested route after login", async () => {

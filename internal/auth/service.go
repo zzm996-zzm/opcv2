@@ -245,6 +245,19 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (LoginResul
 	}
 	user, err := s.deps.Users.RegisterAccount(ctx, input.Nickname, input.Account, passwordHash, time.Now())
 	if err != nil {
+		if errors.Is(err, ErrAccountExists) {
+			// A lost response can leave the account persisted. Repeating the same
+			// registration is safe only when the supplied password proves ownership.
+			credentials, lookupErr := s.deps.Users.FindCredentialsByAccount(ctx, input.Account)
+			if lookupErr == nil && credentials.User.Status == "active" && verifyPassword(credentials.PasswordHash, input.Password) == nil {
+				result, issueErr := s.issueLoginResult(ctx, credentials.User, LoginMeta{IP: input.IP, UserAgent: input.UserAgent})
+				if issueErr != nil {
+					return LoginResult{}, issueErr
+				}
+				return result, nil
+			}
+			return LoginResult{}, ErrAccountExists
+		}
 		return LoginResult{}, fmt.Errorf("register account: %w", err)
 	}
 	if user.Status != "active" {

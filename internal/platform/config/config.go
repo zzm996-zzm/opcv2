@@ -59,7 +59,7 @@ func Load() (Config, error) {
 		Environment:               environment,
 		HTTPAddr:                  envOrDefault("OPCV2_HTTP_ADDR", ":8080"),
 		DatabaseURL:               envOrDefault("OPCV2_DATABASE_URL", "postgres://opcv2:opcv2@localhost:5432/opcv2?sslmode=disable"),
-		RedisAddr:                 envOrDefault("OPCV2_REDIS_ADDR", "localhost:6379"),
+		RedisAddr:                 envOrDefault("OPCV2_REDIS_ADDR", "localhost:6390"),
 		JWTSecret:                 envOrDefault("OPCV2_JWT_SECRET", "development-only-change-me"),
 		SMSProvider:               smsProvider,
 		SMSDevCode:                envOrDefault("OPCV2_SMS_DEV_CODE", "246810"),
