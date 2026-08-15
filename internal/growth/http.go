@@ -30,6 +30,14 @@ type HTTPHandler struct {
 	app Application
 }
 
+type modelPageApplication interface {
+	ListModelPage(context.Context, ListModelsInput) (ModelPage, error)
+}
+
+type recalculateApplication interface {
+	RecalculateModel(context.Context, int64, int64) (RecalculateResult, error)
+}
+
 func NewHTTPHandler(app Application) *HTTPHandler {
 	return &HTTPHandler{app: app}
 }
@@ -46,6 +54,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.GET("/growth/models/:id/forecast", h.modelForecast)
 	router.GET("/growth/models/:id/recommendations", h.modelRecommendations)
 	router.GET("/growth/models/:id/snapshots", h.listSnapshots)
+	router.POST("/growth/models/:id/recalculate", h.recalculateModel)
 }
 
 func (h *HTTPHandler) createDraft(c *gin.Context) {
@@ -150,12 +159,33 @@ func (h *HTTPHandler) listModels(c *gin.Context) {
 	if !ok {
 		return
 	}
+	offset, ok := httpapi.QueryOffset(c)
+	if !ok {
+		return
+	}
+	query := strings.TrimSpace(c.Query("q"))
+	if len([]rune(query)) > 100 {
+		httpapi.BadRequest(c, "invalid_query")
+		return
+	}
+	if app, supportsPaging := h.app.(modelPageApplication); supportsPaging {
+		page, err := app.ListModelPage(c.Request.Context(), ListModelsInput{
+			UserID: c.GetInt64(auth.UserIDContextKey), Query: query, Limit: limit, Offset: offset,
+		})
+		if err != nil {
+			writeError(c, err)
+			return
+		}
+		page.Models = httpapi.EnsureSlice(page.Models)
+		c.JSON(http.StatusOK, page)
+		return
+	}
 	models, err := h.app.ListModels(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
 	if err != nil {
 		writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"models": httpapi.EnsureSlice(models)})
+	c.JSON(http.StatusOK, gin.H{"models": httpapi.EnsureSlice(models), "total": len(models), "limit": limit, "offset": offset})
 }
 
 func (h *HTTPHandler) getModel(c *gin.Context) {
@@ -225,6 +255,24 @@ func (h *HTTPHandler) listSnapshots(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"snapshots": httpapi.EnsureSlice(snapshots)})
+}
+
+func (h *HTTPHandler) recalculateModel(c *gin.Context) {
+	id, ok := modelIDParam(c)
+	if !ok {
+		return
+	}
+	app, ok := h.app.(recalculateApplication)
+	if !ok {
+		httpapi.Error(c, http.StatusInternalServerError, "service_not_ready")
+		return
+	}
+	result, err := app.RecalculateModel(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
 }
 
 func modelIDParam(c *gin.Context) (int64, bool) {

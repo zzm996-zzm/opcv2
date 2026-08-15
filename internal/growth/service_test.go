@@ -158,3 +158,22 @@ func TestServiceDerivesGrowthViewsFromModel(t *testing.T) {
 		t.Fatalf("recommendations = %+v", recommendations)
 	}
 }
+
+func TestServiceRecalculatesModelIntoNewSnapshot(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	repository := &fakeRepository{model: Model{
+		ID: 99, UserID: 42, Name: "SaaS 增长模型",
+		Assumptions: Assumptions{MonthlyVisits: 24000, LeadRate: 0.068, DealRate: 0.14, AverageOrder: 820, AcquisitionCost: 42, DeliveryCost: 51000},
+		UpdatedAt:   now,
+	}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+
+	result, err := service.RecalculateModel(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("RecalculateModel() error = %v", err)
+	}
+	if result.Model.ID != 99 || result.Model.Name != "SaaS 增长模型 · 再测算" || result.Snapshot.ModelID != result.Model.ID {
+		t.Fatalf("result = %+v", result)
+	}
+}

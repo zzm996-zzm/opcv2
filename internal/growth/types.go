@@ -57,6 +57,20 @@ type Model struct {
 	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
+type ListModelsInput struct {
+	UserID int64
+	Query  string
+	Limit  int
+	Offset int
+}
+
+type ModelPage struct {
+	Models []Model `json:"models"`
+	Total  int     `json:"total"`
+	Limit  int     `json:"limit"`
+	Offset int     `json:"offset"`
+}
+
 type ClarificationQuestion struct {
 	Key   string  `json:"key"`
 	Label string  `json:"label"`
@@ -97,6 +111,11 @@ type CalculateDraftInput struct {
 
 type DraftCalculation struct {
 	Draft    Draft         `json:"draft"`
+	Model    Model         `json:"model"`
+	Snapshot ModelSnapshot `json:"snapshot"`
+}
+
+type RecalculateResult struct {
 	Model    Model         `json:"model"`
 	Snapshot ModelSnapshot `json:"snapshot"`
 }

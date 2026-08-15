@@ -28,6 +28,18 @@ type fakeApplication struct {
 	answerInput     AnswerDraftInput
 	calculateInput  CalculateDraftInput
 	snapshots       []ModelSnapshot
+	recalculate     RecalculateResult
+}
+
+type fakePagedApplication struct {
+	*fakeApplication
+	pageInput ListModelsInput
+	page      ModelPage
+}
+
+func (a *fakePagedApplication) ListModelPage(_ context.Context, input ListModelsInput) (ModelPage, error) {
+	a.pageInput = input
+	return a.page, a.err
 }
 
 func (a *fakeApplication) ListSnapshots(_ context.Context, userID, modelID int64, limit int) ([]ModelSnapshot, error) {
@@ -53,6 +65,11 @@ func (a *fakeApplication) AnswerDraft(_ context.Context, input AnswerDraftInput)
 func (a *fakeApplication) CalculateDraft(_ context.Context, input CalculateDraftInput) (DraftCalculation, error) {
 	a.calculateInput = input
 	return a.calculation, a.err
+}
+
+func (a *fakeApplication) RecalculateModel(_ context.Context, userID, id int64) (RecalculateResult, error) {
+	a.userID, a.modelID = userID, id
+	return a.recalculate, a.err
 }
 
 func (a *fakeApplication) CreateModel(_ context.Context, input CreateInput) (Model, error) {
@@ -190,6 +207,20 @@ func TestListSnapshotsEndpointUsesOwnedModel(t *testing.T) {
 	}
 }
 
+func TestRecalculateModelEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{recalculate: RecalculateResult{Model: Model{ID: 100, UserID: 42, Name: "标准方案 · 再测算"}}}
+	router := growthTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/growth/models/99/recalculate", nil))
+
+	if recorder.Code != http.StatusOK || app.userID != 42 || app.modelID != 99 {
+		t.Fatalf("status/user/model = %d/%d/%d body=%s", recorder.Code, app.userID, app.modelID, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"model"`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
 func TestCreateModelEndpointRejectsInvalidAssumptions(t *testing.T) {
 	app := &fakeApplication{model: Model{ID: 99, UserID: 42, Name: "标准方案"}}
 	router := growthTestRouter(app)
@@ -249,6 +280,28 @@ func TestListModelsEndpointReturnsEmptyArrayAndCapsLimit(t *testing.T) {
 		t.Fatalf("user/limit = %d/%d", app.userID, app.limit)
 	}
 	if !strings.Contains(recorder.Body.String(), `"models":[]`) {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+}
+
+func TestListModelsEndpointSupportsSearchAndPagination(t *testing.T) {
+	app := &fakePagedApplication{
+		fakeApplication: &fakeApplication{},
+		page:            ModelPage{Models: []Model{{ID: 99, UserID: 42, Name: "SaaS 增长"}}, Total: 31, Limit: 10, Offset: 20},
+	}
+	router := growthTestRouter(app)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/growth/models?q=SaaS&limit=10&offset=20", nil)
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.pageInput.UserID != 42 || app.pageInput.Query != "SaaS" || app.pageInput.Limit != 10 || app.pageInput.Offset != 20 {
+		t.Fatalf("input = %+v", app.pageInput)
+	}
+	if !strings.Contains(recorder.Body.String(), `"total":31`) || !strings.Contains(recorder.Body.String(), `"models"`) {
 		t.Fatalf("body = %s", recorder.Body.String())
 	}
 }

@@ -19,6 +19,7 @@ import EnterprisePage from "./pages/EnterprisePage";
 import EnterpriseReferencePage from "./pages/EnterpriseReferencePage";
 import GeoAcquisitionPage from "./pages/GeoAcquisitionPage";
 import GrowthCalculatorPage from "./pages/GrowthCalculatorPage";
+import GrowthHistoryPage from "./pages/GrowthHistoryPage";
 import HelpPage from "./pages/HelpPage";
 import HomePage from "./pages/HomePage";
 import InsightsPage from "./pages/InsightsPage";
@@ -765,7 +766,7 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <GrowthCalculatorPage />
+            <GrowthHistoryPage />
           </RequireAuth>
         }
         path="/growth-calculator/history"

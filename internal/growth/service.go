@@ -104,24 +104,7 @@ func (s *Service) CalculateDraft(ctx context.Context, input CalculateDraftInput)
 	if err != nil {
 		return DraftCalculation{}, err
 	}
-	scenarios, err := s.ModelScenarios(ctx, input.UserID, model.ID)
-	if err != nil {
-		return DraftCalculation{}, err
-	}
-	forecast, err := s.ModelForecast(ctx, input.UserID, model.ID)
-	if err != nil {
-		return DraftCalculation{}, err
-	}
-	recommendations, err := s.ModelRecommendations(ctx, input.UserID, model.ID)
-	if err != nil {
-		return DraftCalculation{}, err
-	}
-	snapshot, err := s.repository.CreateSnapshot(ctx, ModelSnapshot{
-		UserID: input.UserID, ModelID: model.ID, ModelName: model.Name,
-		Assumptions: model.Assumptions, Result: model.Result,
-		Scenarios: scenarios, Forecast: forecast, Recommendations: recommendations,
-		CreatedAt: s.now(),
-	})
+	snapshot, err := s.createSnapshot(ctx, input.UserID, model)
 	if err != nil {
 		return DraftCalculation{}, err
 	}
@@ -133,6 +116,56 @@ func (s *Service) CalculateDraft(ctx context.Context, input CalculateDraftInput)
 		return DraftCalculation{}, err
 	}
 	return DraftCalculation{Draft: draft, Model: model, Snapshot: snapshot}, nil
+}
+
+func (s *Service) RecalculateModel(ctx context.Context, userID, id int64) (RecalculateResult, error) {
+	model, err := s.GetModel(ctx, userID, id)
+	if err != nil {
+		return RecalculateResult{}, err
+	}
+	model.ID = 0
+	model.Name = strings.TrimSpace(model.Name) + " · 再测算"
+	model.CreatedAt = s.now()
+	model.UpdatedAt = model.CreatedAt
+	model, err = s.CreateModel(ctx, CreateInput{
+		UserID:          userID,
+		Name:            model.Name,
+		MonthlyVisits:   model.Assumptions.MonthlyVisits,
+		LeadRate:        model.Assumptions.LeadRate,
+		DealRate:        model.Assumptions.DealRate,
+		AverageOrder:    model.Assumptions.AverageOrder,
+		AcquisitionCost: model.Assumptions.AcquisitionCost,
+		DeliveryCost:    model.Assumptions.DeliveryCost,
+	})
+	if err != nil {
+		return RecalculateResult{}, err
+	}
+	snapshot, err := s.createSnapshot(ctx, userID, model)
+	if err != nil {
+		return RecalculateResult{}, err
+	}
+	return RecalculateResult{Model: model, Snapshot: snapshot}, nil
+}
+
+func (s *Service) createSnapshot(ctx context.Context, userID int64, model Model) (ModelSnapshot, error) {
+	scenarios, err := s.ModelScenarios(ctx, userID, model.ID)
+	if err != nil {
+		return ModelSnapshot{}, err
+	}
+	forecast, err := s.ModelForecast(ctx, userID, model.ID)
+	if err != nil {
+		return ModelSnapshot{}, err
+	}
+	recommendations, err := s.ModelRecommendations(ctx, userID, model.ID)
+	if err != nil {
+		return ModelSnapshot{}, err
+	}
+	return s.repository.CreateSnapshot(ctx, ModelSnapshot{
+		UserID: userID, ModelID: model.ID, ModelName: model.Name,
+		Assumptions: model.Assumptions, Result: model.Result,
+		Scenarios: scenarios, Forecast: forecast, Recommendations: recommendations,
+		CreatedAt: s.now(),
+	})
 }
 
 func (s *Service) ListSnapshots(ctx context.Context, userID, modelID int64, limit int) ([]ModelSnapshot, error) {
@@ -294,6 +327,37 @@ func (s *Service) ListModels(ctx context.Context, userID int64, limit int) ([]Mo
 		limit = 20
 	}
 	return s.repository.ListModels(ctx, userID, limit)
+}
+
+type modelPageRepository interface {
+	ListModelPage(context.Context, ListModelsInput) (ModelPage, error)
+}
+
+func (s *Service) ListModelPage(ctx context.Context, input ListModelsInput) (ModelPage, error) {
+	if s.repository == nil {
+		return ModelPage{}, ErrServiceNotReady
+	}
+	input.Query = strings.TrimSpace(input.Query)
+	if input.Limit <= 0 || input.Limit > 100 {
+		input.Limit = 20
+	}
+	if input.Offset < 0 {
+		input.Offset = 0
+	}
+	if repository, ok := s.repository.(modelPageRepository); ok {
+		return repository.ListModelPage(ctx, input)
+	}
+	models, err := s.repository.ListModels(ctx, input.UserID, input.Limit+input.Offset)
+	if err != nil {
+		return ModelPage{}, err
+	}
+	total := len(models)
+	if input.Offset >= total {
+		models = []Model{}
+	} else {
+		models = models[input.Offset:]
+	}
+	return ModelPage{Models: models, Total: total, Limit: input.Limit, Offset: input.Offset}, nil
 }
 
 func (s *Service) GetModel(ctx context.Context, userID, id int64) (Model, error) {

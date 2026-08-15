@@ -181,6 +181,42 @@ func (r *PostgresRepository) ListModels(ctx context.Context, userID int64, limit
 	return models, nil
 }
 
+func (r *PostgresRepository) ListModelPage(ctx context.Context, input ListModelsInput) (ModelPage, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM growth_models
+		WHERE user_id = $1
+		  AND ($2 = '' OR name ILIKE '%' || $2 || '%')
+	`, input.UserID, input.Query).Scan(&total); err != nil {
+		return ModelPage{}, err
+	}
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, name, assumptions, result, created_at, updated_at
+		FROM growth_models
+		WHERE user_id = $1
+		  AND ($2 = '' OR name ILIKE '%' || $2 || '%')
+		ORDER BY created_at DESC, id DESC
+		LIMIT $3 OFFSET $4
+	`, input.UserID, input.Query, input.Limit, input.Offset)
+	if err != nil {
+		return ModelPage{}, err
+	}
+	defer rows.Close()
+	models := make([]Model, 0)
+	for rows.Next() {
+		model, err := scanModel(rows)
+		if err != nil {
+			return ModelPage{}, err
+		}
+		models = append(models, model)
+	}
+	if err := rows.Err(); err != nil {
+		return ModelPage{}, err
+	}
+	return ModelPage{Models: models, Total: total, Limit: input.Limit, Offset: input.Offset}, nil
+}
+
 func (r *PostgresRepository) GetModel(ctx context.Context, userID, id int64) (Model, error) {
 	model, err := scanModel(r.db.QueryRow(ctx, `
 		SELECT id, user_id, name, assumptions, result, created_at, updated_at

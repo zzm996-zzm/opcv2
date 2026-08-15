@@ -1533,6 +1533,74 @@ Response `200`:
 
 All growth endpoints are protected.
 
+### Create Growth Draft
+
+`POST /api/v1/growth/drafts`
+
+Request:
+
+```json
+{
+  "input": "我们做企业培训，当前每月有 24000 次访问，希望提高成交率。"
+}
+```
+
+The input must not be blank and must be at most 2000 Unicode characters. The response is a `GrowthDraft` with the extracted assumptions, missing questions, and one of `needs_input`, `ready`, or `calculated` status.
+
+### Get Growth Draft
+
+`GET /api/v1/growth/drafts/{id}`
+
+Errors:
+
+- `400 invalid_draft_id`
+- `404 draft_not_found`
+
+### Answer Growth Draft Questions
+
+`POST /api/v1/growth/drafts/{id}/answers`
+
+Request:
+
+```json
+{
+  "answers": {
+    "monthly_visits": 24000,
+    "lead_rate": 0.068,
+    "deal_rate": 0.14,
+    "average_order": 820,
+    "acquisition_cost": 42,
+    "delivery_cost": 51000
+  }
+}
+```
+
+The endpoint merges the supplied answers into the draft and returns the updated `GrowthDraft`. Values are validated against the question ranges; a calculated draft cannot be edited.
+
+### Calculate Growth Draft
+
+`POST /api/v1/growth/drafts/{id}/calculate`
+
+Request body is optional. Pass `name` to override the generated model name:
+
+```json
+{
+  "name": "企业培训增长模型"
+}
+```
+
+Response `200`:
+
+```json
+{
+  "draft": { "id": 12, "status": "calculated", "model_id": 99 },
+  "model": { "id": 99, "name": "企业培训增长模型" },
+  "snapshot": { "id": 31, "model_id": 99 }
+}
+```
+
+The operation creates a model and immutable snapshot. It does not overwrite a previous calculation.
+
 ### Create Model
 
 `POST /api/v1/growth/models`
@@ -1562,15 +1630,26 @@ Response `200`: `GrowthModel`
 
 ### List Models
 
-`GET /api/v1/growth/models?limit=20`
+`GET /api/v1/growth/models?q=培训&limit=20&offset=0`
+
+Query parameters:
+
+- `q`: optional name search, up to 100 Unicode characters.
+- `limit`: page size, default `20`, maximum `100`.
+- `offset`: zero-based offset, default `0`.
 
 Response:
 
 ```json
 {
-  "models": []
+  "models": [],
+  "total": 0,
+  "limit": 20,
+  "offset": 0
 }
 ```
+
+`total` is calculated with the same user and search scope as `models`; records from another user are never included.
 
 ### Get Model
 
@@ -1649,6 +1728,48 @@ Response:
   "generated_at": "2026-06-30T08:30:00Z"
 }
 ```
+
+### List Model Snapshots
+
+`GET /api/v1/growth/models/{id}/snapshots?limit=20`
+
+Response:
+
+```json
+{
+  "snapshots": [
+    {
+      "id": 31,
+      "model_id": 99,
+      "model_name": "企业培训增长模型",
+      "assumptions": {},
+      "result": {},
+      "scenarios": {},
+      "forecast": {},
+      "recommendations": {},
+      "created_at": "2026-08-15T08:30:00Z"
+    }
+  ]
+}
+```
+
+### Recalculate Model
+
+`POST /api/v1/growth/models/{id}/recalculate`
+
+The endpoint copies the selected model's assumptions into a new model and snapshot. The original model remains unchanged. Response `200` is:
+
+```json
+{
+  "model": { "id": 100, "name": "企业培训增长模型 · 再测算" },
+  "snapshot": { "id": 32, "model_id": 100 }
+}
+```
+
+Errors:
+
+- `400 invalid_model_id`
+- `404 model_not_found`
 
 ## Leads
 

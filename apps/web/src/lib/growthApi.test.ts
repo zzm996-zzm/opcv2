@@ -89,4 +89,30 @@ describe("growthApi", () => {
       expect.objectContaining({ method: "GET" })
     );
   });
+
+  it("recalculates a model through the versioned endpoint", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ model: { id: 100 }, snapshot: { id: 501 } }), { status: 200 })
+    );
+
+    await growthApi.recalculateModel(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/99/recalculate",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("lists growth history with server-side filters", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ models: [], total: 0, limit: 10, offset: 20 }), { status: 200 })
+    );
+
+    await growthApi.listModels({ q: "SaaS", limit: 10, offset: 20 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models?q=SaaS&limit=10&offset=20",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
 });

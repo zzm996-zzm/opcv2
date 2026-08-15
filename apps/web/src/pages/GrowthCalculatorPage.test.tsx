@@ -61,7 +61,6 @@ describe("GrowthCalculatorPage", () => {
 
   it.each([
     "/growth-calculator/questions",
-    "/growth-calculator/history",
     "/growth-calculator/report"
   ])("serves the live growth workbench at %s", async (route) => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -73,6 +72,31 @@ describe("GrowthCalculatorPage", () => {
     expect(screen.getByRole("heading", { name: "增长测算" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "业务与增长问题" })).toBeInTheDocument();
     expect(await screen.findByText("暂无测算模型")).toBeInTheDocument();
+  });
+
+  it("loads the report model selected in the URL", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/growth/models/99") {
+        return Promise.resolve(new Response(JSON.stringify({
+          id: 99, user_id: 7, name: "指定报告模型",
+          assumptions: { monthly_visits: 12000, lead_rate: 0.08, deal_rate: 0.15, average_order: 6000, acquisition_cost: 80, delivery_cost: 120000 },
+          result: { monthly_revenue: 864000, leads: 960, deals: 144, payback_days: 7, net_margin: 0.77 },
+          created_at: "2026-08-15T08:00:00Z", updated_at: "2026-08-15T08:00:00Z"
+        }), { status: 200 }));
+      }
+      if (url.endsWith("/scenarios")) return Promise.resolve(new Response(JSON.stringify({ scenarios: [] }), { status: 200 }));
+      if (url.endsWith("/forecast")) return Promise.resolve(new Response(JSON.stringify({ months: [] }), { status: 200 }));
+      if (url.endsWith("/recommendations")) return Promise.resolve(new Response(JSON.stringify({ action_items: [], cost_items: [] }), { status: 200 }));
+      if (url.endsWith("/snapshots")) return Promise.resolve(new Response(JSON.stringify({ snapshots: [] }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected request: ${url}`));
+    });
+
+    renderGrowthRoute("/growth-calculator/report?model_id=99");
+
+    expect(await screen.findByText("指定报告模型")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/growth/models/99", expect.objectContaining({ method: "GET" }));
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/growth/models", expect.anything());
   });
 
   it("loads the latest growth model from API", async () => {

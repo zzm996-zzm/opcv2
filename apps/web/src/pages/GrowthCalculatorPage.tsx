@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { tasksApi, type TaskAIDraft } from "../lib/tasksApi";
@@ -94,7 +95,14 @@ function costItemsForView(view: GrowthRecommendations | null) {
   return view.cost_items.map((item) => [item.name, formatCurrency(item.amount), item.detail] as const);
 }
 
+function modelIDFromQuery(value: string | null) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 function GrowthCalculatorPage() {
+  const [searchParams] = useSearchParams();
+  const requestedModelID = modelIDFromQuery(searchParams.get("model_id"));
   const [latestModel, setLatestModel] = useState<GrowthModel | null>(null);
   const [scenarioView, setScenarioView] = useState<GrowthScenarios | null>(null);
   const [forecastView, setForecastView] = useState<GrowthForecast | null>(null);
@@ -118,9 +126,14 @@ function GrowthCalculatorPage() {
     let active = true;
     async function loadModels() {
       try {
-        const payload = await growthApi.listModels();
+        let model: GrowthModel | null = null;
+        if (requestedModelID) {
+          model = await growthApi.getModel(requestedModelID);
+        } else {
+          const payload = await growthApi.listModels();
+          model = payload.models[0] ?? null;
+        }
         if (!active) return;
-        const model = payload.models[0] ?? null;
         setLatestModel(model);
         setLoadError("");
         if (!model) {
@@ -157,7 +170,7 @@ function GrowthCalculatorPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [requestedModelID]);
 
   const visibleStats = latestModel ? statsForModel(latestModel) : emptyGrowthStats;
   const visibleAssumptions = latestModel ? assumptionsForModel(latestModel) : emptyAssumptions;
@@ -362,6 +375,7 @@ function GrowthCalculatorPage() {
             <p>用访问量、转化率、客单价、获客成本和交付成本，提前算清楚增长动作的收入和利润边界</p>
           </div>
           <div className="growth-page-actions">
+            <Link to="/growth-calculator/history">测算历史</Link>
             {snapshots.length > 0 ? (
               <label>
                 <span>历史测算</span>

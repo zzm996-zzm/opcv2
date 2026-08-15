@@ -27,6 +27,19 @@ export type GrowthModel = {
   updated_at: string;
 };
 
+export type GrowthModelFilters = {
+  q?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type GrowthModelPage = {
+  models: GrowthModel[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export type GrowthScenario = {
   name: string;
   revenue: number;
@@ -106,6 +119,15 @@ export type GrowthSnapshot = {
   created_at: string;
 };
 
+function modelQueryString(filters: GrowthModelFilters) {
+  const search = new URLSearchParams();
+  if (filters.q) search.set("q", filters.q);
+  if (filters.limit !== undefined) search.set("limit", String(filters.limit));
+  if (filters.offset !== undefined) search.set("offset", String(filters.offset));
+  const encoded = search.toString();
+  return encoded ? `?${encoded}` : "";
+}
+
 export const growthApi = {
   createDraft(input: string) {
     return apiRequest<GrowthDraft>("/api/v1/growth/drafts", {
@@ -136,6 +158,12 @@ export const growthApi = {
     return apiRequest<{ snapshots: GrowthSnapshot[] }>(`/api/v1/growth/models/${id}/snapshots`, { method: "GET" });
   },
 
+  recalculateModel(id: number) {
+    return apiRequest<{ model: GrowthModel; snapshot: GrowthSnapshot }>(`/api/v1/growth/models/${id}/recalculate`, {
+      method: "POST"
+    });
+  },
+
   createModel(input: {
     name: string;
     monthlyVisits: number;
@@ -159,8 +187,8 @@ export const growthApi = {
     });
   },
 
-  listModels() {
-    return apiRequest<{ models: GrowthModel[] }>("/api/v1/growth/models", {
+  listModels(filters: GrowthModelFilters = {}) {
+    return apiRequest<GrowthModelPage>(`/api/v1/growth/models${modelQueryString(filters)}`, {
       method: "GET"
     });
   },
