@@ -6,6 +6,7 @@ import { apiErrorMessage } from "../lib/apiErrors";
 import { tasksApi, type TaskAIDraft } from "../lib/tasksApi";
 import {
   growthApi,
+  type GrowthActionPlan,
   type GrowthDraft,
   type GrowthForecast,
   type GrowthModel,
@@ -114,6 +115,7 @@ function GrowthCalculatorPage() {
   const [forecastView, setForecastView] = useState<GrowthForecast | null>(null);
   const [recommendationView, setRecommendationView] = useState<GrowthRecommendations | null>(null);
   const [riskView, setRiskView] = useState<GrowthRisks | null>(null);
+  const [actionPlanView, setActionPlanView] = useState<GrowthActionPlan | null>(null);
   const [loadError, setLoadError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -151,19 +153,22 @@ function GrowthCalculatorPage() {
           setForecastView(null);
           setRecommendationView(null);
           setRiskView(null);
+          setActionPlanView(null);
           return;
         }
-        const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload] = await Promise.all([
+        const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload, actionPlanPayload] = await Promise.all([
           growthApi.modelScenarios(model.id).catch(() => null),
           growthApi.modelForecast(model.id).catch(() => null),
           growthApi.modelRecommendations(model.id).catch(() => null),
-          growthApi.modelRisks(model.id).catch(() => null)
+          growthApi.modelRisks(model.id).catch(() => null),
+          growthApi.modelActionPlan(model.id).catch(() => null)
         ]);
         if (!active) return;
         setScenarioView(scenariosPayload);
         setForecastView(forecastPayload);
         setRecommendationView(recommendationsPayload);
         setRiskView(risksPayload);
+        setActionPlanView(actionPlanPayload);
         const snapshotPayload = await growthApi.listSnapshots(model.id).catch(() => ({ snapshots: [] }));
         if (!active) return;
         setSnapshots(snapshotPayload.snapshots);
@@ -174,6 +179,7 @@ function GrowthCalculatorPage() {
         setForecastView(null);
         setRecommendationView(null);
         setRiskView(null);
+        setActionPlanView(null);
         setSnapshots([]);
         setLoadError(apiErrorMessage(error, "暂时无法读取测算模型"));
       } finally {
@@ -198,16 +204,18 @@ function GrowthCalculatorPage() {
   const modelName = latestModel?.name ?? "暂无测算模型";
 
   async function loadModelViews(model: GrowthModel) {
-    const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload] = await Promise.all([
+    const [scenariosPayload, forecastPayload, recommendationsPayload, risksPayload, actionPlanPayload] = await Promise.all([
       growthApi.modelScenarios(model.id).catch(() => null),
       growthApi.modelForecast(model.id).catch(() => null),
       growthApi.modelRecommendations(model.id).catch(() => null),
-      growthApi.modelRisks(model.id).catch(() => null)
+      growthApi.modelRisks(model.id).catch(() => null),
+      growthApi.modelActionPlan(model.id).catch(() => null)
     ]);
     setScenarioView(scenariosPayload);
     setForecastView(forecastPayload);
     setRecommendationView(recommendationsPayload);
     setRiskView(risksPayload);
+    setActionPlanView(actionPlanPayload);
   }
 
   async function startDraft() {
@@ -292,6 +300,7 @@ function GrowthCalculatorPage() {
     setForecastView(snapshot.forecast);
     setRecommendationView(snapshot.recommendations);
     setRiskView(null);
+    setActionPlanView(null);
     setTaskSyncMessage("");
     setTaskSyncError("");
   }
@@ -626,6 +635,40 @@ function GrowthCalculatorPage() {
               ))}
             </div>
           ) : <p className="module-empty-state" role="status">暂无风险诊断</p>}
+        </section>
+
+        <section className="growth-action-plan-section" aria-label="90 天行动计划">
+          <div className="module-section-head">
+            <div>
+              <h2>90 天行动计划</h2>
+              <p>按阶段拆解目标、责任角色和目标指标，执行前仍需在任务草稿中确认。</p>
+            </div>
+          </div>
+          {actionPlanView?.phases?.length ? (
+            <div className="growth-action-plan-grid">
+              {actionPlanView.phases.map((phase) => (
+                <article key={phase.key}>
+                  <header>
+                    <strong>{phase.name}</strong>
+                    <span>{phase.goal}</span>
+                  </header>
+                  <div>
+                    {phase.items.map((item) => (
+                      <section key={item.id}>
+                        <h3>{item.title}</h3>
+                        <p>{item.detail}</p>
+                        <dl>
+                          <div><dt>责任角色</dt><dd>{item.owner_role}</dd></div>
+                          <div><dt>目标指标</dt><dd>{item.target_metric}</dd></div>
+                          <div><dt>预期结果</dt><dd>{item.expected_result}</dd></div>
+                        </dl>
+                      </section>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : <p className="module-empty-state" role="status">暂无行动计划</p>}
         </section>
 
         <section className="growth-lower-grid">

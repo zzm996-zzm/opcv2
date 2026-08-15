@@ -225,3 +225,26 @@ type GrowthRisks struct {
 	Risks        []GrowthRisk `json:"risks"`
 	GeneratedAt  time.Time    `json:"generated_at"`
 }
+
+type GrowthActionItem struct {
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	Detail         string `json:"detail"`
+	OwnerRole      string `json:"owner_role"`
+	TargetMetric   string `json:"target_metric"`
+	ExpectedResult string `json:"expected_result"`
+}
+
+type GrowthActionPhase struct {
+	Key   string             `json:"key"`
+	Name  string             `json:"name"`
+	Goal  string             `json:"goal"`
+	Items []GrowthActionItem `json:"items"`
+}
+
+type GrowthActionPlan struct {
+	ModelID     int64               `json:"model_id"`
+	ModelName   string              `json:"model_name"`
+	Phases      []GrowthActionPhase `json:"phases"`
+	GeneratedAt time.Time           `json:"generated_at"`
+}

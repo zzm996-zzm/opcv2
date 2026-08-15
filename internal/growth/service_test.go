@@ -256,6 +256,24 @@ func TestServiceDerivesRuleBasedRisks(t *testing.T) {
 	}
 }
 
+func TestServiceBuildsNinetyDayActionPlan(t *testing.T) {
+	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	model := Model{
+		ID: 99, UserID: 42, Name: "SaaS 增长模型",
+		Assumptions: Assumptions{MonthlyVisits: 24000, LeadRate: 0.068, DealRate: 0.14, AverageOrder: 820, AcquisitionCost: 42, DeliveryCost: 51000},
+		Result:      Result{MonthlyRevenue: 186960, PaybackDays: 20}, UpdatedAt: now,
+	}
+	service := NewService(&fakeRepository{model: model})
+
+	plan, err := service.ModelActionPlan(context.Background(), 42, 99)
+	if err != nil {
+		t.Fatalf("ModelActionPlan() error = %v", err)
+	}
+	if len(plan.Phases) != 3 || plan.Phases[0].Name != "0–30 天" || len(plan.Phases[1].Items) == 0 || plan.Phases[2].Items[0].OwnerRole == "" {
+		t.Fatalf("plan = %+v", plan)
+	}
+}
+
 func TestServiceRejectsInvalidComparisonSelection(t *testing.T) {
 	service := NewService(&fakeRepository{})
 	for _, ids := range [][]int64{{99}, {99, 99}, {99, 100, 101, 102, 103}} {

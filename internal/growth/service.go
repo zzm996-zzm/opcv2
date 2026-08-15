@@ -541,6 +541,48 @@ func (s *Service) ModelRisks(ctx context.Context, userID, id int64) (GrowthRisks
 	return GrowthRisks{ModelID: model.ID, ModelName: model.Name, OverallLevel: overall, Risks: risks, GeneratedAt: model.UpdatedAt}, nil
 }
 
+func (s *Service) ModelActionPlan(ctx context.Context, userID, id int64) (GrowthActionPlan, error) {
+	model, err := s.GetModel(ctx, userID, id)
+	if err != nil {
+		return GrowthActionPlan{}, err
+	}
+	recommendations, err := s.ModelRecommendations(ctx, userID, id)
+	if err != nil {
+		return GrowthActionPlan{}, err
+	}
+	items := recommendations.ActionItems
+	itemAt := func(index int, fallback string) string {
+		if index < len(items) && strings.TrimSpace(items[index]) != "" {
+			return items[index]
+		}
+		return fallback
+	}
+	phases := []GrowthActionPhase{
+		{
+			Key: "0-30", Name: "0–30 天", Goal: "验证高意向渠道，建立稳定跟进节奏。",
+			Items: []GrowthActionItem{
+				{ID: "validate-channel", Title: "验证首个高意向获客渠道", Detail: itemAt(2, "把高意向线索同步到 CRM，并设置 24 小时跟进提醒。"), OwnerRole: "增长负责人", TargetMetric: "有效线索成本", ExpectedResult: "确认至少一个可持续获客入口"},
+				{ID: "improve-follow-up", Title: "建立 24 小时跟进 SOP", Detail: "统一首次响应、二次触达和失单回访记录。", OwnerRole: "销售负责人", TargetMetric: "首次响应时长", ExpectedResult: "高意向线索全部进入跟进队列"},
+			},
+		},
+		{
+			Key: "31-60", Name: "31–60 天", Goal: "优化成交转化率，减少漏斗中段损耗。",
+			Items: []GrowthActionItem{
+				{ID: "improve-deal-rate", Title: "优化线索到成交转化率", Detail: itemAt(1, "补齐顾问话术、案例证明和跟进节奏。"), OwnerRole: "销售负责人", TargetMetric: fmt.Sprintf("成交转化率 ≥ %s", formatRate(model.Assumptions.DealRate)), ExpectedResult: "转化率在可控样本内持续提升"},
+				{ID: "package-offer", Title: "调整产品套餐和客单价", Detail: itemAt(0, "把高价值服务打包，避免只靠低价成交。"), OwnerRole: "产品负责人", TargetMetric: "平均客单价", ExpectedResult: "提升收入质量而不是单纯增加流量"},
+			},
+		},
+		{
+			Key: "61-90", Name: "61–90 天", Goal: "在回本周期可控的前提下放大有效动作。",
+			Items: []GrowthActionItem{
+				{ID: "scale-budget", Title: "按渠道 ROI 分配增量预算", Detail: "只放大已通过转化和交付验证的渠道。", OwnerRole: "经营负责人", TargetMetric: fmt.Sprintf("回本周期 ≤ %d 天", maxInt(model.Result.PaybackDays, 1)), ExpectedResult: "增长投入与现金回收节奏匹配"},
+				{ID: "review-growth", Title: "复盘 90 天模型与实际结果", Detail: "对照访问、线索、成交、成本和利润率，创建下一版测算。", OwnerRole: "经营负责人", TargetMetric: "净利润率", ExpectedResult: "形成可追溯的新版本假设"},
+			},
+		},
+	}
+	return GrowthActionPlan{ModelID: model.ID, ModelName: model.Name, Phases: phases, GeneratedAt: model.UpdatedAt}, nil
+}
+
 func calculate(input Assumptions) Result {
 	leads := int(math.Round(float64(input.MonthlyVisits) * input.LeadRate))
 	deals := int(math.Round(float64(leads) * input.DealRate))

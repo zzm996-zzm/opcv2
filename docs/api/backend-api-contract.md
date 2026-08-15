@@ -1757,6 +1757,30 @@ Response:
 }
 ```
 
+### Get Model Action Plan
+
+`GET /api/v1/growth/models/{id}/action-plan`
+
+The MVP returns three persisted-view phases (`0-30`, `31-60`, `61-90`) with goals, action details, owner roles, target metrics, and expected results. The endpoint is read-only; converting items into tasks still requires the existing preview and confirmation flow.
+
+Response shape:
+
+```json
+{
+  "model_id": 99,
+  "model_name": "标准方案",
+  "phases": [
+    {
+      "key": "0-30",
+      "name": "0–30 天",
+      "goal": "验证高意向渠道，建立稳定跟进节奏。",
+      "items": []
+    }
+  ],
+  "generated_at": "2026-08-15T08:30:00Z"
+}
+```
+
 ### List Model Snapshots
 
 `GET /api/v1/growth/models/{id}/snapshots?limit=20`

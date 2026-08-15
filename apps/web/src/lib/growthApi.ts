@@ -108,6 +108,29 @@ export type GrowthRisks = {
   generated_at: string;
 };
 
+export type GrowthActionItem = {
+  id: string;
+  title: string;
+  detail: string;
+  owner_role: string;
+  target_metric: string;
+  expected_result: string;
+};
+
+export type GrowthActionPhase = {
+  key: string;
+  name: string;
+  goal: string;
+  items: GrowthActionItem[];
+};
+
+export type GrowthActionPlan = {
+  model_id: number;
+  model_name: string;
+  phases: GrowthActionPhase[];
+  generated_at: string;
+};
+
 export type GrowthQuestion = {
   key: keyof GrowthAssumptions;
   label: string;
@@ -257,6 +280,12 @@ export const growthApi = {
 
   modelRisks(id: number) {
     return apiRequest<GrowthRisks>(`/api/v1/growth/models/${id}/risks`, {
+      method: "GET"
+    });
+  },
+
+  modelActionPlan(id: number) {
+    return apiRequest<GrowthActionPlan>(`/api/v1/growth/models/${id}/action-plan`, {
       method: "GET"
     });
   }

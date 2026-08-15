@@ -167,4 +167,18 @@ describe("growthApi", () => {
     );
     expect(risks.overall_level).toBe("medium");
   });
+
+  it("loads the model action plan", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ model_id: 99, phases: [{ key: "0-30", items: [] }] }), { status: 200 })
+    );
+
+    const plan = await growthApi.modelActionPlan(99);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/growth/models/99/action-plan",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(plan.phases).toHaveLength(1);
+  });
 });
