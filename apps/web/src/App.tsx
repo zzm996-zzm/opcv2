@@ -47,6 +47,8 @@ import ProfilePage from "./pages/ProfilePage";
 import RegisterDetailsPage from "./pages/RegisterDetailsPage";
 import SandboxPage from "./pages/SandboxPage";
 import ToolsPage from "./pages/ToolsPage";
+import TaskCreatePage from "./pages/TaskCreatePage";
+import TasksPage from "./pages/TasksPage";
 import V4PageShell from "./components/V4PageShell";
 
 function AppRoutes() {
@@ -708,24 +710,17 @@ function AppRoutes() {
         }
         path="/sandbox/quota"
       />
+      <Route element={<RequireAuth><TaskCreatePage /></RequireAuth>} path="/tasks/new" />
+      <Route element={<RequireAuth><TaskCreatePage /></RequireAuth>} path="/tasks/new/menu" />
+      <Route element={<RequireAuth><Navigate replace to="/tasks?view=board" /></RequireAuth>} path="/tasks/board" />
+      <Route element={<RequireAuth><Navigate replace to="/tasks?view=calendar" /></RequireAuth>} path="/tasks/calendar" />
+      <Route element={<RequireAuth><TasksPage /></RequireAuth>} path="/tasks/ai" />
+      <Route element={<RequireAuth><TasksPage /></RequireAuth>} path="/tasks/detail" />
+      <Route element={<RequireAuth><TasksPage /></RequireAuth>} path="/tasks/menu" />
       <Route
         element={
           <RequireAuth>
-            <LandingReferencePage module="tasks" view="create" />
-          </RequireAuth>
-        }
-        path="/tasks/new"
-      />
-      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="create-menu" /></RequireAuth>} path="/tasks/new/menu" />
-      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="board" /></RequireAuth>} path="/tasks/board" />
-      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="calendar" /></RequireAuth>} path="/tasks/calendar" />
-      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="ai" /></RequireAuth>} path="/tasks/ai" />
-      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="detail" /></RequireAuth>} path="/tasks/detail" />
-      <Route element={<RequireAuth><LandingReferencePage module="tasks" view="list-menu" /></RequireAuth>} path="/tasks/menu" />
-      <Route
-        element={
-          <RequireAuth>
-            <LandingReferencePage module="tasks" view="list" />
+            <TasksPage />
           </RequireAuth>
         }
         path="/tasks"

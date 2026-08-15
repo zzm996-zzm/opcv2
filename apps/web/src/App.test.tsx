@@ -131,6 +131,25 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "AI线索开发" })).toBeInTheDocument();
   });
 
+  it("routes the task center to the data-backed task page", () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2099-06-11T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/tasks"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("heading", { name: "任务中心" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "描述任务目标" })).toBeInTheDocument();
+    expect(screen.queryByText("请帮我分析当前任务中心页面")).not.toBeInTheDocument();
+  });
+
   it("redirects account settings alias to the existing settings page", async () => {
     authSession.set({
       access_token: "access-token",
