@@ -446,6 +446,8 @@ describe("TasksPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "生成任务表" }));
 
     const preview = await screen.findByRole("dialog", { name: "AI任务草稿预览" });
+    expect(preview.closest(".task-modal-backdrop")?.parentElement).toBe(document.body);
+    expect(document.body).toHaveStyle({ overflow: "hidden" });
     expect(within(preview).getByText("已选 2 条")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "梳理竞品反击动作" })).not.toBeInTheDocument();
     fireEvent.change(within(preview).getAllByLabelText("任务标题")[0], { target: { value: "梳理竞品重点反击动作" } });
@@ -453,6 +455,7 @@ describe("TasksPage", () => {
     fireEvent.click(within(preview).getByRole("button", { name: "采纳选中任务" }));
 
     expect(await screen.findByText("已采纳 1 条任务")).toBeInTheDocument();
+    await waitFor(() => expect(document.body.style.overflow).toBe(""));
     expect(await screen.findByRole("heading", { name: "梳理竞品重点反击动作" })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/tasks/ai-drafts/77/adopt",

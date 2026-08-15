@@ -8408,6 +8408,7 @@ a:active {
   width: min(1080px, calc(100vw - 32px));
   max-height: min(86vh, 900px);
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 28px;
   background: #fff;
   border: 1px solid rgba(20, 45, 75, 0.12);
@@ -31270,8 +31271,10 @@ a:active {
   z-index: 80;
   inset: 0;
   display: grid;
+  overflow: hidden;
   padding: 20px;
   background: rgba(4, 13, 38, 0.52);
+  overscroll-behavior: contain;
   place-items: center;
 }
 
@@ -31280,6 +31283,7 @@ a:active {
   width: min(720px, calc(100vw - 40px));
   max-height: calc(100vh - 40px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 28px;
   color: #0b1b4b;
   background: #fff;

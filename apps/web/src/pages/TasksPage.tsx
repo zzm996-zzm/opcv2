@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Eye, EyeOff, Paperclip, Plus, RotateCcw, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -59,6 +60,25 @@ type AIDraftPreviewItem = {
   tools: string;
   learning: string;
 };
+
+function TaskModalPortal({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    const bodyPaddingRight = Number.parseFloat(window.getComputedStyle(document.body).paddingRight) || 0;
+
+    document.body.style.overflow = "hidden";
+    if (scrollbarWidth > 0) document.body.style.paddingRight = `${bodyPaddingRight + scrollbarWidth}px`;
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+    };
+  }, []);
+
+  return createPortal(children, document.body);
+}
 
 const emptyTaskStats = [
   ["今日待办", "0"],
@@ -1668,7 +1688,8 @@ function TasksPage() {
         </section>
 
         {aiDraft ? (
-          <div className="task-modal-backdrop">
+          <TaskModalPortal>
+            <div className="task-modal-backdrop">
             <section aria-label="AI任务草稿预览" aria-modal="true" className="task-ai-draft-dialog" role="dialog">
               <header>
                 <span>AI 建议草稿</span>
@@ -1751,7 +1772,8 @@ function TasksPage() {
                 </button>
               </footer>
             </section>
-          </div>
+            </div>
+          </TaskModalPortal>
         ) : null}
 
 	        <section className="task-workbench">
@@ -2157,7 +2179,8 @@ function TasksPage() {
 	          </div>
         </section>
         {detailTaskID !== null ? (
-          <div className="task-modal-backdrop">
+          <TaskModalPortal>
+            <div className="task-modal-backdrop">
             <section aria-label="任务详情" aria-modal="true" className="task-detail-dialog" role="dialog">
               <button aria-label="关闭任务详情" className="task-detail-close" onClick={closeTaskDetail} type="button">×</button>
               <header>
@@ -2571,7 +2594,8 @@ function TasksPage() {
                 </form>
               ) : null}
             </section>
-          </div>
+            </div>
+          </TaskModalPortal>
         ) : null}
       </section>
     </V4PageShell>
