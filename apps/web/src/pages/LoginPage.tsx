@@ -78,7 +78,7 @@ function LoginPage({ initialMode = "login" }: LoginPageProps) {
             ...credentials,
             agreementAccepted
           })
-        : await authApi.login(credentials);
+        : await loginWithRecovery(credentials);
       authSession.set(result);
       setStatus("success");
       const returnTo = (location.state as { returnTo?: string } | null)?.returnTo;
@@ -406,7 +406,7 @@ async function registerWithRecovery(input: Parameters<typeof authApi.register>[0
   try {
     return await authApi.register(input);
   } catch (error) {
-    if (!shouldRecoverRegistration(error)) throw error;
+    if (!shouldRetryAuth(error)) throw error;
 
     try {
       return await authApi.login({ account: input.account, password: input.password });
@@ -417,7 +417,21 @@ async function registerWithRecovery(input: Parameters<typeof authApi.register>[0
   }
 }
 
-function shouldRecoverRegistration(error: unknown) {
+async function loginWithRecovery(input: Parameters<typeof authApi.login>[0]) {
+  try {
+    return await authApi.login(input);
+  } catch (error) {
+    if (!shouldRetryAuth(error)) throw error;
+
+    try {
+      return await authApi.login(input);
+    } catch {
+      throw error;
+    }
+  }
+}
+
+function shouldRetryAuth(error: unknown) {
   if (error instanceof ApiRequestError) {
     return ["account_exists", "internal_error", "service_not_ready", "request_failed"].includes(error.code);
   }

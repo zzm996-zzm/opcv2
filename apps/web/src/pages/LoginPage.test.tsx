@@ -83,6 +83,48 @@ describe("LoginPage", () => {
     expect(await screen.findByText("登录成功，正在进入工作台")).toBeInTheDocument();
   });
 
+  it("retries a login when the server response is temporarily unavailable", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ error: "internal_error", message: "服务开小差了，请稍后再试" }),
+          { status: 500 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            access_token: "retried-access-token",
+            access_token_expires_at: new Date(Date.now() + 60000).toISOString(),
+            user: {
+              id: 42,
+              nickname: "部署测试",
+              account: "deploy_user",
+              phone: "",
+              status: "active"
+            },
+            is_new_user: false
+          }),
+          { status: 200 }
+        )
+      );
+
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByLabelText("账号"), { target: { value: "deploy_user" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "secret123" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "同意用户协议和隐私政策" }));
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+
+    expect(await screen.findByText("登录成功，正在进入工作台")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(authSession.get().accessToken).toBe("retried-access-token");
+  });
+
   it("renders the registration fields from the UI design", () => {
     render(
       <MemoryRouter>
