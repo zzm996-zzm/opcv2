@@ -232,8 +232,8 @@ func translateBatch(ctx context.Context, db *pgxpool.Pool, provider ai.Provider,
 
 func translatablePayload(dataset string, payload map[string]any) map[string]any {
 	fields := map[string][]string{
-		"startup":      {"name", "description", "sector", "country", "founders", "investors", "difficulty_reason", "scalability_reason", "market_potential_reason", "cause_of_death", "primary_cause_of_death", "the_loot", "market_analysis", "pivot_idea", "product_type", "condensed_value_prop", "condensed_cause_of_death"},
-		"rebuild_plan": {"name", "sector", "product_type", "country", "primary_cause_of_death", "market_potential", "pivot_idea", "the_loot"},
+		"startup":      {"name", "description", "sector", "country", "cause_of_death", "primary_cause_of_death", "market_analysis", "product_type", "condensed_value_prop", "condensed_cause_of_death"},
+		"rebuild_plan": {"name", "sector", "product_type", "country", "primary_cause_of_death", "market_potential", "pivot_idea"},
 		"idea":         {"title", "description", "model", "effort", "speed", "category", "tags", "persona"},
 	}
 	selected := make(map[string]any)
