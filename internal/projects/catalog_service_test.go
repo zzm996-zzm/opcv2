@@ -71,8 +71,8 @@ func TestServiceNormalizesProjectCatalogAndEvidence(t *testing.T) {
 	if !page.Items[0].IsReal || page.Items[0].SourceURL == "" || !page.Items[0].IsUnlocked || page.Items[0].LockedBlocks == nil {
 		t.Fatalf("valid project = %+v", page.Items[0])
 	}
-	if page.Items[1].IsReal || page.Items[1].SourceURL != "" || page.Items[2].IsReal || page.Items[2].SourceURL != "" {
-		t.Fatalf("ineligible sources were exposed as real: %+v", page.Items)
+	if !page.Items[1].IsReal || page.Items[1].SourceURL == "" || page.Items[2].IsReal || page.Items[2].SourceURL != "" {
+		t.Fatalf("source normalization was incorrect: %+v", page.Items)
 	}
 }
 

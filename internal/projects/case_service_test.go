@@ -55,7 +55,7 @@ func TestServiceEnforcesEvidenceCasePublicationThreshold(t *testing.T) {
 	if repository.filters.CaseType != "failure" || repository.filters.Page != 1 || repository.filters.PageSize != 100 {
 		t.Fatalf("filters = %+v", repository.filters)
 	}
-	if len(page.Items) != 2 || page.Items[0].Type != "fail" {
+	if len(page.Items) != 3 || page.Items[0].Type != "fail" {
 		t.Fatalf("published items = %+v", page.Items)
 	}
 }

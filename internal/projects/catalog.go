@@ -310,9 +310,5 @@ func eligibleProjectSourceURL(raw string) string {
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" {
 		return ""
 	}
-	host := strings.ToLower(parsed.Hostname())
-	if host == "loot-drop.io" || strings.HasSuffix(host, ".loot-drop.io") {
-		return ""
-	}
 	return parsed.String()
 }
