@@ -39,7 +39,7 @@ func main() {
 	baseURL := flag.String("base-url", envOrDefault("OPCV2_DEEPSEEK_BASE_URL", "https://api.deepseek.com"), "OpenAI-compatible API base URL")
 	model := flag.String("model", envOrDefault("OPCV2_DEEPSEEK_MODEL", "deepseek-chat"), "translation model")
 	dataset := flag.String("dataset", "", "only translate one dataset: startup, rebuild_plan, idea")
-	limit := flag.Int("limit", 0, "maximum records to translate; 0 means all pending records")
+	limit := flag.Int("limit", 100, "maximum records to translate; explicitly set 0 to translate all pending records")
 	batchSize := flag.Int("batch-size", 10, "records per model request")
 	retryFailed := flag.Bool("retry-failed", false, "retry records previously marked failed")
 	shardCount := flag.Int("shard-count", 1, "number of numeric record-key shards")
@@ -51,6 +51,10 @@ func main() {
 	}
 	if *batchSize < 1 || *batchSize > 25 {
 		logger.Error("batch-size must be between 1 and 25")
+		os.Exit(2)
+	}
+	if *limit < 0 {
+		logger.Error("limit must be 0 or greater")
 		os.Exit(2)
 	}
 	if *shardCount < 1 || *shardIndex < 0 || *shardIndex >= *shardCount {

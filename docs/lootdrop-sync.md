@@ -22,10 +22,12 @@ GOPROXY=https://goproxy.cn,direct go run ./apps/lootdrop-import \
 ```bash
 OPCV2_DEEPSEEK_API_KEY='你的密钥' \
 GOPROXY=https://goproxy.cn,direct \
-go run ./apps/lootdrop-translate -batch-size 10
+go run ./apps/lootdrop-translate -limit 1 -batch-size 1
 ```
 
-大字段案例可以使用 `-dataset startup -batch-size 2`；网络或模型返回异常时用 `-retry-failed` 重试。可用下面的查询查看同步和翻译状态：
+先用 `-limit 1` 验证密钥、模型和账单状态，再设置明确的翻译条数。翻译器默认最多处理 100 条；只有显式传入 `-limit 0` 才会处理全部待翻译记录。大字段案例可以使用 `-dataset startup -limit 10 -batch-size 2`；网络或模型返回异常时用 `-retry-failed` 重试，并同时指定 `-limit`，避免无预算上限的批量调用。
+
+不要使用测试密钥执行全量翻译。每次运行前先在服务商后台确认余额、限额和预期处理条数。可用下面的查询查看同步和翻译状态：
 
 ```sql
 SELECT id, source_run_id, status, imported_at
