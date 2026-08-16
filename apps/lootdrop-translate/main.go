@@ -116,6 +116,9 @@ func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provide
 			}
 			totalFailed += len(items)
 			logger.Warn("translation batch failed", "count", len(items), "error", err)
+			if isProviderError(err) {
+				return totalTranslated, totalFailed, err
+			}
 		} else {
 			totalTranslated += translated
 			if translated == 0 {
@@ -132,6 +135,16 @@ func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provide
 			}
 		}
 	}
+}
+
+func isProviderError(err error) bool {
+	return errors.Is(err, ai.ErrProviderTimeout) ||
+		errors.Is(err, ai.ErrProviderRateLimited) ||
+		errors.Is(err, ai.ErrProviderAuthentication) ||
+		errors.Is(err, ai.ErrProviderPermission) ||
+		errors.Is(err, ai.ErrProviderModelNotFound) ||
+		errors.Is(err, ai.ErrProviderBadRequest) ||
+		errors.Is(err, ai.ErrProviderUnavailable)
 }
 
 func loadPending(ctx context.Context, db *pgxpool.Pool, dataset string, limit int, retryFailed bool, shardCount, shardIndex int) ([]pendingTranslation, error) {
