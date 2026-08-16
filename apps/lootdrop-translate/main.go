@@ -41,6 +41,7 @@ func main() {
 	dataset := flag.String("dataset", "", "only translate one dataset: startup, rebuild_plan, idea")
 	limit := flag.Int("limit", 0, "maximum records to translate; 0 means all pending records")
 	batchSize := flag.Int("batch-size", 10, "records per model request")
+	retryFailed := flag.Bool("retry-failed", false, "retry records previously marked failed")
 	flag.Parse()
 	if strings.TrimSpace(*apiKey) == "" {
 		logger.Error("missing DeepSeek API key", "env", "OPCV2_DEEPSEEK_API_KEY")
@@ -68,7 +69,7 @@ func main() {
 		Model:   *model,
 		Timeout: 90 * time.Second,
 	})
-	translated, failed, err := translatePending(ctx, db, provider, strings.TrimSpace(*dataset), *limit, *batchSize, *model, logger)
+	translated, failed, err := translatePending(ctx, db, provider, strings.TrimSpace(*dataset), *limit, *batchSize, *model, *retryFailed, logger)
 	if err != nil {
 		logger.Error("translation failed", "error", err)
 		os.Exit(1)
@@ -76,7 +77,16 @@ func main() {
 	logger.Info("translation completed", "translated", translated, "failed", failed)
 }
 
-func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provider, dataset string, limit, batchSize int, model string, logger *slog.Logger) (int, int, error) {
+func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provider, dataset string, limit, batchSize int, model string, retryFailed bool, logger *slog.Logger) (int, int, error) {
+	if retryFailed {
+		if _, err := db.Exec(ctx, `
+			UPDATE lootdrop_translations
+			SET status = 'pending', error_message = '', updated_at = NOW()
+			WHERE language = 'zh-CN' AND status = 'failed' AND ($1 = '' OR dataset = $1)
+		`, dataset); err != nil {
+			return 0, 0, err
+		}
+	}
 	totalTranslated, totalFailed := 0, 0
 	remaining := limit
 	for {
@@ -84,7 +94,7 @@ func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provide
 		if remaining > 0 && fetchLimit > remaining {
 			fetchLimit = remaining
 		}
-		items, err := loadPending(ctx, db, dataset, fetchLimit)
+		items, err := loadPending(ctx, db, dataset, fetchLimit, retryFailed)
 		if err != nil {
 			return totalTranslated, totalFailed, err
 		}
@@ -115,7 +125,7 @@ func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provide
 	}
 }
 
-func loadPending(ctx context.Context, db *pgxpool.Pool, dataset string, limit int) ([]pendingTranslation, error) {
+func loadPending(ctx context.Context, db *pgxpool.Pool, dataset string, limit int, retryFailed bool) ([]pendingTranslation, error) {
 	query := `
 		SELECT t.dataset, t.record_key, t.source_hash,
 			CASE t.dataset
@@ -127,11 +137,15 @@ func loadPending(ctx context.Context, db *pgxpool.Pool, dataset string, limit in
 		LEFT JOIN lootdrop_startups s ON t.dataset = 'startup' AND s.source_id::TEXT = t.record_key
 		LEFT JOIN lootdrop_rebuild_plans r ON t.dataset = 'rebuild_plan' AND r.source_id::TEXT = t.record_key
 		LEFT JOIN lootdrop_ideas i ON t.dataset = 'idea' AND i.source_id::TEXT = t.record_key
-		WHERE t.language = 'zh-CN' AND t.status = 'pending'
+		WHERE t.language = 'zh-CN' AND t.status = ANY($2::text[])
 		  AND ($1 = '' OR t.dataset = $1)
 		ORDER BY t.dataset, t.record_key
-		LIMIT $2`
-	rows, err := db.Query(ctx, query, dataset, limit)
+		LIMIT $3`
+	statuses := []string{"pending"}
+	if retryFailed {
+		statuses = append(statuses, "failed")
+	}
+	rows, err := db.Query(ctx, query, dataset, statuses, limit)
 	if err != nil {
 		return nil, err
 	}
