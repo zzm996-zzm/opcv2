@@ -333,7 +333,7 @@ func importGenericDataset(ctx context.Context, source *sql.DB, tx pgx.Tx, runID 
 	return err
 }
 
-func syncProjectCaseClaims(ctx context.Context, tx pgx.Tx, caseID, sourceID int64, row rowMap) error {
+func syncProjectCaseClaims(ctx context.Context, tx pgx.Tx, caseID, sourceID int64, row rowMap, translated map[string]any) error {
 	if _, err := tx.Exec(ctx, `DELETE FROM project_case_claims WHERE case_id = $1`, caseID); err != nil {
 		return err
 	}
@@ -342,17 +342,17 @@ func syncProjectCaseClaims(ctx context.Context, tx pgx.Tx, caseID, sourceID int6
 		modelGenerated             bool
 	}
 	claims := []claim{
-		{kind: "fact", field: "company_name", value: stringValue(row["name"])},
-		{kind: "fact", field: "description", value: stringValue(row["description"])},
-		{kind: "fact", field: "sector", value: stringValue(row["sector"])},
-		{kind: "fact", field: "country", value: stringValue(row["country"])},
+		{kind: "fact", field: "company_name", value: translatedString(translated, "name_zh", stringValue(row["name"]))},
+		{kind: "fact", field: "description", value: translatedString(translated, "description_zh", stringValue(row["description"]))},
+		{kind: "fact", field: "sector", value: translatedString(translated, "sector_zh", stringValue(row["sector"]))},
+		{kind: "fact", field: "country", value: translatedString(translated, "country_zh", stringValue(row["country"]))},
 		{kind: "fact", field: "start_year", value: stringValue(row["start_year"])},
 		{kind: "fact", field: "end_year", value: stringValue(row["end_year"])},
 		{kind: "fact", field: "total_funding", value: stringValue(row["total_funding"])},
-		{kind: "fact", field: "primary_cause_of_death", value: stringValue(row["primary_cause_of_death"])},
+		{kind: "fact", field: "primary_cause_of_death", value: translatedString(translated, "primary_cause_of_death_zh", stringValue(row["primary_cause_of_death"]))},
 		{kind: "fact", field: "market_potential", value: stringValue(row["market_potential"])},
-		{kind: "analysis", field: "cause_of_death", value: stringValue(row["cause_of_death"]), modelGenerated: true},
-		{kind: "analysis", field: "market_analysis", value: stringValue(row["market_analysis"]), modelGenerated: true},
+		{kind: "analysis", field: "cause_of_death", value: translatedString(translated, "cause_of_death_zh", stringValue(row["cause_of_death"])), modelGenerated: true},
+		{kind: "analysis", field: "market_analysis", value: translatedString(translated, "market_analysis_zh", stringValue(row["market_analysis"])), modelGenerated: true},
 		{kind: "analysis", field: "pivot_idea", value: string(jsonColumn(row["pivot_idea"], `{}`)), modelGenerated: true},
 	}
 	sortOrder := 0
@@ -376,6 +376,30 @@ func syncProjectCaseClaims(ctx context.Context, tx pgx.Tx, caseID, sourceID int6
 		sortOrder++
 	}
 	return nil
+}
+
+func startupTranslation(ctx context.Context, tx pgx.Tx, id int64) map[string]any {
+	var payload []byte
+	if err := tx.QueryRow(ctx, `
+		SELECT translated_payload FROM lootdrop_translations
+		WHERE dataset = 'startup' AND record_key = $1 AND language = 'zh-CN' AND status = 'completed'
+	`, strconv.FormatInt(id, 10)).Scan(&payload); err != nil || !json.Valid(payload) {
+		return nil
+	}
+	var translated map[string]any
+	if json.Unmarshal(payload, &translated) != nil {
+		return nil
+	}
+	return translated
+}
+
+func translatedString(payload map[string]any, key, fallback string) string {
+	if payload != nil {
+		if value, ok := payload[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return fallback
 }
 
 func deleteMissingIDs(ctx context.Context, tx pgx.Tx, table string, ids []int64) error {
@@ -416,6 +440,10 @@ func syncProjectCaseProjection(ctx context.Context, source *sql.DB, tx pgx.Tx) e
 		if cause == "" {
 			cause = stringValue(row["primary_cause_of_death"])
 		}
+		translated := startupTranslation(ctx, tx, id)
+		name = translatedString(translated, "name_zh", name)
+		description = translatedString(translated, "description_zh", description)
+		cause = translatedString(translated, "cause_of_death_zh", cause)
 		slug := "lootdrop-startup-" + strconv.FormatInt(id, 10)
 		sourceURL := "https://www.loot-drop.io/database-view?id=" + strconv.FormatInt(id, 10)
 		capturedAt := nullableTimeValue(row["scraped_at"])
@@ -464,7 +492,7 @@ func syncProjectCaseProjection(ctx context.Context, source *sql.DB, tx pgx.Tx) e
 			`, caseID, sourceID); err != nil {
 			return err
 		}
-		if err := syncProjectCaseClaims(ctx, tx, caseID, sourceID, row); err != nil {
+		if err := syncProjectCaseClaims(ctx, tx, caseID, sourceID, row, translated); err != nil {
 			return err
 		}
 	}
