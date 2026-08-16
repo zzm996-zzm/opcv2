@@ -380,10 +380,10 @@ func syncProjectCaseProjection(ctx context.Context, source *sql.DB, tx pgx.Tx) e
 		content := strings.TrimSpace(strings.Join([]string{name, description, cause}, "\n\n"))
 		_, err = tx.Exec(ctx, `
 			INSERT INTO project_cases (
-				slug, title, summary, case_type, outcome, key_actions, lessons, pitfalls,
+				slug, title, summary, result_summary, case_type, outcome, key_actions, lessons, pitfalls,
 				source_title, source_url, captured_at, status, published_at,
 				evidence_status, last_verified_at, is_locked, has_conflict, content_md, updated_at
-			) VALUES ($1, $2, $3, 'failure', $4, $5, $6, $7, 'Loot Drop', $8, $9, 'published', NOW(), 'verified', $9, TRUE, FALSE, $10, NOW())
+			) VALUES ($1, $2, $3, $4, 'failure', $4, $5, $6, $7, 'Loot Drop', $8, $9, 'published', NOW(), 'verified', $9, TRUE, FALSE, $10, NOW())
 			ON CONFLICT (slug) DO UPDATE SET
 				title = EXCLUDED.title, summary = EXCLUDED.summary, outcome = EXCLUDED.outcome,
 				key_actions = EXCLUDED.key_actions, lessons = EXCLUDED.lessons, pitfalls = EXCLUDED.pitfalls,
