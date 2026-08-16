@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronUp } from "lucide-react";
+import { ArrowLeft, ChevronUp, ExternalLink } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { useRegisteredCopilotPanel } from "../components/CopilotPanelVisibility";
@@ -1032,6 +1032,19 @@ function CaseDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const contentParagraphs = caseDetail
+    ? caseDetail.content_md.split(/\n{2,}/).map((paragraph) => paragraph.replace(/^#+\s*/, "").trim()).filter((paragraph) => paragraph && paragraph !== caseDetail.title && paragraph !== caseDetail.result_summary)
+    : [];
+  const displayFacts = caseDetail?.facts.flatMap((fact) => {
+    const label = caseFactLabel(fact.field);
+    if (!label || fact.field === "company_name" || fact.field === "description" || !fact.value.trim()) return [];
+    return [{ ...fact, label, displayValue: formatCaseFactValue(fact.field, fact.value) }];
+  }) ?? [];
+  const displayAnalyses = caseDetail?.analyses.filter((analysis) => {
+    const point = analysis.point.trim();
+    return point !== "" && !point.startsWith("{") && /[\u3400-\u9fff]/u.test(point);
+  }) ?? [];
+
   useEffect(() => {
     if (!caseRef) {
       setError("案例地址无效");
@@ -1056,39 +1069,75 @@ function CaseDetail() {
 
   return (
     <>
-      <section className="pm-catalog-hero cases">
-        <div className="pm-catalog-hero-copy">
-          <p>项目超市&nbsp;&nbsp;/&nbsp;&nbsp;真实案例库&nbsp;&nbsp;/&nbsp;&nbsp;案例详情</p>
-          <h1>{caseDetail?.title ?? "案例详情"}</h1>
-          <strong>{caseDetail?.result_summary ?? "查看经过核验的事实、分析与来源"}</strong>
-          <Link to="/project-cases">返回案例库</Link>
+      <section className={`pm-case-detail-hero ${caseDetail?.cover_url ? "has-cover" : "no-cover"}`}>
+        <nav aria-label="案例面包屑">
+          <Link to="/project-cases"><ArrowLeft aria-hidden="true" size={14} />返回案例库</Link>
+          <span>项目超市 / 真实案例库 / 案例详情</span>
+        </nav>
+        <div className="pm-case-detail-hero-main">
+          <div>
+            <div className="pm-case-detail-tags"><span>真实案例</span><span>{caseDetail?.type === "success" ? "成功案例" : "失败复盘"}</span></div>
+            <h1>{caseDetail?.title ?? "案例详情"}</h1>
+            <p>{caseDetail?.result_summary ?? "查看经过核验的事实、分析与来源"}</p>
+            {caseDetail ? <small>{caseDetail.source_count} 条公开来源{caseDetail.verified_at ? ` · 核验于 ${new Date(caseDetail.verified_at).toLocaleDateString("zh-CN")}` : ""}</small> : null}
+          </div>
+          {caseDetail?.cover_url ? <img alt="" loading="lazy" src={caseDetail.cover_url} /> : null}
         </div>
-        <div className="pm-catalog-hero-art" aria-hidden="true" />
       </section>
       {loading ? <div className="module-empty-state" role="status">正在读取案例详情…</div> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      {!loading && !error && caseDetail ? <section className="pm-detail-content pm-structured-content">
-        <article className="pm-structured-block type-cards">
-          <h2>核验事实</h2>
-          <div className="pm-structured-grid" style={{ "--pm-columns": 2 } as CSSProperties}>
-            {caseDetail.facts.map((fact) => <section key={fact.field}><div><strong>{fact.field}</strong><p>{fact.value}</p><small>来源编号：{fact.source_refs.join("、")}</small></div></section>)}
-          </div>
-        </article>
-        <article className="pm-structured-block type-cards">
-          <h2>分析判断</h2>
-          <div className="pm-structured-grid" style={{ "--pm-columns": 2 } as CSSProperties}>
-            {caseDetail.analyses.map((analysis, index) => <section key={`${analysis.point}-${index}`}><div><strong>{analysis.point}</strong>{analysis.detail ? <p>{analysis.detail}</p> : null}<small>AI 辅助分析 · 来源编号：{analysis.source_refs.join("、") || "未单独引用"}</small></div></section>)}
-          </div>
-        </article>
-        <article className="pm-structured-block type-sources">
-          <h2>来源与证据</h2>
-          <div className="pm-structured-grid" style={{ "--pm-columns": 3 } as CSSProperties}>
-            {caseDetail.sources.map((source) => <a href={source.url} key={source.id} onClick={() => trackProjectEvent("project_case_source_click", { case_id: caseDetail.id, case_type: caseDetail.type, source_id: source.id, field: source.claim_fields.join(",") || "source" }, "case_detail")} rel="noreferrer" target="_blank"><strong>{source.title || source.publisher || "公开来源"}</strong><small>{source.kind}{source.is_primary ? " · 首要来源" : ""}</small><span>查看出处 →</span></a>)}
-          </div>
-        </article>
+      {!loading && !error && caseDetail ? <section className="pm-case-detail-layout">
+        <div className="pm-case-detail-primary">
+          {contentParagraphs.length > 0 ? <article className="pm-case-detail-section">
+            <header><span>01</span><h2>案例概览</h2></header>
+            <div className="pm-case-detail-copy">{contentParagraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}</div>
+          </article> : null}
+          <article className="pm-case-detail-section">
+            <header><span>{contentParagraphs.length > 0 ? "02" : "01"}</span><h2>关键复盘</h2></header>
+            {displayAnalyses.length > 0 ? <div className="pm-case-analysis-list">{displayAnalyses.map((analysis, index) => <section key={`${analysis.point}-${index}`}><strong>{index === 0 ? "核心问题" : "后续启示"}</strong><p>{analysis.point}</p>{analysis.detail && /[\u3400-\u9fff]/u.test(analysis.detail) ? <small>{analysis.detail}</small> : null}</section>)}</div> : <p className="pm-case-detail-empty">暂无可展示的分析结论</p>}
+          </article>
+        </div>
+        <aside className="pm-case-detail-aside">
+          <section>
+            <h2>关键事实</h2>
+            {displayFacts.length > 0 ? <dl>{displayFacts.map((fact) => <div key={fact.field}><dt>{fact.label}</dt><dd>{fact.displayValue}</dd></div>)}</dl> : <p>暂无结构化事实</p>}
+          </section>
+          <section>
+            <h2>公开来源</h2>
+            <div className="pm-case-source-list">{caseDetail.sources.map((source) => <a href={source.url} key={source.id} onClick={() => trackProjectEvent("project_case_source_click", { case_id: caseDetail.id, case_type: caseDetail.type, source_id: source.id, field: source.claim_fields.join(",") || "source" }, "case_detail")} rel="noreferrer" target="_blank"><span><strong>{source.title || source.publisher || "公开来源"}</strong><small>{source.publisher || (source.is_primary ? "首要来源" : "补充来源")}</small></span><ExternalLink aria-hidden="true" size={14} /></a>)}</div>
+          </section>
+        </aside>
       </section> : null}
     </>
   );
+}
+
+const caseFactLabels: Record<string, string> = {
+  company_name: "公司名称",
+  description: "项目简介",
+  sector: "所属行业",
+  country: "国家或地区",
+  start_year: "成立年份",
+  end_year: "结束年份",
+  total_funding: "累计融资",
+  primary_cause_of_death: "主要失败原因",
+  market_potential: "市场潜力",
+  product_type: "产品类型",
+  scalability: "可扩展性",
+  difficulty: "执行难度"
+};
+
+function caseFactLabel(field: string) {
+  return caseFactLabels[field] ?? (/[㐀-鿿]/u.test(field) ? field : "");
+}
+
+function formatCaseFactValue(field: string, value: string) {
+  if (field === "total_funding") {
+    const amount = Number(value);
+    if (Number.isFinite(amount)) return new Intl.NumberFormat("zh-CN", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amount);
+  }
+  if (field === "market_potential") return ({ low: "较低", medium: "中等", high: "较高" } as Record<string, string>)[value.toLowerCase()] ?? value;
+  return value;
 }
 
 function MatchQuestions() {
