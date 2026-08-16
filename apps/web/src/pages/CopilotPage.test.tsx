@@ -40,15 +40,52 @@ describe("CopilotPage", () => {
     );
   }
 
-  it("renders the reference conversation workspace when the backend is unavailable", async () => {
+  it("does not expose demo conversations as sendable history when the backend is unavailable", async () => {
     renderPage();
 
     expect(screen.getByRole("heading", { name: "智活 Copilot" })).toBeInTheDocument();
-    expect(await screen.findByText("请帮我分析智能客服系统的市场机会和竞争格局。")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /市场规模与增长趋势/ })).toBeInTheDocument();
-    expect(screen.getByText("智能客服市场分析报告.pdf")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "开始一段新的对话" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "开始一段新的对话" })).toBeInTheDocument();
+    expect(screen.queryByText("请帮我分析智能客服系统的市场机会和竞争格局。")).not.toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "会话记录" })).toBeInTheDocument();
+  });
+
+  it("creates a real thread before sending when the account has no conversation history", async () => {
+    const fetchMock = mockCopilotBackend({ emptyThreads: true });
+    renderPage();
+
+    await screen.findByRole("heading", { name: "开始一段新的对话" });
+    fireEvent.change(screen.getByLabelText("输入你的问题"), { target: { value: "从空会话开始" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    expect(await screen.findByText("后端返回的聊天回复。")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/copilot/threads",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/copilot/threads/100/messages/stream",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("replaces a stale active thread and retries the message", async () => {
+    const fetchMock = mockCopilotBackend({ missingThreadOnce: true });
+    renderPage();
+
+    await screen.findByText("智能客服系统项目机会分析");
+    fireEvent.change(screen.getByLabelText("输入你的问题"), { target: { value: "恢复失效会话" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    expect(await screen.findByText("后端返回的聊天回复。")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/copilot/threads",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/copilot/threads/100/messages/stream",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(screen.queryByText("对话不存在或已无权限访问")).not.toBeInTheDocument();
   });
 
   it("shows backend copilot quota usage", async () => {
@@ -530,12 +567,13 @@ describe("CopilotPage", () => {
   });
 });
 
-function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean; toolMessage?: boolean; previewMessage?: boolean } = {}) {
+function mockCopilotBackend(options: { emptyThreads?: boolean; historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean; missingThreadOnce?: boolean; toolMessage?: boolean; previewMessage?: boolean } = {}) {
+  let returnedMissingThread = false;
   return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = String(input);
     if (url === "/api/v1/copilot/threads?limit=20") {
       return Promise.resolve(new Response(JSON.stringify({
-        threads: [{
+        threads: options.emptyThreads ? [] : [{
           id: 99,
           user_id: 7,
           title: "智能客服系统项目机会分析",
@@ -544,6 +582,18 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
           created_at: "2026-07-01T09:00:00Z",
           updated_at: "2026-07-01T09:30:00Z"
         }]
+      }), { status: 200 }));
+    }
+    if (url === "/api/v1/copilot/threads" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body)) as { title: string; mode: "chat" | "compare"; model: string };
+      return Promise.resolve(new Response(JSON.stringify({
+        id: 100,
+        user_id: 7,
+        title: request.title,
+        mode: request.mode,
+        model: request.model,
+        created_at: "2026-07-01T10:00:00Z",
+        updated_at: "2026-07-01T10:00:00Z"
       }), { status: 200 }));
     }
     if (url === "/api/v1/copilot/models") {
@@ -714,6 +764,9 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
       }
 	      return Promise.resolve(new Response(JSON.stringify({ messages: [] }), { status: 200 }));
 	    }
+	    if (url === "/api/v1/copilot/threads/100/messages?limit=50") {
+	      return Promise.resolve(new Response(JSON.stringify({ messages: [] }), { status: 200 }));
+	    }
 	    if (url === "/api/v1/copilot/threads/99/messages/41/tool-confirmation" && init?.method === "POST") {
 	      return Promise.resolve(new Response(JSON.stringify({ message: {
 	        id: 41,
@@ -780,6 +833,10 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
       return options.delayMessage ? delayedResponse(response, init?.signal) : Promise.resolve(response);
     }
     if (url === "/api/v1/copilot/threads/99/messages/stream" && init?.method === "POST") {
+      if (options.missingThreadOnce && !returnedMissingThread) {
+        returnedMissingThread = true;
+        return Promise.resolve(new Response("event: error\ndata: {\"error\":\"thread_not_found\"}\n\n", { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+      }
       const request = JSON.parse(String(init.body)) as { content: string };
       const userMessage = {
         id: 30,
@@ -809,6 +866,16 @@ function mockCopilotBackend(options: { historicalCompare?: boolean; delayCompare
         "event: done\ndata: {\"ok\":true}"
       ].join("\n\n") + "\n\n", { status: 200, headers: { "Content-Type": "text/event-stream" } });
       return options.delayMessage ? delayedResponse(response, init?.signal) : Promise.resolve(response);
+    }
+    if (url === "/api/v1/copilot/threads/100/messages/stream" && init?.method === "POST") {
+      const request = JSON.parse(String(init.body)) as { content: string };
+      const userMessage = { id: 32, user_id: 7, thread_id: 100, role: "user", content: request.content, status: "completed", model: "deepseek", created_at: "2026-07-01T10:00:01Z" };
+      const assistantMessage = { id: 33, user_id: 7, thread_id: 100, role: "assistant", content: "后端返回的聊天回复。", status: "completed", model: "deepseek", created_at: "2026-07-01T10:00:02Z" };
+      return Promise.resolve(new Response([
+        `event: user_message\ndata: ${JSON.stringify({ type: "user_message", user_message: userMessage })}`,
+        `event: assistant_message\ndata: ${JSON.stringify({ type: "assistant_message", assistant_message: assistantMessage })}`,
+        "event: done\ndata: {\"ok\":true}"
+      ].join("\n\n") + "\n\n", { status: 200, headers: { "Content-Type": "text/event-stream" } }));
     }
     if (url === "/api/v1/copilot/threads/99/compare/summary" && init?.method === "POST") {
       return Promise.resolve(new Response(JSON.stringify({

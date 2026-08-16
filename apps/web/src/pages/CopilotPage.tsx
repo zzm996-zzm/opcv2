@@ -10,7 +10,6 @@ import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
 export type CopilotVariant = "home" | "new" | "models" | "files" | "memories" | "compare" | "rename" | "delete";
 type ComposerPopover = "models" | "files" | "memories" | null;
 const MAX_COMPARE_MODELS = 3;
-const REFERENCE_THREAD_ID = 9101;
 
 type SpeechRecognitionLike = {
   lang: string;
@@ -61,42 +60,6 @@ const fallbackModels: CopilotModel[] = [
   { name: "Claude Opus 4.8", value: "claude-opus", icon: "ai" },
   { name: "Grok 4.3", value: "grok", icon: "black" }
 ] as const;
-
-const referenceThreads: CopilotThread[] = [
-  { id: REFERENCE_THREAD_ID, user_id: 7, title: "智能客服系统项目机会分析", mode: "chat", model: "分析市场机会、推荐工具与落地路径", created_at: "2026-07-15T02:32:00Z", updated_at: "2026-07-15T02:35:00Z" },
-  { id: 9102, user_id: 7, title: "竞争对手监测方案设计", mode: "chat", model: "如何搭建竞品监测体系?", created_at: "2026-07-15T01:15:00Z", updated_at: "2026-07-15T01:15:00Z" },
-  { id: 9103, user_id: 7, title: "CRM客户管理落地计划", mode: "chat", model: "制定阶段性落地路线图", created_at: "2026-07-15T00:47:00Z", updated_at: "2026-07-15T00:47:00Z" },
-  { id: 9104, user_id: 7, title: "数据资产治理方法论", mode: "chat", model: "企业数据治理的5步进阶步骤", created_at: "2026-07-14T08:22:00Z", updated_at: "2026-07-14T08:22:00Z" },
-  { id: 9105, user_id: 7, title: "GEO获客策略建议", mode: "chat", model: "针对SaaS产品的获客策略", created_at: "2026-07-14T06:08:00Z", updated_at: "2026-07-14T06:08:00Z" },
-  { id: 9106, user_id: 7, title: "AI教学课程内容设计", mode: "chat", model: "设计面向销售团队的AI课程", created_at: "2026-07-14T03:30:00Z", updated_at: "2026-07-14T03:30:00Z" },
-  { id: 9107, user_id: 7, title: "商业沙盘模拟复盘", mode: "chat", model: "本次沙盘的关键复盘点", created_at: "2026-06-24T03:30:00Z", updated_at: "2026-06-24T03:30:00Z" },
-  { id: 9108, user_id: 7, title: "增长测算模型搭建", mode: "chat", model: "建立业务增长测算模型", created_at: "2026-06-23T03:30:00Z", updated_at: "2026-06-23T03:30:00Z" }
-];
-
-const referenceMessages: CopilotMessage[] = [
-  { id: 9201, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "user", content: "请帮我分析智能客服系统的市场机会和竞争格局。", status: "completed", model: "gpt-main", created_at: "2026-07-15T02:32:00Z" },
-  { id: 9202, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", content: "好的，我将从市场规模、增长趋势、竞争格局、客户需求与机会点四个维度为你分析智能客服系统的市场机会。", status: "completed", model: "gpt-main", created_at: "2026-07-15T02:32:30Z" },
-  { id: 9203, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", content: "智能客服系统市场分析报告", status: "completed", model: "gpt-main", metadata: { kind: "reference_report" }, created_at: "2026-07-15T02:33:00Z" },
-  { id: 9204, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "user", content: "请基于上面的分析，推荐适合我们的工具和落地路径。", status: "completed", model: "gpt-main", created_at: "2026-07-15T02:34:00Z" },
-  { id: 9205, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", content: "正在思考中", status: "completed", model: "gpt-main", metadata: { kind: "reference_thinking" }, created_at: "2026-07-15T02:34:10Z" }
-];
-
-const referenceFiles: CopilotFile[] = [
-  { id: 9301, user_id: 7, name: "智能客服市场分析报告.pdf", mime_type: "application/pdf", size_bytes: 1887436, status: "ready", source: "current", extracted_chars: 18240, created_at: "2026-07-15T02:33:00Z", updated_at: "2026-07-15T02:33:00Z" },
-  { id: 9302, user_id: 7, name: "智能客服竞品功能对比表.xlsx", mime_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", size_bytes: 327680, status: "ready", source: "recent", extracted_chars: 5240, created_at: "2026-07-14T02:33:00Z", updated_at: "2026-07-14T02:33:00Z" },
-  { id: 9303, user_id: 7, name: "竞争对手监测方案设计", mime_type: "conversation", size_bytes: 0, status: "ready", source: "history", extracted_chars: 3060, created_at: "2026-07-14T01:15:00Z", updated_at: "2026-07-14T01:15:00Z" },
-  { id: 9304, user_id: 7, name: "客户成功案例：某政务热线升级", mime_type: "document", size_bytes: 0, status: "ready", source: "content", extracted_chars: 4280, created_at: "2026-07-14T01:15:00Z", updated_at: "2026-07-14T01:15:00Z" }
-];
-
-const referenceCompareQuestion: CopilotMessage = {
-  id: 9401, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "user", content: "请分析 2024 年中国智能客服市场的规模、增长趋势、竞争格局、客户需求与机会点。", status: "completed", model: "gpt-main,claude-opus,grok", metadata: { kind: "compare_question" }, created_at: "2026-07-15T02:35:00Z"
-};
-
-const referenceCompareAnswers: CompareAnswer[] = [
-  { model: "gpt-main", assistant_message: { id: 9402, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", status: "completed", model: "gpt-main", metadata: { kind: "compare_answer" }, created_at: "2026-07-15T02:35:00Z", content: "一、市场规模与增长趋势\n• 2024年中国智能客服市场规模约为95.2亿元，预计到2027年将达181.6亿元，年复合增长率约24.0%。\n\n二、竞争格局\n• 头部集中且持续分化，阿里云、腾讯云、百度智能云、华为云等占据主要市场份额。\n\n三、客户需求\n• 降本增效、提升客户体验、全渠道整合与个性化服务成为核心诉求。\n\n四、机会点\n• 大模型驱动的智能化升级、垂直行业解决方案、出海与多语言服务是主要机会。" } },
-  { model: "claude-opus", assistant_message: { id: 9403, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", status: "completed", model: "claude-opus", metadata: { kind: "compare_answer" }, created_at: "2026-07-15T02:35:00Z", content: "一、市场规模与增长趋势\n• 2024年市场规模约92.3亿元，受大模型普及推动，预计2027年达175.8亿元，CAGR为23.3%。\n\n二、竞争格局\n• 市场呈现“一超多强”格局，云厂商+AI厂商+SaaS厂商协同竞争。\n\n三、客户需求\n• 更注重智能化水平（尤其是AI理解与生成能力）和业务闭环效果。\n\n四、机会点\n• AI原生应用、行业Know-how沉淀、数据安全与合规能力将形成差异化壁垒。" } },
-  { model: "grok", assistant_message: { id: 9404, user_id: 7, thread_id: REFERENCE_THREAD_ID, role: "assistant", status: "completed", model: "grok", metadata: { kind: "compare_answer" }, created_at: "2026-07-15T02:35:00Z", content: "一、市场规模与增长趋势\n• 2024年市场规模约90.7亿元，预计2027年突破190亿元，年复合增长率24.8%。\n\n二、竞争格局\n• 竞争激烈，头部厂商加速布局大模型与全渠道，区域性厂商在细分行业突围。\n\n三、客户需求\n• 对实时响应、复杂问题解决和数据分析洞察的需求显著提升。\n\n四、机会点\n• 多模态交互、客服+营销一体化、智能体（Agent）落地是关键机会。" } }
-];
 
 function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
   const isNew = variant === "new";
@@ -159,13 +122,10 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     Promise.allSettled([copilotApi.listThreads(), copilotApi.listModels()])
       .then(([threadsResult, modelsResult]) => {
         if (!active) return;
-        if (threadsResult.status === "fulfilled" && threadsResult.value.threads.length > 0) {
-          setThreads(threadsResult.value.threads);
-          setActiveThreadID(isNew ? null : threadsResult.value.threads[0]?.id ?? null);
-        } else {
-          setThreads(referenceThreads);
-          setActiveThreadID(isNew ? null : REFERENCE_THREAD_ID);
-        }
+        const nextThreads = threadsResult.status === "fulfilled" ? threadsResult.value.threads : [];
+        setThreads(nextThreads);
+        setActiveThreadID(isNew ? null : nextThreads[0]?.id ?? null);
+        if (threadsResult.status === "rejected") setError("暂时无法加载会话记录，你仍可新建会话");
         if (modelsResult.status === "fulfilled" && modelsResult.value.models.length > 0) {
           const nextModels = toDisplayModels(modelsResult.value.models);
           setAvailableModels(nextModels);
@@ -202,17 +162,6 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       setCompareQuestion(null);
       setCompareAnswers([]);
       setCompareSummary(null);
-      return;
-    }
-    if (activeThreadID === REFERENCE_THREAD_ID) {
-      if (isCompare) {
-        setMessages([]);
-        setCompareQuestion(referenceCompareQuestion);
-        setCompareAnswers(referenceCompareAnswers);
-        setCompareSummary(null);
-      } else {
-        setMessages(referenceMessages);
-      }
       return;
     }
     let active = true;
@@ -262,18 +211,11 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       .listFiles()
       .then((payload) => {
         if (!active) return;
-        if (payload.files.length > 0) {
-          setFiles(payload.files);
-        } else {
-          setFiles(referenceFiles);
-          setSelectedReferenceIDs([referenceFiles[0].id]);
-        }
+        setFiles(payload.files);
+        setSelectedReferenceIDs((current) => current.filter((fileID) => payload.files.some((file) => file.id === fileID)));
       })
       .catch(() => {
-        if (active) {
-          setFiles(referenceFiles);
-          setSelectedReferenceIDs([referenceFiles[0].id]);
-        }
+        if (active) setError("暂时无法加载引用文件");
       });
     return () => {
       active = false;
@@ -362,6 +304,12 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     return thread;
   }
 
+  async function replaceMissingThread(threadID: number, initialContent: string) {
+    setThreads((current) => current.filter((thread) => thread.id !== threadID));
+    setActiveThreadID((current) => current === threadID ? null : current);
+    return startThread(initialContent);
+  }
+
   async function handleSend(event: FormEvent) {
     event.preventDefault();
     const content = draft.trim();
@@ -373,22 +321,36 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     setError("");
     setIsSending(true);
     try {
-      const thread = activeThreadID ? activeThread : await startThread(content);
-      if (!thread) return;
+      let thread = activeThread ?? await startThread(content);
       if (isCompare) {
-        const optimisticQuestion = optimisticMessage({
-          content,
-          model: compareModelValues.join(","),
-          role: "user",
-          threadID: thread.id,
-          userID: thread.user_id,
-          metadata: { kind: "compare_question" }
-        });
         const models = compareModelValues.length > 0 ? compareModelValues : [selectedModel];
-        setCompareQuestion(optimisticQuestion);
-        setCompareAnswers([]);
-        setCompareSummary(null);
-        const result = await copilotApi.compareMessages(thread.id, { content, models, request_id: newRequestID("compare") }, abortController.signal);
+        const showOptimisticQuestion = (targetThread: CopilotThread) => {
+          setCompareQuestion(optimisticMessage({
+            content,
+            model: compareModelValues.join(","),
+            role: "user",
+            threadID: targetThread.id,
+            userID: targetThread.user_id,
+            metadata: { kind: "compare_question" }
+          }));
+          setCompareAnswers([]);
+          setCompareSummary(null);
+        };
+        const sendComparison = (targetThread: CopilotThread) => copilotApi.compareMessages(
+          targetThread.id,
+          { content, models, request_id: newRequestID("compare") },
+          abortController.signal
+        );
+        showOptimisticQuestion(thread);
+        let result: Awaited<ReturnType<typeof copilotApi.compareMessages>>;
+        try {
+          result = await sendComparison(thread);
+        } catch (requestError) {
+          if (!isThreadNotFoundError(requestError)) throw requestError;
+          thread = await replaceMissingThread(thread.id, content);
+          showOptimisticQuestion(thread);
+          result = await sendComparison(thread);
+        }
         if (abortController.signal.aborted) return;
         setCompareQuestion(result.user_message);
         setCompareAnswers(result.answers);
@@ -397,7 +359,13 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         await refreshUsage();
         return;
       }
-      const optimisticUserMessage = optimisticMessage({
+      const messageInput = {
+        content,
+        model: selectedModel,
+        reference_ids: selectedReferenceIDs,
+        request_id: newRequestID("message")
+      };
+      let optimisticUserMessage = optimisticMessage({
         content,
         model: selectedModel,
         role: "user",
@@ -405,30 +373,46 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         userID: thread.user_id
       });
       setMessages((current) => [...current, optimisticUserMessage]);
-      const messageInput = {
-        content,
-        model: selectedModel,
-        reference_ids: selectedReferenceIDs,
-        request_id: newRequestID("message")
+      const sendChatMessage = async (targetThread: CopilotThread, optimisticMessageID: number) => {
+        let usedFallback = false;
+        let result: SendMessageResult;
+        try {
+          result = await copilotApi.streamMessage(targetThread.id, messageInput, {
+            onUserMessage: (message) => {
+              setMessages((current) => [...current.filter((item) => item.id !== optimisticMessageID && item.id !== message.id), message]);
+            },
+            onDelta: (delta) => setStreamingContent((current) => current + delta)
+          }, abortController.signal);
+        } catch (streamError) {
+          const canFallback = streamError instanceof ApiRequestError && streamError.code !== "thread_not_found" && (
+            streamError.code === "streaming_not_supported" || streamError.status === 404 || streamError.status === 501
+          );
+          if (!canFallback) throw streamError;
+          usedFallback = true;
+          result = await copilotApi.sendMessage(targetThread.id, messageInput, abortController.signal);
+        }
+        return { result, usedFallback };
       };
-      let usedFallback = false;
-      let result: SendMessageResult;
+      let sendResult: { result: SendMessageResult; usedFallback: boolean };
       try {
-        result = await copilotApi.streamMessage(thread.id, messageInput, {
-          onUserMessage: (message) => {
-            setMessages((current) => [...current.filter((item) => item.id !== optimisticUserMessage.id && item.id !== message.id), message]);
-          },
-          onDelta: (delta) => setStreamingContent((current) => current + delta)
-        }, abortController.signal);
-      } catch (streamError) {
-        const canFallback = streamError instanceof ApiRequestError && (
-          streamError.code === "streaming_not_supported" || streamError.status === 404 || streamError.status === 501
-        );
-        if (!canFallback) throw streamError;
-        usedFallback = true;
-        result = await copilotApi.sendMessage(thread.id, messageInput, abortController.signal);
+        sendResult = await sendChatMessage(thread, optimisticUserMessage.id);
+      } catch (requestError) {
+        if (!isThreadNotFoundError(requestError)) throw requestError;
+        setStreamingContent("");
+        setMessages((current) => current.filter((message) => message.id !== optimisticUserMessage.id));
+        thread = await replaceMissingThread(thread.id, content);
+        optimisticUserMessage = optimisticMessage({
+          content,
+          model: selectedModel,
+          role: "user",
+          threadID: thread.id,
+          userID: thread.user_id
+        });
+        setMessages((current) => [...current, optimisticUserMessage]);
+        sendResult = await sendChatMessage(thread, optimisticUserMessage.id);
       }
       if (abortController.signal.aborted) return;
+      const { result, usedFallback } = sendResult;
       setMessages((current) => [
         ...current.filter((message) => message.id !== optimisticUserMessage.id && message.id !== result.user_message.id),
         result.user_message,
@@ -1632,7 +1616,7 @@ function ConversationSidebar({
           </label>
           <div className="history-list">
             {displayThreads.map((item, index) => {
-              const group = referenceThreadGroup(item.id, index);
+              const group = referenceThreadGroup(index);
               const showGroup = group && group !== lastGroup;
               if (group) lastGroup = group;
 
@@ -1692,10 +1676,7 @@ function referenceFileMeta(file: CopilotFile) {
   return `${file.mime_type} · ${formatFileSize(file.size_bytes)} · ${file.status === "ready" ? "解析完成" : "解析失败"}`;
 }
 
-function referenceThreadGroup(id: number, index: number) {
-  if (id >= 9101 && id <= 9103) return "今天";
-  if (id >= 9104 && id <= 9106) return "昨天";
-  if (id >= 9107 && id <= 9108) return "更早";
+function referenceThreadGroup(index: number) {
   if (index < 3) return "今天";
   return "更早";
 }
@@ -1719,6 +1700,10 @@ function newRequestID(prefix: string) {
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `${prefix}-${randomID}`;
+}
+
+function isThreadNotFoundError(error: unknown) {
+  return error instanceof ApiRequestError && error.code === "thread_not_found";
 }
 
 function toDisplayModels(models: CopilotModelOption[]): CopilotModel[] {

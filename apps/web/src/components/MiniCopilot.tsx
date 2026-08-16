@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useState } from "react";
 
+import { ApiRequestError } from "../lib/apiRequest";
 import { copilotApi, type CopilotMessage } from "../lib/copilotApi";
 
 type InitialMessage = {
@@ -75,20 +76,28 @@ export function MiniCopilotForm({
     setLiveMessages((current) => [...current, { id: optimisticID, role: "user", content }]);
 
     try {
-      let nextThreadID = threadID;
-      if (!nextThreadID) {
+      const createThread = async () => {
         const title = `${threadTitlePrefix}${content}`.slice(0, 28) || "新会话";
         const thread = await copilotApi.createThread({ title, mode: "chat", model });
-        nextThreadID = thread.id;
         setThreadID(thread.id);
-      }
-	      const result = await copilotApi.sendMessage(nextThreadID, {
+        return thread.id;
+      };
+      let nextThreadID = threadID ?? await createThread();
+      const messageInput = {
 	        content,
 	        model,
 	        task_id: taskID,
 	        current_view: currentView,
 	        active_filters: activeFilters
-	      });
+	      };
+      let result;
+      try {
+        result = await copilotApi.sendMessage(nextThreadID, messageInput);
+      } catch (requestError) {
+        if (!(requestError instanceof ApiRequestError) || requestError.code !== "thread_not_found") throw requestError;
+        nextThreadID = await createThread();
+        result = await copilotApi.sendMessage(nextThreadID, messageInput);
+      }
       setLiveMessages((current) => replaceOptimisticMessage(current, optimisticID, result.user_message, result.assistant_message));
     } catch (requestError) {
       setDraft(content);
