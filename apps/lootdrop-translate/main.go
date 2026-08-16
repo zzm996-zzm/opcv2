@@ -230,7 +230,32 @@ func updateProjectedCase(ctx context.Context, db *pgxpool.Pool, recordKey string
 			updated_at = NOW()
 		WHERE slug = 'lootdrop-startup-' || $4
 	`, name, description, cause, recordKey)
-	return err
+	if err != nil {
+		return err
+	}
+	claimTranslations := map[string]string{
+		"company_name":           firstPayloadString(payload, "name_zh", "title_zh"),
+		"description":            firstPayloadString(payload, "description_zh", "summary_zh"),
+		"sector":                 firstPayloadString(payload, "sector_zh"),
+		"country":                firstPayloadString(payload, "country_zh"),
+		"primary_cause_of_death": firstPayloadString(payload, "primary_cause_of_death_zh"),
+		"cause_of_death":         firstPayloadString(payload, "cause_of_death_zh"),
+		"market_analysis":        firstPayloadString(payload, "market_analysis_zh"),
+	}
+	for field, value := range claimTranslations {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		if _, err := db.Exec(ctx, `
+			UPDATE project_case_claims c
+			SET value_text = $1
+			FROM project_cases p
+			WHERE c.case_id = p.id AND p.slug = 'lootdrop-startup-' || $2 AND c.field_name = $3
+		`, value, recordKey, field); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func markTranslationFailed(ctx context.Context, db *pgxpool.Pool, item pendingTranslation, model string, cause error) error {

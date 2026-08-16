@@ -333,6 +333,51 @@ func importGenericDataset(ctx context.Context, source *sql.DB, tx pgx.Tx, runID 
 	return err
 }
 
+func syncProjectCaseClaims(ctx context.Context, tx pgx.Tx, caseID, sourceID int64, row rowMap) error {
+	if _, err := tx.Exec(ctx, `DELETE FROM project_case_claims WHERE case_id = $1`, caseID); err != nil {
+		return err
+	}
+	type claim struct {
+		kind, field, value, detail string
+		modelGenerated             bool
+	}
+	claims := []claim{
+		{kind: "fact", field: "company_name", value: stringValue(row["name"])},
+		{kind: "fact", field: "description", value: stringValue(row["description"])},
+		{kind: "fact", field: "sector", value: stringValue(row["sector"])},
+		{kind: "fact", field: "country", value: stringValue(row["country"])},
+		{kind: "fact", field: "start_year", value: stringValue(row["start_year"])},
+		{kind: "fact", field: "end_year", value: stringValue(row["end_year"])},
+		{kind: "fact", field: "total_funding", value: stringValue(row["total_funding"])},
+		{kind: "fact", field: "primary_cause_of_death", value: stringValue(row["primary_cause_of_death"])},
+		{kind: "fact", field: "market_potential", value: stringValue(row["market_potential"])},
+		{kind: "analysis", field: "cause_of_death", value: stringValue(row["cause_of_death"]), modelGenerated: true},
+		{kind: "analysis", field: "market_analysis", value: stringValue(row["market_analysis"]), modelGenerated: true},
+		{kind: "analysis", field: "pivot_idea", value: string(jsonColumn(row["pivot_idea"], `{}`)), modelGenerated: true},
+	}
+	sortOrder := 0
+	for _, item := range claims {
+		if strings.TrimSpace(item.value) == "" {
+			continue
+		}
+		var claimID int64
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO project_case_claims (case_id, claim_type, field_name, value_text, detail, is_model_generated, sort_order)
+			VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id
+		`, caseID, item.kind, item.field, item.value, item.detail, item.modelGenerated, sortOrder).Scan(&claimID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO project_case_claim_sources (claim_id, web_source_id)
+			VALUES ($1, $2) ON CONFLICT DO NOTHING
+		`, claimID, sourceID); err != nil {
+			return err
+		}
+		sortOrder++
+	}
+	return nil
+}
+
 func deleteMissingIDs(ctx context.Context, tx pgx.Tx, table string, ids []int64) error {
 	if len(ids) == 0 {
 		_, err := tx.Exec(ctx, `DELETE FROM `+table)
@@ -416,7 +461,10 @@ func syncProjectCaseProjection(ctx context.Context, source *sql.DB, tx pgx.Tx) e
 			INSERT INTO project_case_sources (case_id, web_source_id, field_name, is_primary)
 			VALUES ($1, $2, 'source', TRUE)
 			ON CONFLICT (case_id, web_source_id, field_name) DO UPDATE SET is_primary = TRUE
-		`, caseID, sourceID); err != nil {
+			`, caseID, sourceID); err != nil {
+			return err
+		}
+		if err := syncProjectCaseClaims(ctx, tx, caseID, sourceID, row); err != nil {
 			return err
 		}
 	}
