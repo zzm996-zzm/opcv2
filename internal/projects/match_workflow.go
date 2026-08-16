@@ -119,12 +119,15 @@ type MatchWorkflowResponse struct {
 	Revision        int                           `json:"revision"`
 	FileIDs         []int64                       `json:"file_ids,omitempty"`
 	Generation      *MatchGenerationResponse      `json:"generation,omitempty"`
+	CreatedAt       time.Time                     `json:"created_at"`
+	UpdatedAt       time.Time                     `json:"updated_at"`
 }
 
 type MatchWorkflowRepository interface {
 	FindMatchRunByIdempotency(context.Context, int64, string) (MatchRun, error)
 	CreateMatchRun(context.Context, MatchRun) (MatchRun, bool, error)
 	GetMatchRun(context.Context, int64, int64) (MatchRun, error)
+	ListMatchRuns(context.Context, int64, int) ([]MatchRun, error)
 	UpdateMatchRun(context.Context, MatchRun, int) (MatchRun, error)
 }
 
@@ -355,6 +358,25 @@ func (s *Service) GetProjectMatch(ctx context.Context, userID, id int64) (MatchW
 	return matchWorkflowResponse(run), nil
 }
 
+func (s *Service) ListProjectMatches(ctx context.Context, userID int64, limit int) ([]MatchWorkflowResponse, error) {
+	repository, err := s.workflowRepository()
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	runs, err := repository.ListMatchRuns(ctx, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]MatchWorkflowResponse, 0, len(runs))
+	for _, run := range runs {
+		items = append(items, matchWorkflowResponse(run))
+	}
+	return items, nil
+}
+
 type workflowAnalysis struct {
 	AnalysisSummary string                        `json:"analysis_summary"`
 	ParsedProfile   map[string]any                `json:"parsed_profile"`
@@ -432,7 +454,7 @@ func fallbackWorkflowAnalysis(profile map[string]any) workflowAnalysis {
 }
 
 func matchWorkflowResponse(run MatchRun) MatchWorkflowResponse {
-	response := MatchWorkflowResponse{MatchID: run.ID, Need: run.Need, Status: run.Status, AnalysisSummary: run.AnalysisSummary, ParsedProfile: cloneMap(run.ParsedProfile), FieldSources: cloneFieldSources(run.FieldSources), Completeness: run.Completeness, MissingFields: append([]string(nil), run.MissingFields...), Questions: append([]ClarificationQuestion(nil), run.Questions...), Assumptions: append([]string(nil), run.Assumptions...), Revision: run.Revision, FileIDs: append([]int64(nil), run.InputSnapshot.FileIDs...)}
+	response := MatchWorkflowResponse{MatchID: run.ID, Need: run.Need, Status: run.Status, AnalysisSummary: run.AnalysisSummary, ParsedProfile: cloneMap(run.ParsedProfile), FieldSources: cloneFieldSources(run.FieldSources), Completeness: run.Completeness, MissingFields: append([]string(nil), run.MissingFields...), Questions: append([]ClarificationQuestion(nil), run.Questions...), Assumptions: append([]string(nil), run.Assumptions...), Revision: run.Revision, FileIDs: append([]int64(nil), run.InputSnapshot.FileIDs...), CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt}
 	if run.GenerationAttempt > 0 {
 		generation := matchGenerationResponse(run)
 		response.Generation = &generation

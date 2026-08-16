@@ -660,7 +660,7 @@ describe("ProjectsPage", () => {
     renderProjectRoute("/projects/matches/99");
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-      "/api/v1/projects/matches/99",
+      "/api/v1/project-matches/99",
       expect.objectContaining({ method: "GET" })
     ));
     expect(await screen.findByRole("heading", { name: "本地AI获客顾问", level: 1 })).toBeInTheDocument();
@@ -669,7 +669,7 @@ describe("ProjectsPage", () => {
     expect(screen.getByText(/未引用外部证据/)).toBeInTheDocument();
   });
 
-  it("opens the scheme A unlock shell from a fully open project detail", async () => {
+  it("does not show an unlock shell when the paywall is disabled", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
       if (url === "/api/v1/config") return Promise.resolve(new Response(JSON.stringify({ feature_paywall_enabled: false }), { status: 200 }));
@@ -692,21 +692,10 @@ describe("ProjectsPage", () => {
     });
     renderProjectRoute("/projects/ai-sales?section=data");
 
-    const unlock = await screen.findByRole("link", { name: "解锁完整拆解" });
-    expect(unlock).toHaveAttribute("href", "/projects/ai-sales/unlock?section=data");
-    fireEvent.click(unlock);
-
-    expect(await screen.findByRole("dialog", { name: "解锁完整拆解" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "即将开放" })).toBeDisabled();
-    expect(screen.getByRole("link", { name: "关闭解锁弹层" })).toHaveAttribute("href", "/projects/ai-sales?section=data");
+    await screen.findByRole("heading", { name: "当前数据" });
+    expect(screen.queryByRole("link", { name: "解锁完整拆解" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "解锁完整拆解" })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input]) => String(input) === "/api/v1/membership/plans")).toBe(false);
-    await waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => {
-      if (String(input) !== "/api/v1/analytics/events" || typeof init?.body !== "string") return false;
-      const payload = JSON.parse(init.body);
-      return payload.event_name === "project_unlock_click"
-        && payload.properties.project_id === 42
-        && payload.properties.tab === "data";
-    })).toBe(true));
   });
 
   it("redirects the legacy detail route to opportunity exploration", async () => {

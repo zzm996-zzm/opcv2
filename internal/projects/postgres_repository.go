@@ -965,6 +965,34 @@ func (r *PostgresRepository) GetMatchRun(ctx context.Context, userID, id int64) 
 	return run, err
 }
 
+func (r *PostgresRepository) ListMatchRuns(ctx context.Context, userID int64, limit int) ([]MatchRun, error) {
+	rows, err := r.db.Query(ctx, `
+		SELECT id, user_id, workflow_version, COALESCE(name, ''), intent, input_snapshot, parsed_profile,
+		       field_sources, COALESCE(analysis_summary, ''), completeness, missing_fields,
+		       clarification_questions, question_count, rounds, answer_events, assumptions,
+		       revision, skipped_at, generation_attempt, progress_percent, current_step, result,
+		       COALESCE(error_code, ''), cancelled_at, status, idempotency_key, created_at, updated_at
+		FROM project_match_sessions
+		WHERE user_id = $1 AND workflow_version = 2
+		ORDER BY created_at DESC, id DESC
+		LIMIT $2
+	`, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	runs := make([]MatchRun, 0)
+	for rows.Next() {
+		run, scanErr := scanMatchRun(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		runs = append(runs, run)
+	}
+	return runs, rows.Err()
+}
+
 func (r *PostgresRepository) UpdateMatchRun(ctx context.Context, run MatchRun, expectedRevision int) (MatchRun, error) {
 	inputSnapshot, err := json.Marshal(run.InputSnapshot)
 	if err != nil {

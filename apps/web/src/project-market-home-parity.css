@@ -262,6 +262,10 @@
     padding: 0 0.7937cqw;
   }
 
+  .project-market-shell .pm-layout-home .ref-project-badges article > .pm-home-badge-link {
+    grid-template-columns: clamp(30px, 3.7698cqw, 38px) minmax(0, 1fr);
+  }
+
   .project-market-shell .pm-layout-home .pm-home-badge-icon {
     width: clamp(30px, 3.7698cqw, 38px);
     height: clamp(30px, 3.7698cqw, 38px);

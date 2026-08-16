@@ -45,6 +45,7 @@ type fakeApplication struct {
 	workflowCreate     CreateProjectMatchInput
 	workflowAnswer     AnswerProjectMatchInput
 	workflowResponse   MatchWorkflowResponse
+	workflowMatches    []MatchWorkflowResponse
 	generationResponse MatchGenerationResponse
 	progressEvents     []MatchProgressEvent
 	afterEventID       int64
@@ -189,6 +190,11 @@ func (a *fakeApplication) UnfavoriteMatch(_ context.Context, userID, id int64) e
 func (a *fakeApplication) CreateProjectMatch(_ context.Context, input CreateProjectMatchInput) (MatchWorkflowResponse, error) {
 	a.workflowCreate = input
 	return a.workflowResponse, a.err
+}
+
+func (a *fakeApplication) ListProjectMatches(_ context.Context, userID int64, _ int) ([]MatchWorkflowResponse, error) {
+	a.userID = userID
+	return a.workflowMatches, a.err
 }
 
 func (a *fakeApplication) AnswerProjectMatch(_ context.Context, input AnswerProjectMatchInput) (MatchWorkflowResponse, error) {
@@ -443,6 +449,16 @@ func TestProjectMatchWorkflowEndpointsUseAuthenticatedUserAndIdempotency(t *test
 	router.ServeHTTP(getRecorder, httptest.NewRequest(http.MethodGet, "/api/v1/project-matches/200", nil))
 	if getRecorder.Code != http.StatusOK || app.userID != 42 || app.matchID != 200 {
 		t.Fatalf("get status/user/match = %d/%d/%d", getRecorder.Code, app.userID, app.matchID)
+	}
+}
+
+func TestListProjectMatchWorkflowEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{workflowMatches: []MatchWorkflowResponse{{MatchID: 200, Need: "做内容项目", Status: MatchStatusReady}}}
+	router := projectTestRouter(app)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/project-matches?limit=10", nil))
+	if recorder.Code != http.StatusOK || app.userID != 42 || !strings.Contains(recorder.Body.String(), `"match_id":200`) {
+		t.Fatalf("status/user/body = %d/%d/%s", recorder.Code, app.userID, recorder.Body.String())
 	}
 }
 

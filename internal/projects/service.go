@@ -442,7 +442,13 @@ func (s *Service) FavoriteMatch(ctx context.Context, userID, id int64) (Favorite
 		return Favorite{}, ErrServiceNotReady
 	}
 	if _, err := s.repository.GetSession(ctx, userID, id); err != nil {
-		return Favorite{}, err
+		workflow, workflowErr := s.workflowRepository()
+		if workflowErr != nil {
+			return Favorite{}, err
+		}
+		if _, workflowErr = workflow.GetMatchRun(ctx, userID, id); workflowErr != nil {
+			return Favorite{}, err
+		}
 	}
 	return s.repository.SaveFavorite(ctx, Favorite{UserID: userID, SessionID: id, CreatedAt: s.now()})
 }
@@ -462,7 +468,13 @@ func (s *Service) UnfavoriteMatch(ctx context.Context, userID, id int64) error {
 		return ErrServiceNotReady
 	}
 	if _, err := s.repository.GetSession(ctx, userID, id); err != nil {
-		return err
+		workflow, workflowErr := s.workflowRepository()
+		if workflowErr != nil {
+			return err
+		}
+		if _, workflowErr = workflow.GetMatchRun(ctx, userID, id); workflowErr != nil {
+			return err
+		}
 	}
 	return s.repository.DeleteFavorite(ctx, userID, id)
 }

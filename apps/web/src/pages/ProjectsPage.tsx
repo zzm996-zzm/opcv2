@@ -148,9 +148,17 @@ function workflowToSession(session: ProjectMatchWorkflow): ProjectMatchSession {
     status: session.status === "clarifying" ? "needs_input" : "completed",
     questions: workflowQuestions(session).map((question) => ({ key: question.key, text: question.text, options: question.options })),
     result: session.generation?.result,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    created_at: session.created_at ?? new Date().toISOString(),
+    updated_at: session.updated_at ?? session.created_at ?? new Date().toISOString()
   };
+}
+
+function isProjectMatchWorkflow(value: ProjectMatchWorkflow | ProjectMatchSession): value is ProjectMatchWorkflow {
+  return typeof (value as ProjectMatchWorkflow).match_id === "number" && (value as ProjectMatchWorkflow).match_id > 0;
+}
+
+function projectMatchResponseToSession(value: ProjectMatchWorkflow | ProjectMatchSession): ProjectMatchSession {
+  return isProjectMatchWorkflow(value) ? workflowToSession(value) : value as ProjectMatchSession;
 }
 
 function projectGenerationStep(step?: string) {
@@ -236,7 +244,7 @@ function intentFacts(intent: string): IntentFact[] {
 }
 
 function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
-  const needsPublicConfig = variant === "results" || variant === "paywall" || variant === "detailUnlock" || variant === "export";
+  const needsPublicConfig = variant === "results" || variant === "paywall" || variant === "detail" || variant === "detailUnlock" || variant === "export";
   const [featurePaywallEnabled, setFeaturePaywallEnabled] = useState<boolean | null>(needsPublicConfig ? null : false);
 
   useEffect(() => {
@@ -275,10 +283,10 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
                 <PaywallOverlay paywallEnabled={featurePaywallEnabled} />
               </>
             )}
-            {variant === "detail" && <ProjectDetail />}
+            {variant === "detail" && <ProjectDetail paywallEnabled={featurePaywallEnabled === true} />}
             {variant === "detailUnlock" && (
               <>
-                <ProjectDetail />
+                <ProjectDetail paywallEnabled={featurePaywallEnabled === true} />
                 <PaywallOverlay paywallEnabled={featurePaywallEnabled} source="detail" />
               </>
             )}
@@ -340,9 +348,11 @@ function MarketHome() {
       <section className="ref-project-badges" aria-label="项目机会标签">
         {opportunityBadges.map(([, title, detail], index) => (
           <article key={title}>
-            <span className={`pm-home-badge-icon badge-${index + 1}`} aria-hidden="true" />
-            <strong>{title}</strong>
-            <small>{detail}</small>
+            <Link aria-label={title} className="pm-home-badge-link" to={`/projects/explore?direction=${encodeURIComponent(title)}`}>
+              <span className={`pm-home-badge-icon badge-${index + 1}`} aria-hidden="true" />
+              <strong>{title}</strong>
+              <small>{detail}</small>
+            </Link>
           </article>
         ))}
       </section>
@@ -957,7 +967,7 @@ function CaseLibrary() {
           {visibleCases.length === 0 ? <div className="module-empty-state">暂无已发布经验</div> : visibleCases.slice(0, 4).map((item, index) => <div key={item.id}><b aria-hidden="true">{index + 1}</b><span><strong>{item.result_summary}</strong><small>{item.source_count} 条可追溯证据</small></span></div>)}
         </article>
         <article className="failure">
-          <header><h2>失败教训</h2><span>查看全部 →</span></header>
+          <header><h2>失败教训</h2><Link to="/projects/cases?type=failure">查看全部 →</Link></header>
           {visibleCases.filter((item) => item.type === "fail").length === 0 ? <div className="module-empty-state">暂无失败教训</div> : visibleCases.filter((item) => item.type === "fail").slice(0, 3).map((item) => <div key={item.id}><b aria-hidden="true">!</b><span><strong>{item.result_summary}</strong><small><Link to={`/project-cases/${item.id}`}>查看证据明细</Link></small></span></div>)}
         </article>
       </section>
@@ -1228,6 +1238,9 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
     setLoading(true);
     const request = requestedSessionId
       ? projectsApi.getProjectMatch(requestedSessionId).then(async (current) => {
+        if (!isProjectMatchWorkflow(current)) {
+          return current as unknown as ProjectMatchSession;
+        }
         if (current.status === "clarifying") {
           navigate(`/projects/matches/${requestedSessionId}/questions`, { replace:true });
           return null;
@@ -1244,7 +1257,10 @@ function MatchResults({ projects, sessionId, paywallEnabled = false }: { project
         setWorkflow(current);
         return workflowToSession(current);
       })
-      : projectsApi.listMatches().then((payload) => (payload.matches ?? []).find((item) => item.status === "completed" && (item.result?.projects?.length ?? 0) > 0) ?? null);
+      : projectsApi.listProjectMatches().then((payload) => {
+        const latest = (payload.matches ?? []).find((item) => item.generation?.status === "completed" || item.generation?.status === "partial");
+        return latest ? workflowToSession(latest) : null;
+      }).catch(() => projectsApi.listMatches().then((payload) => (payload.matches ?? []).find((item) => item.status === "completed" && (item.result?.projects?.length ?? 0) > 0) ?? null));
     request.then((latest) => {
       if (!active) return;
       setLoadedSession(latest);
@@ -1460,10 +1476,14 @@ function MatchHistory() {
 
   useEffect(() => {
     let active = true;
-    projectsApi.listMatches()
-      .then((matchesPayload) => {
+    Promise.all([
+      projectsApi.listProjectMatches().catch(() => ({ matches: [] as ProjectMatchWorkflow[] })),
+      projectsApi.listMatches().catch(() => ({ matches: [] as ProjectMatchSession[] }))
+    ])
+      .then(([workflowPayload, legacyPayload]) => {
         if (active) {
-          setSessions(matchesPayload.matches ?? []);
+          const workflowSessions = workflowPayload.matches.map(workflowToSession);
+          setSessions([...workflowSessions, ...legacyPayload.matches]);
           setError("");
         }
       })
@@ -1636,7 +1656,7 @@ function toProjectCase(item: EvidenceCaseItem): ProjectCase {
   };
 }
 
-function ProjectDetail() {
+function ProjectDetail({ paywallEnabled = false }: { paywallEnabled?: boolean }) {
   const { matchId, opportunitySlug, projectRef } = useParams();
   const activeProjectRef = projectRef ?? opportunitySlug;
   const [searchParams] = useSearchParams();
@@ -1689,7 +1709,11 @@ function ProjectDetail() {
     let active = true;
     setLoading(true);
     projectsApi
-      .getMatch(id)
+      .getProjectMatch(id)
+      .then((payload) => {
+        return projectMatchResponseToSession(payload);
+      })
+      .catch(() => projectsApi.getMatch(id))
       .then((payload) => {
         if (active) {
           setSession(payload);
@@ -1822,7 +1846,7 @@ function ProjectDetail() {
               {projectCompared ? <Link to="/projects/compare">查看对比</Link> : null}
               <Link to={`${detailBasePath}/diagnosis`}>诊断我能否做</Link>
               <Link className="primary" to="/projects/match">AI 匹配类似项目</Link>
-              {opportunity ? (
+              {opportunity && paywallEnabled ? (
                 <Link
                   className="pm-unlock-detail"
                   onClick={() => trackProjectEvent("project_unlock_click", { project_id: opportunity.id, tab: activeSectionKey }, "project_detail")}
@@ -2363,9 +2387,18 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
     if (["match", "questions", "history", "results", "paywall", "export"].includes(variant)) {
       const routeSessionId = Number(matchId);
       if (Number.isFinite(routeSessionId) && routeSessionId > 0) {
-        projectsApi.getMatch(routeSessionId).then((payload) => { if (active) setCurrentSession(payload); }).catch(() => { if (active) setCurrentSession(null); });
+        projectsApi.getProjectMatch(routeSessionId)
+          .then((payload) => projectMatchResponseToSession(payload))
+          .catch(() => projectsApi.getMatch(routeSessionId))
+          .then((payload) => { if (active) setCurrentSession(payload); })
+          .catch(() => { if (active) setCurrentSession(null); });
       } else {
-        projectsApi.listMatches().then((payload) => { if (active) setSessions(payload.matches ?? []); }).catch(() => { if (active) setSessions([]); });
+        Promise.all([
+          projectsApi.listProjectMatches().catch(() => ({ matches: [] as ProjectMatchWorkflow[] })),
+          projectsApi.listMatches().catch(() => ({ matches: [] as ProjectMatchSession[] }))
+        ]).then(([workflowPayload, legacyPayload]) => {
+          if (active) setSessions([...workflowPayload.matches.map(workflowToSession), ...legacyPayload.matches]);
+        }).catch(() => { if (active) setSessions([]); });
       }
     }
     if (activeProjectRef && ["detail", "diagnosis"].includes(variant)) {
@@ -2560,12 +2593,17 @@ function ExportOverlay({ paywallEnabled }: { paywallEnabled: boolean }) {
       return;
     }
     let active = true;
-    projectsApi.listMatches().then((payload) => {
+    projectsApi.listProjectMatches().then((payload) => {
+      if (!active) return;
+      const latest = (payload.matches ?? []).find((item) => item.generation?.status === "completed" || item.generation?.status === "partial");
+      setSourceID(latest?.match_id ?? null);
+      if (!latest) setError("暂无可导出的已完成匹配记录");
+    }).catch(() => projectsApi.listMatches().then((payload) => {
       if (!active) return;
       const latest = (payload.matches ?? []).find((item) => item.status === "completed");
       setSourceID(latest?.id ?? null);
       if (!latest) setError("暂无可导出的已完成匹配记录");
-    }).catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取匹配记录")); });
+    })).catch((loadError) => { if (active) setError(apiErrorMessage(loadError, "暂时无法读取匹配记录")); });
     return () => { active = false; };
   }, [matchId]);
   useEffect(() => {

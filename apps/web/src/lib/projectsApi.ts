@@ -68,6 +68,8 @@ export type ProjectMatchWorkflow = {
   revision: number;
   file_ids?: number[];
   generation?: ProjectMatchGeneration;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type ProjectMatchProgressEvent = {
@@ -405,6 +407,10 @@ export const projectsApi = {
       headers: { "Idempotency-Key": idempotencyKey },
       body: JSON.stringify(input)
     });
+  },
+
+  listProjectMatches(limit = 20) {
+    return apiRequest<{ matches: ProjectMatchWorkflow[] }>(`/api/v1/project-matches?limit=${encodeURIComponent(String(limit))}`, { method: "GET" });
   },
 
   getProjectMatch(id: number) {

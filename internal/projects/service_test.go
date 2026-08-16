@@ -454,3 +454,40 @@ func TestServiceListsAndDeletesFavoriteMatches(t *testing.T) {
 		t.Fatalf("favorites after delete = %+v", repository.favorites[42])
 	}
 }
+
+func TestServiceFavoritesWorkflowV2Match(t *testing.T) {
+	repository := &workflowMemoryRepository{
+		memoryRepository: &memoryRepository{},
+		runs:             []MatchRun{{ID: 200, UserID: 42, WorkflowVersion: 2, Status: MatchStatusCompleted}},
+	}
+	service := NewService(repository, &fakeJSONGenerator{})
+
+	favorite, err := service.FavoriteMatch(context.Background(), 42, 200)
+	if err != nil {
+		t.Fatalf("FavoriteMatch() workflow v2 error = %v", err)
+	}
+	if favorite.SessionID != 200 || len(repository.favorites[42]) != 1 {
+		t.Fatalf("favorite = %+v, favorites = %+v", favorite, repository.favorites)
+	}
+	if err := service.UnfavoriteMatch(context.Background(), 42, 200); err != nil {
+		t.Fatalf("UnfavoriteMatch() workflow v2 error = %v", err)
+	}
+	if len(repository.favorites[42]) != 0 {
+		t.Fatalf("favorites after delete = %+v", repository.favorites[42])
+	}
+}
+
+func TestServiceRejectsWorkflowV2FavoriteForAnotherUser(t *testing.T) {
+	repository := &workflowMemoryRepository{
+		memoryRepository: &memoryRepository{},
+		runs:             []MatchRun{{ID: 200, UserID: 7, WorkflowVersion: 2, Status: MatchStatusCompleted}},
+	}
+	service := NewService(repository, &fakeJSONGenerator{})
+
+	if _, err := service.FavoriteMatch(context.Background(), 42, 200); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("FavoriteMatch() error = %v, want ErrSessionNotFound", err)
+	}
+	if err := service.UnfavoriteMatch(context.Background(), 42, 200); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("UnfavoriteMatch() error = %v, want ErrSessionNotFound", err)
+	}
+}

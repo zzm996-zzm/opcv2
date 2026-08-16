@@ -48,6 +48,16 @@ func (r *workflowMemoryRepository) GetMatchRun(_ context.Context, userID, id int
 	return MatchRun{}, ErrSessionNotFound
 }
 
+func (r *workflowMemoryRepository) ListMatchRuns(_ context.Context, userID int64, limit int) ([]MatchRun, error) {
+	items := make([]MatchRun, 0)
+	for index := len(r.runs) - 1; index >= 0 && len(items) < limit; index-- {
+		if r.runs[index].UserID == userID {
+			items = append(items, r.runs[index])
+		}
+	}
+	return items, nil
+}
+
 func (r *workflowMemoryRepository) UpdateMatchRun(_ context.Context, run MatchRun, expectedRevision int) (MatchRun, error) {
 	for index, existing := range r.runs {
 		if existing.UserID == run.UserID && existing.ID == run.ID {
@@ -233,6 +243,19 @@ func TestProjectMatchWorkflowIsUserScoped(t *testing.T) {
 	_, err := service.GetProjectMatch(context.Background(), 42, 200)
 	if !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("GetProjectMatch() error = %v, want not found", err)
+	}
+}
+
+func TestListProjectMatchesReturnsUserScopedWorkflowResponses(t *testing.T) {
+	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	repository := &workflowMemoryRepository{memoryRepository: &memoryRepository{}, runs: []MatchRun{
+		{ID: 200, UserID: 42, WorkflowVersion: 2, Need: "做内容项目", Status: MatchStatusReady, CreatedAt: now, UpdatedAt: now},
+		{ID: 201, UserID: 7, WorkflowVersion: 2, Need: "其他项目", Status: MatchStatusReady, CreatedAt: now, UpdatedAt: now},
+	}}
+	service := NewService(repository, &sequenceWorkflowGenerator{})
+	items, err := service.ListProjectMatches(context.Background(), 42, 20)
+	if err != nil || len(items) != 1 || items[0].MatchID != 200 || !items[0].CreatedAt.Equal(now) {
+		t.Fatalf("items = %+v err=%v", items, err)
 	}
 }
 

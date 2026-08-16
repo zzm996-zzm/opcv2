@@ -36,6 +36,7 @@ type Application interface {
 
 type MatchWorkflowApplication interface {
 	CreateProjectMatch(context.Context, CreateProjectMatchInput) (MatchWorkflowResponse, error)
+	ListProjectMatches(context.Context, int64, int) ([]MatchWorkflowResponse, error)
 	AnswerProjectMatch(context.Context, AnswerProjectMatchInput) (MatchWorkflowResponse, error)
 	GetProjectMatch(context.Context, int64, int64) (MatchWorkflowResponse, error)
 }
@@ -108,6 +109,7 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.POST("/project-match-files/:id/retry", h.retryProjectMatchFile)
 	router.DELETE("/project-match-files/:id", h.deleteProjectMatchFile)
 	router.POST("/project-matches", h.createProjectMatch)
+	router.GET("/project-matches", h.listProjectMatches)
 	router.POST("/project-matches/:id/answer", h.answerProjectMatch)
 	router.GET("/project-matches/:id", h.getProjectMatch)
 	router.POST("/project-matches/:id/generate", h.generateProjectMatch)
@@ -574,6 +576,29 @@ func (h *HTTPHandler) createProjectMatch(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *HTTPHandler) listProjectMatches(c *gin.Context) {
+	app, ok := h.app.(MatchWorkflowApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return
+	}
+	limit := 20
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_limit"})
+			return
+		}
+		limit = parsed
+	}
+	items, err := app.ListProjectMatches(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"matches": items})
 }
 
 func (h *HTTPHandler) answerProjectMatch(c *gin.Context) {

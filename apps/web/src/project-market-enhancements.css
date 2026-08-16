@@ -91,6 +91,10 @@
   box-shadow: 0 8px 24px rgba(42, 62, 108, 0.055);
 }
 
+.project-market-shell .pm-layout-history > .pm-copilot {
+  margin-top: 56px;
+}
+
 .project-market-shell .pm-copilot > header {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) 28px 28px;
@@ -1521,8 +1525,14 @@
   background: linear-gradient(105deg, #fff, #f1f5ff 58%, #eaf0ff);
 }
 
+@media (min-width: 1181px) {
+  .project-market-shell:has(.pm-layout-history) .v4-page-main {
+    padding-top: 0;
+  }
+}
+
 .pm-history-hero-copy { position: relative; z-index: 2; width: 570px; padding: 20px 0 0 4px; }
-.pm-history-hero-copy > p { margin: 0 0 17px; color: #6073a3; font-size: 10px; font-weight: 750; }
+.pm-history-hero-copy > p { margin: 0 0 27px; color: #6073a3; font-size: 10px; font-weight: 750; }
 .pm-history-hero h1 { margin: 0; color: #07155f; font-size: 40px; line-height: 1.08; font-weight: 930; }
 .pm-history-hero-copy > strong { display: block; margin-top: 8px; color: #53699f; font-size: 12px; font-weight: 720; }
 .pm-history-hero-copy nav { display: grid; grid-template-columns: repeat(3, 148px); width: 444px; min-height: 42px; margin-top: 28px; overflow: hidden; background: rgba(255, 255, 255, 0.88); border-radius: 7px; box-shadow: 0 8px 18px rgba(44, 62, 127, 0.05); }
@@ -1554,6 +1564,7 @@
 
 .project-market-shell .pm-saved-section { display: grid; gap: 9px; padding: 12px 4px 4px; background: transparent; border: 0; box-shadow: none; }
 .pm-saved-section > header { justify-content: flex-start; }
+.pm-saved-section > header h2 { font-size: 16px; }
 .pm-saved-section > header span { color: #7886a7; font-size: 8px; }
 .pm-saved-section > header a { margin-left: auto; color: #315bec; font-size: 9px; }
 .project-market-shell .pm-opportunity-grid.saved { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
@@ -2203,6 +2214,17 @@
   animation: none;
 }
 .project-market-shell .ref-project-badges article { display: grid; grid-template-columns: 42px minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; padding: 0 8px; border-right: 1px solid #e9edf5; }
+.project-market-shell .ref-project-badges article > .pm-home-badge-link {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  min-height: 100%;
+  padding: 0;
+  color: inherit;
+  text-decoration: none;
+}
 .project-market-shell .ref-project-badges article:last-child { border-right: 0; }
 .project-market-shell .pm-home-badge-icon { grid-row: 1 / 3; width: 38px; height: 38px; background-position: center; background-repeat: no-repeat; background-size: cover; border-radius: 8px; }
 .project-market-shell .pm-home-badge-icon.badge-1 { background-image: url("/project-market/home-badge-1.jpg"); }
@@ -2669,6 +2691,7 @@
   .pm-result-condition-strip { grid-template-columns: 1fr 1fr; }
   .pm-history-hero { height: 250px; margin-bottom: 0; padding: 18px; }
   .pm-history-hero-copy { width: 100%; padding: 0; }
+  .pm-history-hero-copy > p { margin-bottom: 17px; }
   .pm-history-hero-art { right: -160px; opacity: 0.35; }
   .pm-history-hero-copy nav { width: 100%; grid-template-columns: repeat(3, 1fr); }
   .pm-history-table > header { display: none; }
@@ -2737,6 +2760,19 @@
   }
   .pm-paywall-content { grid-template-columns: 1fr; }
   .pm-export-modal > footer { grid-template-columns: 1fr; }
+}
+
+/* Keep the history controls on one compact row while the Copilot rail is open
+   on a narrow desktop, matching the reference's dense toolbar treatment. */
+@container (min-width: 721px) and (max-width: 960px) {
+  .project-market-shell .pm-layout-history .pm-history-filter {
+    grid-template-columns: 160px 160px minmax(180px, 1fr) 76px;
+    gap: 10px;
+  }
+
+  .project-market-shell .pm-layout-history .pm-history-filter > button {
+    grid-column: auto;
+  }
 }
 
 .pm-generation-progress {
