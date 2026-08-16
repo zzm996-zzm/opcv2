@@ -170,11 +170,11 @@ func loadPending(ctx context.Context, db *pgxpool.Pool, dataset string, limit in
 func translateBatch(ctx context.Context, db *pgxpool.Pool, provider ai.Provider, items []pendingTranslation, model string) (int, error) {
 	input := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		var payload any
-		if err := json.Unmarshal(item.payload, &payload); err != nil {
-			payload = map[string]any{}
+		var rawPayload map[string]any
+		if err := json.Unmarshal(item.payload, &rawPayload); err != nil {
+			rawPayload = map[string]any{}
 		}
-		input = append(input, map[string]any{"dataset": item.dataset, "record_key": item.recordKey, "payload": payload})
+		input = append(input, map[string]any{"dataset": item.dataset, "record_key": item.recordKey, "payload": translatablePayload(item.dataset, rawPayload)})
 	}
 	requestPayload, err := json.Marshal(input)
 	if err != nil {
@@ -228,6 +228,21 @@ func translateBatch(ctx context.Context, db *pgxpool.Pool, provider ai.Provider,
 		}
 	}
 	return completed, nil
+}
+
+func translatablePayload(dataset string, payload map[string]any) map[string]any {
+	fields := map[string][]string{
+		"startup":      {"name", "description", "sector", "country", "founders", "investors", "difficulty_reason", "scalability_reason", "market_potential_reason", "cause_of_death", "primary_cause_of_death", "the_loot", "market_analysis", "pivot_idea", "product_type", "condensed_value_prop", "condensed_cause_of_death"},
+		"rebuild_plan": {"name", "sector", "product_type", "country", "primary_cause_of_death", "market_potential", "pivot_idea", "the_loot"},
+		"idea":         {"title", "description", "model", "effort", "speed", "category", "tags", "persona"},
+	}
+	selected := make(map[string]any)
+	for _, field := range fields[dataset] {
+		if value, ok := payload[field]; ok {
+			selected[field] = value
+		}
+	}
+	return selected
 }
 
 func updateProjectedCase(ctx context.Context, db *pgxpool.Pool, recordKey string, payload map[string]any) error {
