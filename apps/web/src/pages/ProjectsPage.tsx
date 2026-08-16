@@ -314,6 +314,10 @@ function ProjectsPage({ variant = "home" }: ProjectsPageProps) {
 function MarketHome() {
   const [featured, setFeatured] = useState<ProjectOpportunity[]>([]);
   const [featuredLoading, setFeaturedLoading] = useState(true);
+  const [casePreview, setCasePreview] = useState<EvidenceCaseItem[]>([]);
+  const [caseTotal, setCaseTotal] = useState(0);
+  const [casePreviewLoading, setCasePreviewLoading] = useState(true);
+  const [casePreviewError, setCasePreviewError] = useState(false);
   const [query, setQuery] = useState("");
   const navigate = useNavigate();
 
@@ -325,6 +329,24 @@ function MarketHome() {
       if (active) setFeatured([]);
     }).finally(() => {
       if (active) setFeaturedLoading(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    projectsApi.listEvidenceCases({ pageSize: 3 }).then((payload) => {
+      if (!active) return;
+      setCasePreview(payload.items ?? []);
+      setCaseTotal(Number.isFinite(payload.total) ? payload.total : 0);
+      setCasePreviewError(false);
+    }).catch(() => {
+      if (!active) return;
+      setCasePreview([]);
+      setCaseTotal(0);
+      setCasePreviewError(true);
+    }).finally(() => {
+      if (active) setCasePreviewLoading(false);
     });
     return () => { active = false; };
   }, []);
@@ -370,6 +392,31 @@ function MarketHome() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="ref-project-live-cases" aria-label="Loot Drop 真实案例">
+        <header>
+          <div>
+            <span>真实数据已接入</span>
+            <h2>Loot Drop 真实案例</h2>
+            <p>案例库已收录 <strong>{casePreviewLoading ? "…" : caseTotal.toLocaleString("zh-CN")}</strong> 个可追溯案例</p>
+          </div>
+          <Link to="/project-cases">查看全部案例</Link>
+        </header>
+        {casePreviewLoading ? <div className="ref-project-live-case-grid pm-live-case-skeleton" aria-label="正在加载真实案例" role="status">
+          {[0, 1, 2].map((item) => <article key={item}><i /><b /><span /><span /></article>)}
+        </div> : casePreviewError ? <div className="module-empty-state" role="alert">真实案例暂时无法读取</div> : casePreview.length === 0 ? <div className="module-empty-state" role="status">暂无已发布真实案例</div> : <div className="ref-project-live-case-grid">
+          {casePreview.map((item, index) => {
+            const isLootDrop = item.primary_source_url.includes("loot-drop.io");
+            return <article key={item.id}>
+              <div className={`ref-project-live-case-art art-${(index % 3) + 1}`} aria-hidden="true" />
+              <div className="ref-project-live-case-meta"><span>{isLootDrop ? "Loot Drop 数据源" : "可追溯来源"}</span><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span></div>
+              <h3>{item.title}</h3>
+              <p>{item.result_summary}</p>
+              <footer><span>{item.source_count} 条证据</span><Link to={`/project-cases/${item.id}`}>查看案例</Link></footer>
+            </article>;
+          })}
+        </div>}
       </section>
 
       <section className="ref-project-opportunities">

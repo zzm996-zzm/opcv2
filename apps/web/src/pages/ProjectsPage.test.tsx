@@ -37,8 +37,10 @@ describe("ProjectsPage", () => {
 
   it("renders the project market home from the V1.4 home contract", async () => {
     const featured = { id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", track: "企业服务", tags: ["B端"], budget_band: "1万", difficulty: "中等", resource_requirements: [] };
+    const evidenceCase = { id: 81, title: "99dresses", result_summary: "虚拟货币增加了交易复杂度", type: "fail", primary_source_url: "https://www.loot-drop.io/database-view?id=1", source_count: 1 };
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/projects/home") return Promise.resolve(new Response(JSON.stringify({ hero: { title: "项目超市", subtitle: "发现机会", desc: "真实项目" }, quick_tags: [], entries: [], featured: [featured] }), { status: 200 }));
+      if (String(input) === "/api/v1/project-cases?page_size=3") return Promise.resolve(new Response(JSON.stringify({ items: [evidenceCase], page: 1, page_size: 3, total: 1752 }), { status: 200 }));
       if (String(input) === "/api/v1/projects?page_size=20") return Promise.resolve(new Response(JSON.stringify({ items: [featured], page: 1, page_size: 20, total: 1 }), { status: 200 }));
       return Promise.reject(new Error(`unexpected ${String(input)}`));
     });
@@ -47,6 +49,10 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "项目超市" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "发现下一个可落地机会" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "去匹配" })).toHaveAttribute("href", "/projects/match");
+    expect(await screen.findByRole("heading", { name: "Loot Drop 真实案例" })).toBeInTheDocument();
+    expect(screen.getByText("1,752")).toBeInTheDocument();
+    expect(screen.getByText("Loot Drop 数据源")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看案例" })).toHaveAttribute("href", "/project-cases/81");
     expect(screen.getByRole("heading", { name: "精选机会" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "查看机会" }).find((link) => link.getAttribute("href") === "/projects/ai-sales")).toBeTruthy();
