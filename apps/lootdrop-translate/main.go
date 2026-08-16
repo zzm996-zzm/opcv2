@@ -113,7 +113,10 @@ func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provide
 		} else {
 			totalTranslated += translated
 			if translated == 0 {
-				return totalTranslated, totalFailed, errors.New("model returned no matching translations")
+				for _, item := range items {
+					_ = markTranslationFailed(ctx, db, item, model, errors.New("model returned no matching translations"))
+				}
+				totalFailed += len(items)
 			}
 		}
 		if remaining > 0 {
