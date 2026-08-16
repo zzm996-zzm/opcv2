@@ -335,9 +335,9 @@ function MarketHome() {
 
   useEffect(() => {
     let active = true;
-    projectsApi.listEvidenceCases({ pageSize: 3 }).then((payload) => {
+    projectsApi.listEvidenceCases({ pageSize: 20 }).then((payload) => {
       if (!active) return;
-      setCasePreview(payload.items ?? []);
+      setCasePreview((payload.items ?? []).filter((item) => /[\u3400-\u9fff]/u.test(item.result_summary)).slice(0, 3));
       setCaseTotal(Number.isFinite(payload.total) ? payload.total : 0);
       setCasePreviewError(false);
     }).catch(() => {
@@ -394,28 +394,27 @@ function MarketHome() {
         </div>
       </section>
 
-      <section className="ref-project-live-cases" aria-label="Loot Drop 真实案例">
+      <section className="ref-project-live-cases" aria-label="真实商业案例">
         <header>
           <div>
-            <span>真实数据已接入</span>
-            <h2>Loot Drop 真实案例</h2>
+            <span>真实商业案例</span>
+            <h2>近期案例复盘</h2>
             <p>案例库已收录 <strong>{casePreviewLoading ? "…" : caseTotal.toLocaleString("zh-CN")}</strong> 个可追溯案例</p>
           </div>
           <Link to="/project-cases">查看全部案例</Link>
         </header>
         {casePreviewLoading ? <div className="ref-project-live-case-grid pm-live-case-skeleton" aria-label="正在加载真实案例" role="status">
-          {[0, 1, 2].map((item) => <article key={item}><i /><b /><span /><span /></article>)}
+          {[0, 1, 2].map((item) => <article key={item}><b /><span /><span /></article>)}
         </div> : casePreviewError ? <div className="module-empty-state" role="alert">真实案例暂时无法读取</div> : casePreview.length === 0 ? <div className="module-empty-state" role="status">暂无已发布真实案例</div> : <div className="ref-project-live-case-grid">
-          {casePreview.map((item, index) => {
-            const isLootDrop = item.primary_source_url.includes("loot-drop.io");
-            return <article key={item.id}>
-              <div className={`ref-project-live-case-art art-${(index % 3) + 1}`} aria-hidden="true" />
-              <div className="ref-project-live-case-meta"><span>{isLootDrop ? "Loot Drop 数据源" : "可追溯来源"}</span><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span></div>
+          {casePreview.map((item) => (
+            <article className={item.cover_url ? "has-cover" : "no-cover"} key={item.id}>
+              {item.cover_url ? <img alt="" loading="lazy" src={item.cover_url} /> : null}
+              <div className="ref-project-live-case-meta"><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span><span>{item.source_count} 条来源</span></div>
               <h3>{item.title}</h3>
               <p>{item.result_summary}</p>
-              <footer><span>{item.source_count} 条证据</span><Link to={`/project-cases/${item.id}`}>查看案例</Link></footer>
-            </article>;
-          })}
+              <footer><span>内容可追溯</span><Link to={`/project-cases/${item.id}`}>查看案例</Link></footer>
+            </article>
+          ))}
         </div>}
       </section>
 
@@ -989,10 +988,9 @@ function CaseLibrary() {
           {error ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
           {!loading && !error && visibleCases.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布案例</div> : null}
           {visibleCases.slice(0, 4).map((item) => (
-            <article className={`pm-case-card pm-case-${item.id}`} key={item.id}>
-              <div className="pm-thumb" />
-              <span className="pm-case-save" aria-hidden="true">☆</span>
-              <div>
+            <article className={`pm-case-card ${item.cover_url ? "has-cover" : "no-cover"}`} key={item.id}>
+              {item.cover_url ? <img alt="" className="pm-thumb" loading="lazy" src={item.cover_url} /> : null}
+              <div className="pm-case-card-content">
                 <h2>{item.title}</h2>
                 <strong>{item.result_summary}</strong>
                 <div className="pm-mini-tags"><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span><span>{item.source_count} 条证据</span></div>
@@ -2501,7 +2499,7 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
       <Link className="pm-copilot-cta" to="/projects/match">去 AI 匹配 →</Link>
     </>;
   } else if (variant === "cases") {
-    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下案例来自证据案例库，并保留各自的首要来源。</p></div><div className="pm-copilot-projects cases">{cases.slice(0, 3).map((item) => <Link key={item.id} to={`/project-cases/${item.id}`}><i className={`pm-case-thumb pm-case-${item.id}`} /><span><strong>{item.title}</strong><small>{item.type === "success" ? "成功案例" : "失败复盘"} · {item.source_count} 条证据</small></span></Link>)}</div><div className="pm-copilot-summary"><strong>案例库中的核验结论</strong>{caseLessons.length > 0 ? caseLessons.map((item) => <span key={item}>✓ {item}</span>) : <span>当前接口没有已发布经验</span>}</div></>;
+    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下案例来自证据案例库，并保留各自的首要来源。</p></div><div className="pm-copilot-projects cases">{cases.slice(0, 3).map((item) => <Link className={item.cover_url ? "has-media" : "no-media"} key={item.id} to={`/project-cases/${item.id}`}>{item.cover_url ? <img alt="" className="pm-case-thumb" loading="lazy" src={item.cover_url} /> : null}<span><strong>{item.title}</strong><small>{item.type === "success" ? "成功案例" : "失败复盘"} · {item.source_count} 条证据</small></span></Link>)}</div><div className="pm-copilot-summary"><strong>案例库中的核验结论</strong>{caseLessons.length > 0 ? caseLessons.map((item) => <span key={item}>✓ {item}</span>) : <span>当前接口没有已发布经验</span>}</div></>;
   } else if (variant === "history") {
     conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>当前接口返回 {sessions.length} 条匹配记录。</p></div><div className="pm-copilot-summary">{latestProject ? <><span>✓ 最近完成记录的首项：{latestProject.title}</span><span>✓ 可重新打开并核对原始匹配条件</span><span>✓ 可导出已保存的服务端记录</span></> : <span>完成首次匹配后，这里会显示历史记录摘要。</span>}</div></>;
   } else if (variant === "results") {
