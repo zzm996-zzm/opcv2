@@ -881,10 +881,10 @@ func TestPostgresRepositoryCreatesDefaultTaskViewPreference(t *testing.T) {
 	db.ExpectQuery("INSERT INTO task_view_preferences").
 		WithArgs(int64(42), TaskViewList).
 		WillReturnRows(pgxmock.NewRows([]string{"view_type", "columns", "updated_at"}).
-			AddRow(TaskViewList, []byte(`["title","project","assignee","due_at","priority","status","tags","progress","source"]`), now))
+			AddRow(TaskViewList, []byte(`["title","project","assignee","due_at","priority","status"]`), now))
 
 	preference, err := NewPostgresRepository(db).GetTaskViewPreference(context.Background(), 42, TaskViewList)
-	if err != nil || preference.View != TaskViewList || len(preference.Columns) != 9 || preference.Columns[0] != "title" {
+	if err != nil || preference.View != TaskViewList || len(preference.Columns) != 6 || preference.Columns[0] != "title" {
 		t.Fatalf("preference/error = %+v/%v", preference, err)
 	}
 }

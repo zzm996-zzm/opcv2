@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Eye, EyeOff, Paperclip, Plus, RotateCcw, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, CircleCheckBig, Download, Eye, EyeOff, Paperclip, Play, Plus, RotateCcw, SlidersHorizontal, Trash2, Upload, X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
@@ -168,7 +168,21 @@ const taskColumnDefinitions: Array<{ key: TaskListColumn; label: string; require
   { key: "updated_at", label: "更新时间" }
 ];
 
-const defaultTaskColumns: TaskListColumn[] = ["title", "project", "assignee", "due_at", "priority", "status", "tags", "progress", "source"];
+const defaultTaskColumns: TaskListColumn[] = ["title", "project", "assignee", "due_at", "priority", "status"];
+
+const taskColumnLayout: Record<TaskListColumn, { minWidth: number; track: string }> = {
+  title: { minWidth: 210, track: "minmax(210px, 1.7fr)" },
+  project: { minWidth: 90, track: "minmax(90px, 0.8fr)" },
+  assignee: { minWidth: 76, track: "minmax(76px, 0.65fr)" },
+  due_at: { minWidth: 100, track: "minmax(100px, 0.8fr)" },
+  priority: { minWidth: 60, track: "60px" },
+  status: { minWidth: 72, track: "72px" },
+  tags: { minWidth: 120, track: "minmax(120px, 1fr)" },
+  progress: { minWidth: 64, track: "64px" },
+  source: { minWidth: 110, track: "minmax(110px, 1fr)" },
+  created_at: { minWidth: 110, track: "110px" },
+  updated_at: { minWidth: 110, track: "110px" }
+};
 
 function validTaskColumns(columns: unknown): columns is TaskListColumn[] {
   if (!Array.isArray(columns) || !columns.includes("title")) return false;
@@ -696,13 +710,7 @@ function TasksPage() {
 
   const visibleTasks = apiTasks.map(toTaskRow);
   const visibleStats = apiStats ? statsFromApi(apiStats) : buildTaskStats(apiTasks);
-  const boardColumns = boardColumnLabels.map((column) => [
-    column.label,
-    apiTasks.filter((task) => task.status === column.status).map((task) => task.title)
-  ] as const);
-  const populatedBoardColumns = boardColumns.filter(([, items]) => items.length > 0);
-  const showBoardPreview = activeView === "list" && populatedBoardColumns.length > 0;
-  const useFullWidthWorkbench = !showBoardPreview && copilotPanel?.isPanelOpen === false;
+  const useFullWidthWorkbench = copilotPanel?.isPanelOpen === false;
   const calendarSourceTasks = calendarTasks ?? apiTasks;
   const scheduledTasks = calendarSourceTasks
     .filter((task) => task.due_at)
@@ -731,6 +739,10 @@ function TasksPage() {
     ...taskColumns.map((key) => taskColumnDefinitions.find((column) => column.key === key)).filter(Boolean),
     ...taskColumnDefinitions.filter((column) => !taskColumns.includes(column.key))
   ] as Array<{ key: TaskListColumn; label: string; required?: boolean }>;
+  const taskListLayoutStyle = {
+    "--task-list-columns": taskColumns.map((column) => taskColumnLayout[column].track).join(" "),
+    minWidth: `${taskColumns.reduce((width, column) => width + taskColumnLayout[column].minWidth, 132) + Math.max(0, taskColumns.length - 1) * 10}px`
+  } as CSSProperties;
   const batchStatusOptions = boardColumnLabels.filter((option) =>
     selectedTasks.length > 0 && selectedTasks.every((task) => taskStatusOptions(task.status).some((item) => item.value === option.status))
   );
@@ -1577,6 +1589,32 @@ function TasksPage() {
     }
   }
 
+  function renderTaskRowActions(task: TaskRow) {
+    if (!task.id || !task.statusCode) return null;
+    const action = taskStatusAction(task.statusCode);
+    const StatusActionIcon = task.statusCode === "todo"
+      ? Play
+      : task.statusCode === "completed" || task.statusCode === "cancelled"
+        ? RotateCcw
+        : CircleCheckBig;
+    return (
+      <div className="task-row-actions">
+        <button
+          aria-label={action.label}
+          disabled={savingTaskID === task.id}
+          onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus, task.version)}
+          title={action.label}
+          type="button"
+        >
+          <StatusActionIcon aria-hidden="true" />
+        </button>
+        <button aria-label="查看任务详情" onClick={() => void openTaskDetail(task.id as number)} title="查看任务详情" type="button">
+          <Eye aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
   function renderTaskCard(task: Task, enableDrag = false) {
     const action = taskStatusAction(task.status);
     return (
@@ -2020,6 +2058,15 @@ function TasksPage() {
                   </div>
                 ) : null}
                 <div aria-label="任务列表" className="task-table">
+                  {visibleTasks.length > 0 ? (
+                    <div className="task-list-header" style={taskListLayoutStyle}>
+                      <span aria-hidden="true" />
+                      <div className="task-list-header-fields">
+                        {taskColumns.map((column) => <span key={column}>{taskColumnDefinitions.find((definition) => definition.key === column)?.label}</span>)}
+                      </div>
+                      <span>操作</span>
+                    </div>
+                  ) : null}
                   {visibleTasks.length === 0 ? (
 	                  <div className="module-empty-state task-empty-state" role="status">
 	                    <strong>{listLoading ? "正在读取任务..." : "暂无任务数据"}</strong>
@@ -2029,13 +2076,13 @@ function TasksPage() {
 	                  ) : listGroups.map(([group, tasks]) => (
 	                    <Fragment key={group || "all-tasks"}>
 	                      {group ? (
-	                        <div className="task-list-group-heading">
+	                        <div className="task-list-group-heading" style={taskListLayoutStyle}>
 	                          <strong>{group}</strong>
 	                          <span>{tasks.length} 项</span>
 	                        </div>
 	                      ) : null}
 	                      {tasks.map((task) => (
-	                    <article key={task.id ?? task.title}>
+	                    <article key={task.id ?? task.title} style={taskListLayoutStyle}>
                       {task.id ? (
                         <input
                           aria-label={`选择任务 ${task.title}`}
@@ -2053,18 +2100,7 @@ function TasksPage() {
                         </div>
                       ))}
                     </div>
-                    {task.id && task.statusCode ? (
-                      <div className="task-row-actions">
-                        <button
-                          disabled={savingTaskID === task.id}
-                          onClick={() => void updateTaskStatus(task.id as number, task.statusCode as TaskStatus, task.version)}
-                          type="button"
-                        >
-                          {savingTaskID === task.id ? "更新中..." : taskStatusAction(task.statusCode).label}
-                        </button>
-                        <button onClick={() => void openTaskDetail(task.id as number)} type="button">查看任务详情</button>
-                      </div>
-                    ) : null}
+	                    {renderTaskRowActions(task)}
 	                    </article>
 	                      ))}
 	                    </Fragment>
@@ -2161,20 +2197,6 @@ function TasksPage() {
           </div>
 
 	          <div className="task-side-rail">
-	            {showBoardPreview ? (
-	              <aside className="task-board-panel" aria-label="任务看板预览">
-	                <h2>跨项目看板</h2>
-	                <p>切换到看板视图可按状态处理跨项目任务</p>
-	                <div>
-	                  {populatedBoardColumns.map(([title, items]) => (
-	                    <section key={title}>
-	                      <strong>{title}</strong>
-	                      {items.map((item) => <span key={item}>{item}</span>)}
-	                    </section>
-	                  ))}
-	                </div>
-	              </aside>
-	            ) : null}
 	            <UnifiedCopilotPanel
 	              activeFilters={taskCopilotFilters}
 	              ariaLabel="任务中心 Copilot"

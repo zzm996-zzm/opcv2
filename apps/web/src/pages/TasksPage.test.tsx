@@ -104,9 +104,12 @@ describe("TasksPage", () => {
     expect(within(taskRow).getByText("商业沙盘")).toBeInTheDocument();
     expect(within(taskRow).getByText("未指定")).toBeInTheDocument();
     expect(within(taskRow).getByText("06/30 18:00")).toBeInTheDocument();
-    expect(within(taskRow).getByText("0%")).toBeInTheDocument();
+    expect(within(taskRow).queryByText("0%")).not.toBeInTheDocument();
+    expect(within(taskRow).getByRole("button", { name: "标记完成" })).toBeInTheDocument();
+    expect(within(taskRow).getByRole("button", { name: "查看任务详情" })).toBeInTheDocument();
+    expect(screen.getByText("任务标题", { selector: ".task-list-header-fields > span" })).toBeInTheDocument();
     expect(screen.getByText("建议工具：沙盘推演 / 任务中心")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "跨项目看板" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "跨项目看板" })).not.toBeInTheDocument();
     const inProgressStat = screen.getAllByText("进行中").find((node) => node.tagName.toLowerCase() === "small")?.closest("article");
     expect(inProgressStat).not.toBeNull();
     expect(within(inProgressStat as HTMLElement).getByText("1")).toBeInTheDocument();
@@ -717,7 +720,7 @@ describe("TasksPage", () => {
 
     expect(listButton).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText("任务列表")).toBeInTheDocument();
-    expect(screen.getByLabelText("任务看板预览")).toBeInTheDocument();
+    expect(screen.queryByLabelText("任务看板预览")).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "任务日历" })).not.toBeInTheDocument();
   });
 
@@ -750,6 +753,9 @@ describe("TasksPage", () => {
       }
       if (url === "/api/v1/tasks/stats") {
         return Promise.resolve(new Response(JSON.stringify({ total: 1, todo: 1, in_progress: 0, completed: 0, reminder: 0, overdue: 0 }), { status: 200 }));
+      }
+      if (url === "/api/v1/tasks/view-preferences?view=list") {
+        return Promise.resolve(new Response(JSON.stringify({ view: "list", columns: ["title", "project", "assignee", "due_at", "priority", "status", "tags", "progress", "source"], updated_at: "2026-07-10T08:00:00Z" }), { status: 200 }));
       }
       if (url === "/api/v1/tasks/95" && init?.method === "GET") {
         return Promise.resolve(new Response(JSON.stringify({ ...task, title: "准备首轮客户访谈" }), { status: 200 }));

@@ -232,7 +232,7 @@ type SubtaskUpdate struct {
 const TaskViewList = "list"
 
 var (
-	taskListDefaultColumns = []string{"title", "project", "assignee", "due_at", "priority", "status", "tags", "progress", "source"}
+	taskListDefaultColumns = []string{"title", "project", "assignee", "due_at", "priority", "status"}
 	taskListAllowedColumns = []string{"title", "project", "assignee", "due_at", "priority", "status", "tags", "progress", "source", "created_at", "updated_at"}
 )
 
