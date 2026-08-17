@@ -2421,7 +2421,7 @@
 .pm-copilot-projects { display: grid; gap: 6px; padding: 8px; background: #fff; border: 1px solid rgba(35, 61, 146, 0.08); border-radius: 6px; }
 .pm-copilot-projects > a { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 8px; align-items: center; min-height: 42px; color: inherit; }
 .pm-copilot-projects > a.no-media { grid-template-columns: minmax(0, 1fr); }
-.pm-project-thumb { display: block; width: 50px; height: 38px; background: #dfe5f4 center / cover no-repeat; border-radius: 5px; }
+.pm-project-thumb { display: block; width: 50px; height: 38px; object-fit: cover; background: #dfe5f4 center / cover no-repeat; border-radius: 5px; }
 .pm-case-thumb { display: block; width: 50px; height: 38px; object-fit: cover; border-radius: 5px; }
 .pm-copilot-projects strong,
 .pm-copilot-projects small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
