@@ -6,8 +6,9 @@ Loot Drop MySQL 只是抓取源，不是 OPC 的业务数据库。`apps/lootdrop
 
 1. 在 Loot Drop crawler 中完成 `crawl --full` 或 `crawl --incremental`。
 2. 执行导入器。每次导入会对 `startups`、`rebuild_plans`、`ideas` 和其他数据集做幂等 upsert；源库已经删除的记录也会从镜像表删除。
-3. `startups` 同步为项目超市真实案例库的只读投影，原始事实仍以 `lootdrop_startups` 为准。
-4. 翻译器只读取 `lootdrop_translations` 中 pending 的记录。源 hash 变化时状态自动回到 pending，中文结果写入独立 JSON，不覆盖英文原文。
+3. `startups` 同步为项目超市真实案例库的只读投影；`rebuild_plans` 同步为机会探索的只读投影。原始事实仍分别以 `lootdrop_startups` 和 `lootdrop_rebuild_plans` 为准。
+4. 机会投影使用稳定的 `lootdrop-rebuild-<source_id>` 标识。源记录被删除后对应机会自动下线而不删除，避免破坏用户已有的收藏和对比记录。
+5. 翻译器只读取 `lootdrop_translations` 中 pending 的记录。源 hash 变化时状态自动回到 pending，中文结果写入独立 JSON，不覆盖英文原文；重建方案翻译完成后会同步刷新对应机会。
 
 ## 本地命令
 

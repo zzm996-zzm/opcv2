@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -225,6 +226,7 @@ func translateBatch(ctx context.Context, db *pgxpool.Pool, provider ai.Provider,
 		}
 	}
 	completed := 0
+	projectOpportunityIDs := make([]int64, 0, len(items))
 	for _, source := range items {
 		item, ok := byKey[source.dataset+"\x00"+source.recordKey]
 		if !ok {
@@ -249,6 +251,16 @@ func translateBatch(ctx context.Context, db *pgxpool.Pool, provider ai.Provider,
 			if source.dataset == "startup" {
 				_ = updateProjectedCase(ctx, db, source.recordKey, item.Payload)
 			}
+			if source.dataset == "rebuild_plan" {
+				if sourceID, parseErr := strconv.ParseInt(source.recordKey, 10, 64); parseErr == nil && sourceID > 0 {
+					projectOpportunityIDs = append(projectOpportunityIDs, sourceID)
+				}
+			}
+		}
+	}
+	if len(projectOpportunityIDs) > 0 {
+		if _, err := db.Exec(ctx, `SELECT refresh_lootdrop_project_opportunities($1)`, projectOpportunityIDs); err != nil {
+			return completed, fmt.Errorf("refresh translated project opportunities: %w", err)
 		}
 	}
 	return completed, nil
@@ -257,7 +269,7 @@ func translateBatch(ctx context.Context, db *pgxpool.Pool, provider ai.Provider,
 func translatablePayload(dataset string, payload map[string]any) map[string]any {
 	fields := map[string][]string{
 		"startup":      {"name", "description", "sector", "country", "cause_of_death", "primary_cause_of_death", "market_analysis", "product_type", "condensed_value_prop", "condensed_cause_of_death"},
-		"rebuild_plan": {"name", "sector", "product_type", "country", "primary_cause_of_death", "market_potential"},
+		"rebuild_plan": {"name", "sector", "product_type", "country", "primary_cause_of_death", "market_potential", "pivot_idea", "the_loot"},
 		"idea":         {"title", "description", "model", "effort", "speed", "category", "tags", "persona"},
 	}
 	selected := make(map[string]any)

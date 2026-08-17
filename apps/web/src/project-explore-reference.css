@@ -45,8 +45,15 @@
 .project-market-shell .pm-layout-explore .pm-direction-strip button:nth-child(5) i { background-image: url("/project-market/home-badge-5.jpg"); }
 .project-market-shell .pm-layout-explore .pm-direction-strip button:nth-child(6) i { background-image: url("/project-market/opportunity-01.jpg"); }
 
-.project-market-shell .pm-layout-explore .pm-explore-card {
+.project-market-shell .pm-layout-explore .pm-explore-card.has-media {
   grid-template-rows: 74px 15px 12px 46px;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-card.no-media {
+  grid-template-rows: 15px minmax(0, 1fr) 46px;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-card {
   transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 

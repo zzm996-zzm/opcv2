@@ -314,6 +314,7 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("button", { name: "高潜力机会" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "查看机会" })).toHaveAttribute("href", "/projects/ai-sales-consulting");
+    expect(screen.getByText("案例重建").closest("article")?.querySelector("img")).toBeNull();
     expect(screen.getByRole("navigation", { name: "项目机会分页" })).toBeInTheDocument();
   });
 

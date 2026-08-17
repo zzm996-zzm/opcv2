@@ -975,9 +975,9 @@
   display: grid;
   height: 168px;
   min-height: 168px;
-  grid-template-rows: 74px auto auto minmax(0, 1fr);
-  gap: 3px;
-  padding: 0 8px 7px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 34px 10px 9px;
   overflow: hidden;
   background: #fff;
   border: 1px solid rgba(35, 61, 146, 0.08);
@@ -985,22 +985,21 @@
   box-shadow: 0 8px 22px rgba(42, 62, 108, 0.055);
 }
 
+.project-market-shell .pm-explore-card.has-media {
+  grid-template-rows: 74px auto auto minmax(0, 1fr);
+  gap: 3px;
+  padding: 0 8px 7px;
+}
+
 .project-market-shell .pm-explore-card .pm-thumb {
+  display: block;
+  width: calc(100% + 16px);
   height: 74px;
   min-height: 74px;
   margin: 0 -8px;
+  object-fit: cover;
   border-radius: 7px 7px 0 0;
-  background: #dce4f5 center / cover no-repeat;
 }
-
-.pm-explore-card:nth-child(1) .pm-thumb { background-image: url("/project-market/opportunity-01.jpg"); }
-.pm-explore-card:nth-child(2) .pm-thumb { background-image: url("/project-market/opportunity-02.jpg"); }
-.pm-explore-card:nth-child(3) .pm-thumb { background-image: url("/project-market/opportunity-03.jpg"); }
-.pm-explore-card:nth-child(4) .pm-thumb { background-image: url("/project-market/opportunity-04.jpg"); }
-.pm-explore-card:nth-child(5) .pm-thumb { background-image: url("/project-market/opportunity-05.jpg"), url("/project-market/opportunity-01.jpg"); }
-.pm-explore-card:nth-child(6) .pm-thumb { background-image: url("/project-market/opportunity-06.jpg"), url("/project-market/opportunity-02.jpg"); }
-.pm-explore-card:nth-child(7) .pm-thumb { background-image: url("/project-market/opportunity-07.jpg"), url("/project-market/opportunity-03.jpg"); }
-.pm-explore-card:nth-child(8) .pm-thumb { background-image: url("/project-market/opportunity-08.jpg"), url("/project-market/opportunity-04.jpg"); }
 
 .pm-explore-card > span {
   position: absolute;
@@ -1033,6 +1032,14 @@
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pm-explore-card.no-media > p {
+  display: -webkit-box;
+  line-height: 1.55;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .pm-explore-card footer {

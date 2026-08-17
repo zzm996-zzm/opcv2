@@ -787,7 +787,7 @@ function OpportunityExplore() {
       <section className="pm-catalog-hero explore">
         <div className="pm-catalog-hero-copy">
           <h1>机会探索</h1>
-          <p>浏览真实案例、赛道数据和增长路径，发现最适合你的项目机会</p>
+          <p>从已收录的真实失败案例中提炼重建方向，持续同步最新方案与复盘数据</p>
           <form aria-busy={loading} className="pm-catalog-search" onSubmit={handleSearch}>
             <span aria-hidden="true">⌕</span>
             <input aria-label="搜索机会赛道" onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目名称、行业、关键词或痛点" value={query} />
@@ -799,13 +799,13 @@ function OpportunityExplore() {
           </div>
         </div>
         <div className="pm-catalog-hero-art" aria-hidden="true" />
-        <aside className="pm-hero-advice" aria-label="AI 智能筛选建议">
-          <strong><span aria-hidden="true">✦</span> AI 智能筛选建议</strong>
-          <small>根据当前目录推荐</small>
+        <aside className="pm-hero-advice" aria-label="目录数据概览">
+          <strong><span aria-hidden="true">✦</span> 目录数据概览</strong>
+          <small>根据当前筛选结果</small>
           <ul>
-            <li>偏好：一人公司、低预算启动</li>
-            <li>优势：内容创作、AI工具应用</li>
-            <li>关注：可复制、长期增长</li>
+            <li>已收录：{total} 个案例重建方向</li>
+            <li>当前页：{items.length} 个可浏览项目</li>
+            <li>缺失预算统一标记为待补充</li>
           </ul>
           <Link to="/projects/match">查看完整画像分析 →</Link>
         </aside>
@@ -842,8 +842,9 @@ function OpportunityExplore() {
         {!loading && error ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
         {!loading && !error && items.length === 0 ? <div className="module-empty-state" role="status">{effectiveKeyword ? `未找到“${effectiveKeyword}”相关的已发布项目机会` : "暂无符合条件的已发布项目机会"}</div> : null}
         {!loading && !error && items.map((item) => (
-          <article className={`pm-explore-card pm-project-${item.slug}`} key={item.id}>
-            <div className="pm-thumb" />
+          <article className={`pm-explore-card ${item.cover_url ? "has-media" : "no-media"} pm-project-${item.slug}`} key={item.id}>
+            {item.cover_url ? <img alt="" className="pm-thumb" loading="lazy" src={item.cover_url} /> : null}
+            <span>案例重建</span>
             <h2>{item.title}</h2>
             <p>{item.summary}</p>
             <footer>
@@ -2587,12 +2588,12 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   } else if (variant === "explore") {
     const copilotOpportunities = opportunities.slice(0, 4);
     conversation = <>
-      <div className="pm-copilot-bubble user"><b>我</b><p>我想找适合一个人公司、预算有限的项目机会，有什么推荐？</p></div>
-      <div className="pm-copilot-bubble assistant"><b>AI</b><p><strong>智活 Copilot</strong>为你筛选出以下几个方向，综合考虑启动成本、可复制性和变现潜力：</p></div>
+      <div className="pm-copilot-bubble user"><b>我</b><p>这批机会的数据依据是什么？</p></div>
+      <div className="pm-copilot-bubble assistant"><b>AI</b><p>以下方向来自已收录失败案例的重建方案。列表只展示已有字段，未提供的预算会明确标记为待补充。</p></div>
       <div className="pm-copilot-explore-list">
-        {copilotOpportunities.length > 0 ? copilotOpportunities.map((item) => <Link key={item.id} to={`/projects/${item.slug}`}><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ")} · {item.budget_band}</small></Link>) : <span>当前目录暂无可推荐项目</span>}
+        {copilotOpportunities.length > 0 ? copilotOpportunities.map((item) => <Link key={item.id} to={`/projects/${item.slug}`}><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ")} · {item.budget_band || "预算待补充"}</small></Link>) : <span>当前目录暂无可浏览项目</span>}
       </div>
-      <p className="pm-copilot-question">想查看更多项目拆解和匹配度分析吗？</p>
+      <p className="pm-copilot-question">可以继续按行业、难度和资源要求筛选。</p>
       <Link className="pm-copilot-cta" to="/projects/match">去 AI 匹配 →</Link>
     </>;
   } else if (variant === "cases") {
