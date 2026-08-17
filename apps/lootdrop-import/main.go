@@ -102,6 +102,9 @@ func importAll(ctx context.Context, source *sql.DB, target *pgxpool.Pool) error 
 	if _, err := tx.Exec(ctx, `SELECT normalize_lootdrop_project_opportunities()`); err != nil {
 		return fmt.Errorf("normalize project opportunity catalog: %w", err)
 	}
+	if _, err := tx.Exec(ctx, `SELECT index_lootdrop_project_search_content()`); err != nil {
+		return fmt.Errorf("index project opportunity search content: %w", err)
+	}
 	if err := syncProjectCaseProjection(ctx, source, tx); err != nil {
 		return fmt.Errorf("sync project case projection: %w", err)
 	}
