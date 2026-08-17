@@ -49,7 +49,7 @@ function SandboxQuestionsView({ onAnswer, onFinished, run }: Props) {
   if (!current) return <SandboxFrame copilotMode="questions"><SandboxStepper active={2} /><section className="sb-empty-panel"><Sparkles size={28} /><h1>信息已经整理完成</h1><p>当前没有待回答的澄清问题，可以继续选择角色。</p><button onClick={() => onFinished(run)} type="button">继续<ArrowRight size={17} /></button></section></SandboxFrame>;
 
   return <SandboxFrame copilotMode="questions" copilotProgress={run.completeness * 100} copilotProject={run.product.name}>
-    <SandboxStepper active={2} />
+    <SandboxStepper active={2} smart={isSmartCompletion} />
     <section className={`sb-work-panel sb-question-panel${isSmartCompletion ? " is-smart-completion" : ""}`}>
       <header className="sb-panel-header">
         <div className="sb-heading-with-icon"><span>{isSmartCompletion ? <Check size={18} strokeWidth={2.8} /> : <Sparkles size={18} />}</span><div><h1>{isSmartCompletion ? "推演发起配置" : "补充关键信息"}</h1><small>{isSmartCompletion ? "AI 动态提问中" : "每轮最多 3 个问题，回答会自动保存"}</small></div></div>

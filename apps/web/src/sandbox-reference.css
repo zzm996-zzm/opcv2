@@ -142,6 +142,10 @@
   border-radius: 8px;
 }
 
+.sb-stepper.is-smart {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .sb-stepper li {
   position: relative;
   display: flex;
