@@ -922,6 +922,8 @@ function CaseLibrary() {
   const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pageSize = 12;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const previousPageRef = useRef(page);
+  const [caseGridDirection, setCaseGridDirection] = useState<"forward" | "backward" | null>(null);
 
   const updateCaseParams = useCallback((updates: Record<string, string>) => {
     const next = new URLSearchParams(searchParams);
@@ -934,6 +936,9 @@ function CaseLibrary() {
 
   useEffect(() => {
     let active = true;
+    const transitionDirection = page > previousPageRef.current ? "forward" : page < previousPageRef.current ? "backward" : null;
+    previousPageRef.current = page;
+    if (transitionDirection) setCaseGridDirection(transitionDirection);
     setLoading(true);
     projectsApi.listEvidenceCases({
       caseType: caseType || undefined,
@@ -1022,12 +1027,12 @@ function CaseLibrary() {
 
       <section className="pm-case-featured">
         <header><h2><Flame aria-hidden="true" size={17} />精选案例</h2></header>
-        <div className="pm-case-grid" data-testid="featured-case-grid">
-          {loading ? <div className="module-empty-state" role="status">正在读取证据案例…</div> : null}
+        <div aria-busy={loading} className={`pm-case-grid ${loading && cases.length > 0 ? "is-switching" : ""} ${caseGridDirection ? `is-entering-${caseGridDirection}` : ""}`} data-testid="featured-case-grid">
+          {loading && cases.length === 0 ? <div className="module-empty-state" role="status">正在读取证据案例…</div> : null}
           {error ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
           {!loading && !error && visibleCases.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布案例</div> : null}
-          {visibleCases.slice(0, 4).map((item) => (
-            <article className={`pm-case-card ${item.cover_url ? "has-cover" : "no-cover"} ${item.type === "success" ? "is-success" : "is-failure"}`} key={item.id}>
+          {visibleCases.slice(0, 4).map((item, index) => (
+            <article className={`pm-case-card ${item.cover_url ? "has-cover" : "no-cover"} ${item.type === "success" ? "is-success" : "is-failure"}`} key={`${page}-${item.id}`} style={{ "--case-card-index": index } as CSSProperties}>
               {item.cover_url ? <img alt="" className="pm-thumb" loading="lazy" src={item.cover_url} /> : null}
               <div className="pm-case-card-content">
                 <h3>{item.title}</h3>
@@ -1042,7 +1047,7 @@ function CaseLibrary() {
               </footer>
             </article>
           ))}
-          {!loading && !error && page < pageCount ? <button aria-label="下一批案例" className="pm-case-carousel-next" onClick={() => updateCaseParams({ page: String(page + 1) })} type="button"><ChevronRight aria-hidden="true" size={18} /></button> : null}
+          {!error && page < pageCount ? <button aria-label="下一批案例" className="pm-case-carousel-next" disabled={loading} onClick={() => updateCaseParams({ page: String(page + 1) })} type="button"><ChevronRight aria-hidden="true" size={18} /></button> : null}
         </div>
       </section>
 

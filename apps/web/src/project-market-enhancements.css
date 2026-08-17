@@ -2882,5 +2882,5 @@
 @media (prefers-reduced-motion: reduce) {
   .project-market-shell .project-market-page *,
   .project-market-shell .project-market-page *::before,
-  .project-market-shell .project-market-page *::after { scroll-behavior: auto; transition: none !important; }
+  .project-market-shell .project-market-page *::after { scroll-behavior: auto; animation: none !important; transition: none !important; }
 }

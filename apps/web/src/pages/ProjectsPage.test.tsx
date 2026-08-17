@@ -480,6 +480,38 @@ describe("ProjectsPage", () => {
     expect(screen.getByTestId("featured-case-grid").querySelectorAll("article")).toHaveLength(1);
   });
 
+  it("animates between featured case batches without replacing the grid with a loader", async () => {
+    let resolveSecondPage: ((response: Response) => void) | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/project-cases?page=2&page_size=12") {
+        return new Promise<Response>((resolve) => { resolveSecondPage = resolve; });
+      }
+      return Promise.resolve(new Response(JSON.stringify({ items: [{
+        id: 81, title: "第一批案例", result_summary: "第一批案例摘要", type: "success",
+        primary_source_url: "https://example.com/first", source_count: 1
+      }], page: 1, page_size: 12, total: 24 }), { status: 200 }));
+    });
+    renderProjectRoute("/project-cases");
+
+    expect(await screen.findByRole("heading", { name: "第一批案例" })).toBeInTheDocument();
+    const grid = screen.getByTestId("featured-case-grid");
+    fireEvent.click(screen.getByRole("button", { name: "下一批案例" }));
+
+    await waitFor(() => expect(grid).toHaveClass("is-switching", "is-entering-forward"));
+    expect(screen.getByRole("heading", { name: "第一批案例" })).toBeInTheDocument();
+    expect(screen.queryByText("正在读取证据案例…")).not.toBeInTheDocument();
+
+    resolveSecondPage?.(new Response(JSON.stringify({ items: [{
+      id: 93, title: "第二批案例", result_summary: "第二批案例摘要", type: "fail",
+      primary_source_url: "https://example.com/second", source_count: 1
+    }], page: 2, page_size: 12, total: 24 }), { status: 200 }));
+
+    expect(await screen.findByRole("heading", { name: "第二批案例" })).toBeInTheDocument();
+    await waitFor(() => expect(grid).not.toHaveClass("is-switching"));
+    expect(grid).toHaveClass("is-entering-forward");
+  });
+
   it("renders the case library at its public entry route", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
       items: [], page: 1, page_size: 12, total: 0
