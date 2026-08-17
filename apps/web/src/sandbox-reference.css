@@ -800,7 +800,8 @@ button.sb-role-card {
 
 .sb-panel-header > button,
 .sb-quiet-button,
-.sb-export-button {
+.sb-export-button,
+.sb-restart-link {
   display: inline-flex;
   min-height: 36px;
   align-items: center;
@@ -815,6 +816,28 @@ button.sb-role-card {
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.sb-restart-link {
+  flex: 0 0 auto;
+}
+
+.sb-question-panel.is-smart-completion .sb-heading-with-icon > span {
+  color: #4c40e9;
+  background: #f2f0ff;
+  border: 1px solid rgba(76, 64, 233, 0.16);
+  box-shadow: none;
+}
+
+.sb-question-panel.is-smart-completion .sb-heading-with-icon small {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  margin-top: 5px;
+  padding: 0 10px;
+  color: #513fe1;
+  background: #f0edff;
+  border-radius: 12px;
 }
 
 .sb-panel-intro {
@@ -846,6 +869,51 @@ button.sb-role-card {
   color: #505887;
   font-size: 13px;
   line-height: 1.65;
+}
+
+.sb-initial-idea-card > a {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 13px;
+  color: #443acb;
+  background: #fff;
+  border: 1px solid var(--sb-line);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sb-question-panel.is-smart-completion .sb-initial-idea-card {
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+}
+
+.sb-recognized-facts {
+  margin-top: 16px;
+}
+
+.sb-recognized-facts > h2 {
+  margin: 0;
+  color: #202467;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 800;
+}
+
+.sb-question-panel.is-smart-completion .sb-recognized-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 9px;
+}
+
+.sb-recognized-grid article.is-pending > span {
+  color: #858daa;
+  background: #eef0f6;
+}
+
+.sb-recognized-grid article.is-pending strong {
+  color: #8a91ab;
 }
 
 .sb-recognized-grid {
@@ -2622,8 +2690,11 @@ button.sb-role-card {
   .sb-work-panel { padding: 20px 16px; }
   .sb-panel-header { align-items: flex-start; }
   .sb-panel-header > button,
-  .sb-quiet-button { padding-inline: 9px; }
+  .sb-quiet-button,
+  .sb-restart-link { padding-inline: 9px; }
   .sb-initial-idea-card { grid-template-columns: 1fr; }
+  .sb-question-panel.is-smart-completion .sb-initial-idea-card { grid-template-columns: 1fr; }
+  .sb-question-panel.is-smart-completion .sb-recognized-grid { grid-template-columns: 1fr; }
   .sb-recognized-grid,
   .sb-summary-question-grid,
   .sb-role-select-grid,

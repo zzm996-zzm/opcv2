@@ -41,6 +41,19 @@ describe("SandboxPage V1.2 flow", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/sandbox-runs", expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "企业 AI 运营平台", product: { name: "企业 AI 运营平台" }, context: { extra: "企业 AI 运营平台" } }) }));
   });
 
+  it("shows AI smart completion without exposing internal field paths", async () => {
+    signIn();
+    const initial = fixture({ context: { target_customer: "连锁门店", channel: "行业伙伴", extra: "我想做一款帮助连锁门店自动运营的 AI 平台" } });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => String(input) === "/api/v1/sandbox-runs/42" && init?.method === "GET" ? response(initial) : Promise.reject(new Error(`unexpected ${String(input)}`)));
+    render(<MemoryRouter initialEntries={["/sandbox/new?run=42&step=2"]}><App /></MemoryRouter>);
+
+    expect(await screen.findByRole("heading", { name: "推演发起配置" })).toBeInTheDocument();
+    expect(screen.getByText("AI 动态提问中")).toBeInTheDocument();
+    expect(screen.getByText("AI 已识别到的关键信息")).toBeInTheDocument();
+    expect(screen.getByText("连锁门店")).toBeInTheDocument();
+    expect(screen.queryByText("product.selling_point")).not.toBeInTheDocument();
+  });
+
   it("answers clarification using revision and advances to all eight roles", async () => {
     signIn(); const initial = fixture(); const ready = fixture({ status: "ready", revision: 2, completeness: 0.8, done: true, next_questions: [] });
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => { const url = String(input); if (url === "/api/v1/sandbox-runs/42" && init?.method === "GET") return response(initial); if (url === "/api/v1/sandbox-runs/42/answer") return response(ready); if (url === "/api/v1/sandbox-runs/roles") return response({ roles }); return Promise.reject(new Error(`unexpected ${url}`)); });
