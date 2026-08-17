@@ -186,11 +186,16 @@ func TestPostgresRepositorySearchesOpportunityKeywordFields(t *testing.T) {
 		FROM project_opportunities
 		WHERE status = 'published'
 		  AND ($1 = '' OR industry = $1)
-		  AND ($2 = '' OR project_catalog_keyword_matches(CONCAT_WS(' ',
-		       title, summary, industry, tags::TEXT, resource_requirements::TEXT,
-		       sections::TEXT, COALESCE(detail -> 'search_terms', '[]'::JSONB)::TEXT,
-		       COALESCE(detail ->> 'search_content', '')
-		  ), $2))
+		  AND ($2 = '' OR CASE
+		       WHEN $2 ~ '^[A-Za-z0-9 _.-]+$' THEN
+		         project_catalog_keyword_matches(COALESCE(detail -> 'search_terms', '[]'::JSONB)::TEXT, $2)
+		         OR to_tsvector('simple', CONCAT_WS(' ', title, summary, industry, tags::TEXT,
+		              resource_requirements::TEXT, sections::TEXT, COALESCE(detail ->> 'search_content', '')))
+		            @@ plainto_tsquery('simple', $2)
+		       ELSE CONCAT_WS(' ', title, summary, industry, tags::TEXT, resource_requirements::TEXT,
+		              sections::TEXT, COALESCE(detail -> 'search_terms', '[]'::JSONB)::TEXT,
+		              COALESCE(detail ->> 'search_content', '')) ILIKE '%' || $2 || '%'
+		     END)
 		ORDER BY sort_order ASC, published_at DESC, id ASC
 		LIMIT $3
 	`)).

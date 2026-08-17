@@ -1,0 +1,1 @@
+-- The previous search-content scope remains valid when this migration is rolled back.
