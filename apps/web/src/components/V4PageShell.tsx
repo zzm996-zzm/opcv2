@@ -106,6 +106,12 @@ function V4PageShell({ accountSlot, children, className = "", mainClassName = ""
     // Profile, billing and utility routes are still part of the workbench.
     return !topNav.some((item) => item.href !== "/" && (location.pathname === item.href || location.pathname.startsWith(`${item.href}/`)));
   };
+  const isSidebarActive = (href: string) => {
+    if (href === "/projects") {
+      return location.pathname.startsWith("/projects") || location.pathname.startsWith("/project-cases");
+    }
+    return location.pathname.startsWith(href);
+  };
 
   async function logout() {
     try {
@@ -137,7 +143,7 @@ function V4PageShell({ accountSlot, children, className = "", mainClassName = ""
               {group.items.map((item) => (
                 <Link
                   key={item.href}
-                  className={`v4-side-link ${location.pathname.startsWith(item.href) ? "active" : ""}`}
+                  className={`v4-side-link ${isSidebarActive(item.href) ? "active" : ""}`}
                   to={item.href}
                 >
                   <SidebarIcon name={item.icon} />

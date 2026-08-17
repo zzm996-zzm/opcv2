@@ -892,7 +892,8 @@ function caseScaleLabel(value?: string) {
 
 function caseSourceLabel(value: string) {
   try {
-    return new URL(value).hostname.replace(/^www\./u, "");
+    const hostname = new URL(value).hostname.replace(/^www\./u, "");
+    return hostname.includes("loot-drop") ? "公开资料" : hostname;
   } catch {
     return "公开来源";
   }
@@ -1031,7 +1032,7 @@ function CaseLibrary() {
               <div className="pm-case-card-content">
                 <h3>{item.title}</h3>
                 <p className="pm-case-summary">{item.result_summary}</p>
-                <div className="pm-mini-tags"><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span>{item.industry ? <span>{item.industry}</span> : null}<span>{caseScaleLabel(item.scale)}</span></div>
+                <div className="pm-mini-tags"><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span>{item.industry ? <span>{item.industry}</span> : null}{item.scale ? <span>{caseScaleLabel(item.scale)}</span> : null}</div>
                 <small className="pm-case-source-line">来源：{caseSourceLabel(item.primary_source_url)} · {casePublishedLabel(item.published_at)}</small>
               </div>
               <footer>
@@ -1052,7 +1053,7 @@ function CaseLibrary() {
         </article>
         <article className="failure">
           <header><h2><TriangleAlert aria-hidden="true" size={16} />失败教训</h2><Link to="/project-cases?type=failure">查看全部 <ArrowRight aria-hidden="true" size={11} /></Link></header>
-          {visibleCases.filter((item) => item.type === "fail").length === 0 ? <div className="module-empty-state">暂无失败教训</div> : <div className="pm-failure-lessons">{visibleCases.filter((item) => item.type === "fail").slice(0, 3).map((item) => <Link key={item.id} to={`/project-cases/${item.id}`}><strong>{caseSummaryPreview(item.result_summary, 42)}</strong><div className="pm-mini-tags"><span>{item.industry || "商业复盘"}</span><span>{caseScaleLabel(item.scale)}</span></div><small>来源：{caseSourceLabel(item.primary_source_url)} · {casePublishedLabel(item.published_at)}</small><b>查看案例 <ArrowRight aria-hidden="true" size={10} /></b></Link>)}</div>}
+          {visibleCases.filter((item) => item.type === "fail").length === 0 ? <div className="module-empty-state">暂无失败教训</div> : <div className="pm-failure-lessons">{visibleCases.filter((item) => item.type === "fail").slice(0, 3).map((item) => <Link key={item.id} to={`/project-cases/${item.id}`}><strong>{caseSummaryPreview(item.result_summary, 42)}</strong><div className="pm-mini-tags"><span>失败复盘</span>{item.industry ? <span>{item.industry}</span> : null}</div><small>来源：{caseSourceLabel(item.primary_source_url)} · {casePublishedLabel(item.published_at)}</small><b>查看案例 <ArrowRight aria-hidden="true" size={10} /></b></Link>)}</div>}
         </article>
       </section>
       {!loading && !error && cases.length > 0 ? <nav className="pm-pagination" aria-label="案例分页">
@@ -2508,6 +2509,11 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   const [sessions, setSessions] = useState<ProjectMatchSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ProjectMatchSession | null>(null);
   const [contextOpportunity, setContextOpportunity] = useState<ProjectOpportunity | null>(null);
+  const openCopilotPanel = copilotPanel.openPanel;
+
+  useEffect(() => {
+    if (variant === "cases") openCopilotPanel();
+  }, [openCopilotPanel, variant]);
 
   useEffect(() => {
     let active = true;

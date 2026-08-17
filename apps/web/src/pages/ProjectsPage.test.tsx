@@ -460,11 +460,13 @@ describe("ProjectsPage", () => {
   it("renders real case library from API evidence", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ items: [{
       id: 81, title: "AI销售试点", result_summary: "完成首轮流程验证", industry: "企业服务", scale: "solo",
-      type: "success", primary_source_url: "https://example.com/case", source_count: 2, published_at: "2026-07-01T08:00:00Z"
+      type: "success", primary_source_url: "https://www.loot-drop.io/database-view?id=81", source_count: 2, published_at: "2026-07-01T08:00:00Z"
     }], page: 1, page_size: 12, total: 1 }), { status: 200 }));
     renderProjectRoute("/projects/cases");
 
     expect(screen.getByRole("heading", { name: "真实案例库" })).toBeInTheDocument();
+    expect(within(screen.getByRole("complementary", { name: "产品侧边导航" })).getByRole("link", { name: "项目超市" })).toHaveClass("active");
+    expect(screen.getByRole("complementary", { name: "智活 Copilot" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "成功案例" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "赛道样本" })).toHaveAttribute("href", "/projects/explore");
     expect(screen.getByRole("combobox", { name: "案例商业模式" })).toBeInTheDocument();
@@ -472,7 +474,8 @@ describe("ProjectsPage", () => {
     const caseHeading = await screen.findByRole("heading", { name: "AI销售试点" });
     expect(caseHeading).toBeInTheDocument();
     expect(caseHeading.closest("article")?.querySelector("img")).toBeNull();
-    expect(screen.getByRole("link", { name: "原文来源" })).toHaveAttribute("href", "https://example.com/case");
+    expect(screen.getByRole("link", { name: "原文来源" })).toHaveAttribute("href", "https://www.loot-drop.io/database-view?id=81");
+    expect(screen.getByText(/来源：公开资料/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "可学要点" })).toBeInTheDocument();
     expect(screen.getByTestId("featured-case-grid").querySelectorAll("article")).toHaveLength(1);
   });
