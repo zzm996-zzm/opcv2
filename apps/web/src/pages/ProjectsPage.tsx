@@ -10,7 +10,7 @@ import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { membershipApi, type MembershipPlanOption } from "../lib/membershipApi";
 import { trackProjectEvent } from "../lib/projectAnalytics";
-import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectExport, type ProjectFavorite, type ProjectMatch, type ProjectMatchFile, type ProjectMatchSession, type ProjectMatchWorkflow, type ProjectOpportunity } from "../lib/projectsApi";
+import { projectsApi, type EvidenceCaseDetail, type EvidenceCaseItem, type ProjectCase, type ProjectCatalogFavorite, type ProjectContentBlock, type ProjectExport, type ProjectFavorite, type ProjectMatch, type ProjectMatchFile, type ProjectMatchSession, type ProjectMatchWorkflow, type ProjectOpportunity, type ProjectPage } from "../lib/projectsApi";
 import { tasksApi } from "../lib/tasksApi";
 
 type ProjectMarketVariant =
@@ -657,6 +657,11 @@ function OpportunityExplore() {
   const requestedPage = Number(searchParams.get("page") ?? "1");
   const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pageSize = 8;
+  const previousPageRef = useRef(page);
+  const previousReloadTokenRef = useRef(reloadToken);
+  const [gridDirection, setGridDirection] = useState<"forward" | "backward" | null>(null);
+  const pageCacheRef = useRef(new Map<string, ProjectPage>());
+  const pageRequestsRef = useRef(new Map<string, Promise<ProjectPage>>());
   const directions = ["高潜力机会", "低竞争蓝海", "小成本启动", "近期爆发", "一人公司", "可复制案例"];
   const directionKeyword: Record<string, string> = {
     "小成本启动": "低成本启动",
@@ -682,27 +687,62 @@ function OpportunityExplore() {
 
   useEffect(() => {
     const currentRequest = ++requestID.current;
-    setLoading(true);
-    projectsApi.listProjects({
-      keyword: effectiveKeyword || undefined,
-      track: track || undefined,
-      budget: budget || undefined,
-      difficulty: effectiveDifficulty || undefined,
-      resource: resource || undefined,
+    const transitionDirection = page > previousPageRef.current ? "forward" : page < previousPageRef.current ? "backward" : null;
+    previousPageRef.current = page;
+    if (transitionDirection) setGridDirection(transitionDirection);
+    const cacheKeyForPage = (targetPage: number) => JSON.stringify({
+      keyword: effectiveKeyword,
+      track,
+      budget,
+      difficulty: effectiveDifficulty,
+      resource,
       sort: effectiveSort,
-      page,
+      page: targetPage,
       pageSize
-    }).then((payload) => {
+    });
+    const requestPage = (targetPage: number) => {
+      const cacheKey = cacheKeyForPage(targetPage);
+      const cachedPage = pageCacheRef.current.get(cacheKey);
+      if (cachedPage) return Promise.resolve(cachedPage);
+      const pendingRequest = pageRequestsRef.current.get(cacheKey);
+      if (pendingRequest) return pendingRequest;
+      const request = projectsApi.listProjects({
+        keyword: effectiveKeyword || undefined,
+        track: track || undefined,
+        budget: budget || undefined,
+        difficulty: effectiveDifficulty || undefined,
+        resource: resource || undefined,
+        sort: effectiveSort,
+        page: targetPage,
+        pageSize
+      });
+      pageRequestsRef.current.set(cacheKey, request);
+      void request.then((payload) => {
+        pageCacheRef.current.set(cacheKey, payload);
+      }, () => undefined).finally(() => {
+        if (pageRequestsRef.current.get(cacheKey) === request) pageRequestsRef.current.delete(cacheKey);
+      });
+      return request;
+    };
+    const forceReload = reloadToken !== previousReloadTokenRef.current;
+    previousReloadTokenRef.current = reloadToken;
+    const currentCacheKey = cacheKeyForPage(page);
+    if (forceReload) {
+      pageCacheRef.current.delete(currentCacheKey);
+      pageRequestsRef.current.delete(currentCacheKey);
+    }
+    setLoading(true);
+    setError("");
+    requestPage(page).then((payload) => {
       if (currentRequest !== requestID.current) return;
       setItems(payload.items ?? []);
       setTotal(Number.isFinite(payload.total) ? payload.total : 0);
-      setError("");
       trackProjectEvent("project_explore_view", { group: activeDirection, query: effectiveKeyword }, "explore_catalog");
       if (effectiveKeyword) trackProjectEvent("project_search", { keyword: effectiveKeyword, result_count: payload.total ?? 0 }, "explore_catalog");
+      const nextPageCount = Math.max(1, Math.ceil((Number.isFinite(payload.total) ? payload.total : 0) / pageSize));
+      if (page < nextPageCount) void requestPage(page + 1).catch(() => undefined);
     }).catch((loadError) => {
       if (currentRequest !== requestID.current) return;
-      setItems([]);
-      setTotal(0);
       setError(apiErrorMessage(loadError, "暂时无法读取项目机会"));
     }).finally(() => {
       if (currentRequest === requestID.current) setLoading(false);
@@ -791,7 +831,7 @@ function OpportunityExplore() {
           <form aria-busy={loading} className="pm-catalog-search" onSubmit={handleSearch}>
             <span aria-hidden="true">⌕</span>
             <input aria-label="搜索机会赛道" onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目名称、行业、关键词或痛点" value={query} />
-            <button aria-label="搜索机会" disabled={loading} type="submit"><span aria-hidden="true">{loading ? "…" : "⌕"}</span></button>
+            <button aria-label="搜索机会" type="submit"><span aria-hidden="true">⌕</span></button>
           </form>
           <small>AI 智能推荐词</small>
           <div className="pm-hero-chip-row" aria-label="AI 智能推荐词">
@@ -836,13 +876,15 @@ function OpportunityExplore() {
         </div>
       </section>
 
-      <section aria-busy={loading} className="pm-explore-grid" aria-label="项目机会列表">
+      <section aria-busy={loading} className={`pm-explore-grid ${loading && items.length > 0 ? "is-switching" : ""} ${gridDirection ? `is-entering-${gridDirection}` : ""}`} aria-label="项目机会列表" data-testid="opportunity-grid">
         {collectionError ? <p className="form-error pm-collection-error" role="alert">{collectionError}</p> : null}
-        {loading ? <div className="module-empty-state" role="status">正在搜索项目机会…</div> : null}
-        {!loading && error ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
+        {loading && items.length === 0 ? <div className="pm-explore-initial-loading" role="status" aria-label="正在加载项目机会"><span aria-hidden="true" /></div> : null}
+        {loading && items.length > 0 ? <div className="pm-explore-transition" role="status" aria-label="正在更新项目机会"><span aria-hidden="true" /></div> : null}
+        {error && items.length === 0 ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
+        {error && items.length > 0 ? <div className="pm-explore-inline-error"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重试</button></div> : null}
         {!loading && !error && items.length === 0 ? <div className="module-empty-state" role="status">{effectiveKeyword ? `未找到“${effectiveKeyword}”相关的已发布项目机会` : "暂无符合条件的已发布项目机会"}</div> : null}
-        {!loading && !error && items.map((item) => (
-          <article className={`pm-explore-card ${item.cover_url ? "has-media" : "no-media"} pm-project-${item.slug}`} key={item.id}>
+        {items.map((item, index) => (
+          <article className={`pm-explore-card ${item.cover_url ? "has-media" : "no-media"} pm-project-${item.slug}`} key={item.id} style={{ "--project-card-index": index } as CSSProperties}>
             {item.cover_url ? <img alt="" className="pm-thumb" loading="lazy" src={item.cover_url} /> : null}
             <span>案例重建</span>
             <h2>{item.title}</h2>
@@ -861,11 +903,11 @@ function OpportunityExplore() {
         ))}
       </section>
 
-      {!loading && !error && items.length > 0 ? <nav className="pm-pagination" aria-label="项目机会分页">
-        <button aria-label="上一页" disabled={page === 1} onClick={() => updateParams({ page: String(Math.max(1, page - 1)) })} type="button">‹</button>
-        {Array.from({ length: Math.min(pageCount, 5) }, (_, index) => index + 1).map((item) => <button aria-current={page === item ? "page" : undefined} className={page === item ? "active" : ""} key={item} onClick={() => updateParams({ page: item === 1 ? "" : String(item) })} type="button">{item}</button>)}
+      {items.length > 0 ? <nav className="pm-pagination" aria-label="项目机会分页">
+        <button aria-label="上一页" disabled={loading || page === 1} onClick={() => updateParams({ page: String(Math.max(1, page - 1)) })} type="button">‹</button>
+        {Array.from({ length: Math.min(pageCount, 5) }, (_, index) => index + 1).map((item) => <button aria-current={page === item ? "page" : undefined} className={page === item ? "active" : ""} disabled={loading || page === item} key={item} onClick={() => updateParams({ page: item === 1 ? "" : String(item) })} type="button">{item}</button>)}
         {pageCount > 5 ? <span>… {pageCount}</span> : null}
-        <button aria-label="下一页" disabled={page >= pageCount} onClick={() => updateParams({ page: String(Math.min(pageCount, page + 1)) })} type="button">›</button>
+        <button aria-label="下一页" disabled={loading || page >= pageCount} onClick={() => updateParams({ page: String(Math.min(pageCount, page + 1)) })} type="button">›</button>
         <small>共 {total} 条</small>
       </nav> : null}
       {compareSlugs.length > 0 ? createPortal(

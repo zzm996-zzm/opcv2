@@ -63,6 +63,109 @@
   transform: translateY(-1px);
 }
 
+.project-market-shell .pm-layout-explore .pm-explore-grid {
+  position: relative;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-grid .pm-explore-card {
+  will-change: opacity, transform;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-grid.is-switching .pm-explore-card {
+  opacity: 0.38;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 180ms ease;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-grid.is-switching.is-entering-forward .pm-explore-card {
+  transform: translate3d(-12px, 0, 0);
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-grid.is-switching.is-entering-backward .pm-explore-card {
+  transform: translate3d(12px, 0, 0);
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-grid.is-entering-forward:not(.is-switching) .pm-explore-card {
+  animation: pm-project-card-enter-forward 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--project-card-index, 0) * 24ms);
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-grid.is-entering-backward:not(.is-switching) .pm-explore-card {
+  animation: pm-project-card-enter-backward 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--project-card-index, 0) * 24ms);
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-transition,
+.project-market-shell .pm-layout-explore .pm-explore-initial-loading {
+  display: grid;
+  min-height: 168px;
+  grid-column: 1 / -1;
+  place-items: center;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-transition {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  min-height: 0;
+  pointer-events: none;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-transition span,
+.project-market-shell .pm-layout-explore .pm-explore-initial-loading span {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(55, 79, 168, 0.14);
+  border-top-color: #4b55e8;
+  border-radius: 50%;
+  animation: pm-project-loader-spin 560ms linear infinite;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-inline-error {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-inline-error p {
+  margin: 0;
+}
+
+.project-market-shell .pm-layout-explore .pm-explore-inline-error button {
+  padding: 5px 10px;
+  color: #315bec;
+  background: #fff;
+  border: 1px solid #dfe5f4;
+  border-radius: 5px;
+  font-size: 8px;
+}
+
+@keyframes pm-project-card-enter-forward {
+  from { opacity: 0; transform: translate3d(18px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes pm-project-card-enter-backward {
+  from { opacity: 0; transform: translate3d(-18px, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes pm-project-loader-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-market-shell .pm-layout-explore .pm-explore-grid .pm-explore-card,
+  .project-market-shell .pm-layout-explore .pm-explore-transition span,
+  .project-market-shell .pm-layout-explore .pm-explore-initial-loading span {
+    animation: none;
+    transition: none;
+  }
+}
+
 .project-market-shell .pm-layout-explore .pm-reference-card-1 .pm-thumb { background-image: url("/project-market/result-ai-resume.jpg"); }
 .project-market-shell .pm-layout-explore .pm-reference-card-2 .pm-thumb { background-image: url("/project-market/result-excel-automation.jpg"); }
 .project-market-shell .pm-layout-explore .pm-reference-card-3 .pm-thumb { background-image: url("/project-market/result-ai-short-video.jpg"); }

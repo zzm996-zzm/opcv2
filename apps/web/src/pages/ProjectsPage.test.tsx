@@ -318,6 +318,46 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("navigation", { name: "项目机会分页" })).toBeInTheDocument();
   });
 
+  it("keeps opportunity cards visible while animating to the next page", async () => {
+    const firstPage = {
+      id: 41, slug: "first-opportunity", title: "第一页机会", summary: "第一页项目摘要", track: "企业服务",
+      tags: ["轻资产"], budget_band: "1万", difficulty: "中等", resource_requirements: []
+    };
+    const secondPage = {
+      id: 42, slug: "second-opportunity", title: "第二页机会", summary: "第二页项目摘要", track: "企业服务",
+      tags: ["可复制"], budget_band: "2万", difficulty: "中等", resource_requirements: []
+    };
+    let resolveSecondPage: ((response: Response) => void) | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes("/api/v1/projects?") && url.includes("page=2")) {
+        return new Promise<Response>((resolve) => { resolveSecondPage = resolve; });
+      }
+      if (url.includes("/api/v1/projects?")) {
+        return Promise.resolve(new Response(JSON.stringify({ items: [firstPage], page: 1, page_size: 8, total: 16 }), { status: 200 }));
+      }
+      if (url === "/api/v1/projects/project-favorites") return Promise.resolve(new Response(JSON.stringify({ favorites: [] }), { status: 200 }));
+      if (url === "/api/v1/projects/compare") return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+    renderProjectRoute("/projects/explore");
+
+    expect(await screen.findByRole("heading", { name: "第一页机会" })).toBeInTheDocument();
+    const grid = screen.getByTestId("opportunity-grid");
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+
+    await waitFor(() => expect(grid).toHaveClass("is-switching", "is-entering-forward"));
+    expect(screen.getByRole("heading", { name: "第一页机会" })).toBeInTheDocument();
+    expect(screen.queryByText("正在搜索项目机会…")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
+
+    resolveSecondPage?.(new Response(JSON.stringify({ items: [secondPage], page: 2, page_size: 8, total: 16 }), { status: 200 }));
+
+    expect(await screen.findByRole("heading", { name: "第二页机会" })).toBeInTheDocument();
+    await waitFor(() => expect(grid).not.toHaveClass("is-switching"));
+    expect(grid).toHaveClass("is-entering-forward");
+  });
+
   it("persists a favorite directly from a catalog card", async () => {
     const project = {
       id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", track: "企业服务",
