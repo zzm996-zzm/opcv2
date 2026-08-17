@@ -25,6 +25,7 @@ import "./profile-complete-reference.css";
 import "./profile-settings-reference.css";
 import "./profile-content-reference.css";
 import "./project-explore-reference.css";
+import "./project-cases-reference.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -1,0 +1,704 @@
+/* Case-library composition measured against the supplied 1672 x 941 reference. */
+
+.project-market-shell .pm-layout-cases {
+  grid-template-columns: minmax(0, 1fr) 312px;
+  gap: 22px;
+}
+
+.project-market-shell .pm-layout-cases .project-market-main {
+  gap: 12px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-library-hero {
+  height: 233px;
+  min-height: 233px;
+  margin-bottom: -12px;
+  background: linear-gradient(105deg, #fff 0%, #f7f8ff 54%, #edf2ff 100%);
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-hero-copy {
+  width: 720px;
+  padding: 20px 0 0 10px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 15px;
+  color: #677aa9;
+  font-size: 10px;
+  line-height: 1.4;
+  font-weight: 760;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-breadcrumb a,
+.project-market-shell .pm-layout-cases .pm-case-breadcrumb strong {
+  color: inherit;
+  font: inherit;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-library-hero h1 {
+  margin: 0;
+  color: #07155f;
+  font-size: 34px;
+  line-height: 1.08;
+  font-weight: 920;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-library-intro {
+  margin: 9px 0 0;
+  color: #5268a0;
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 730;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-hero-controls {
+  position: absolute;
+  z-index: 4;
+  bottom: 14px;
+  left: 10px;
+  gap: 10px;
+  margin: 0;
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-search.compact {
+  width: 320px;
+  min-height: 38px;
+  padding-left: 13px;
+  grid-template-columns: 24px minmax(0, 1fr) 38px;
+  border-color: #e7ebf5;
+  box-shadow: 0 8px 24px rgba(45, 67, 150, 0.07);
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-search.compact > svg {
+  color: #6174a6;
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-search.compact input {
+  font-size: 10px;
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-search.compact button {
+  width: 38px;
+  height: 38px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-tabs {
+  gap: 4px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-tabs button,
+.project-market-shell .pm-layout-cases .pm-case-tabs a {
+  display: grid;
+  min-width: 72px;
+  min-height: 38px;
+  padding: 0 11px;
+  color: #344b90;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(35, 61, 146, 0.08);
+  border-radius: 6px;
+  cursor: pointer;
+  place-items: center;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-tabs button.active {
+  color: #fff;
+  background: #4055f4;
+  border-color: #4055f4;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-library-hero .pm-catalog-hero-art {
+  top: 0;
+  right: 94px;
+  width: 520px;
+  height: 200px;
+  opacity: 1;
+  background-size: 520px 200px;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance {
+  top: 30px;
+  right: 14px;
+  width: 202px;
+  min-height: 168px;
+  gap: 8px;
+  padding: 13px 14px;
+  border-radius: 6px;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #233c8e;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance strong svg {
+  flex: 0 0 auto;
+  color: #315bec;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance ul {
+  gap: 5px;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #61709a;
+  font-size: 8px;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance li::before {
+  display: none;
+  content: none;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance li svg {
+  color: #315bec;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance > small {
+  margin-top: 2px;
+  padding-top: 9px;
+  font-size: 8px;
+}
+
+.project-market-shell .pm-layout-cases .pm-hero-assurance > small b {
+  font-size: 13px;
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(220px, 1.35fr);
+  min-height: 69px;
+  gap: 12px;
+  padding: 9px 14px;
+  border-radius: 7px;
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases label,
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases .pm-sort-control {
+  gap: 4px;
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases label > span,
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases .pm-sort-control > span {
+  font-size: 8px;
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases select,
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases .pm-sort-control > div {
+  min-height: 30px;
+}
+
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases select,
+.project-market-shell .pm-layout-cases .pm-catalog-filter.cases .pm-sort-control button {
+  font-size: 9px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-featured {
+  position: relative;
+  gap: 8px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-featured > header {
+  min-height: 28px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-featured > header h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-featured > header h2::before {
+  display: none;
+  content: none;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-featured > header svg {
+  color: #315bec;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-grid {
+  position: relative;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-grid > .module-empty-state {
+  grid-column: 1 / -1;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card {
+  height: 176px;
+  min-height: 176px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 7px;
+  box-shadow: 0 8px 22px rgba(42, 62, 108, 0.055);
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card.no-cover.is-success {
+  border-top: 2px solid #37b79b;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card.no-cover.is-failure {
+  border-top: 2px solid #e95b78;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card.has-cover {
+  height: 238px;
+  min-height: 238px;
+  grid-template-rows: 86px minmax(0, 1fr) auto;
+  padding: 0 12px 10px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card .pm-thumb {
+  width: calc(100% + 24px);
+  height: 86px;
+  min-height: 86px;
+  margin: 0 -12px;
+  object-fit: cover;
+  background: #eef1f7;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card-content {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 5px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card h3 {
+  margin: 0;
+  overflow: hidden;
+  color: #132660;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 880;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card .pm-case-summary {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: #5c68a2;
+  font-size: 9px;
+  line-height: 1.5;
+  font-weight: 650;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card .pm-mini-tags {
+  gap: 4px;
+  margin: 0;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card .pm-mini-tags span {
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 7px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card .pm-case-source-line {
+  display: block;
+  overflow: hidden;
+  color: #8994ae;
+  font-size: 7px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card footer a {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  color: #315bec;
+  background: transparent;
+  font-size: 8px;
+  line-height: 1.2;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-card footer a:last-child {
+  margin-left: auto;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-carousel-next {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  right: -14px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #315bec;
+  background: #fff;
+  border: 1px solid #e4e8f2;
+  border-radius: 50%;
+  box-shadow: 0 7px 18px rgba(42, 62, 108, 0.13);
+  cursor: pointer;
+  place-items: center;
+  transform: translateY(-50%);
+}
+
+.project-market-shell .pm-layout-cases .pm-case-learning-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-learning-grid > article {
+  display: grid;
+  min-height: 188px;
+  align-content: start;
+  gap: 0;
+  padding: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 2px solid #37b79b;
+  border-radius: 0;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-learning-grid > article.failure {
+  border-top-color: #e95b78;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-learning-grid header {
+  min-height: 32px;
+  padding-bottom: 7px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-learning-grid header h2,
+.project-market-shell .pm-layout-cases .pm-case-learning-grid header a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-learning-grid header h2 {
+  color: #168b78;
+  font-size: 14px;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-learning-grid .failure header h2 {
+  color: #c43d5c;
+}
+
+.project-market-shell .pm-layout-cases .pm-case-learning-grid header a {
+  color: #315bec;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.project-market-shell .pm-layout-cases .pm-learning-list,
+.project-market-shell .pm-layout-cases .pm-failure-lessons {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0;
+  border: 0;
+}
+
+.project-market-shell .pm-layout-cases .pm-learning-list > a {
+  display: grid;
+  min-height: 34px;
+  grid-template-columns: 24px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  color: inherit;
+  border-top: 1px solid #edf0f6;
+}
+
+.project-market-shell .pm-layout-cases .pm-learning-list > a > b {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  color: #315bec;
+  background: #eef3ff;
+  border-radius: 5px;
+  place-items: center;
+  font-size: 8px;
+}
+
+.project-market-shell .pm-layout-cases .pm-learning-list strong,
+.project-market-shell .pm-layout-cases .pm-learning-list small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-market-shell .pm-layout-cases .pm-learning-list strong {
+  color: #263a72;
+  font-size: 9px;
+}
+
+.project-market-shell .pm-layout-cases .pm-learning-list small {
+  margin-top: 2px;
+  color: #8791aa;
+  font-size: 7px;
+}
+
+.project-market-shell .pm-layout-cases .pm-learning-list > a > svg {
+  color: #315bec;
+}
+
+.project-market-shell .pm-layout-cases .pm-failure-lessons {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #edf0f6;
+}
+
+.project-market-shell .pm-layout-cases .pm-failure-lessons > a {
+  display: grid;
+  min-width: 0;
+  min-height: 128px;
+  align-content: start;
+  gap: 7px;
+  padding: 10px;
+  color: inherit;
+  border-left: 1px solid #edf0f6;
+}
+
+.project-market-shell .pm-layout-cases .pm-failure-lessons > a:first-child {
+  border-left: 0;
+}
+
+.project-market-shell .pm-layout-cases .pm-failure-lessons > a > strong {
+  display: -webkit-box;
+  min-height: 42px;
+  margin: 0;
+  overflow: hidden;
+  color: #263a72;
+  font-size: 9px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.project-market-shell .pm-layout-cases .pm-failure-lessons .pm-mini-tags {
+  gap: 4px;
+}
+
+.project-market-shell .pm-layout-cases .pm-failure-lessons .pm-mini-tags span {
+  padding: 2px 4px;
+  color: #d04464;
+  background: #fff0f3;
+  border-radius: 3px;
+  font-size: 6px;
+}
+
+.project-market-shell .pm-layout-cases .pm-failure-lessons > a > small {
+  overflow: hidden;
+  color: #8b95aa;
+  font-size: 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-market-shell .pm-layout-cases .pm-failure-lessons > a > b {
+  display: inline-flex;
+  width: auto;
+  height: auto;
+  align-items: center;
+  gap: 4px;
+  margin-top: auto;
+  color: #315bec;
+  background: transparent;
+  border-radius: 0;
+  place-items: initial;
+  font-size: 8px;
+}
+
+.project-market-shell .pm-layout-cases .pm-pagination {
+  margin-top: -4px;
+}
+
+.project-market-shell .pm-copilot-cases {
+  top: 76px;
+  height: min(724px, calc(100vh - 140px));
+  min-height: 650px;
+  margin-top: 52px;
+}
+
+.project-market-shell .pm-copilot-cases > header {
+  padding-bottom: 13px;
+  border-bottom: 1px solid #edf0f7;
+}
+
+.project-market-shell .pm-copilot-cases .pm-copilot-conversation {
+  gap: 10px;
+  padding-top: 7px;
+}
+
+.project-market-shell .pm-copilot-cases .pm-copilot-projects.cases {
+  gap: 0;
+  padding: 5px 10px;
+}
+
+.project-market-shell .pm-copilot-cases .pm-copilot-projects.cases > a {
+  min-height: 44px;
+  padding: 5px 0;
+  border-top: 1px solid #edf0f6;
+}
+
+.project-market-shell .pm-copilot-cases .pm-copilot-projects.cases > a:first-child {
+  border-top: 0;
+}
+
+.project-market-shell .pm-copilot-cases .pm-copilot-projects.cases > a.no-media {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.project-market-shell .pm-copilot-cases .pm-copilot-summary > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.project-market-shell .pm-copilot-cases .pm-copilot-question {
+  padding: 0 4px;
+}
+
+@container (min-width: 761px) and (max-width: 960px) {
+  .project-market-shell .pm-layout-cases .pm-catalog-hero-copy {
+    width: 100%;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-case-library-hero .pm-catalog-hero-art {
+    right: 54px;
+    width: 500px;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-hero-assurance {
+    width: 184px;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-catalog-filter.cases {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(200px, 1.35fr);
+  }
+
+  .project-market-shell .pm-layout-cases .pm-catalog-filter.cases .pm-sort-control {
+    grid-column: auto;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-case-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .project-market-shell .pm-layout-cases .pm-case-card footer {
+    gap: 5px;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-case-card footer a {
+    font-size: 7px;
+  }
+}
+
+@media (max-width: 1400px) {
+  .project-market-shell .pm-layout-cases {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .project-market-shell .pm-copilot-cases {
+    position: static;
+    height: auto;
+    min-height: 0;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .project-market-shell .pm-layout-cases .pm-case-library-hero {
+    height: 465px;
+    min-height: 465px;
+    margin-bottom: 0;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-catalog-hero-copy {
+    width: 100%;
+    padding: 24px 16px;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-case-hero-controls {
+    right: 16px;
+    bottom: 174px;
+    left: 16px;
+    display: grid;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-catalog-search.compact {
+    width: 100%;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-case-tabs {
+    overflow-x: auto;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-hero-assurance {
+    top: auto;
+    right: 16px;
+    bottom: 14px;
+    left: 16px;
+    width: auto;
+    min-height: 146px;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-catalog-filter.cases,
+  .project-market-shell .pm-layout-cases .pm-case-grid,
+  .project-market-shell .pm-layout-cases .pm-case-learning-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-catalog-filter.cases .pm-sort-control {
+    grid-column: auto;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-case-card,
+  .project-market-shell .pm-layout-cases .pm-case-card.has-cover {
+    height: auto;
+    min-height: 176px;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-case-carousel-next {
+    display: none;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-failure-lessons {
+    grid-template-columns: 1fr;
+  }
+
+  .project-market-shell .pm-layout-cases .pm-failure-lessons > a {
+    min-height: 104px;
+    border-top: 1px solid #edf0f6;
+    border-left: 0;
+  }
+}

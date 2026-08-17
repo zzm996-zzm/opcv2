@@ -466,11 +466,15 @@ describe("ProjectsPage", () => {
 
     expect(screen.getByRole("heading", { name: "真实案例库" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "成功案例" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "赛道样本" })).toHaveAttribute("href", "/projects/explore");
+    expect(screen.getByRole("combobox", { name: "案例商业模式" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "案例阶段" })).toBeInTheDocument();
     const caseHeading = await screen.findByRole("heading", { name: "AI销售试点" });
     expect(caseHeading).toBeInTheDocument();
     expect(caseHeading.closest("article")?.querySelector("img")).toBeNull();
-    expect(screen.getByRole("link", { name: "查看首要来源" })).toHaveAttribute("href", "https://example.com/case");
-    expect(screen.getByRole("heading", { name: "案例共性" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "原文来源" })).toHaveAttribute("href", "https://example.com/case");
+    expect(screen.getByRole("heading", { name: "可学要点" })).toBeInTheDocument();
+    expect(screen.getByTestId("featured-case-grid").querySelectorAll("article")).toHaveLength(1);
   });
 
   it("renders the case library at its public entry route", async () => {

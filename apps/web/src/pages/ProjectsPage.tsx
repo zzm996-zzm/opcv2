@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, ChevronUp, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpenCheck, Check, ChevronRight, ChevronUp, ExternalLink, Flame, Search, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { useRegisteredCopilotPanel } from "../components/CopilotPanelVisibility";
@@ -875,6 +875,36 @@ function OpportunityExplore() {
   );
 }
 
+function hasChineseCaseCopy(value: string) {
+  return /[\u3400-\u9fff]/u.test(value);
+}
+
+function caseSummaryPreview(value: string, maxLength = 64) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const sentence = normalized.match(/^.*?[。！？.!?](?:\s|$)/u)?.[0]?.trim() || normalized;
+  return sentence.length > maxLength ? `${sentence.slice(0, maxLength).trim()}…` : sentence;
+}
+
+function caseScaleLabel(value?: string) {
+  if (!value) return "规模未披露";
+  return ({ solo: "个人团队", micro: "微型团队", small: "小型团队", medium: "中型企业", large: "大型企业" } as Record<string, string>)[value] ?? value;
+}
+
+function caseSourceLabel(value: string) {
+  try {
+    return new URL(value).hostname.replace(/^www\./u, "");
+  } catch {
+    return "公开来源";
+  }
+}
+
+function casePublishedLabel(value?: string) {
+  if (!value) return "持续更新";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "持续更新";
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 function CaseLibrary() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [cases, setCases] = useState<EvidenceCaseItem[]>([]);
@@ -883,7 +913,7 @@ function CaseLibrary() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [reloadToken, setReloadToken] = useState(0);
-  const [sortMode, setSortMode] = useState<"latest" | "sources">("latest");
+  const [sortMode, setSortMode] = useState<"latest" | "sources" | "title">("latest");
   const caseType = searchParams.get("type") ?? "";
   const caseIndustry = searchParams.get("industry") ?? "";
   const caseScale = searchParams.get("scale") ?? "";
@@ -934,7 +964,12 @@ function CaseLibrary() {
       ? cases.filter((item) => `${item.title}${item.result_summary}${item.industry ?? ""}${item.scale ?? ""}`.toLocaleLowerCase("zh-CN").includes(normalized))
       : cases;
     if (sortMode === "sources") return [...searched].sort((left, right) => right.source_count - left.source_count);
-    return [...searched].sort((left, right) => Date.parse(right.published_at ?? "") - Date.parse(left.published_at ?? ""));
+    if (sortMode === "title") return [...searched].sort((left, right) => left.title.localeCompare(right.title, "zh-CN"));
+    return [...searched].sort((left, right) => {
+      const dateDifference = Date.parse(right.published_at ?? "") - Date.parse(left.published_at ?? "");
+      if (dateDifference !== 0) return dateDifference;
+      return Number(hasChineseCaseCopy(right.result_summary)) - Number(hasChineseCaseCopy(left.result_summary));
+    });
   }, [cases, query, sortMode]);
 
   const caseIndustries = [...new Set([caseIndustry, ...cases.map((item) => item.industry ?? "")].filter(Boolean))];
@@ -942,16 +977,16 @@ function CaseLibrary() {
 
   return (
     <>
-      <section className="pm-catalog-hero cases">
+      <section className="pm-catalog-hero cases pm-case-library-hero">
         <div className="pm-catalog-hero-copy">
-          <p>项目超市&nbsp;&nbsp;/&nbsp;&nbsp;真实案例库</p>
+          <nav className="pm-case-breadcrumb" aria-label="案例库面包屑"><Link to="/projects">项目超市</Link><span>/</span><strong>真实案例库</strong></nav>
           <h1>真实案例库</h1>
-          <strong>浏览成功与失败案例，学习可复制的方法，也避开常见陷阱</strong>
+          <p className="pm-case-library-intro">浏览成功与失败案例，学习可复制的方法，也避开常见陷阱</p>
           <div className="pm-case-hero-controls">
             <div className="pm-catalog-search compact">
-              <span aria-hidden="true">⌕</span>
+              <Search aria-hidden="true" size={15} />
               <input aria-label="搜索真实案例" onChange={(event) => setQuery(event.target.value)} placeholder="搜索案例名称、行业、关键词" value={query} />
-              <button aria-label="搜索案例" type="button">⌕</button>
+              <button aria-label="搜索案例" type="button"><Search aria-hidden="true" size={15} /></button>
             </div>
             <div className="pm-case-tabs" aria-label="案例分类">
               {[
@@ -959,61 +994,65 @@ function CaseLibrary() {
                 ["成功案例", "success"],
                 ["失败案例", "failure"],
               ].map(([label, value]) => <button className={caseType === value ? "active" : ""} key={label} onClick={() => updateCaseParams({ type: value, page: "" })} type="button">{label}</button>)}
+              <Link to="/projects/explore">赛道样本</Link>
             </div>
           </div>
         </div>
         <div className="pm-catalog-hero-art" aria-hidden="true" />
         <aside className="pm-hero-assurance" aria-label="案例来源保障">
-          <strong><span aria-hidden="true">◆</span> 全部案例均标注来源，可追溯</strong>
-          <ul><li>来源清晰可靠</li><li>数据真实可查</li><li>方法可复现</li></ul>
+          <strong><ShieldCheck aria-hidden="true" size={17} />全部案例均标注来源，可追溯</strong>
+          <ul><li><Check aria-hidden="true" size={12} />来源清晰可靠</li><li><Check aria-hidden="true" size={12} />数据真实可查</li><li><Check aria-hidden="true" size={12} />方法可复现</li></ul>
           <small>已收录案例 <b>{total.toLocaleString("zh-CN")}</b> 个</small>
         </aside>
       </section>
 
       <section className="pm-catalog-filter cases" aria-label="真实案例筛选">
         <label><span>行业</span><select aria-label="案例行业" onChange={(event) => updateCaseParams({ industry: event.target.value, page: "" })} value={caseIndustry}><option value="">全部行业</option>{caseIndustries.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label><span>规模</span><select aria-label="案例规模" onChange={(event) => updateCaseParams({ scale: event.target.value, page: "" })} value={caseScale}><option value="">全部规模</option>{caseScales.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label><span>商业模式</span><select aria-label="案例商业模式" defaultValue=""><option value="">全部模式</option></select></label>
+        <label><span>企业规模</span><select aria-label="案例规模" onChange={(event) => updateCaseParams({ scale: event.target.value, page: "" })} value={caseScale}><option value="">全部规模</option>{caseScales.map((item) => <option key={item}>{caseScaleLabel(item)}</option>)}</select></label>
+        <label><span>阶段</span><select aria-label="案例阶段" defaultValue=""><option value="">全部阶段</option></select></label>
         <div className="pm-sort-control" aria-label="案例排序">
           <span>排序</span>
           <div>
-            {(["latest", "sources"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ latest: "最新发布", sources: "证据最多" }[mode]}</button>)}
+            {(["latest", "sources", "title"] as const).map((mode) => <button className={sortMode === mode ? "active" : ""} key={mode} onClick={() => setSortMode(mode)} type="button">{{ latest: "最新发布", sources: "证据最多", title: "名称排序" }[mode]}</button>)}
           </div>
         </div>
       </section>
 
       <section className="pm-case-featured">
-        <header><h2>精选案例</h2><span>全部案例均带来源记录</span></header>
-        <div className="pm-case-grid">
+        <header><h2><Flame aria-hidden="true" size={17} />精选案例</h2></header>
+        <div className="pm-case-grid" data-testid="featured-case-grid">
           {loading ? <div className="module-empty-state" role="status">正在读取证据案例…</div> : null}
           {error ? <div className="module-empty-state"><p className="form-error" role="alert">{error}</p><button onClick={() => setReloadToken((current) => current + 1)} type="button">重新加载</button></div> : null}
           {!loading && !error && visibleCases.length === 0 ? <div className="module-empty-state" role="status">暂无符合条件的已发布案例</div> : null}
           {visibleCases.slice(0, 4).map((item) => (
-            <article className={`pm-case-card ${item.cover_url ? "has-cover" : "no-cover"}`} key={item.id}>
+            <article className={`pm-case-card ${item.cover_url ? "has-cover" : "no-cover"} ${item.type === "success" ? "is-success" : "is-failure"}`} key={item.id}>
               {item.cover_url ? <img alt="" className="pm-thumb" loading="lazy" src={item.cover_url} /> : null}
               <div className="pm-case-card-content">
-                <h2>{item.title}</h2>
-                <strong>{item.result_summary}</strong>
-                <div className="pm-mini-tags"><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span><span>{item.source_count} 条证据</span></div>
-                <p>{[item.industry, item.scale].filter(Boolean).join(" · ") || "已核验证据案例"}</p>
+                <h3>{item.title}</h3>
+                <p className="pm-case-summary">{item.result_summary}</p>
+                <div className="pm-mini-tags"><span>{item.type === "success" ? "成功案例" : "失败复盘"}</span>{item.industry ? <span>{item.industry}</span> : null}<span>{caseScaleLabel(item.scale)}</span></div>
+                <small className="pm-case-source-line">来源：{caseSourceLabel(item.primary_source_url)} · {casePublishedLabel(item.published_at)}</small>
               </div>
               <footer>
-                <Link to={`/project-cases/${item.id}`}>查看案例</Link>
-                {item.project_id ? <Link to={`/projects/${item.project_id}`}>查看项目</Link> : <Link to="/projects/explore">浏览项目</Link>}
-                <a href={item.primary_source_url} onClick={() => trackProjectEvent("project_case_source_click", { case_id: item.id, case_type: item.type, source_id: "primary", field: "primary_source_url" }, "case_library")} rel="noreferrer" target="_blank">查看首要来源</a>
+                <Link to={`/project-cases/${item.id}`}>查看案例<ArrowRight aria-hidden="true" size={11} /></Link>
+                <Link to={item.project_id ? `/projects/${item.project_id}` : `/project-cases/${item.id}#review`}>查看拆解</Link>
+                <a href={item.primary_source_url} onClick={() => trackProjectEvent("project_case_source_click", { case_id: item.id, case_type: item.type, source_id: "primary", field: "primary_source_url" }, "case_library")} rel="noreferrer" target="_blank">原文来源<ExternalLink aria-hidden="true" size={10} /></a>
               </footer>
             </article>
           ))}
+          {!loading && !error && page < pageCount ? <button aria-label="下一批案例" className="pm-case-carousel-next" onClick={() => updateCaseParams({ page: String(page + 1) })} type="button"><ChevronRight aria-hidden="true" size={18} /></button> : null}
         </div>
       </section>
 
       <section className="pm-case-learning-grid">
-        <article>
-          <header><h2 aria-label="案例共性">案例共性</h2><span>来自当前筛选结果</span></header>
-          {visibleCases.length === 0 ? <div className="module-empty-state">暂无已发布经验</div> : visibleCases.slice(0, 4).map((item, index) => <div key={item.id}><b aria-hidden="true">{index + 1}</b><span><strong>{item.result_summary}</strong><small>{item.source_count} 条可追溯证据</small></span></div>)}
+        <article className="pm-learning-points">
+          <header><h2><BookOpenCheck aria-hidden="true" size={16} />可学要点</h2><Link to="/project-cases?type=success">查看全部 <ArrowRight aria-hidden="true" size={11} /></Link></header>
+          {visibleCases.length === 0 ? <div className="module-empty-state">暂无已发布经验</div> : <div className="pm-learning-list">{visibleCases.slice(0, 4).map((item, index) => <Link key={item.id} to={`/project-cases/${item.id}`}><b aria-hidden="true">{index + 1}</b><span><strong>{item.title}：{caseSummaryPreview(item.result_summary, 48)}</strong><small>{item.industry || "真实商业案例"}</small></span><ChevronRight aria-hidden="true" size={13} /></Link>)}</div>}
         </article>
         <article className="failure">
-          <header><h2>失败教训</h2><Link to="/projects/cases?type=failure">查看全部 →</Link></header>
-          {visibleCases.filter((item) => item.type === "fail").length === 0 ? <div className="module-empty-state">暂无失败教训</div> : visibleCases.filter((item) => item.type === "fail").slice(0, 3).map((item) => <div key={item.id}><b aria-hidden="true">!</b><span><strong>{item.result_summary}</strong><small><Link to={`/project-cases/${item.id}`}>查看证据明细</Link></small></span></div>)}
+          <header><h2><TriangleAlert aria-hidden="true" size={16} />失败教训</h2><Link to="/project-cases?type=failure">查看全部 <ArrowRight aria-hidden="true" size={11} /></Link></header>
+          {visibleCases.filter((item) => item.type === "fail").length === 0 ? <div className="module-empty-state">暂无失败教训</div> : <div className="pm-failure-lessons">{visibleCases.filter((item) => item.type === "fail").slice(0, 3).map((item) => <Link key={item.id} to={`/project-cases/${item.id}`}><strong>{caseSummaryPreview(item.result_summary, 42)}</strong><div className="pm-mini-tags"><span>{item.industry || "商业复盘"}</span><span>{caseScaleLabel(item.scale)}</span></div><small>来源：{caseSourceLabel(item.primary_source_url)} · {casePublishedLabel(item.published_at)}</small><b>查看案例 <ArrowRight aria-hidden="true" size={10} /></b></Link>)}</div>}
         </article>
       </section>
       {!loading && !error && cases.length > 0 ? <nav className="pm-pagination" aria-label="案例分页">
@@ -2512,7 +2551,10 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   const detailItems = (activeDetailSection?.items?.length
     ? activeDetailSection.items
     : activeDetailSection?.blocks?.flatMap((block) => block.items?.map((item) => item.title || item.value || "").filter(Boolean) ?? []) ?? []).slice(0, 4);
-  const caseLessons = cases.map((item) => item.result_summary).slice(0, 3);
+  const copilotCases = [...cases]
+    .sort((left, right) => Number(hasChineseCaseCopy(right.result_summary)) - Number(hasChineseCaseCopy(left.result_summary)))
+    .slice(0, 3);
+  const caseLessons = copilotCases.map((item) => caseSummaryPreview(item.result_summary, 50));
 
   if (!copilotPanel.isPanelOpen) {
     return copilotPanel.hasSharedController ? null : <FloatingCopilotOrb onActivate={copilotPanel.openPanel} />;
@@ -2548,7 +2590,7 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
       <Link className="pm-copilot-cta" to="/projects/match">去 AI 匹配 →</Link>
     </>;
   } else if (variant === "cases") {
-    conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>以下案例来自证据案例库，并保留各自的首要来源。</p></div><div className="pm-copilot-projects cases">{cases.slice(0, 3).map((item) => <Link className={item.cover_url ? "has-media" : "no-media"} key={item.id} to={`/project-cases/${item.id}`}>{item.cover_url ? <img alt="" className="pm-case-thumb" loading="lazy" src={item.cover_url} /> : null}<span><strong>{item.title}</strong><small>{item.type === "success" ? "成功案例" : "失败复盘"} · {item.source_count} 条证据</small></span></Link>)}</div><div className="pm-copilot-summary"><strong>案例库中的核验结论</strong>{caseLessons.length > 0 ? caseLessons.map((item) => <span key={item}>✓ {item}</span>) : <span>当前接口没有已发布经验</span>}</div></>;
+    conversation = <><div className="pm-copilot-bubble user"><b>我</b><p>请帮我找一个公司的真实案例</p></div><div className="pm-copilot-bubble assistant"><b>AI</b><p>好的，我为你整理了几份真实商业案例，每个案例都保留公开来源。</p></div><div className="pm-copilot-projects cases">{copilotCases.map((item) => <Link className={item.cover_url ? "has-media" : "no-media"} key={item.id} to={`/project-cases/${item.id}`}>{item.cover_url ? <img alt="" className="pm-case-thumb" loading="lazy" src={item.cover_url} /> : null}<span><strong>{item.title}</strong><small>{item.type === "success" ? "成功案例" : "失败复盘"}{item.industry ? ` · ${item.industry}` : ""}</small></span></Link>)}</div><div className="pm-copilot-summary"><strong>这些案例的关键启示</strong>{caseLessons.length > 0 ? caseLessons.map((item) => <span key={item}>✓ {item}</span>) : <span>暂无可展示的案例结论</span>}</div><p className="pm-copilot-question">需要我按行业或团队规模继续筛选吗？</p></>;
   } else if (variant === "history") {
     conversation = <><div className="pm-copilot-bubble assistant"><b>AI</b><p>当前接口返回 {sessions.length} 条匹配记录。</p></div><div className="pm-copilot-summary">{latestProject ? <><span>✓ 最近完成记录的首项：{latestProject.title}</span><span>✓ 可重新打开并核对原始匹配条件</span><span>✓ 可导出已保存的服务端记录</span></> : <span>完成首次匹配后，这里会显示历史记录摘要。</span>}</div></>;
   } else if (variant === "results") {
