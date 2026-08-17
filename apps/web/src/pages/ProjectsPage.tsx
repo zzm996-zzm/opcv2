@@ -79,20 +79,6 @@ const coreEntries = [
   ["真实案例库", "看成功/失败案例与拆解。", "/projects/cases", "看案例", "case"]
 ] as const;
 
-const featuredOpportunityArt = [
-  "/project-market/case-01.jpg",
-  "/project-market/case-02.jpg",
-  "/project-market/featured-fitness.png",
-  "/project-market/case-03.jpg"
-] as const;
-
-const featuredOpportunityCopy = [
-  { title: "精品咖啡连锁品牌", summary: "打造社区精品咖啡连锁品牌", tags: ["轻资产", "可复制", "低竞争"] },
-  { title: "功效护肤品电商", summary: "专注科学功效护肤的DTC品牌", tags: ["轻资产", "SaaS", "可复制"] },
-  { title: "智能健身房", summary: "AI+硬件驱动的智能健身新模式", tags: ["轻资产", "可复制", "低竞争"] },
-  { title: "AI短视频创作工具", summary: "一键生成爆款短视频内容", tags: ["SaaS", "可复制", "低竞争"] }
-] as const;
-
 const detailTabs = [
   ["path", "成功路径", "成功路径"],
   ["data", "当前数据", "当前数据"],
@@ -394,6 +380,32 @@ function MarketHome() {
         </div>
       </section>
 
+      {featuredLoading || featured.length > 0 ? <section aria-label="精选机会" className="ref-project-opportunities">
+        <div className="ref-project-section-head">
+          <h2>精选机会</h2>
+          <Link to="/projects/explore">查看全部</Link>
+        </div>
+        {featuredLoading ? <div aria-label="正在加载精选机会" className="ref-project-opportunity-grid pm-skeleton-grid" role="status">
+          {[0, 1, 2, 3].map((item) => <article className="pm-skeleton-card" key={item}><span /><b /><i /><i /><em /></article>)}
+        </div> : <div className="ref-project-opportunity-grid">
+          {featured.map((item, index) => (
+            <article className={`${item.cover_url ? "has-cover" : "no-cover"} pm-project-${item.slug}`} key={item.id}>
+              {item.cover_url ? <img alt="" className="pm-thumb" loading="lazy" src={item.cover_url} /> : null}
+              <div className="ref-project-opportunity-meta">
+                <span>{item.track || item.industry || item.category || "项目机会"}</span>
+                <small>{item.difficulty || "难度待补充"}</small>
+              </div>
+              <h3>{item.title}</h3>
+              <p>{item.summary}</p>
+              <div className="ref-project-opportunity-tags">
+                {item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
+              </div>
+              <Link onClick={() => trackProjectEvent("project_card_click", { project_id: item.id, position: index + 1, list_type: "featured" }, "home_featured")} to={`/projects/${item.slug}`}>查看机会 <ArrowRight aria-hidden="true" size={11} /></Link>
+            </article>
+          ))}
+        </div>}
+      </section> : null}
+
       <section className="ref-project-live-cases" aria-label="真实商业案例">
         <header>
           <div>
@@ -413,31 +425,6 @@ function MarketHome() {
               <h3>{item.title}</h3>
               <p>{item.result_summary}</p>
               <footer><span>内容可追溯</span><Link to={`/project-cases/${item.id}`}>查看案例</Link></footer>
-            </article>
-          ))}
-        </div>}
-      </section>
-
-      <section className="ref-project-opportunities">
-        <div className="ref-project-section-head">
-          <h2>精选机会</h2>
-          <Link to="/projects/explore">查看全部</Link>
-        </div>
-        {featuredLoading ? <div aria-label="正在加载精选机会" className="ref-project-opportunity-grid pm-skeleton-grid" role="status">
-          {featuredOpportunityCopy.map((display) => <article className="pm-skeleton-card" key={display.title}><span /><b /><i /><i /><em /></article>)}
-        </div> : featured.length === 0 ? <div className="module-empty-state" role="status">暂无精选项目，去机会探索查看全部已发布项目</div> : <div className="ref-project-opportunity-grid">
-          {featured.map((item, index) => (
-            <article className={`pm-project-${item.slug}`} key={item.id}>
-              <div
-                className="pm-thumb"
-                style={{ "--featured-art": `url(${featuredOpportunityArt[index] ?? featuredOpportunityArt[0]})` } as CSSProperties}
-              />
-              <h3>{item.title}</h3>
-              <p>{item.summary}</p>
-              <div>
-                {item.tags.slice(0, 3).map((tag) => <span key={tag}>{tag}</span>)}
-              </div>
-              <Link onClick={() => trackProjectEvent("project_card_click", { project_id: item.id, position: index + 1, list_type: "featured" }, "home_featured")} to={`/projects/${item.slug}`}>查看机会</Link>
             </article>
           ))}
         </div>}
@@ -2618,9 +2605,9 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
       <div className="pm-copilot-bubble user"><b>我</b><p>请<br />帮我找一些适合一人公司、轻资产、<br />可快速起盘的项目</p></div>
       <div className="pm-copilot-bubble assistant"><b>AI</b><p>好的！我会基于你的偏好分析适合的<br />机会，并推荐可快速起盘的项目。<br /><br />以下是为你精选的推荐：</p></div>
       <div className="pm-copilot-projects">
-        {opportunities.length > 0 ? opportunities.slice(0, 3).map((item, index) => (
-          <Link key={item.id} to={`/projects/${item.slug}`}>
-            <i className="pm-project-thumb" style={{ backgroundImage: `url(${featuredOpportunityArt[index] ?? featuredOpportunityArt[0]})` }} />
+        {opportunities.length > 0 ? opportunities.slice(0, 3).map((item) => (
+          <Link className={item.cover_url ? "has-media" : "no-media"} key={item.id} to={`/projects/${item.slug}`}>
+            {item.cover_url ? <img alt="" className="pm-project-thumb" loading="lazy" src={item.cover_url} /> : null}
             <span><strong>{item.title}</strong><small>{item.tags.slice(0, 2).join(" · ") || item.track || "已发布项目"}</small></span>
           </Link>
         )) : <span>当前目录暂无可推荐项目</span>}

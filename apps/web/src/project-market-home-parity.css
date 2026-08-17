@@ -110,26 +110,133 @@
 }
 
 .project-market-shell .pm-layout-home .ref-project-opportunity-grid .pm-thumb {
+  display: block;
+  width: 100%;
   min-height: 86px;
   height: 92px;
-  background: #dfe5f4 var(--featured-art) center / cover no-repeat !important;
+  object-fit: cover;
+  background: #eef1f7;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article {
+  display: flex;
+  min-height: 178px;
+  flex-direction: column;
+  padding: 0 0 11px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article:hover {
+  border-color: rgba(49, 91, 236, 0.2);
+  box-shadow: 0 10px 24px rgba(42, 62, 108, 0.08);
+  transform: translateY(-1px);
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article.no-cover {
+  padding: 13px 14px 12px;
+  border-top: 3px solid #7589c8;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article > .ref-project-opportunity-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 10px 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article.no-cover > .ref-project-opportunity-meta {
+  margin: 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-meta span,
+.project-market-shell .pm-layout-home .ref-project-opportunity-meta small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-meta span {
+  color: #4058a8;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-meta small {
+  color: #7b88a5;
+  font-size: 7px;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid h3 {
+  margin: 6px 10px 3px;
+  overflow: hidden;
+  color: #172d69;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid .no-cover h3 {
+  margin: 11px 0 5px;
+  font-size: 12px;
 }
 
 .project-market-shell .pm-layout-home .ref-project-opportunity-grid p {
-  display: block;
+  display: -webkit-box;
   margin: 0 10px;
   padding: 0;
   overflow: hidden;
   color: #7080a4;
   font-size: 8px;
-  line-height: 1.35;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
-.project-market-shell .pm-layout-home .ref-project-opportunity-grid article > div:not(.pm-thumb) {
-  gap: 5px;
-  margin-top: 6px;
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid .no-cover p {
+  min-height: 34px;
+  margin: 0;
+  -webkit-line-clamp: 3;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article > .ref-project-opportunity-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 7px 10px 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article.no-cover > .ref-project-opportunity-tags {
+  margin: 8px 0 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-tags span {
+  padding: 2px 5px;
+  color: #4058bb;
+  background: #f0f3ff;
+  border-radius: 3px;
+  font-size: 7px;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid article > a {
+  position: static;
+  z-index: auto;
+  inset: auto;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 4px;
+  margin: auto 10px 0;
+  overflow: visible;
+  color: #315bec;
+  font-size: 8px;
+  font-weight: 850;
+  text-indent: 0;
+}
+
+.project-market-shell .pm-layout-home .ref-project-opportunity-grid .no-cover > a {
+  margin: auto 0 0;
 }
 
 .project-market-shell .pm-copilot-home {

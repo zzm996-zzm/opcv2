@@ -56,9 +56,25 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("link", { name: "查看案例" })).toHaveAttribute("href", "/project-cases/81");
     expect(screen.getByRole("heading", { name: "精选机会" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "AI销售顾问" })).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "精选机会" })).queryByRole("img")).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "查看机会" }).find((link) => link.getAttribute("href") === "/projects/ai-sales")).toBeTruthy();
     expect(screen.getByRole("complementary", { name: "智活 Copilot" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "全部页面" })).not.toBeInTheDocument();
+  });
+
+  it("hides the featured section instead of showing a large empty state", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/v1/projects/home") return Promise.resolve(new Response(JSON.stringify({ hero: {}, quick_tags: [], entries: [], featured: [] }), { status: 200 }));
+      if (url === "/api/v1/project-cases?page_size=20") return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 20, total: 0 }), { status: 200 }));
+      if (url === "/api/v1/projects?page_size=20") return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 20, total: 0 }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+    renderProjectRoute("/projects");
+
+    await waitFor(() => expect(screen.queryByRole("region", { name: "精选机会" })).not.toBeInTheDocument());
+    expect(screen.queryByText("暂无精选项目，去机会探索查看全部已发布项目")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "真实商业案例" })).toBeInTheDocument();
   });
 
   it("hides and restores the complete project Copilot panel", () => {

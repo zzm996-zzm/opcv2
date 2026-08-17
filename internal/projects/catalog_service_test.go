@@ -8,10 +8,12 @@ import (
 
 type catalogMemoryRepository struct {
 	*memoryRepository
-	dictionaries []DictionaryItem
-	page         ProjectPage
-	project      Project
-	filters      ProjectFilters
+	dictionaries  []DictionaryItem
+	page          ProjectPage
+	pages         []ProjectPage
+	project       Project
+	filters       ProjectFilters
+	filterHistory []ProjectFilters
 }
 
 func (r *catalogMemoryRepository) ListDictionaryItems(context.Context, string) ([]DictionaryItem, error) {
@@ -20,6 +22,12 @@ func (r *catalogMemoryRepository) ListDictionaryItems(context.Context, string) (
 
 func (r *catalogMemoryRepository) ListProjects(_ context.Context, filters ProjectFilters) (ProjectPage, error) {
 	r.filters = filters
+	r.filterHistory = append(r.filterHistory, filters)
+	if len(r.pages) > 0 {
+		page := r.pages[0]
+		r.pages = r.pages[1:]
+		return page, nil
+	}
 	return r.page, nil
 }
 
@@ -92,6 +100,34 @@ func TestServiceReturnsProjectMarketHome(t *testing.T) {
 	}
 	if repository.filters.Featured == nil || !*repository.filters.Featured || repository.filters.PageSize != 8 {
 		t.Fatalf("featured filters = %+v", repository.filters)
+	}
+}
+
+func TestServiceFallsBackToPublishedProjectsWhenFeaturedIsEmpty(t *testing.T) {
+	repository := &catalogMemoryRepository{
+		memoryRepository: &memoryRepository{},
+		pages: []ProjectPage{
+			{Items: []Project{}},
+			{Items: []Project{{ID: 2, Title: "真实发布机会"}}},
+		},
+	}
+	service := NewService(repository, nil)
+
+	home, err := service.GetProjectHome(context.Background())
+	if err != nil {
+		t.Fatalf("GetProjectHome() error = %v", err)
+	}
+	if len(home.Featured) != 1 || home.Featured[0].Title != "真实发布机会" {
+		t.Fatalf("home featured = %+v", home.Featured)
+	}
+	if len(repository.filterHistory) != 2 {
+		t.Fatalf("filter history = %+v", repository.filterHistory)
+	}
+	if repository.filterHistory[0].Featured == nil || !*repository.filterHistory[0].Featured {
+		t.Fatalf("first filters = %+v", repository.filterHistory[0])
+	}
+	if repository.filterHistory[1].Featured != nil || repository.filterHistory[1].Sort != "heat" {
+		t.Fatalf("fallback filters = %+v", repository.filterHistory[1])
 	}
 }
 

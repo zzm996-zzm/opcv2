@@ -205,6 +205,12 @@ func (s *Service) GetProjectHome(ctx context.Context) (ProjectHome, error) {
 	if err != nil {
 		return ProjectHome{}, err
 	}
+	if len(page.Items) == 0 {
+		page, err = s.ListProjects(ctx, ProjectFilters{Sort: "heat", Page: 1, PageSize: 8})
+		if err != nil {
+			return ProjectHome{}, err
+		}
+	}
 	return ProjectHome{
 		Hero: ProjectHero{
 			Title:    "项目超市",
