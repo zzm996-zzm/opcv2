@@ -177,7 +177,9 @@ func (r *PostgresRepository) ListProjects(ctx context.Context, filters ProjectFi
 		FROM project_opportunities
 		WHERE status = 'published'
 		  AND ($1 = '' OR title ILIKE '%' || $1 || '%' OR summary ILIKE '%' || $1 || '%'
-		       OR industry ILIKE '%' || $1 || '%' OR tags::TEXT ILIKE '%' || $1 || '%')
+		       OR industry ILIKE '%' || $1 || '%' OR tags::TEXT ILIKE '%' || $1 || '%'
+		       OR COALESCE(primary_source_url, '') ILIKE '%' || $1 || '%'
+		       OR detail::TEXT ILIKE '%' || $1 || '%')
 		  AND ($2 = '' OR category_code = $2)
 		  AND ($3 = '' OR track_code = $3 OR industry = $3)
 		  AND ($4 = '' OR budget_band = $4)
@@ -430,7 +432,8 @@ func (r *PostgresRepository) ListOpportunities(ctx context.Context, filters Oppo
 		    OR industry ILIKE '%' || $2 || '%'
 		    OR tags::TEXT ILIKE '%' || $2 || '%'
 		    OR resource_requirements::TEXT ILIKE '%' || $2 || '%'
-		    OR sections::TEXT ILIKE '%' || $2 || '%')
+		    OR sections::TEXT ILIKE '%' || $2 || '%'
+		    OR detail::TEXT ILIKE '%' || $2 || '%')
 		ORDER BY sort_order ASC, published_at DESC, id ASC
 		LIMIT $3
 	`, filters.Industry, filters.Query, filters.Limit)

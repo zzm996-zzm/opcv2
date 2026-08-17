@@ -192,7 +192,8 @@ func TestPostgresRepositorySearchesOpportunityKeywordFields(t *testing.T) {
 		    OR industry ILIKE '%' || $2 || '%'
 		    OR tags::TEXT ILIKE '%' || $2 || '%'
 		    OR resource_requirements::TEXT ILIKE '%' || $2 || '%'
-		    OR sections::TEXT ILIKE '%' || $2 || '%')
+		    OR sections::TEXT ILIKE '%' || $2 || '%'
+		    OR detail::TEXT ILIKE '%' || $2 || '%')
 		ORDER BY sort_order ASC, published_at DESC, id ASC
 		LIMIT $3
 	`)).

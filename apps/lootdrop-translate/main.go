@@ -262,6 +262,9 @@ func translateBatch(ctx context.Context, db *pgxpool.Pool, provider ai.Provider,
 		if _, err := db.Exec(ctx, `SELECT refresh_lootdrop_project_opportunities($1)`, projectOpportunityIDs); err != nil {
 			return completed, fmt.Errorf("refresh translated project opportunities: %w", err)
 		}
+		if _, err := db.Exec(ctx, `SELECT normalize_lootdrop_project_opportunities($1)`, projectOpportunityIDs); err != nil {
+			return completed, fmt.Errorf("normalize translated project opportunities: %w", err)
+		}
 	}
 	return completed, nil
 }
