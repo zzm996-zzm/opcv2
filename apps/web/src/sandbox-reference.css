@@ -2693,6 +2693,7 @@ button.sb-role-card {
   .sb-pillar-strip article + article { border-left: 0; }
   .sb-work-panel { padding: 20px 16px; }
   .sb-panel-header { align-items: flex-start; }
+  .sb-question-panel.is-smart-completion .sb-panel-header h1 { font-size: 22px !important; }
   .sb-panel-header > button,
   .sb-quiet-button,
   .sb-restart-link { padding-inline: 9px; }
