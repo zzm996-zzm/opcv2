@@ -1118,8 +1118,7 @@ function CaseDetail() {
           <div>
             <div className="pm-case-detail-tags"><span>真实案例</span><span>{caseDetail?.type === "success" ? "成功案例" : "失败复盘"}</span></div>
             <h1>{caseDetail?.title ?? "案例详情"}</h1>
-            <p>{caseDetail?.result_summary ?? "查看经过核验的事实、分析与来源"}</p>
-            {caseDetail ? <small>{caseDetail.source_count} 条公开来源{caseDetail.verified_at ? ` · 核验于 ${new Date(caseDetail.verified_at).toLocaleDateString("zh-CN")}` : ""}</small> : null}
+            <p>{caseDetail?.result_summary ?? "查看案例事实与关键复盘"}</p>
           </div>
           {caseDetail?.cover_url ? <img alt="" loading="lazy" src={caseDetail.cover_url} /> : null}
         </div>
@@ -1141,10 +1140,6 @@ function CaseDetail() {
           <section>
             <h2>关键事实</h2>
             {displayFacts.length > 0 ? <dl>{displayFacts.map((fact) => <div key={fact.field}><dt>{fact.label}</dt><dd>{fact.displayValue}</dd></div>)}</dl> : <p>暂无结构化事实</p>}
-          </section>
-          <section>
-            <h2>公开来源</h2>
-            <div className="pm-case-source-list">{caseDetail.sources.map((source) => <a href={source.url} key={source.id} onClick={() => trackProjectEvent("project_case_source_click", { case_id: caseDetail.id, case_type: caseDetail.type, source_id: source.id, field: source.claim_fields.join(",") || "source" }, "case_detail")} rel="noreferrer" target="_blank"><span><strong>{source.title || source.publisher || "公开来源"}</strong><small>{source.publisher || (source.is_primary ? "首要来源" : "补充来源")}</small></span><ExternalLink aria-hidden="true" size={14} /></a>)}</div>
           </section>
         </aside>
       </section> : null}

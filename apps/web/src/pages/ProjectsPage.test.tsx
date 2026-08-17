@@ -506,10 +506,11 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("heading", { name: "案例概览" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "关键复盘" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "关键事实" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "公开来源" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "公开来源" })).not.toBeInTheDocument();
     expect(screen.getByText("两周")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "返回案例库" })).toHaveAttribute("href", "/project-cases");
-    expect(screen.getByRole("link", { name: /企业公开复盘/ })).toHaveAttribute("href", "https://example.com/case");
+    expect(screen.queryByRole("link", { name: /企业公开复盘/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("1 条公开来源")).not.toBeInTheDocument();
     expect(screen.queryByText(/来源编号/)).not.toBeInTheDocument();
     expect(document.querySelector(".pm-catalog-hero-art")).toBeNull();
   });
