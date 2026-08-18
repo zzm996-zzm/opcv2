@@ -43,6 +43,8 @@ func main() {
 	limit := flag.Int("limit", 100, "maximum records to translate; explicitly set 0 to translate all pending records")
 	batchSize := flag.Int("batch-size", 10, "records per model request")
 	retryFailed := flag.Bool("retry-failed", false, "retry records previously marked failed")
+	timeoutSeconds := flag.Int("timeout-seconds", 90, "model request timeout in seconds")
+	continueProviderErrors := flag.Bool("continue-provider-errors", false, "mark provider errors failed and continue with remaining records")
 	shardCount := flag.Int("shard-count", 1, "number of numeric record-key shards")
 	shardIndex := flag.Int("shard-index", 0, "zero-based shard index")
 	flag.Parse()
@@ -56,6 +58,10 @@ func main() {
 	}
 	if *limit < 0 {
 		logger.Error("limit must be 0 or greater")
+		os.Exit(2)
+	}
+	if *timeoutSeconds < 1 {
+		logger.Error("timeout-seconds must be greater than 0")
 		os.Exit(2)
 	}
 	if *shardCount < 1 || *shardIndex < 0 || *shardIndex >= *shardCount {
@@ -78,9 +84,9 @@ func main() {
 		BaseURL: *baseURL,
 		APIKey:  *apiKey,
 		Model:   *model,
-		Timeout: 90 * time.Second,
+		Timeout: time.Duration(*timeoutSeconds) * time.Second,
 	})
-	translated, failed, err := translatePending(ctx, db, provider, strings.TrimSpace(*dataset), *limit, *batchSize, *model, *retryFailed, *shardCount, *shardIndex, logger)
+	translated, failed, err := translatePending(ctx, db, provider, strings.TrimSpace(*dataset), *limit, *batchSize, *model, *retryFailed, *continueProviderErrors, *shardCount, *shardIndex, logger)
 	if err != nil {
 		logger.Error("translation failed", "error", err)
 		os.Exit(1)
@@ -88,7 +94,7 @@ func main() {
 	logger.Info("translation completed", "translated", translated, "failed", failed)
 }
 
-func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provider, dataset string, limit, batchSize int, model string, retryFailed bool, shardCount, shardIndex int, logger *slog.Logger) (int, int, error) {
+func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provider, dataset string, limit, batchSize int, model string, retryFailed, continueProviderErrors bool, shardCount, shardIndex int, logger *slog.Logger) (int, int, error) {
 	if retryFailed {
 		if _, err := db.Exec(ctx, `
 			UPDATE lootdrop_translations
@@ -97,6 +103,8 @@ func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provide
 		`, dataset); err != nil {
 			return 0, 0, err
 		}
+		// Reset failed rows once; subsequent reads should only consume pending rows.
+		retryFailed = false
 	}
 	totalTranslated, totalFailed := 0, 0
 	remaining := limit
@@ -121,7 +129,7 @@ func translatePending(ctx context.Context, db *pgxpool.Pool, provider ai.Provide
 			}
 			totalFailed += len(items)
 			logger.Warn("translation batch failed", "count", len(items), "error", err)
-			if isProviderError(err) {
+			if isProviderError(err) && !continueProviderErrors {
 				return totalTranslated, totalFailed, err
 			}
 		} else {
