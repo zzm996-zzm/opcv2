@@ -66,7 +66,10 @@ function SandboxCopilot({ children, facts = [], mode, progress, project }: Sandb
   const isQuestionAnalysis = mode === "questions";
 
   useLayoutEffect(() => {
-    if (mode === "home") openPanel();
+    // A sandbox route owns its Copilot context. Re-open it when entering a
+    // new step so a collapsed panel from another page cannot leave a blank
+    // grid column beside the workflow.
+    openPanel();
   }, [mode, openPanel]);
 
   if (!copilotPanel.isPanelOpen) {
