@@ -1,0 +1,228 @@
+/* Final desktop calibration for the supplied commercial-sandbox reference. */
+@media (min-width: 1181px) {
+  .v4-shell.sb-shell {
+    --app-sidebar-width: 248px;
+    --app-topbar-height: 64px;
+  }
+
+  .v4-shell.sb-shell .v4-sidebar {
+    width: 248px;
+    padding: 16px 16px 24px;
+  }
+
+  .v4-shell.sb-shell .v4-side-nav {
+    margin-top: 44px;
+  }
+
+  .v4-shell.sb-shell .v4-workspace {
+    padding-left: 248px;
+  }
+
+  .v4-shell.sb-shell .v4-page-topbar {
+    height: 64px;
+    min-height: 64px;
+    padding: 4px 22px 4px 42px;
+  }
+
+  .v4-shell.sb-shell .v4-topnav {
+    height: 56px;
+    min-height: 56px;
+  }
+
+  .v4-shell.sb-shell .sb-app {
+    min-height: calc(100vh - 64px);
+    padding: 20px 23px 36px 32px;
+  }
+
+  .v4-shell.sb-shell .sb-page-grid {
+    grid-template-columns: minmax(0, 1fr) 330px;
+    gap: 31px;
+    width: 100%;
+  }
+
+  .v4-shell.sb-shell .sb-page-title {
+    min-height: 36px;
+    margin-bottom: 12px;
+  }
+
+  .v4-shell.sb-shell .sb-stepper {
+    min-height: 70px;
+    margin-bottom: 15px;
+  }
+
+  .v4-shell.sb-shell .sb-work-panel {
+    padding: 12px 22px 18px;
+  }
+
+  .v4-shell.sb-shell .sb-heading-with-icon > div {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .v4-shell.sb-shell .sb-question-panel.is-smart-completion .sb-heading-with-icon small {
+    margin-top: 0;
+  }
+
+  .v4-shell.sb-shell .sb-panel-intro {
+    margin: 10px 0 12px;
+  }
+
+  .v4-shell.sb-shell .sb-initial-idea-card {
+    min-height: 78px;
+  }
+
+  .v4-shell.sb-shell .sb-recognized-facts {
+    margin-top: 14px;
+  }
+
+  .v4-shell.sb-shell .sb-recognized-grid {
+    margin-top: 8px;
+  }
+
+  .v4-shell.sb-shell .sb-recognized-grid article {
+    min-height: 64px;
+    padding: 11px 12px;
+  }
+
+  .v4-shell.sb-shell .sb-question-focus {
+    margin-top: 16px;
+    padding: 20px 20px 18px;
+  }
+
+  .v4-shell.sb-shell .sb-question-focus h2 {
+    font-size: 18px;
+  }
+
+  .v4-shell.sb-shell .sb-question-hint {
+    margin: -3px 0 0;
+    color: #8a91ad;
+    font-size: 11px !important;
+    line-height: 1.5;
+  }
+
+  .v4-shell.sb-shell .sb-question-focus textarea {
+    min-height: 88px;
+    background: #fff;
+  }
+
+  .v4-shell.sb-shell .sb-question-focus footer {
+    justify-content: center;
+    margin-top: 12px;
+  }
+
+  .v4-shell.sb-shell .sb-question-focus footer button {
+    min-width: 280px;
+  }
+
+  .v4-shell.sb-shell .sb-question-panel.is-smart-completion .sb-question-focus footer .is-secondary {
+    min-width: 300px;
+  }
+
+  .v4-shell.sb-shell .sb-next-question-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 14px 0 0;
+    color: #8990ae;
+    font-size: 10px !important;
+    line-height: 1.5;
+  }
+
+  .v4-shell.sb-shell .sb-copilot {
+    top: 70px;
+    height: min(710px, calc(100vh - 152px));
+    min-height: 0;
+    max-height: min(710px, calc(100vh - 152px));
+    padding: 18px 18px 14px;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-thread.is-analysis {
+    gap: 12px;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-thread.is-analysis article.is-user {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .v4-shell.sb-shell .sb-copilot-thread.is-analysis article.is-user > div {
+    min-width: 0;
+    padding: 12px 13px;
+    background: #f6f6ff;
+    border-radius: 4px 12px 12px 12px;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-thread.is-analysis article.is-user strong {
+    display: block;
+    margin-bottom: 7px;
+    color: #323a77;
+    font-size: 12px;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-thread.is-analysis article.is-user p {
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+    font-size: 12px !important;
+    line-height: 1.65;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-thread.is-analysis article.is-user p + p {
+    margin-top: 8px;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-facts,
+  .v4-shell.sb-shell .sb-copilot-why {
+    padding: 14px;
+    background: #f8f8ff;
+    border-radius: 6px;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-facts h3,
+  .v4-shell.sb-shell .sb-copilot-why h3 {
+    margin: 0 0 8px;
+    color: #333777;
+    font-size: 12px !important;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-facts ul {
+    display: grid;
+    gap: 9px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-facts li {
+    color: #616891;
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-facts li::before {
+    display: inline-grid;
+    width: 15px;
+    height: 15px;
+    margin-right: 6px;
+    color: #fff;
+    background: #3fc7a1;
+    border-radius: 50%;
+    content: "✓";
+    place-items: center;
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-why p {
+    margin: 0;
+    color: #616891;
+    font-size: 11px !important;
+    line-height: 1.6;
+  }
+
+  .v4-shell.sb-shell .sb-copilot-progress small {
+    color: #a0a5bd;
+    font-size: 10px;
+  }
+}

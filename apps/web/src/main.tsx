@@ -19,6 +19,7 @@ import "./unified-copilot-panel.css";
 import "./membership-reference.css";
 import "./project-market-home-parity.css";
 import "./sandbox-home-parity.css";
+import "./sandbox-pixel-parity.css";
 import "./login-reference.css";
 import "./profile-preferences-reference.css";
 import "./profile-complete-reference.css";

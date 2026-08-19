@@ -10,6 +10,7 @@ export type SandboxCopilotMode = "home" | "questions" | "summary" | "roles" | "s
 
 type SandboxCopilotProps = {
   children?: ReactNode;
+  facts?: Array<{ label: string; value: string }>;
   mode: SandboxCopilotMode;
   progress?: number;
   project?: string;
@@ -58,10 +59,11 @@ const modeCopy: Record<SandboxCopilotMode, { user: string; assistant: string; ac
   }
 };
 
-function SandboxCopilot({ children, mode, progress, project }: SandboxCopilotProps) {
+function SandboxCopilot({ children, facts = [], mode, progress, project }: SandboxCopilotProps) {
   const copilotPanel = useRegisteredCopilotPanel();
   const openPanel = copilotPanel.openPanel;
   const copy = modeCopy[mode];
+  const isQuestionAnalysis = mode === "questions";
 
   useLayoutEffect(() => {
     if (mode === "home") openPanel();
@@ -87,30 +89,37 @@ function SandboxCopilot({ children, mode, progress, project }: SandboxCopilotPro
         </div>
       </header>
       <>
-          <div className="sb-copilot-thread">
-            <article className="is-user"><span>我</span><p>{project || copy.user}</p></article>
-            <article><span><Sparkles size={14} /></span><p>{copy.assistant}</p></article>
+          <div className={`sb-copilot-thread${isQuestionAnalysis ? " is-analysis" : ""}`}>
+            {isQuestionAnalysis ? <>
+              <article className="is-user"><span>我</span><div><strong>我正在分析你的初步想法</strong><p>我已经梳理了你的想法，现在正在从市场、用户、产品、商业模式等多个维度进行分析，为你生成最关键的补充问题。</p><p>我会一次只问一个问题，请认真回答，这将帮助 AI 生成更精准的推演结果。</p></div></article>
+              <section className="sb-copilot-facts"><h3>我已识别到的信息</h3><ul>{facts.map((fact) => <li key={fact.label}>{fact.label}：{fact.value}</li>)}</ul></section>
+              <section className="sb-copilot-why"><h3>为什么先问这个问题？</h3><p>明确目标用户细分后，才能更准确地判断市场规模、需求强度与竞争格局，为后续推演奠定基础。</p></section>
+            </> : <>
+              <article className="is-user"><span>我</span><p>{project || copy.user}</p></article>
+              <article><span><Sparkles size={14} /></span><p>{copy.assistant}</p></article>
+            </>}
           </div>
           {children}
           {typeof progress === "number" && (
             <section className="sb-copilot-progress" aria-label={`当前进度 ${progress}%`}>
-              <div><strong>当前进度</strong><span>{progress}%</span></div>
+              <div><strong>当前进度</strong><span>{isQuestionAnalysis ? "1 / 5" : `${progress}%`}</span></div>
               <i><span style={{ width: `${Math.max(0, Math.min(progress, 100))}%` }} /></i>
+              {isQuestionAnalysis ? <small>填写本题后进入下一题</small> : null}
             </section>
           )}
-          <nav aria-label="Copilot 快捷操作">
+          {!isQuestionAnalysis ? <nav aria-label="Copilot 快捷操作">
             {copy.actions.map(([label, href]) => (
               <Link key={label} to={href}><span>{label}</span><ChevronRight size={16} /></Link>
             ))}
-          </nav>
-          <MiniCopilotForm
+          </nav> : null}
+          {!isQuestionAnalysis ? <MiniCopilotForm
             attachIcon={<Paperclip size={16} />}
             className="sb-copilot-input"
             inputAriaLabel="向沙盘 Copilot 提问"
             placeholder="询问任何问题..."
             sendIcon={<Send size={16} />}
             threadTitlePrefix="商业沙盘："
-          />
+          /> : null}
       </>
     </aside>
   );

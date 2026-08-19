@@ -9,6 +9,7 @@ type SandboxFrameProps = {
   children: ReactNode;
   className?: string;
   copilot?: ReactNode;
+  copilotFacts?: Array<{ label: string; value: string }>;
   copilotMode: SandboxCopilotMode;
   copilotProgress?: number;
   copilotProject?: string;
@@ -19,6 +20,7 @@ function SandboxFrame({
   children,
   className = "",
   copilot,
+  copilotFacts,
   copilotMode,
   copilotProgress,
   copilotProject,
@@ -41,7 +43,7 @@ function SandboxFrame({
             {children}
           </main>
           {copilot ?? (
-            <SandboxCopilot mode={copilotMode} progress={copilotProgress} project={copilotProject} />
+            <SandboxCopilot facts={copilotFacts} mode={copilotMode} progress={copilotProgress} project={copilotProject} />
           )}
         </div>
       </section>
