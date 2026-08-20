@@ -174,10 +174,14 @@ func (r *PostgresRepository) UpdateMessageContentMetadata(ctx context.Context, u
 func (r *PostgresRepository) ListMessages(ctx context.Context, userID, threadID int64, limit int) ([]Message, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at
-		FROM copilot_messages
-		WHERE user_id = $1 AND thread_id = $2
-		ORDER BY created_at ASC
-		LIMIT $3
+		FROM (
+			SELECT id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at
+			FROM copilot_messages
+			WHERE user_id = $1 AND thread_id = $2
+			ORDER BY created_at DESC, id DESC
+			LIMIT $3
+		) AS recent_messages
+		ORDER BY created_at ASC, id ASC
 	`, userID, threadID, limit)
 	if err != nil {
 		return nil, err

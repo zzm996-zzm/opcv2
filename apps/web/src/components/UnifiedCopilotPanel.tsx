@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 
 import { useAuthSession } from "../lib/authSession";
 import { useRegisteredCopilotPanel } from "./CopilotPanelVisibility";
+import CopilotMemorySettings from "./CopilotMemorySettings";
 import FloatingCopilotOrb from "./FloatingCopilotOrb";
 import { MiniCopilotForm } from "./MiniCopilot";
 
@@ -63,6 +64,7 @@ function UnifiedCopilotPanel({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(true);
   const nickname = session.user?.nickname || "张婧";
+
   if (!panel.isPanelOpen) {
     return panel.hasSharedController ? null : <FloatingCopilotOrb onActivate={panel.openPanel} />;
   }
@@ -100,8 +102,9 @@ function UnifiedCopilotPanel({
 
       {settingsOpen && (
         <section className="unified-copilot-settings" role="dialog" aria-label="Copilot 设置">
-          <label><input aria-label="显示快捷建议" checked={showQuickActions} onChange={(event) => setShowQuickActions(event.target.checked)} type="checkbox" /><span><strong>显示快捷建议</strong><small>当前页面上下文已开启</small></span></label>
-          <Link to="/profile/preferences">更多偏好设置 <ChevronRight aria-hidden="true" /></Link>
+          <label className="unified-copilot-quick-setting"><input aria-label="显示快捷建议" checked={showQuickActions} onChange={(event) => setShowQuickActions(event.target.checked)} type="checkbox" /><span><strong>显示快捷建议</strong><small>已附带当前页面上下文</small></span></label>
+          <Link className="unified-copilot-preferences-link" to="/profile/preferences">更多偏好设置 <ChevronRight aria-hidden="true" /></Link>
+          <CopilotMemorySettings />
         </section>
       )}
 

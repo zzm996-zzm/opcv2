@@ -88,6 +88,8 @@ describe("MiniCopilot", () => {
         headers: expect.objectContaining({ Authorization: "Bearer access-token" })
       })
     ));
+    const sendCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/copilot/threads/99/messages");
+    expect(JSON.parse(String(sendCall?.[1]?.body))).toEqual(expect.objectContaining({ current_view: "/" }));
   });
 
   it("replaces a stale thread and retries the message once", async () => {

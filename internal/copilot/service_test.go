@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/zzm/opcv2/internal/ai"
+	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/tasks"
 )
@@ -296,6 +297,19 @@ type fakeTaskContextProvider struct {
 	err      error
 }
 
+type fakeCompetitorContextProvider struct {
+	scan   competitor.Scan
+	userID int64
+	scanID int64
+	err    error
+}
+
+func (p *fakeCompetitorContextProvider) GetScan(_ context.Context, userID, scanID int64) (competitor.Scan, error) {
+	p.userID = userID
+	p.scanID = scanID
+	return p.scan, p.err
+}
+
 func (p *fakeTaskContextProvider) GetTask(_ context.Context, userID, taskID int64) (tasks.Task, error) {
 	p.userID = userID
 	p.taskID = taskID
@@ -496,6 +510,32 @@ func TestServiceStreamsMessageDeltasAndPersistsFinalReply(t *testing.T) {
 	}
 }
 
+func TestServiceStreamExtractsStableMemoryAfterReply(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "偏好设置", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{
+		deltas:      []string{"后续我会先给结论。"},
+		jsonContent: []byte(`{"memory_candidates":[{"key":"回答偏好","value":"先给结论，再给步骤","confidence":0.95,"source":"copilot"}]}`),
+	}
+	service := NewService(repository, streamer)
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "记住我喜欢先看结论，再看步骤", Model: "deepseek-chat",
+	}, func(StreamEvent) error { return nil })
+
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if streamer.jsonRequest.Feature != "copilot.memory_extract" || streamer.jsonRequest.SchemaName != "copilot_memory_extraction" {
+		t.Fatalf("memory request = %+v", streamer.jsonRequest)
+	}
+	if repository.upsertedMemory.Key != "回答偏好" || repository.upsertedMemory.Value != "先给结论，再给步骤" {
+		t.Fatalf("upserted memory = %+v", repository.upsertedMemory)
+	}
+	if strings.Contains(streamer.request.UserPrompt, "返回 JSON") {
+		t.Fatalf("stream prompt unexpectedly requests JSON: %s", streamer.request.UserPrompt)
+	}
+}
+
 func TestServicePreviewsWhitelistedToolAndExecutesOnlyAfterConfirmation(t *testing.T) {
 	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "执行计划", Mode: ModeChat}}}
 	streamer := &fakeTextStreamer{jsonContent: []byte(`{"tool":"create_task","arguments":{"title":"访谈10位客户","description":"记录高频问题","priority":"high"}}`)}
@@ -587,6 +627,27 @@ func TestServiceIncludesAuthorizedTaskContextInPrompt(t *testing.T) {
 	}
 	if provider.userID != 42 || provider.taskID != 7 || !strings.Contains(streamer.request.UserPrompt, "上线任务中心") || !strings.Contains(streamer.request.UserPrompt, `"completed_subtasks":1`) || !strings.Contains(streamer.request.UserPrompt, `"current_view":"list"`) {
 		t.Fatalf("task context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesAuthorizedCompetitorContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "竞品分析", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合竞品分析上下文回答"}}
+	provider := &fakeCompetitorContextProvider{scan: competitor.Scan{
+		ID: 13, UserID: 42, Targets: []string{"小鹅通"}, Focus: "产品能力", Status: competitor.StatusRunning,
+		ProgressPercent: 60, CurrentStep: "analyzing", Conclusions: []competitor.Conclusion{{Title: "机会", Detail: "强化差异化"}},
+	}}
+	service := NewService(repository, streamer, WithCompetitorContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "分析当前页面", CurrentView: "/competitor-data/progress?scanId=13",
+		ActiveFilters: map[string]string{"module": "data", "view": "progress", "scan_id": "13"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.userID != 42 || provider.scanID != 13 || !strings.Contains(streamer.request.UserPrompt, "小鹅通") || !strings.Contains(streamer.request.UserPrompt, "强化差异化") {
+		t.Fatalf("competitor context not included: %s", streamer.request.UserPrompt)
 	}
 }
 

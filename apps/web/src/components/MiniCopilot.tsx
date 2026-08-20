@@ -87,7 +87,7 @@ export function MiniCopilotForm({
 	        content,
 	        model,
 	        task_id: taskID,
-	        current_view: currentView,
+	        current_view: currentView || window.location.pathname,
 	        active_filters: activeFilters
 	      };
       let result;
@@ -124,6 +124,28 @@ export function MiniCopilotForm({
 
   return (
     <>
+      {(liveMessages.length > 0 || error) && (
+        <div className="mini-copilot-live-thread" aria-live="polite">
+          {liveMessages.map((message) => (
+            <article className={message.role === "user" ? "user" : ""} key={message.id}>
+              {message.role === "assistant" && <span className="ai-avatar">A</span>}
+              <div>
+                <p>{message.content}</p>
+                {message.metadata?.tool_preview?.status === "pending" && (
+                  <div className="mini-copilot-tool-actions" aria-label="待确认操作">
+                    <button disabled={toolBusyID !== null} onClick={() => void decideTool(message, "cancel")} type="button">取消</button>
+                    <button disabled={toolBusyID !== null} onClick={() => void decideTool(message, "confirm")} type="button">
+                      {toolBusyID === message.messageID ? "执行中..." : "确认执行"}
+                    </button>
+                  </div>
+                )}
+                {message.metadata?.tool_preview?.status === "cancelled" && <small>操作已取消</small>}
+              </div>
+            </article>
+          ))}
+          {error && <p className="mini-copilot-error" role="alert">{error}</p>}
+        </div>
+      )}
       <form className={className} onSubmit={submit}>
         <button aria-label={attachLabel} disabled={!onAttach} onClick={onAttach} title={onAttach ? attachLabel : `${attachLabel}（暂未开放）`} type="button">{attachIcon}</button>
         <input
@@ -134,28 +156,6 @@ export function MiniCopilotForm({
         />
         <button aria-label="发送" disabled={!draft.trim() || isSending} type="submit">{isSending ? "…" : sendIcon}</button>
       </form>
-      {(liveMessages.length > 0 || error) && (
-        <div className="mini-copilot-live-thread" aria-live="polite">
-	          {liveMessages.map((message) => (
-	            <article className={message.role === "user" ? "user" : ""} key={message.id}>
-	              {message.role === "assistant" && <span className="ai-avatar">A</span>}
-	              <div>
-	                <p>{message.content}</p>
-	                {message.metadata?.tool_preview?.status === "pending" && (
-	                  <div className="mini-copilot-tool-actions" aria-label="待确认操作">
-	                    <button disabled={toolBusyID !== null} onClick={() => void decideTool(message, "cancel")} type="button">取消</button>
-	                    <button disabled={toolBusyID !== null} onClick={() => void decideTool(message, "confirm")} type="button">
-	                      {toolBusyID === message.messageID ? "执行中..." : "确认执行"}
-	                    </button>
-	                  </div>
-	                )}
-	                {message.metadata?.tool_preview?.status === "cancelled" && <small>操作已取消</small>}
-	              </div>
-	            </article>
-          ))}
-          {error && <p className="mini-copilot-error" role="alert">{error}</p>}
-        </div>
-      )}
     </>
   );
 }

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { ChevronUp } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { ChevronUp, Settings } from "lucide-react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 
+import CopilotMemorySettings from "../components/CopilotMemorySettings";
 import { useRegisteredCopilotPanel } from "../components/CopilotPanelVisibility";
 import FloatingCopilotOrb from "../components/FloatingCopilotOrb";
+import { MiniCopilotForm } from "../components/MiniCopilot";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { competitorApi, type CompetitorScan } from "../lib/competitorApi";
@@ -148,7 +150,7 @@ function DataReference({ view }: { view: LandingView }) {
 }
 
 function DataHome() {
-  return <><section className="data-ref-hero"><div><h1 aria-label="竞品全盘数据破解" className="landing-ref-h1 light">竞品全盘数据破解 🔒</h1><h2>多平台脚本代查 + AI 深度解读</h2><p>快速获取竞品在多平台的数据，深度增长策略与内容打法，为你的决策提供真实实据。</p><div className="hero-pills"><span>多平台查询</span><span>高并发数据采集</span><span>AI深度解读</span><span>结构化输出建议</span></div></div><div className="data-hero-art" /></section><section className="data-query-card"><h2>发起数据查询</h2><p>选择平台并填写竞品账号、链接或品牌关键词，我们将为你自动脚本抓取与 AI 分析。</p><div><button>♪ 抖音 ⌄</button><input placeholder="粘贴竞品账号链接 / 输入账号昵称 / 输入品牌关键词" /><Link to="/competitor-data/progress">发起查询</Link></div><footer>◷ 查询将进入队列，完成后为你生成数据报告与 AI 解读  预计 5–15 分钟完成</footer></section><section className="data-unlock"><p>🔒 获取能力付费能力，查询结果与完整数据解读报告查看。</p><button>立即升级</button></section><h2>解锁后，你将获得</h2><section className="data-benefits">{[["全盘数据总览", "粉丝、互动、内容、直播、商品等核心指标"], ["AI 深度解读", "基于海量数据与模型，内容打法、优势与机会点"], ["后续动作建议", "针对性输出行动计划与方案清单"]].map(([title, desc]) => <article key={title}><b>{title}</b><p>{desc}</p><i>▣</i></article>)}</section></>;
+  return <><section className="data-ref-hero"><div><h1 aria-label="竞品全盘数据破解" className="landing-ref-h1 light">竞品全盘数据破解 🔒</h1><h2>竞品信息梳理 + AI 深度解读</h2><p>围绕你提供的竞品信息和关注维度，分析增长策略、内容打法与行动机会。</p><div className="hero-pills"><span>多维度分析</span><span>策略对比</span><span>AI 深度解读</span><span>结构化建议</span></div></div><div className="data-hero-art" /></section><section className="data-query-card"><h2>发起竞品分析</h2><p>填写竞品账号、公开链接或品牌关键词，并告诉 AI 你重点关注的问题。</p><div><button>♪ 分析范围 ⌄</button><input placeholder="输入竞品账号、公开链接或品牌关键词" /><Link to="/competitor-data/progress">开始分析</Link></div><footer>◷ 分析完成后，将生成结构化报告与行动建议</footer></section><section className="data-unlock"><p>🔒 升级后可查看完整分析结果与解读报告。</p><button>立即升级</button></section><h2>解锁后，你将获得</h2><section className="data-benefits">{[["竞品信息总览", "集中梳理你提供的竞品信息与关键指标"], ["AI 深度解读", "分析内容打法、差异优势与潜在机会"], ["后续动作建议", "针对性输出行动计划与方案清单"]].map(([title, desc]) => <article key={title}><b>{title}</b><p>{desc}</p><i>▣</i></article>)}</section></>;
 }
 
 function DataProgress() {
@@ -262,7 +264,7 @@ function DataHistory() {
 
 function DataResult({ section }: { section: LandingView }) {
   const activeLabel = resultCopy[section] || "综合分析";
-  return <><header className="result-ref-heading"><div><small>竞品全盘数据破解 / 查询结果</small><div className="landing-ref-h1 small">竞品账号全盘数据结果 <em>✓ 查询完成</em></div><p>基于多平台数据抓取与 AI 深度分析，为你的决策提供全面、客观的参考依据。</p></div><button>重新查询</button><button>导出报告</button></header><section className="result-account"><i className="platform-icon large">♪</i><span>目标账号<strong>完美日记官方旗舰店 <small>抖音</small></strong></span><span>查询时间<strong>2024-06-08 15:42:31</strong></span><span>数据时间范围<strong>近30天（2024-05-09 - 2024-06-07）</strong></span><span>数据范围<strong>抖音账号数据</strong></span></section><section className="result-stats">{[["粉丝总量", "1,286.7万", "+12.5%"], ["作品总数", "213", "+3.4%"], ["获赞总数", "3,245.6万", "+10.7%"], ["爆款作品数", "21", "+2"], ["带货商品数", "1,268", "+86"], ["预估销售额", "¥3,245.6万", "+18.6%"]].map(([label,value,trend],index)=><article key={label}><i className={`metric-ball m${index}`}>◇</i><span>{label}<strong>{value}</strong><small>较上期 {trend}</small></span></article>)}</section><nav className="result-tabs">{dataTabs.map((tab,index)=><Link className={tab===activeLabel?"active":""} key={tab} to={`/competitor-data/results/${["overview","content","live","product","audience","ads","sentiment","compare"][index]}`}>{tab}</Link>)}</nav><ResultSection section={section} /></>;
+  return <><header className="result-ref-heading"><div><small>竞品分析 / 结果</small><div className="landing-ref-h1 small">竞品账号全盘数据结果 <em>✓ 分析完成</em></div><p>基于你提供的竞品信息，由 AI 整理关键指标、差异与可执行建议。</p></div><button>重新分析</button><button>导出报告</button></header><section className="result-account"><i className="platform-icon large">♪</i><span>分析对象<strong>完美日记官方旗舰店 <small>抖音</small></strong></span><span>分析时间<strong>2024-06-08 15:42:31</strong></span><span>分析范围<strong>产品、内容与增长策略</strong></span></section><section className="result-stats">{[["粉丝总量", "1,286.7万", "+12.5%"], ["作品总数", "213", "+3.4%"], ["获赞总数", "3,245.6万", "+10.7%"], ["爆款作品数", "21", "+2"], ["带货商品数", "1,268", "+86"], ["预估销售额", "¥3,245.6万", "+18.6%"]].map(([label,value,trend],index)=><article key={label}><i className={`metric-ball m${index}`}>◇</i><span>{label}<strong>{value}</strong><small>较上期 {trend}</small></span></article>)}</section><nav className="result-tabs">{dataTabs.map((tab,index)=><Link className={tab===activeLabel?"active":""} key={tab} to={`/competitor-data/results/${["overview","content","live","product","audience","ads","sentiment","compare"][index]}`}>{tab}</Link>)}</nav><ResultSection section={section} /></>;
 }
 
 function ResultSection({ section }: { section: LandingView }) {
@@ -330,25 +332,41 @@ function GrowthReport() {
 function GenericReportTable(){return <section className="generic-report-table">{["获客成本增长过快","转化率不足预期","复购不足","交付与扩配压力"].map((item,index)=><article key={item}><b>{item}</b><em className={`risk${index%3}`}>{index<2?"高":"中"}</em><span>影响范围 8%–25%</span><p>建议优化渠道组合，提升有效流量占比，建立持续监测机制。</p></article>)}</section>}
 
 function LandingCopilot({ module, onClose, view }: { module: LandingModule; onClose: () => void; view: LandingView }) {
+  const location = useLocation();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const copy = {
     tasks: ["任务中心", "我可以帮你快速定位任务、安排时间计划，并把目标拆解成可执行任务。"],
-    data: ["竞品数据破解", "我可以帮你通过脚本代查，获取竞品核心数据，并输出 AI 洞察与系统化解读。"],
-    monitoring: ["动态监测", "输入竞品名称或账号，我可以持续关注招聘、内容发布、营销投放和新品动态。"],
+    data: ["竞品分析", "我可以结合你提供的竞品信息和关注重点，梳理差异、机会与下一步行动。"],
+    monitoring: ["动态监测", "我可以帮你整理已有的竞品动态，分析变化信号、影响与应对动作。"],
     growth: ["增长测算", "你的专属 AI 助手，帮助你高效管理历史测算并解读测算结果。"]
   }[module];
-  const links = module === "tasks" ? [["拆解任务","/tasks/ai"],["安排时间计划","/tasks/calendar"],["推荐相关工具","/tools"]] : module === "data" ? [["查询竞品账号","/competitor-data"],["对比两个竞品","/competitor-data/results/compare"],["分析增长策略","/competitor-data/results/overview"]] : module === "monitoring" ? [["帮我设置监测","/competitor-monitoring"],["查看监测历史","/competitor-monitoring/history"],["了解监测维度","/competitor-monitoring/analysis"]] : [["补全关键数据","/growth-calculator/questions"],["查看测算历史","/growth-calculator/history"],["生成测算模型","/growth-calculator/report"]];
+  const links = module === "tasks" ? [["拆解任务","/tasks/ai"],["安排时间计划","/tasks/calendar"],["推荐相关工具","/tools"]] : module === "data" ? [["发起竞品分析","/competitor-data"],["对比两个竞品","/competitor-data/results/compare"],["分析增长策略","/competitor-data/results/overview"]] : module === "monitoring" ? [["帮我设置监测","/competitor-monitoring"],["查看监测历史","/competitor-monitoring/history"],["了解监测维度","/competitor-monitoring/analysis"]] : [["补全关键数据","/growth-calculator/questions"],["查看测算历史","/growth-calculator/history"],["生成测算模型","/growth-calculator/report"]];
+  const scanID = new URLSearchParams(location.search).get("scanId");
+  const contextFilters = { module, view, ...(scanID ? { scan_id: scanID } : {}) };
   return <aside className="landing-ref-copilot" aria-label="智活 Copilot">
     <header>
       <strong><i>✦</i> 智活 Copilot</strong>
-      <button className="copilot-toggle" type="button" aria-label="收起智活 Copilot" title="收起智活 Copilot" onClick={onClose}><ChevronUp aria-hidden="true" /></button>
+      <div className="landing-ref-copilot-controls">
+        <button aria-expanded={settingsOpen} className="copilot-toggle" type="button" aria-label={settingsOpen ? "关闭 Copilot 设置" : "打开 Copilot 设置"} title="Copilot 设置" onClick={() => setSettingsOpen((open) => !open)}><Settings aria-hidden="true" /></button>
+        <button className="copilot-toggle" type="button" aria-label="收起智活 Copilot" title="收起智活 Copilot" onClick={onClose}><ChevronUp aria-hidden="true" /></button>
+      </div>
     </header>
+    {settingsOpen ? <section className="landing-ref-copilot-settings" role="dialog" aria-label="Copilot 设置"><CopilotMemorySettings /></section> : null}
     <div className="copilot-content">
       <p>你的全能 AI 助手，随时为你提供帮助</p>
       <article className="mine"><i>我</i><p>{view === "home" ? "请问可以帮我做些什么？" : `请帮我分析当前${copy[0]}页面`}</p></article>
       <article className="bot"><i>✦</i><div><strong>智活 Copilot</strong><p>{copy[1]}</p><ul><li>快速定位关键信息</li><li>发现机会与风险</li><li>生成可执行的操作方案</li></ul></div></article>
       <h3>你可以这样问我：</h3>
       {links.map(([label,href])=><Link key={label} to={href}>{label}<span>›</span></Link>)}
-      <label><input aria-label="询问落地 Copilot" placeholder="询问任何问题..."/><button type="button" aria-label="发送消息">➤</button></label>
+      <MiniCopilotForm
+        activeFilters={contextFilters}
+        className="landing-ref-copilot-input"
+        currentView={`${location.pathname}${location.search}`}
+        inputAriaLabel="询问落地 Copilot"
+        placeholder="询问任何问题..."
+        sendIcon="➤"
+        threadTitlePrefix={`${copy[0]}：`}
+      />
     </div>
   </aside>;
 }
