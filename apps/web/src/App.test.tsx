@@ -93,6 +93,32 @@ describe("App", () => {
     expect(screen.queryByRole("button", { name: "打开智活 Copilot" })).not.toBeInTheDocument();
   });
 
+  it("switches the sandbox between its Copilot rail and floating orb", () => {
+    authSession.set({
+      access_token: "access-token",
+      access_token_expires_at: "2099-06-11T12:00:00Z",
+      is_new_user: false,
+      user: { id: 7, nickname: "张晨", phone: "13800138000", status: "active" }
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/sandbox"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByRole("complementary", { name: "智活 Copilot" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "打开智活 Copilot" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "收起 Copilot" }));
+    expect(screen.queryByRole("complementary", { name: "智活 Copilot" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "打开智活 Copilot" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "打开智活 Copilot" }));
+    expect(screen.getByRole("complementary", { name: "智活 Copilot" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "打开智活 Copilot" })).not.toBeInTheDocument();
+  });
+
   it("redirects a signed-out user from a protected product route", async () => {
     authSession.finishRestore();
 

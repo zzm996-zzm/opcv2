@@ -58,14 +58,15 @@ function AppRoutes() {
   const session = useAuthSession();
   const showGlobalCopilotOrb = session.ready && shouldShowGlobalCopilotOrb(location.pathname);
   const copilotPanel = useCopilotPanelVisibility();
+  const openCopilotPanel = copilotPanel?.openPanel;
 
   useLayoutEffect(() => {
     // Sandbox owns a visible Copilot rail on every step. Restore it when
     // entering the route after another page has collapsed the shared panel.
     if (location.pathname === "/sandbox" || location.pathname.startsWith("/sandbox/") || location.pathname.startsWith("/sandbox-runs/")) {
-      copilotPanel?.openPanel();
+      openCopilotPanel?.();
     }
-  }, [copilotPanel, location.pathname]);
+  }, [location.pathname, openCopilotPanel]);
 
   useEffect(() => {
     const session = authSession.get();
@@ -957,7 +958,7 @@ function AppRoutes() {
       {((copilotPanel?.hasPanel ? !copilotPanel.isPanelOpen : showGlobalCopilotOrb)) && (
         <FloatingCopilotOrb
           className={location.pathname.startsWith("/sandbox") || location.pathname.startsWith("/sandbox-runs/") ? "sandbox-floating-orb" : location.pathname.startsWith("/membership") ? "membership-floating-orb" : ""}
-          onActivate={copilotPanel?.hasPanel && !copilotPanel.isPanelOpen ? copilotPanel.openPanel : undefined}
+          onActivate={copilotPanel?.hasPanel && !copilotPanel.isPanelOpen ? openCopilotPanel : undefined}
         />
       )}
     </>
