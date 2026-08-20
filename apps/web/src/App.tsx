@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import FloatingCopilotOrb from "./components/FloatingCopilotOrb";
@@ -57,8 +57,15 @@ function AppRoutes() {
   const location = useLocation();
   const session = useAuthSession();
   const showGlobalCopilotOrb = session.ready && shouldShowGlobalCopilotOrb(location.pathname);
-  const keepSandboxOrbVisible = location.pathname === "/sandbox";
   const copilotPanel = useCopilotPanelVisibility();
+
+  useLayoutEffect(() => {
+    // Sandbox owns a visible Copilot rail on every step. Restore it when
+    // entering the route after another page has collapsed the shared panel.
+    if (location.pathname === "/sandbox" || location.pathname.startsWith("/sandbox/") || location.pathname.startsWith("/sandbox-runs/")) {
+      copilotPanel?.openPanel();
+    }
+  }, [copilotPanel, location.pathname]);
 
   useEffect(() => {
     const session = authSession.get();
@@ -947,9 +954,9 @@ function AppRoutes() {
       <Route element={<RequireAuth><NotFoundPage /></RequireAuth>} path="*" />
       </Routes>
       </div>
-      {(keepSandboxOrbVisible || (copilotPanel?.hasPanel ? !copilotPanel.isPanelOpen : showGlobalCopilotOrb)) && (
+      {((copilotPanel?.hasPanel ? !copilotPanel.isPanelOpen : showGlobalCopilotOrb)) && (
         <FloatingCopilotOrb
-          className={keepSandboxOrbVisible ? "sandbox-floating-orb" : location.pathname.startsWith("/membership") ? "membership-floating-orb" : ""}
+          className={location.pathname.startsWith("/sandbox") || location.pathname.startsWith("/sandbox-runs/") ? "sandbox-floating-orb" : location.pathname.startsWith("/membership") ? "membership-floating-orb" : ""}
           onActivate={copilotPanel?.hasPanel && !copilotPanel.isPanelOpen ? copilotPanel.openPanel : undefined}
         />
       )}
