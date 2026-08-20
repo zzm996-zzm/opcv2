@@ -50,6 +50,8 @@ func (p *DevelopmentProvider) responseFor(request ProviderRequest) []byte {
 				}
 			]
 		}`)
+	case "competitor.analysis":
+		return competitorAnalysisDevelopmentResponse(request.UserPrompt)
 	case "projects.match":
 		return []byte(`{
 			"status":"completed",
@@ -236,6 +238,37 @@ func (p *DevelopmentProvider) responseFor(request ProviderRequest) []byte {
 	default:
 		return []byte(`{"ok":true}`)
 	}
+}
+
+func competitorAnalysisDevelopmentResponse(prompt string) []byte {
+	var input struct {
+		Targets []string `json:"targets"`
+	}
+	if err := json.Unmarshal([]byte(prompt), &input); err != nil || len(input.Targets) == 0 {
+		input.Targets = []string{"示例竞品"}
+	}
+	competitors := make([]map[string]any, 0, len(input.Targets))
+	for index, target := range input.Targets {
+		score := 82 - index*4
+		if score < 60 {
+			score = 60
+		}
+		competitors = append(competitors, map[string]any{
+			"name": target, "category": "同类产品", "score": score,
+			"signal": "核心能力与目标市场存在较高重合。", "risk": "中", "tags": []string{"产品能力", "目标市场"},
+		})
+	}
+	result, err := json.Marshal(map[string]any{
+		"competitors": competitors,
+		"conclusions": []map[string]string{
+			{"title": "竞争重点", "detail": "建议优先比较核心能力、目标客户和交付方式。"},
+			{"title": "下一步动作", "detail": "整理双方能力清单，并通过客户访谈验证关键差异。"},
+		},
+	})
+	if err != nil {
+		return []byte(`{"competitors":[],"conclusions":[]}`)
+	}
+	return result
 }
 
 func sandboxV2RoleDevelopmentResponse(prompt string) []byte {

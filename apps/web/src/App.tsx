@@ -13,6 +13,7 @@ import CommunityMembersPage from "./pages/CommunityMembersPage";
 import CommunityPage from "./pages/CommunityPage";
 import CopilotPage from "./pages/CopilotPage";
 import CompetitorMonitoringPage from "./pages/CompetitorMonitoringPage";
+import CompetitorDataPage from "./pages/CompetitorDataPage";
 import CrmPage from "./pages/CrmPage";
 import DashboardPage from "./pages/DashboardPage";
 import EnterprisePage from "./pages/EnterprisePage";
@@ -748,7 +749,7 @@ function AppRoutes() {
       <Route
         element={
           <RequireAuth>
-            <LandingReferencePage module="data" view="home" />
+            <CompetitorDataPage />
           </RequireAuth>
         }
         path="/competitor-data"

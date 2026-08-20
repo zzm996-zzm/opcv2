@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import LandingReferencePage, { type LandingModule, type LandingView } from "./LandingReferencePage";
 
@@ -13,6 +13,10 @@ function renderReference(module: LandingModule, view: LandingView) {
 }
 
 describe("LandingReferencePage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders the task list reference state", () => {
     renderReference("tasks", "list");
 
@@ -40,11 +44,29 @@ describe("LandingReferencePage", () => {
     expect(screen.getByText("评审中", { selector: ".board-col > header" })).toBeInTheDocument();
   });
 
-  it("renders the competitor query progress state", () => {
+  it("renders the competitor query progress state", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      scans: [{
+        id: 13,
+        user_id: 7,
+        targets: ["小鹅通"],
+        focus: "产品能力",
+        status: "running",
+        progress_percent: 60,
+        current_step: "analyzing",
+        competitors: [],
+        conclusions: [],
+        evidence_sources: [],
+        created_at: "2026-08-20T08:00:00Z",
+        updated_at: "2026-08-20T08:01:00Z"
+      }]
+    }), { status: 200 }));
+
     renderReference("data", "progress");
 
     expect(screen.getByText("查询处理中", { selector: ".landing-ref-h1" })).toBeInTheDocument();
-    expect(screen.getByText("38%")).toBeInTheDocument();
+    expect(await screen.findByText("60%")).toBeInTheDocument();
+    expect(screen.getAllByText("AI 分析中").length).toBeGreaterThan(0);
   });
 
   it("renders a competitor result section", () => {

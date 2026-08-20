@@ -431,6 +431,30 @@ func TestDevelopmentProviderReturnsFeatureSpecificAnalysisJSON(t *testing.T) {
 	}
 }
 
+func TestDevelopmentProviderReturnsCompetitorAnalysisForEveryTarget(t *testing.T) {
+	provider := NewDevelopmentProvider()
+
+	response, err := provider.Generate(context.Background(), ProviderRequest{
+		Feature:    "competitor.analysis",
+		UserPrompt: `{"targets":["小鹅通","有赞教育"]}`,
+	})
+
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	var result struct {
+		Competitors []struct {
+			Name string `json:"name"`
+		} `json:"competitors"`
+	}
+	if err := json.Unmarshal(response.Content, &result); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	if len(result.Competitors) != 2 || result.Competitors[0].Name != "小鹅通" || result.Competitors[1].Name != "有赞教育" {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
 func TestDevelopmentProviderReturnsFeatureSpecificSandboxJSON(t *testing.T) {
 	provider := NewDevelopmentProvider()
 

@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
 import { ChevronUp } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { useRegisteredCopilotPanel } from "../components/CopilotPanelVisibility";
 import FloatingCopilotOrb from "../components/FloatingCopilotOrb";
 import V4PageShell from "../components/V4PageShell";
+import { apiErrorMessage } from "../lib/apiErrors";
+import { competitorApi, type CompetitorScan } from "../lib/competitorApi";
 
 export type LandingModule = "tasks" | "data" | "monitoring" | "growth";
 export type LandingView =
@@ -149,8 +152,107 @@ function DataHome() {
 }
 
 function DataProgress() {
-  const steps = ["排队中", "连接数据源", "数据抓取中", "数据清洗中", "AI 分析中", "生成结果中"];
-  return <><VisualTitle title="查询处理中" subtitle="系统正在为你生成竞品全盘分析结果，请稍候..." /><section className="data-progress"><div className="progress-steps">{steps.map((step,index)=><article className={index<3?"done":""} key={step}><i>{index<2?"✓":"○"}</i><strong>{step}</strong><small>{index===2?"多维数据抓取中":"处理进行中"}</small></article>)}</div><div className="progress-body"><article><span>当前进度</span><strong>38%</strong><i><b /></i><small>数据抓取中...</small></article><article><span>当前队列位置</span><strong>第 <b>3</b> 位</strong><small>前方还有 2 个任务</small></article><div className="data-process-art" /></div><section><h2>本次查询信息</h2><p>查询平台  ♪ 抖音</p><p>目标账号  @ 美妆小白的日常</p><p>关注维度  商品、直播、内容、流量、达人、店铺、投放</p><p>发起时间  2024-06-01 10:30:15</p></section></section><aside className="progress-tip">你可以先切换到其他页面，系统会继续处理；<Link to="/competitor-data/history">查看查询历史 →</Link></aside></>;
+  const [searchParams] = useSearchParams();
+  const requestedScanId = Number(searchParams.get("scanId"));
+  const [scan, setScan] = useState<CompetitorScan | null>(null);
+  const [error, setError] = useState("");
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [pollVersion, setPollVersion] = useState(0);
+  const steps = ["提交查询", "任务排队", "整理需求", "AI 分析", "生成结论", "分析完成"];
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | undefined;
+    const load = async () => {
+      try {
+        const nextScan = requestedScanId > 0
+          ? await competitorApi.getScan(requestedScanId)
+          : (await competitorApi.listScans(1)).scans[0] ?? null;
+        if (!active) return;
+        setScan(nextScan);
+        setError("");
+        if (nextScan && (nextScan.status === "queued" || nextScan.status === "running")) {
+          timer = window.setTimeout(() => void load(), 3000);
+        }
+      } catch (loadError) {
+        if (!active) return;
+        setError(apiErrorMessage(loadError, "暂时无法读取分析进度"));
+        timer = window.setTimeout(() => void load(), 3000);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [requestedScanId, pollVersion]);
+
+  const activeStep = scanStepIndex(scan);
+  const progress = Math.max(0, Math.min(scan?.progress_percent ?? 0, 100));
+  const status = scanProgressCopy(scan);
+
+  async function retry() {
+    if (!scan || isRetrying) return;
+    setIsRetrying(true);
+    try {
+      const nextScan = await competitorApi.retryScan(scan.id);
+      setScan(nextScan);
+      setError("");
+      setPollVersion((version) => version + 1);
+    } catch (retryError) {
+      setError(apiErrorMessage(retryError, "暂时无法重新分析"));
+    } finally {
+      setIsRetrying(false);
+    }
+  }
+
+  return <>
+    <VisualTitle title={scan?.status === "succeeded" || scan?.status === "completed" ? "分析已完成" : "查询处理中"} subtitle={status.subtitle} />
+    {error ? <p className="form-error" role="alert">{error}</p> : null}
+    {!scan && !error ? <section className="data-progress"><div className="module-empty-state" role="status">正在读取分析任务...</div></section> : null}
+    {scan ? <section className="data-progress">
+      <div className="progress-steps">{steps.map((step, index) => {
+        const state = index < activeStep ? "done" : index === activeStep ? "active" : "";
+        return <article className={state} key={step}><i>{index < activeStep ? "✓" : "○"}</i><strong>{step}</strong><small>{index === activeStep ? status.step : index < activeStep ? "已完成" : "等待处理"}</small></article>;
+      })}</div>
+      <div className="progress-body">
+        <article><span>当前进度</span><strong>{progress}%</strong><i><b style={{ width: `${progress}%` }} /></i><small>{status.step}</small></article>
+        <article><span>任务状态</span><strong className="progress-status-value">{status.label}</strong><small>{status.detail}</small></article>
+        <div className="data-process-art" />
+        <section><h2>本次查询信息</h2><p>分析对象　{scan.targets.join("、")}</p><p>关注维度　{scan.focus}</p><p>任务编号　{scan.id}</p><p>发起时间　{formatScanTime(scan.created_at)}</p></section>
+      </div>
+    </section> : null}
+    <aside className="progress-tip">
+      {scan?.status === "failed" ? <><span>本次分析未完成。</span><button disabled={isRetrying} onClick={() => void retry()} type="button">{isRetrying ? "提交中..." : "重新分析"}</button></> : scan?.status === "succeeded" || scan?.status === "completed" ? <><span>分析结果已生成。</span><Link to="/competitor-data">查看分析结果 →</Link></> : <>你可以先切换到其他页面，系统会继续处理；<Link to="/competitor-data">返回分析页 →</Link></>}
+    </aside>
+  </>;
+}
+
+function scanStepIndex(scan: CompetitorScan | null) {
+  if (!scan) return 0;
+  if (scan.status === "succeeded" || scan.status === "completed") return 5;
+  if (scan.current_step === "generating_results") return 4;
+  if (scan.current_step === "analyzing" || scan.status === "running") return 3;
+  if (scan.status === "queued") return 1;
+  if (scan.status === "failed") return scan.progress_percent >= 90 ? 4 : scan.progress_percent >= 60 ? 3 : 1;
+  return 0;
+}
+
+function scanProgressCopy(scan: CompetitorScan | null) {
+  if (!scan) return { label: "读取中", step: "读取任务", detail: "正在获取任务状态", subtitle: "正在获取本次分析进度..." };
+  if (scan.status === "queued") return { label: "排队中", step: "等待开始", detail: "任务已进入处理队列", subtitle: "系统正在准备本次竞品分析，请稍候..." };
+  if (scan.status === "failed") return { label: "未完成", step: "分析未完成", detail: "请重新提交分析", subtitle: "本次分析未完成，你可以重新尝试。" };
+  if (scan.status === "succeeded" || scan.status === "completed") return { label: "已完成", step: "结果已生成", detail: "可以查看完整分析结果", subtitle: "竞品分析结果已生成。" };
+  if (scan.current_step === "generating_results") return { label: "生成中", step: "正在生成结论", detail: "即将完成", subtitle: "系统正在生成竞品分析结果，请稍候..." };
+  return { label: "分析中", step: "AI 分析中", detail: "正在处理竞品信息", subtitle: "系统正在生成竞品分析结果，请稍候..." };
+}
+
+function formatScanTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false
+  }).format(date);
 }
 
 function DataHistory() {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
@@ -9,7 +9,7 @@ import { quotaKeys, quotaSummary } from "../lib/quotaUsage";
 import { tasksApi } from "../lib/tasksApi";
 
 const emptyDataStats = [
-  ["采集完成", "0%"],
+  ["分析进度", "0%"],
   ["竞品数", "0"],
   ["高威胁", "0"],
   ["AI结论", "0"]
@@ -17,8 +17,8 @@ const emptyDataStats = [
 
 const taskFlow = [
   ["1", "输入竞品", "域名、品牌名、关键词或截图"],
-  ["2", "脚本采集", "官网、招聘、内容、投放与价格页"],
-  ["3", "AI 清洗", "去重、归类、识别异常变化"],
+  ["2", "整理需求", "识别分析对象与重点关注维度"],
+  ["3", "AI 分析", "生成竞品画像、差异与竞争判断"],
   ["4", "生成结论", "输出威胁等级和应对动作"]
 ] as const;
 
@@ -43,18 +43,18 @@ function parseScanPlanInput(rawInput: string) {
 
 function scanStatusCopy(scan: CompetitorScan | null) {
   if (!scan) {
-    return { label: "未开始", detail: "启动一次采集任务后，这里会显示脚本队列与处理进度。", progress: 0 };
+    return { label: "未开始", detail: "启动一次分析任务后，这里会显示处理进度。", progress: 0 };
   }
   if (scan.status === "queued") {
-    return { label: "排队中", detail: "脚本任务已排队，等待采集账号执行。", progress: scan.progress_percent };
+    return { label: "排队中", detail: "分析任务已进入队列，请稍候。", progress: scan.progress_percent };
   }
   if (scan.status === "running") {
-    return { label: "采集中", detail: "脚本正在采集公开数据，完成后会生成 AI 破解结论。", progress: scan.progress_percent };
+    return { label: "分析中", detail: scan.current_step === "generating_results" ? "正在生成分析结论。" : "AI 正在分析竞品信息。", progress: scan.progress_percent };
   }
   if (scan.status === "failed") {
-    return { label: "采集失败", detail: scan.error_message || "脚本采集失败，请稍后重试或联系运营检查账号池。", progress: scan.progress_percent };
+    return { label: "分析失败", detail: "暂时无法完成分析，请稍后重试。", progress: scan.progress_percent };
   }
-  return { label: "已完成", detail: "采集与 AI 分析已完成，可以查看竞品画像和破解结论。", progress: 100 };
+  return { label: "已完成", detail: "AI 分析已完成，可以查看竞品画像和分析结论。", progress: 100 };
 }
 
 function shouldPollScan(scan: CompetitorScan | null) {
@@ -62,6 +62,7 @@ function shouldPollScan(scan: CompetitorScan | null) {
 }
 
 function CompetitorDataPage() {
+  const navigate = useNavigate();
   const [latestScan, setLatestScan] = useState<CompetitorScan | null>(null);
   const [loadError, setLoadError] = useState("");
   const [isScanning, setIsScanning] = useState(false);
@@ -87,7 +88,7 @@ function CompetitorDataPage() {
       .catch((error) => {
         if (!active) return;
         setLatestScan(null);
-        setLoadError(apiErrorMessage(error, "暂时无法读取竞品采集数据"));
+        setLoadError(apiErrorMessage(error, "暂时无法读取竞品分析数据"));
       });
     void membershipApi.usage()
       .then((payload) => {
@@ -124,7 +125,7 @@ function CompetitorDataPage() {
 
   const statusCopy = scanStatusCopy(latestScan);
   const visibleStats = latestScan ? [
-    ["采集完成", `${statusCopy.progress}%`],
+    ["分析进度", `${statusCopy.progress}%`],
     ["竞品数", String(latestScan.competitors.length)],
     ["高威胁", String(latestScan.competitors.filter((item) => item.risk === "强").length)],
     ["AI结论", String(latestScan.conclusions.length)]
@@ -138,6 +139,11 @@ function CompetitorDataPage() {
     "已留存证据"
   ] as const);
   const primaryConclusion = latestScan?.conclusions[0];
+  const analysisPanelCopy = latestScan?.status === "failed"
+    ? "可以重新发起分析"
+    : latestScan && !shouldPollScan(latestScan)
+      ? "分析结果已生成"
+      : "等待生成竞品画像";
 
   async function startScan() {
     if (isScanning) return;
@@ -152,10 +158,11 @@ function CompetitorDataPage() {
         focus: defaultScanFocus
       });
       setLatestScan(scan);
+      if (shouldPollScan(scan)) navigate(`/competitor-data/progress?scanId=${scan.id}`);
       const usagePayload = await membershipApi.usage().catch(() => null);
       if (usagePayload) setUsage(usagePayload.usage ?? []);
     } catch (error) {
-      setLoadError(apiErrorMessage(error, "暂时无法启动采集任务"));
+      setLoadError(apiErrorMessage(error, "暂时无法启动分析任务"));
     } finally {
       setIsScanning(false);
     }
@@ -167,8 +174,9 @@ function CompetitorDataPage() {
     try {
       const scan = await competitorApi.retryScan(latestScan.id);
       setLatestScan(scan);
+      if (shouldPollScan(scan)) navigate(`/competitor-data/progress?scanId=${scan.id}`);
     } catch (error) {
-      setLoadError(apiErrorMessage(error, "暂时无法重新采集"));
+      setLoadError(apiErrorMessage(error, "暂时无法重新分析"));
     } finally {
       setIsRetrying(false);
     }
@@ -231,10 +239,11 @@ function CompetitorDataPage() {
       const scan = await competitorApi.createScan(input);
       setLatestScan(scan);
       setLoadError("");
+      if (shouldPollScan(scan)) navigate(`/competitor-data/progress?scanId=${scan.id}`);
       const usagePayload = await membershipApi.usage().catch(() => null);
       if (usagePayload) setUsage(usagePayload.usage ?? []);
     } catch (error) {
-      setLoadError(apiErrorMessage(error, "暂时无法生成采集计划"));
+      setLoadError(apiErrorMessage(error, "暂时无法生成分析计划"));
     } finally {
       setIsScanning(false);
     }
@@ -246,7 +255,7 @@ function CompetitorDataPage() {
         <div className="page-title-row">
           <div>
             <h1>竞品全盘数据破解</h1>
-            <p>发起脚本代查，自动采集竞品公开数据，再交给 AI 提炼威胁、机会和反击动作</p>
+            <p>输入竞品与关注重点，由 AI 生成竞品画像、竞争判断和行动建议</p>
           </div>
           <div className={scanQuota.blocked ? "module-quota-inline depleted" : "module-quota-inline"}>
             <small>{scanQuota.label}</small>
@@ -254,7 +263,7 @@ function CompetitorDataPage() {
             {scanQuota.blocked ? <Link to="/membership">升级套餐</Link> : <span>{scanQuota.unit}</span>}
           </div>
           <button className="module-primary-action" disabled={isScanning || scanQuota.blocked} onClick={() => void startScan()} type="button">
-            {isScanning ? "采集中..." : "启动采集任务"}
+            {isScanning ? "提交中..." : "启动 AI 分析"}
           </button>
         </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
@@ -263,15 +272,15 @@ function CompetitorDataPage() {
 
         <section className="module-overview-card competitor-data-hero">
           <div className="module-overview-copy">
-            <span className="module-kicker">{latestScan ? latestScan.targets.join(" / ") : "暂无扫描任务"}</span>
-            <h2>把分散的公开信号合成一张可行动的竞品地图</h2>
-            <p>系统会从官网、招聘、内容、价格、案例和投放素材中提取变化，识别竞品正在抢什么客户、推什么能力、用什么话术。</p>
+            <span className="module-kicker">{latestScan ? latestScan.targets.join(" / ") : "暂无分析任务"}</span>
+            <h2>把竞品信息整理成一张可行动的竞争地图</h2>
+            <p>系统会围绕产品定位、目标客户、核心能力和竞争策略进行分析，提炼值得关注的差异和应对方向。</p>
             <div className="module-empty-state" role="status">
               <strong>{statusCopy.label}</strong>
               <span>{statusCopy.detail}</span>
               {latestScan?.status === "failed" ? (
                 <button className="competitor-retry-button" disabled={isRetrying} onClick={() => void retryScan()} type="button">
-                  {isRetrying ? "提交中..." : "重新采集"}
+                  {isRetrying ? "提交中..." : "重新分析"}
                 </button>
               ) : null}
             </div>
@@ -297,7 +306,7 @@ function CompetitorDataPage() {
               value={scanPlanInput}
             />
             {scanPlanError ? <small className="form-error" role="alert">{scanPlanError}</small> : null}
-            <button disabled={isScanning || scanQuota.blocked} type="submit">{isScanning ? "生成中..." : "生成采集计划"}</button>
+            <button disabled={isScanning || scanQuota.blocked} type="submit">{isScanning ? "提交中..." : "开始分析"}</button>
           </form>
         </section>
 
@@ -305,8 +314,8 @@ function CompetitorDataPage() {
           <div className="competitor-data-main">
             <div className="module-section-head">
               <div>
-                <h2>采集任务流</h2>
-                <p>脚本代查会拆成可追踪节点，方便部署后接入真实队列</p>
+                <h2>分析任务流</h2>
+                <p>任务会按步骤处理，并实时更新分析进度</p>
               </div>
             </div>
             <div className="competitor-flow">
@@ -320,9 +329,9 @@ function CompetitorDataPage() {
             </div>
           </div>
 
-          <aside className="competitor-data-side" aria-label="数据源状态">
-            <h2>数据源状态</h2>
-            {visibleDataSources.length === 0 ? <div className="module-empty-state" role="status">暂无已留存数据源</div> : null}
+          <aside className="competitor-data-side" aria-label="分析状态">
+            <h2>分析状态</h2>
+            {visibleDataSources.length === 0 ? <div className="module-empty-state" role="status">{analysisPanelCopy}</div> : null}
             {visibleDataSources.map(([source, detail, status], index) => (
               <article key={`${source}-${index}`}>
                 <span>
@@ -339,7 +348,7 @@ function CompetitorDataPage() {
           <div className="module-section-head">
             <div>
               <h2>重点竞品画像</h2>
-              <p>AI 根据公开变化生成威胁评分和关键动作</p>
+              <p>AI 根据输入信息生成竞争评分和关键动作</p>
             </div>
             <div className="module-chip-row compact">
               {["全部", "高威胁", "价格变化", "招聘扩张"].map((view, index) => (
@@ -384,7 +393,7 @@ function CompetitorDataPage() {
             <div className="module-section-head">
               <div>
                 <h2>AI 破解结论</h2>
-                <p>从数据变化里抽出能指导打法的判断</p>
+                <p>提炼能够指导下一步行动的竞争判断</p>
               </div>
             </div>
             <div className="competitor-conclusion-list">
@@ -417,7 +426,7 @@ function CompetitorDataPage() {
           <aside className="competitor-action-card" aria-label="建议动作">
             <h2>建议动作</h2>
             <strong>{visibleConclusions.length > 0 ? "根据破解结论生成反击任务" : "暂无建议动作"}</strong>
-            <p>{visibleConclusions[0]?.[1] ?? "完成一次竞品采集后，这里会显示后端生成的反击建议。"}</p>
+            <p>{visibleConclusions[0]?.[1] ?? "完成一次竞品分析后，这里会显示生成的行动建议。"}</p>
             <button disabled={!primaryConclusion || isCreatingTask} onClick={() => void createCounterTask()} type="button">
               {isCreatingTask ? "生成中..." : "生成反击任务"}
             </button>

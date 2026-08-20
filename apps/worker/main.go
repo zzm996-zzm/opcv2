@@ -62,7 +62,7 @@ func main() {
 	geoRepository := geo.NewPostgresRepository(db)
 	geoService := geo.NewService(geoRepository)
 	competitorRepository := competitor.NewPostgresRepository(db)
-	competitorScanner, err := newCompetitorScanner(cfg)
+	competitorScanner, err := newCompetitorScanner(cfg, aiService)
 	if err != nil {
 		logger.Error("configure competitor scanner", "provider", cfg.CompetitorScannerProvider, "error", err)
 		os.Exit(1)
@@ -127,12 +127,17 @@ func newLeadProvider(cfg config.Config) (leads.LeadProvider, error) {
 	}
 }
 
-func newCompetitorScanner(cfg config.Config) (competitor.Scanner, error) {
+func newCompetitorScanner(cfg config.Config, generator competitor.AIGenerator) (competitor.Scanner, error) {
 	switch cfg.CompetitorScannerProvider {
 	case "":
 		return nil, nil
 	case "development":
 		return competitor.NewDevelopmentScanner(), nil
+	case "ai":
+		if generator == nil {
+			return nil, errors.New("competitor AI generator is not configured")
+		}
+		return competitor.NewAIAnalysisScanner(generator), nil
 	default:
 		return nil, errors.New("unsupported competitor scanner provider")
 	}

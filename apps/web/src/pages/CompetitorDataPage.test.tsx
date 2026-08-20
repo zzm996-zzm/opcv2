@@ -44,7 +44,7 @@ describe("CompetitorDataPage", () => {
     renderCompetitorDataPage();
 
     expect(screen.getByRole("heading", { name: "竞品全盘数据破解" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "启动采集任务" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "启动 AI 分析" })).toBeInTheDocument();
     expect(await screen.findByText("暂无竞品画像")).toBeInTheDocument();
     expect(screen.queryByText("小鹅通")).not.toBeInTheDocument();
     expect(screen.getByText("AI 破解结论")).toBeInTheDocument();
@@ -272,7 +272,7 @@ describe("CompetitorDataPage", () => {
     });
 
     renderCompetitorDataPage();
-    fireEvent.click(screen.getByRole("button", { name: "启动采集任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "启动 AI 分析" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -303,7 +303,7 @@ describe("CompetitorDataPage", () => {
     });
 
     renderCompetitorDataPage();
-    fireEvent.click(screen.getByRole("button", { name: "启动采集任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "启动 AI 分析" }));
 
     expect(await screen.findByText("请求失败，请稍后重试")).toBeInTheDocument();
     expect(screen.getByText("暂无竞品画像")).toBeInTheDocument();
@@ -348,7 +348,7 @@ describe("CompetitorDataPage", () => {
     fireEvent.change(screen.getByLabelText("输入竞品或关键词"), {
       target: { value: "增长雷达、线索火花；重点关注获客链路、价格页和AI销售能力" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "生成采集计划" }));
+    fireEvent.click(screen.getByRole("button", { name: "开始分析" }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -383,11 +383,11 @@ describe("CompetitorDataPage", () => {
     renderCompetitorDataPage();
 
     expect(await screen.findByText("0/5")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "启动采集任务" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "启动 AI 分析" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("输入竞品或关键词"), {
       target: { value: "增长雷达；重点关注价格" }
     });
-    expect(screen.getByRole("button", { name: "生成采集计划" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "开始分析" })).toBeDisabled();
     expect(screen.getByRole("link", { name: "升级套餐" })).toHaveAttribute("href", "/membership");
     expect(fetchMock).not.toHaveBeenCalledWith("/api/v1/competitor/scans", expect.any(Object));
   });
@@ -417,10 +417,10 @@ describe("CompetitorDataPage", () => {
     });
 
     renderCompetitorDataPage();
-    fireEvent.click(screen.getByRole("button", { name: "启动采集任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "启动 AI 分析" }));
 
     expect(await screen.findByText("排队中")).toBeInTheDocument();
-    expect(screen.getByText("脚本任务已排队，等待采集账号执行。")).toBeInTheDocument();
+    expect(screen.getByText("分析任务已进入队列，请稍候。")).toBeInTheDocument();
     expect(screen.getByText("0%")).toBeInTheDocument();
   });
 
@@ -452,8 +452,8 @@ describe("CompetitorDataPage", () => {
           targets: ["小鹅通"],
           focus: "价格变化",
           status: "running",
-          progress_percent: 30,
-          current_step: "collecting_sources",
+          progress_percent: 60,
+          current_step: "analyzing",
           competitors: [],
           conclusions: [],
           created_at: "2026-06-30T08:00:00Z",
@@ -468,8 +468,8 @@ describe("CompetitorDataPage", () => {
     expect(await screen.findByText("排队中")).toBeInTheDocument();
     await vi.advanceTimersByTimeAsync(3000);
 
-    expect(await screen.findByText("脚本正在采集公开数据，完成后会生成 AI 破解结论。")).toBeInTheDocument();
-    expect(screen.getByText("30%")).toBeInTheDocument();
+    expect(await screen.findByText("AI 正在分析竞品信息。")).toBeInTheDocument();
+    expect(screen.getByText("60%")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/competitor/scans/13", expect.objectContaining({ method: "GET" }));
   });
 
@@ -516,8 +516,8 @@ describe("CompetitorDataPage", () => {
 
     renderCompetitorDataPage();
 
-    expect(await screen.findByText("scanner_not_configured")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重新采集" }));
+    expect(await screen.findByText("暂时无法完成分析，请稍后重试。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新分析" }));
 
     expect(await screen.findByText("排队中")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/competitor/scans/13/retry", expect.objectContaining({ method: "POST" }));
@@ -553,10 +553,10 @@ describe("CompetitorDataPage", () => {
 
     renderCompetitorDataPage();
 
-    expect(await screen.findByText("scanner_not_configured")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重新采集" }));
+    expect(await screen.findByText("暂时无法完成分析，请稍后重试。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重新分析" }));
 
     expect(await screen.findByText("请求失败，请稍后重试")).toBeInTheDocument();
-    expect(screen.getByText("采集失败")).toBeInTheDocument();
+    expect(screen.getByText("分析失败")).toBeInTheDocument();
   });
 });

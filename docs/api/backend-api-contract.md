@@ -2070,11 +2070,12 @@ free users get 5 scans/month, pro users get 200 scans/month.
 
 Notes:
 
-- Creating a scan creates a queued script task and enqueues a `competitor.scan` background job. It must not fabricate competitor cards or AI conclusions.
-- The worker marks scans `running` while processing, then writes scanner results and marks `succeeded`, or marks `failed` with `error_message`.
+- Creating a scan creates a queued analysis task and enqueues a `competitor.scan` background job.
+- The AI scanner uses `targets` and `focus` to generate structured competitor cards and conclusions through the configured AI model. It does not populate platform evidence sources.
+- The worker reports `60% / analyzing`, `90% / generating_results`, and `100% / succeeded`, or marks the scan `failed` with a safe `error_message`.
 - Successful scanner results can include `evidence_sources` with `source_type`, `platform`, `title`, `url`, `summary`, and `captured_at`.
 - The worker mirrors safe evidence summaries into the scan response and transactionally stores normalized evidence plus internal raw snapshots. Raw snapshot payloads are never returned by user APIs.
-- `OPCV2_COMPETITOR_SCANNER_PROVIDER=development` enables the development scanner for local/demo use. The default is empty, and production rejects the development scanner.
+- `OPCV2_COMPETITOR_SCANNER_PROVIDER=ai` enables AI analysis and is the Compose default. `development` remains available for local/demo use and is rejected in production.
 - Platform scanners can request an account from the script-account pool. The worker atomically leases an available account, enforces its hourly run limit, records the run, applies failure cooldown, disables repeatedly failing accounts, and reclaims stale leases after 15 minutes.
 - Real platform scripts remain separate provider implementations; no unofficial platform script is enabled by this account-pool foundation.
 

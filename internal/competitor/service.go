@@ -375,7 +375,7 @@ func (s *Service) ProcessScan(ctx context.Context, id int64) error {
 	if s.repository == nil {
 		return ErrServiceNotReady
 	}
-	scan, err := s.repository.UpdateScanStatus(ctx, id, StatusRunning, 30, "collecting_sources", "")
+	scan, err := s.repository.UpdateScanStatus(ctx, id, StatusRunning, 60, "analyzing", "")
 	if err != nil {
 		return err
 	}
@@ -428,6 +428,9 @@ func (s *Service) ProcessScan(ctx context.Context, id int64) error {
 	}
 	if result.RawSnapshots == nil {
 		result.RawSnapshots = []RawSnapshot{}
+	}
+	if _, err := s.repository.UpdateScanStatus(ctx, id, StatusRunning, 90, "generating_results", ""); err != nil {
+		return err
 	}
 	if err := s.repository.StoreScanResults(ctx, id, result); err != nil {
 		if _, updateErr := s.repository.UpdateScanStatus(ctx, id, StatusFailed, 100, "failed", "artifact_store_failed"); updateErr != nil {

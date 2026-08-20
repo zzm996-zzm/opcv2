@@ -388,14 +388,17 @@ func TestServiceProcessScanStoresResultsAndMarksSucceeded(t *testing.T) {
 	if len(repository.results.Competitors) != 1 || len(repository.results.Conclusions) != 1 || len(repository.results.EvidenceSources) != 1 || len(repository.results.RawSnapshots) != 1 {
 		t.Fatalf("results = %+v", repository.results)
 	}
-	if len(repository.updates) != 2 {
-		t.Fatalf("updates = %+v, want running and succeeded", repository.updates)
+	if len(repository.updates) != 3 {
+		t.Fatalf("updates = %+v, want analyzing, generating results and succeeded", repository.updates)
 	}
-	if repository.updates[0].status != StatusRunning || repository.updates[0].progressPercent != 30 || repository.updates[0].currentStep != "collecting_sources" {
+	if repository.updates[0].status != StatusRunning || repository.updates[0].progressPercent != 60 || repository.updates[0].currentStep != "analyzing" {
 		t.Fatalf("running update = %+v", repository.updates[0])
 	}
-	if repository.updates[1].status != StatusSucceeded || repository.updates[1].progressPercent != 100 || repository.updates[1].currentStep != "succeeded" {
-		t.Fatalf("succeeded update = %+v", repository.updates[1])
+	if repository.updates[1].status != StatusRunning || repository.updates[1].progressPercent != 90 || repository.updates[1].currentStep != "generating_results" {
+		t.Fatalf("generating update = %+v", repository.updates[1])
+	}
+	if repository.updates[2].status != StatusSucceeded || repository.updates[2].progressPercent != 100 || repository.updates[2].currentStep != "succeeded" {
+		t.Fatalf("succeeded update = %+v", repository.updates[2])
 	}
 }
 
