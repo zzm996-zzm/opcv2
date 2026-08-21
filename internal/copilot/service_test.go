@@ -16,6 +16,7 @@ import (
 	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/projects"
+	"github.com/zzm/opcv2/internal/sandbox"
 	"github.com/zzm/opcv2/internal/tasks"
 )
 
@@ -363,6 +364,15 @@ type fakeLearningContextProvider struct {
 	diagnosisErr    error
 }
 
+type fakeSandboxContextProvider struct {
+	run        sandbox.V2SandboxRun
+	runs       []sandbox.V2SandboxRun
+	runUserID  int64
+	runID      int64
+	listUserID int64
+	listLimit  int
+}
+
 func (p *fakeLearningContextProvider) GetCourse(_ context.Context, slug string) (learning.Course, error) {
 	p.courseSlug = slug
 	return p.course, nil
@@ -388,6 +398,18 @@ func (p *fakeLearningContextProvider) GetPlan(_ context.Context, userID, diagnos
 	p.planUserID = userID
 	p.planDiagnosisID = diagnosisID
 	return p.plan, nil
+}
+
+func (p *fakeSandboxContextProvider) GetV2Run(_ context.Context, userID, runID int64) (sandbox.V2SandboxRun, error) {
+	p.runUserID = userID
+	p.runID = runID
+	return p.run, nil
+}
+
+func (p *fakeSandboxContextProvider) ListV2Runs(_ context.Context, userID int64, limit int) ([]sandbox.V2SandboxRun, error) {
+	p.listUserID = userID
+	p.listLimit = limit
+	return p.runs, nil
 }
 
 func (p *fakeProjectContextProvider) GetProject(_ context.Context, ref string) (projects.Project, error) {
@@ -863,6 +885,53 @@ func TestServiceAllowsLearningChatWithoutSavedDiagnosis(t *testing.T) {
 	}
 	if !strings.Contains(streamer.request.UserPrompt, `"view":"home"`) || strings.Contains(streamer.request.UserPrompt, "\"diagnosis\"") {
 		t.Fatalf("unexpected learning prompt: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesAuthorizedSandboxRunContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "沙盘复盘", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合沙盘推演回答"}}
+	provider := &fakeSandboxContextProvider{run: sandbox.V2SandboxRun{
+		ID: 31, UserID: 42, Name: "门店 AI 运营助手", Status: sandbox.V2StatusDone,
+		Product: sandbox.V2Product{Name: "门店 AI 运营助手", SellingPoint: "自动生成运营动作"},
+		Context: sandbox.V2RunContext{TargetCustomer: "连锁门店"}, Roles: []string{"customer", "skeptic"},
+		Report: &sandbox.V2SandboxReport{
+			Summary:     "建议先验证门店付费意愿。",
+			Feasibility: sandbox.V2Feasibility{Score: 72, Level: "可小范围验证", Basis: "需求有待访谈验证。"},
+			Advice:      []sandbox.V2Advice{{Action: "访谈十家门店", Why: "验证真实需求", Priority: 1, Effort: "1 周"}},
+		},
+	}}
+	service := NewService(repository, streamer, WithSandboxContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "下一步如何验证？", CurrentView: "/sandbox-runs/31/report",
+		ActiveFilters: map[string]string{"module": "sandbox", "view": "report", "run_id": "31"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.runUserID != 42 || provider.runID != 31 ||
+		!strings.Contains(streamer.request.UserPrompt, "门店 AI 运营助手") ||
+		!strings.Contains(streamer.request.UserPrompt, `"score":72`) ||
+		!strings.Contains(streamer.request.UserPrompt, "访谈十家门店") {
+		t.Fatalf("sandbox context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesAuthorizedSandboxHistoryInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "沙盘历史", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合历史记录回答"}}
+	provider := &fakeSandboxContextProvider{runs: []sandbox.V2SandboxRun{{ID: 31, Name: "门店 AI 运营助手", Product: sandbox.V2Product{Name: "门店 AI 运营助手"}, Status: sandbox.V2StatusDone}}}
+	service := NewService(repository, streamer, WithSandboxContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "先复盘哪一条？", ActiveFilters: map[string]string{"module": "sandbox", "view": "history"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.listUserID != 42 || provider.listLimit != 10 || !strings.Contains(streamer.request.UserPrompt, `"recent_runs"`) || !strings.Contains(streamer.request.UserPrompt, "门店 AI 运营助手") {
+		t.Fatalf("sandbox history context not included: %s", streamer.request.UserPrompt)
 	}
 }
 

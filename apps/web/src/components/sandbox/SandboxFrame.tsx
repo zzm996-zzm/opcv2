@@ -13,6 +13,7 @@ type SandboxFrameProps = {
   copilotMode: SandboxCopilotMode;
   copilotProgress?: number;
   copilotProject?: string;
+  copilotRunID?: number;
   title?: boolean;
 };
 
@@ -24,6 +25,7 @@ function SandboxFrame({
   copilotMode,
   copilotProgress,
   copilotProject,
+  copilotRunID,
   title = true
 }: SandboxFrameProps) {
   const isHome = copilotMode === "home" && title === false;
@@ -43,7 +45,7 @@ function SandboxFrame({
             {children}
           </main>
           {copilot ?? (
-            <SandboxCopilot facts={copilotFacts} mode={copilotMode} progress={copilotProgress} project={copilotProject} />
+            <SandboxCopilot facts={copilotFacts} mode={copilotMode} progress={copilotProgress} project={copilotProject} runID={copilotRunID} />
           )}
         </div>
       </section>

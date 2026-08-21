@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
@@ -110,6 +110,33 @@ describe("SandboxPage V1.2 flow", () => {
   it("loads server-filtered history and uses canonical report links", async () => {
     signIn(); const completed = fixture({ status: "done", done: true, report }); const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => String(input).startsWith("/api/v1/sandbox-runs?") ? response({ runs: [completed], page: 1, limit: 20 }) : Promise.reject(new Error(`unexpected ${String(input)}`)));
     render(<MemoryRouter initialEntries={["/sandbox/history"]}><App /></MemoryRouter>); expect(await screen.findByText("企业 AI 运营平台")).toBeInTheDocument(); expect(screen.getByRole("link", { name: "查看报告" })).toHaveAttribute("href", "/sandbox-runs/42/report"); fireEvent.change(screen.getByLabelText("搜索产品名称"), { target: { value: "门店" } }); await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).includes("product=%E9%97%A8%E5%BA%97"))).toBe(true));
+  });
+
+  it("sends the current sandbox run identifier to Copilot", async () => {
+    signIn();
+    const completed = fixture({ status: "done", done: true, completeness: 1, report });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/sandbox-runs/42" && init?.method === "GET") return response(completed);
+      if (url === "/api/v1/copilot/threads" && init?.method === "POST") return response({ id: 99, user_id: 7, title: "商业沙盘：下一步", mode: "chat", model: "deepseek", created_at: "", updated_at: "" });
+      if (url === "/api/v1/copilot/threads/99/messages" && init?.method === "POST") return response({
+        user_message: { id: 1, user_id: 7, thread_id: 99, role: "user", content: "下一步怎么验证", status: "completed", model: "deepseek", created_at: "" },
+        assistant_message: { id: 2, user_id: 7, thread_id: 99, role: "assistant", content: "先访谈目标门店。", status: "completed", model: "deepseek", created_at: "" }
+      });
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+
+    render(<MemoryRouter initialEntries={["/sandbox-runs/42/report"]}><App /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "企业 AI 运营平台" });
+    const copilot = screen.getByRole("complementary", { name: "智活 Copilot" });
+    fireEvent.change(await within(copilot).findByLabelText("向沙盘 Copilot 提问"), { target: { value: "下一步怎么验证" } });
+    await waitFor(() => expect(within(copilot).getByRole("button", { name: "发送" })).not.toBeDisabled());
+    fireEvent.click(within(copilot).getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/copilot/threads/99/messages", expect.objectContaining({ method: "POST" })));
+    const sendCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/copilot/threads/99/messages");
+    expect(JSON.parse(String(sendCall?.[1]?.body))).toEqual(expect.objectContaining({
+      active_filters: { module: "sandbox", view: "report", run_id: "42" }
+    }));
   });
 
   it("offers both recovery exits for a missing run", async () => {

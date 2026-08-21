@@ -14,6 +14,7 @@ type SandboxCopilotProps = {
   mode: SandboxCopilotMode;
   progress?: number;
   project?: string;
+  runID?: number;
 };
 
 const modeCopy: Record<SandboxCopilotMode, { user: string; assistant: string; actions: Array<[string, string]> }> = {
@@ -59,7 +60,7 @@ const modeCopy: Record<SandboxCopilotMode, { user: string; assistant: string; ac
   }
 };
 
-function SandboxCopilot({ children, facts = [], mode, progress, project }: SandboxCopilotProps) {
+function SandboxCopilot({ children, facts = [], mode, progress, project, runID }: SandboxCopilotProps) {
   const copilotPanel = useRegisteredCopilotPanel();
   const openPanel = copilotPanel.openPanel;
   const copy = modeCopy[mode];
@@ -116,6 +117,11 @@ function SandboxCopilot({ children, facts = [], mode, progress, project }: Sandb
             ))}
           </nav> : null}
           {!isQuestionAnalysis ? <MiniCopilotForm
+            activeFilters={{
+              module: "sandbox",
+              view: mode,
+              ...(runID ? { run_id: String(runID) } : {})
+            }}
             attachIcon={<Paperclip size={16} />}
             className="sb-copilot-input"
             inputAriaLabel="向沙盘 Copilot 提问"
