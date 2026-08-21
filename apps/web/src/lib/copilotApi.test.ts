@@ -230,6 +230,19 @@ describe("copilotApi", () => {
     );
   });
 
+  it("updates a memory status", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: 7, status: "active" }), { status: 200 })
+    );
+
+    await copilotApi.updateMemory(7, { status: "active" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/copilot/memories/7",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "active" }) })
+    );
+  });
+
   it("lists and uploads copilot reference files", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify({ files: [] }), { status: 200 }))

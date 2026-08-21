@@ -165,10 +165,32 @@ func (r *fakeRepository) ListMemories(_ context.Context, userID int64, limit int
 }
 
 func (r *fakeRepository) UpsertMemory(_ context.Context, memory Memory) (Memory, error) {
+	if memory.Status == "" {
+		memory.Status = MemoryStatusActive
+	}
 	r.upsertedMemory = memory
 	memory.ID = 7
 	r.memories = append(r.memories, memory)
 	return memory, r.err
+}
+
+func (r *fakeRepository) UpdateMemory(_ context.Context, input MemoryUpdateInput) (Memory, error) {
+	for index, memory := range r.memories {
+		if memory.UserID != input.UserID || memory.ID != input.ID {
+			continue
+		}
+		if input.Key != "" {
+			r.memories[index].Key = input.Key
+		}
+		if input.Value != "" {
+			r.memories[index].Value = input.Value
+		}
+		if input.Status != "" {
+			r.memories[index].Status = input.Status
+		}
+		return r.memories[index], nil
+	}
+	return Memory{}, ErrMemoryNotFound
 }
 
 func (r *fakeRepository) DeleteMemory(_ context.Context, userID, id int64) error {
@@ -704,8 +726,26 @@ func TestServiceStreamExtractsStableMemoryAfterReply(t *testing.T) {
 	if repository.upsertedMemory.Key != "回答偏好" || repository.upsertedMemory.Value != "先给结论，再给步骤" {
 		t.Fatalf("upserted memory = %+v", repository.upsertedMemory)
 	}
+	if repository.upsertedMemory.Status != MemoryStatusPending {
+		t.Fatalf("upserted memory status = %q, want %q", repository.upsertedMemory.Status, MemoryStatusPending)
+	}
 	if strings.Contains(streamer.request.UserPrompt, "返回 JSON") {
 		t.Fatalf("stream prompt unexpectedly requests JSON: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceExcludesUnconfirmedMemoriesFromPrompt(t *testing.T) {
+	repository := &fakeRepository{
+		threads:  []Thread{{ID: 99, UserID: 42, Title: "记忆控制", Mode: ModeChat}},
+		memories: []Memory{{ID: 1, UserID: 42, Key: "待确认事实", Value: "不应传给模型", Status: MemoryStatusPending}, {ID: 2, UserID: 42, Key: "已确认事实", Value: "应传给模型", Status: MemoryStatusActive}},
+	}
+	streamer := &fakeTextStreamer{deltas: []string{"已处理"}}
+	service := NewService(repository, streamer)
+	if _, err := service.StreamMessage(context.Background(), SendMessageInput{UserID: 42, ThreadID: 99, Content: "继续"}, func(StreamEvent) error { return nil }); err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if strings.Contains(streamer.request.UserPrompt, "不应传给模型") || !strings.Contains(streamer.request.UserPrompt, "应传给模型") {
+		t.Fatalf("memory status filtering failed: %s", streamer.request.UserPrompt)
 	}
 }
 

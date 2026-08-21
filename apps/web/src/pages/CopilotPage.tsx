@@ -555,6 +555,16 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     }
   }
 
+  async function handleUpdateMemory(id: number, input: { key?: string; value?: string; status?: CopilotMemory["status"] }) {
+    setError("");
+    try {
+      const memory = await copilotApi.updateMemory(id, input);
+      setMemories((current) => current.map((item) => item.id === id ? memory : item));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "更新记忆失败，请稍后重试");
+    }
+  }
+
   async function handleSaveFile(input: { name: string; content: string; mime_type?: string }) {
     setIsSavingFile(true);
     setError("");
@@ -704,6 +714,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
             isSavingMemory={isSavingMemory}
             isSavingFile={isSavingFile}
             onSaveMemory={handleSaveMemory}
+            onUpdateMemory={handleUpdateMemory}
             onDeleteMemory={handleDeleteMemory}
             onSaveFile={handleSaveFile}
             onUploadFile={handleUploadFile}
@@ -1095,6 +1106,7 @@ const Composer = forwardRef<HTMLDivElement, {
   onDraftChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onSaveMemory: (input: { key: string; value: string }) => void;
+  onUpdateMemory: (id: number, input: { key?: string; value?: string; status?: CopilotMemory["status"] }) => Promise<void>;
   onDeleteMemory: (id: number) => void;
   onSaveFile: (input: { name: string; content: string; mime_type?: string }) => Promise<void>;
   onUploadFile: (file: File) => Promise<void>;
@@ -1120,6 +1132,7 @@ const Composer = forwardRef<HTMLDivElement, {
   onDraftChange,
   onModelChange,
   onSaveMemory,
+  onUpdateMemory,
   onDeleteMemory,
   onSaveFile,
   onUploadFile,
@@ -1214,6 +1227,7 @@ const Composer = forwardRef<HTMLDivElement, {
           memories={memories}
           onDelete={onDeleteMemory}
           onSave={onSaveMemory}
+          onUpdate={onUpdateMemory}
         />
       )}
       {selectedReferenceFiles.length > 0 && (
@@ -1303,15 +1317,20 @@ function MemoryPanel({
   memories,
   isSaving,
   onSave,
-  onDelete
+  onDelete,
+  onUpdate
 }: {
   memories: CopilotMemory[];
   isSaving: boolean;
   onSave: (input: { key: string; value: string }) => void;
   onDelete: (id: number) => void;
+  onUpdate: (id: number, input: { key?: string; value?: string; status?: CopilotMemory["status"] }) => Promise<void>;
 }) {
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
+  const [editingID, setEditingID] = useState<number | null>(null);
+  const [editingKey, setEditingKey] = useState("");
+  const [editingValue, setEditingValue] = useState("");
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -1321,6 +1340,19 @@ function MemoryPanel({
     onSave({ key: nextKey, value: nextValue });
     setKey("");
     setValue("");
+  }
+
+  function startEditing(memory: CopilotMemory) {
+    setEditingID(memory.id);
+    setEditingKey(memory.key);
+    setEditingValue(memory.value);
+  }
+
+  async function handleEditSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (editingID === null || !editingKey.trim() || !editingValue.trim()) return;
+    await onUpdate(editingID, { key: editingKey.trim(), value: editingValue.trim() });
+    setEditingID(null);
   }
 
   return (
@@ -1340,15 +1372,36 @@ function MemoryPanel({
       <div className="memory-list">
         {memories.length === 0 ? (
           <p>暂无记忆</p>
-        ) : memories.map((memory) => (
-          <article key={memory.id}>
-            <span>
-              <strong>{memory.key}</strong>
-              <small>{memory.value}</small>
-            </span>
-            <button aria-label={`删除记忆 ${memory.key}`} onClick={() => onDelete(memory.id)} type="button">删除</button>
+        ) : memories.map((memory) => {
+          const status = memory.status ?? "active";
+          return (
+          <article className={status === "inactive" ? "inactive" : status === "pending" ? "pending" : undefined} key={memory.id}>
+            {editingID === memory.id ? (
+              <form className="memory-edit-form" onSubmit={(event) => void handleEditSubmit(event)}>
+                <input aria-label={`编辑记忆名称 ${memory.key}`} onChange={(event) => setEditingKey(event.target.value)} value={editingKey} />
+                <input aria-label={`编辑记忆内容 ${memory.key}`} onChange={(event) => setEditingValue(event.target.value)} value={editingValue} />
+                <button disabled={!editingKey.trim() || !editingValue.trim()} type="submit">保存</button>
+                <button onClick={() => setEditingID(null)} type="button">取消</button>
+              </form>
+            ) : (
+              <>
+                <span>
+                  <strong>{memory.key}</strong>
+                  <small>{memory.value}</small>
+                  <em>{status === "pending" ? "待确认" : status === "inactive" ? "已停用" : memory.source === "manual" ? "手动维护" : "已启用"}</em>
+                </span>
+                <div>
+                  {status === "pending" && <button aria-label={`确认记忆 ${memory.key}`} onClick={() => void onUpdate(memory.id, { status: "active" })} type="button">确认</button>}
+                  {status === "pending" && <button aria-label={`忽略记忆 ${memory.key}`} onClick={() => void onUpdate(memory.id, { status: "inactive" })} type="button">忽略</button>}
+                  {status === "inactive" && <button aria-label={`启用记忆 ${memory.key}`} onClick={() => void onUpdate(memory.id, { status: "active" })} type="button">启用</button>}
+                  <button aria-label={`编辑记忆 ${memory.key}`} onClick={() => startEditing(memory)} type="button">编辑</button>
+                  <button aria-label={`删除记忆 ${memory.key}`} onClick={() => onDelete(memory.id)} type="button">删除</button>
+                </div>
+              </>
+            )}
           </article>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

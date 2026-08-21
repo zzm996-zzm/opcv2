@@ -87,6 +87,15 @@ type MemoryInput struct {
 	Value      string  `json:"value"`
 	Confidence float64 `json:"confidence,omitempty"`
 	Source     string  `json:"source,omitempty"`
+	Status     string  `json:"status,omitempty"`
+}
+
+type MemoryUpdateInput struct {
+	UserID int64  `json:"-"`
+	ID     int64  `json:"-"`
+	Key    string `json:"key,omitempty"`
+	Value  string `json:"value,omitempty"`
+	Status string `json:"status,omitempty"`
 }
 
 type FileInput struct {
@@ -136,9 +145,16 @@ type Memory struct {
 	Value      string    `json:"value"`
 	Confidence float64   `json:"confidence"`
 	Source     string    `json:"source,omitempty"`
+	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 }
+
+const (
+	MemoryStatusPending  = "pending"
+	MemoryStatusActive   = "active"
+	MemoryStatusInactive = "inactive"
+)
 
 type File struct {
 	ID             int64     `json:"id"`

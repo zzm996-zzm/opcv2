@@ -15,6 +15,7 @@ function CopilotMemorySettings({ limit = 4 }: CopilotMemorySettingsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingID, setDeletingID] = useState<number | null>(null);
+  const [updatingID, setUpdatingID] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -69,6 +70,20 @@ function CopilotMemorySettings({ limit = 4 }: CopilotMemorySettingsProps) {
     }
   }
 
+  async function updateMemory(memory: CopilotMemory, status: "active" | "inactive") {
+    if (updatingID !== null) return;
+    setUpdatingID(memory.id);
+    setError("");
+    try {
+      const updated = await copilotApi.updateMemory(memory.id, { status });
+      setMemories((current) => current.map((item) => item.id === memory.id ? updated : item));
+    } catch {
+      setError("暂时无法更新记忆");
+    } finally {
+      setUpdatingID(null);
+    }
+  }
+
   return (
     <section className="copilot-memory-settings" aria-label="长期记忆">
       <header>
@@ -85,7 +100,11 @@ function CopilotMemorySettings({ limit = 4 }: CopilotMemorySettingsProps) {
       {!isLoading && memories.length === 0 && !error ? <small className="copilot-memory-empty">暂无长期记忆</small> : null}
       {memories.length > 0 ? <div className="copilot-memory-list">
         {memories.map((memory) => <article key={memory.id}>
-          <span><strong>{memory.key}</strong><small>{memory.value}</small></span>
+          <span><strong>{memory.key}</strong><small>{memory.value}</small><em>{memory.status === "pending" ? "待确认" : memory.status === "inactive" ? "已停用" : "已启用"}</em></span>
+          <div>
+          {memory.status === "pending" && <button aria-label={`确认记忆 ${memory.key}`} disabled={updatingID !== null} onClick={() => void updateMemory(memory, "active")} title={`确认记忆 ${memory.key}`} type="button"><span>确认</span></button>}
+          {memory.status === "inactive" && <button aria-label={`启用记忆 ${memory.key}`} disabled={updatingID !== null} onClick={() => void updateMemory(memory, "active")} title={`启用记忆 ${memory.key}`} type="button"><span>启用</span></button>}
+          {memory.status === "active" && <button aria-label={`停用记忆 ${memory.key}`} disabled={updatingID !== null} onClick={() => void updateMemory(memory, "inactive")} title={`停用记忆 ${memory.key}`} type="button"><span>停用</span></button>}
           <button
             aria-label={`删除记忆 ${memory.key}`}
             disabled={deletingID !== null}
@@ -95,6 +114,7 @@ function CopilotMemorySettings({ limit = 4 }: CopilotMemorySettingsProps) {
           >
             <Trash2 aria-hidden="true" />
           </button>
+          </div>
         </article>)}
       </div> : null}
     </section>

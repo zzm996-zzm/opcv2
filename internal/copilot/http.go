@@ -30,6 +30,7 @@ type Application interface {
 	SmokeModel(ctx context.Context, input ModelSmokeInput) (ModelSmokeResult, error)
 	ListMemories(ctx context.Context, userID int64, limit int) ([]Memory, error)
 	SaveMemory(ctx context.Context, input MemoryInput) (Memory, error)
+	UpdateMemory(ctx context.Context, input MemoryUpdateInput) (Memory, error)
 	DeleteMemory(ctx context.Context, userID, id int64) error
 	ListFiles(ctx context.Context, userID int64, limit int) ([]File, error)
 	SaveFile(ctx context.Context, input FileInput) (File, error)
@@ -66,6 +67,7 @@ func (h *HTTPHandler) Register(router *gin.RouterGroup) {
 	router.POST("/copilot/threads/:id/compare/summary", h.summarizeComparison)
 	router.GET("/copilot/memories", h.listMemories)
 	router.POST("/copilot/memories", h.saveMemory)
+	router.PATCH("/copilot/memories/:id", h.updateMemory)
 	router.DELETE("/copilot/memories/:id", h.deleteMemory)
 	router.GET("/copilot/files", h.listFiles)
 	router.POST("/copilot/files", h.saveFile)
@@ -348,6 +350,26 @@ func (h *HTTPHandler) deleteMemory(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (h *HTTPHandler) updateMemory(c *gin.Context) {
+	id, ok := parseID(c, "id", "invalid_memory_id")
+	if !ok {
+		return
+	}
+	var request MemoryUpdateInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	request.ID = id
+	memory, err := h.app.UpdateMemory(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, memory)
 }
 
 func (h *HTTPHandler) listFiles(c *gin.Context) {

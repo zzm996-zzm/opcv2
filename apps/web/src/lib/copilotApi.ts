@@ -70,6 +70,7 @@ export type CopilotMemory = {
   value: string;
   confidence: number;
   source?: string;
+  status?: "pending" | "active" | "inactive";
   created_at: string;
   updated_at: string;
 };
@@ -306,6 +307,13 @@ export const copilotApi = {
   saveMemory(input: { key: string; value: string; confidence?: number; source?: string }) {
     return apiRequest<CopilotMemory>("/api/v1/copilot/memories", {
       method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+
+  updateMemory(id: number, input: { key?: string; value?: string; status?: CopilotMemory["status"] }) {
+    return apiRequest<CopilotMemory>(`/api/v1/copilot/memories/${id}`, {
+      method: "PATCH",
       body: JSON.stringify(input)
     });
   },

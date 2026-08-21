@@ -201,7 +201,7 @@ func (r *PostgresRepository) ListMessages(ctx context.Context, userID, threadID 
 
 func (r *PostgresRepository) ListMemories(ctx context.Context, userID int64, limit int) ([]Memory, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT id, user_id, key, value, confidence, source, created_at, updated_at
+		SELECT id, user_id, key, value, confidence, source, status, created_at, updated_at
 		FROM copilot_memories
 		WHERE user_id = $1
 		ORDER BY updated_at DESC
@@ -225,13 +225,37 @@ func (r *PostgresRepository) ListMemories(ctx context.Context, userID int64, lim
 
 func (r *PostgresRepository) UpsertMemory(ctx context.Context, memory Memory) (Memory, error) {
 	err := r.db.QueryRow(ctx, `
-		INSERT INTO copilot_memories (user_id, key, value, confidence, source, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $6)
+		INSERT INTO copilot_memories (user_id, key, value, confidence, source, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
 		ON CONFLICT (user_id, key)
-		DO UPDATE SET value = EXCLUDED.value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()
-		RETURNING id, created_at, updated_at
-	`, memory.UserID, memory.Key, memory.Value, memory.Confidence, memory.Source, memory.CreatedAt).
-		Scan(&memory.ID, &memory.CreatedAt, &memory.UpdatedAt)
+		DO UPDATE SET value = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.value ELSE EXCLUDED.value END,
+			confidence = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.confidence ELSE EXCLUDED.confidence END,
+			source = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.source ELSE EXCLUDED.source END,
+			status = CASE WHEN copilot_memories.status = 'active' THEN copilot_memories.status ELSE EXCLUDED.status END,
+			updated_at = NOW()
+		RETURNING id, status, created_at, updated_at
+	`, memory.UserID, memory.Key, memory.Value, memory.Confidence, memory.Source, memory.Status, memory.CreatedAt).
+		Scan(&memory.ID, &memory.Status, &memory.CreatedAt, &memory.UpdatedAt)
+	return memory, err
+}
+
+func (r *PostgresRepository) UpdateMemory(ctx context.Context, input MemoryUpdateInput) (Memory, error) {
+	var memory Memory
+	err := r.db.QueryRow(ctx, `
+		UPDATE copilot_memories
+		SET key = CASE WHEN $3 = '' THEN key ELSE $3 END,
+			value = CASE WHEN $4 = '' THEN value ELSE $4 END,
+			status = CASE WHEN $5 = '' THEN status ELSE $5 END,
+			updated_at = NOW()
+		WHERE user_id = $1 AND id = $2
+		RETURNING id, user_id, key, value, confidence, source, status, created_at, updated_at
+	`, input.UserID, input.ID, input.Key, input.Value, input.Status).Scan(
+		&memory.ID, &memory.UserID, &memory.Key, &memory.Value, &memory.Confidence,
+		&memory.Source, &memory.Status, &memory.CreatedAt, &memory.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Memory{}, ErrMemoryNotFound
+	}
 	return memory, err
 }
 
@@ -434,6 +458,7 @@ func scanMemory(scanner scanner) (Memory, error) {
 		&memory.Value,
 		&memory.Confidence,
 		&memory.Source,
+		&memory.Status,
 		&memory.CreatedAt,
 		&memory.UpdatedAt,
 	); err != nil {

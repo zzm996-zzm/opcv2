@@ -2980,7 +2980,16 @@ Response:
 
 ```json
 {
-  "memories": []
+  "memories": [
+    {
+      "id": 7,
+      "key": "industry",
+      "value": "教培",
+      "confidence": 0.9,
+      "source": "manual",
+      "status": "active"
+    }
+  ]
 }
 ```
 
@@ -3003,8 +3012,36 @@ Validation:
 
 - `key` and `value` must be non-empty after trimming.
 - `confidence` defaults to `1` and is capped to `1`.
+- Manually saved memories default to `status: "active"`.
 
 Response `200`: `CopilotMemory`
+
+### Update Memory
+
+`PATCH /api/v1/copilot/memories/{id}`
+
+Request fields are optional, but at least one field is required:
+
+```json
+{
+  "key": "industry",
+  "value": "企业服务",
+  "status": "active"
+}
+```
+
+`status` accepts `pending`, `active`, or `inactive`. AI-extracted candidates
+are stored as `pending` and are excluded from future prompts until the user
+confirms them with `active`. `inactive` memories remain visible for later
+review but are excluded from prompts.
+
+Response `200`: `CopilotMemory`
+
+Errors:
+
+- `400 invalid_memory_id`
+- `400 invalid_request`
+- `404 memory_not_found`
 
 ### Delete Memory
 

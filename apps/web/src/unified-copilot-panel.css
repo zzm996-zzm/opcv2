@@ -219,6 +219,12 @@
   gap: 8px;
 }
 
+.copilot-memory-settings article > div {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
 .copilot-memory-settings > header > span {
   display: grid;
   min-width: 0;
@@ -316,6 +322,12 @@
   white-space: nowrap;
 }
 
+.copilot-memory-settings article em {
+	color: #8791a8;
+	font-size: 9px;
+	font-style: normal;
+}
+
 .copilot-memory-settings article strong {
   color: #34496f;
   font-size: 11px;
@@ -327,11 +339,17 @@
 }
 
 .copilot-memory-settings article button {
-  width: 30px;
+	min-width: 30px;
+	width: auto;
+	padding: 0 5px;
   flex: 0 0 auto;
   color: #c04e5d;
   background: transparent;
   border-color: transparent;
+}
+
+.copilot-memory-settings article button span {
+	font-size: 9px;
 }
 
 .copilot-memory-settings article button svg {

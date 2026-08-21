@@ -108,14 +108,18 @@ func TestPostgresRepositoryUpsertsMemory(t *testing.T) {
 
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
 	db.ExpectQuery(regexp.QuoteMeta(`
-		INSERT INTO copilot_memories (user_id, key, value, confidence, source, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $6)
+		INSERT INTO copilot_memories (user_id, key, value, confidence, source, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
 		ON CONFLICT (user_id, key)
-		DO UPDATE SET value = EXCLUDED.value, confidence = EXCLUDED.confidence, source = EXCLUDED.source, updated_at = NOW()
-		RETURNING id, created_at, updated_at
+		DO UPDATE SET value = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.value ELSE EXCLUDED.value END,
+			confidence = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.confidence ELSE EXCLUDED.confidence END,
+			source = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.source ELSE EXCLUDED.source END,
+			status = CASE WHEN copilot_memories.status = 'active' THEN copilot_memories.status ELSE EXCLUDED.status END,
+			updated_at = NOW()
+		RETURNING id, status, created_at, updated_at
 	`)).
-		WithArgs(int64(42), "industry", "教培", 0.9, "manual", now).
-		WillReturnRows(pgxmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow(int64(7), now, now))
+		WithArgs(int64(42), "industry", "教培", 0.9, "manual", MemoryStatusActive, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "status", "created_at", "updated_at"}).AddRow(int64(7), MemoryStatusActive, now, now))
 
 	repository := NewPostgresRepository(db)
 	memory, err := repository.UpsertMemory(context.Background(), Memory{
@@ -124,6 +128,7 @@ func TestPostgresRepositoryUpsertsMemory(t *testing.T) {
 		Value:      "教培",
 		Confidence: 0.9,
 		Source:     "manual",
+		Status:     MemoryStatusActive,
 		CreatedAt:  now,
 	})
 	if err != nil {
@@ -131,6 +136,77 @@ func TestPostgresRepositoryUpsertsMemory(t *testing.T) {
 	}
 	if memory.ID != 7 {
 		t.Fatalf("memory.ID = %d, want 7", memory.ID)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryUpsertsPendingMemoryWithoutOverwritingActiveFields(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		INSERT INTO copilot_memories (user_id, key, value, confidence, source, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
+		ON CONFLICT (user_id, key)
+		DO UPDATE SET value = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.value ELSE EXCLUDED.value END,
+			confidence = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.confidence ELSE EXCLUDED.confidence END,
+			source = CASE WHEN copilot_memories.status = 'active' AND EXCLUDED.status = 'pending' THEN copilot_memories.source ELSE EXCLUDED.source END,
+			status = CASE WHEN copilot_memories.status = 'active' THEN copilot_memories.status ELSE EXCLUDED.status END,
+			updated_at = NOW()
+		RETURNING id, status, created_at, updated_at
+	`)).
+		WithArgs(int64(42), "industry", "AI 候选", 0.6, "copilot", MemoryStatusPending, now).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "status", "created_at", "updated_at"}).AddRow(int64(7), MemoryStatusActive, now, now))
+
+	repository := NewPostgresRepository(db)
+	memory, err := repository.UpsertMemory(context.Background(), Memory{
+		UserID:     42,
+		Key:        "industry",
+		Value:      "AI 候选",
+		Confidence: 0.6,
+		Source:     "copilot",
+		Status:     MemoryStatusPending,
+		CreatedAt:  now,
+	})
+	if err != nil {
+		t.Fatalf("UpsertMemory() error = %v", err)
+	}
+	if memory.Status != MemoryStatusActive {
+		t.Fatalf("memory.Status = %q, want %q", memory.Status, MemoryStatusActive)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresRepositoryUpdatesMemory(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		UPDATE copilot_memories
+		SET key = CASE WHEN $3 = '' THEN key ELSE $3 END,
+			value = CASE WHEN $4 = '' THEN value ELSE $4 END,
+			status = CASE WHEN $5 = '' THEN status ELSE $5 END,
+			updated_at = NOW()
+		WHERE user_id = $1 AND id = $2
+		RETURNING id, user_id, key, value, confidence, source, status, created_at, updated_at
+	`)).WithArgs(int64(42), int64(7), "", "", MemoryStatusInactive).WillReturnRows(
+		pgxmock.NewRows([]string{"id", "user_id", "key", "value", "confidence", "source", "status", "created_at", "updated_at"}).AddRow(int64(7), int64(42), "industry", "教培", 0.9, "manual", MemoryStatusInactive, now, now),
+	)
+	repository := NewPostgresRepository(db)
+	memory, err := repository.UpdateMemory(context.Background(), MemoryUpdateInput{UserID: 42, ID: 7, Status: MemoryStatusInactive})
+	if err != nil || memory.Status != MemoryStatusInactive {
+		t.Fatalf("UpdateMemory() = %+v, error = %v", memory, err)
 	}
 	if err := db.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

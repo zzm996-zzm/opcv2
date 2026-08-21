@@ -41,6 +41,7 @@ type Repository interface {
 	ListMessages(ctx context.Context, userID, threadID int64, limit int) ([]Message, error)
 	ListMemories(ctx context.Context, userID int64, limit int) ([]Memory, error)
 	UpsertMemory(ctx context.Context, memory Memory) (Memory, error)
+	UpdateMemory(ctx context.Context, input MemoryUpdateInput) (Memory, error)
 	DeleteMemory(ctx context.Context, userID, id int64) error
 	CreateFile(ctx context.Context, file File) (File, error)
 	ListFiles(ctx context.Context, userID int64, limit int) ([]File, error)
@@ -1379,6 +1380,31 @@ func (s *Service) SaveMemory(ctx context.Context, input MemoryInput) (Memory, er
 	return s.repository.UpsertMemory(ctx, memory)
 }
 
+func (s *Service) UpdateMemory(ctx context.Context, input MemoryUpdateInput) (Memory, error) {
+	if s.repository == nil {
+		return Memory{}, ErrServiceNotReady
+	}
+	if input.UserID <= 0 || input.ID <= 0 {
+		return Memory{}, ErrInvalidInput
+	}
+	input.Key = strings.TrimSpace(input.Key)
+	input.Value = strings.TrimSpace(input.Value)
+	input.Status = strings.TrimSpace(input.Status)
+	if input.Key == "" && input.Value == "" && input.Status == "" {
+		return Memory{}, ErrInvalidInput
+	}
+	if input.Key != "" && utf8.RuneCountInString(input.Key) > maxMemoryKeyRunes {
+		return Memory{}, ErrInvalidInput
+	}
+	if input.Value != "" && utf8.RuneCountInString(input.Value) > maxMemoryValueRunes {
+		return Memory{}, ErrInvalidInput
+	}
+	if input.Status != "" && !validMemoryStatus(input.Status) {
+		return Memory{}, ErrInvalidInput
+	}
+	return s.repository.UpdateMemory(ctx, input)
+}
+
 func (s *Service) DeleteMemory(ctx context.Context, userID, id int64) error {
 	if s.repository == nil {
 		return ErrServiceNotReady
@@ -1531,6 +1557,9 @@ func buildUserPrompt(thread Thread, memories []Memory, messages []Message, refer
 	builder.WriteString(thread.Title)
 	builder.WriteString("\n\n用户长期记忆：\n")
 	for _, memory := range memories {
+		if memory.Status != "" && memory.Status != MemoryStatusActive {
+			continue
+		}
 		builder.WriteString("- ")
 		builder.WriteString(memory.Key)
 		builder.WriteString(": ")
@@ -1717,6 +1746,7 @@ func (s *Service) saveMemoryCandidates(ctx context.Context, userID int64, candid
 			Value:      candidate.Value,
 			Confidence: candidate.Confidence,
 			Source:     candidate.Source,
+			Status:     MemoryStatusPending,
 		}, s.now())
 		if err != nil {
 			continue
@@ -1783,14 +1813,26 @@ func memoryFromInput(input MemoryInput, now time.Time) (Memory, error) {
 	if confidence > 1 {
 		confidence = 1
 	}
+	status := strings.TrimSpace(input.Status)
+	if status == "" {
+		status = MemoryStatusActive
+	}
+	if !validMemoryStatus(status) {
+		return Memory{}, ErrInvalidInput
+	}
 	return Memory{
 		UserID:     input.UserID,
 		Key:        key,
 		Value:      value,
 		Confidence: confidence,
 		Source:     strings.TrimSpace(input.Source),
+		Status:     status,
 		CreatedAt:  now,
 	}, nil
+}
+
+func validMemoryStatus(status string) bool {
+	return status == MemoryStatusPending || status == MemoryStatusActive || status == MemoryStatusInactive
 }
 
 func fileFromInput(input FileInput, now time.Time) (File, error) {

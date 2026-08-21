@@ -34761,6 +34761,48 @@ a:active {
   overflow-wrap: anywhere;
 }
 
+.memory-list em {
+  display: inline-block;
+  margin-top: 5px;
+  color: #5572d9;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.memory-list article.pending {
+  background: #fffaf0;
+  border-color: rgba(196, 129, 22, 0.24);
+}
+
+.memory-list article.inactive {
+  opacity: 0.7;
+}
+
+.memory-list article > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.memory-edit-form {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto auto;
+	width: 100%;
+	gap: 5px;
+}
+
+.memory-edit-form input {
+	min-width: 0;
+	min-height: 28px;
+	padding: 0 7px;
+	border: 1px solid rgba(31, 68, 140, 0.14);
+	border-radius: 5px;
+	font: inherit;
+	font-size: 11px;
+}
+
 .memory-list strong {
   color: #122b70;
   font-size: 12px;
@@ -34782,6 +34824,12 @@ a:active {
   border-radius: 6px;
   font-size: 11px;
   font-weight: 850;
+}
+
+.memory-list article.pending button:first-child,
+.memory-list article.inactive button:first-child {
+  color: #1c6b4a;
+  border-color: rgba(28, 107, 74, 0.2);
 }
 
 .copilot-history {

@@ -24,6 +24,7 @@ type fakeApplication struct {
 	summaryInput          CompareSummaryInput
 	smokeInput            ModelSmokeInput
 	memoryInput           MemoryInput
+	memoryUpdateInput     MemoryUpdateInput
 	fileInput             FileInput
 	uploadInput           UploadFileInput
 	fileID                int64
@@ -126,6 +127,11 @@ func (a *fakeApplication) ListMemories(_ context.Context, userID int64, limit in
 func (a *fakeApplication) SaveMemory(_ context.Context, input MemoryInput) (Memory, error) {
 	a.memoryInput = input
 	return Memory{ID: 7, UserID: input.UserID, Key: input.Key, Value: input.Value}, a.err
+}
+
+func (a *fakeApplication) UpdateMemory(_ context.Context, input MemoryUpdateInput) (Memory, error) {
+	a.memoryUpdateInput = input
+	return Memory{ID: input.ID, UserID: input.UserID, Key: input.Key, Value: input.Value, Status: input.Status}, a.err
 }
 
 func (a *fakeApplication) DeleteMemory(_ context.Context, userID, id int64) error {
@@ -497,6 +503,23 @@ func TestMemoryEndpointsUseAuthenticatedUser(t *testing.T) {
 	}
 	if app.memoryInput.UserID != 42 || app.memoryInput.Key != "industry" {
 		t.Fatalf("input = %+v", app.memoryInput)
+	}
+}
+
+func TestUpdateMemoryEndpointUsesAuthenticatedUser(t *testing.T) {
+	app := &fakeApplication{}
+	router := copilotTestRouter(app)
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/copilot/memories/7", strings.NewReader(`{"status":"active"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if app.memoryUpdateInput.UserID != 42 || app.memoryUpdateInput.ID != 7 || app.memoryUpdateInput.Status != MemoryStatusActive {
+		t.Fatalf("input = %+v", app.memoryUpdateInput)
 	}
 }
 
