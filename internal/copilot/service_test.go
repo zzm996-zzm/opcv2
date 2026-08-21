@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/zzm/opcv2/internal/account"
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/crm"
@@ -387,6 +388,12 @@ type fakeCRMContextProvider struct {
 	pipelineUserID  int64
 }
 
+type fakeProfileContextProvider struct {
+	profile account.ProfileContext
+	userID  int64
+	err     error
+}
+
 func (p *fakeLearningContextProvider) GetCourse(_ context.Context, slug string) (learning.Course, error) {
 	p.courseSlug = slug
 	return p.course, nil
@@ -452,6 +459,11 @@ func (p *fakeCRMContextProvider) ListDueCustomers(_ context.Context, input crm.L
 func (p *fakeCRMContextProvider) PipelineStats(_ context.Context, userID int64) (crm.PipelineStats, error) {
 	p.pipelineUserID = userID
 	return p.pipeline, nil
+}
+
+func (p *fakeProfileContextProvider) GetProfileContext(_ context.Context, userID int64) (account.ProfileContext, error) {
+	p.userID = userID
+	return p.profile, p.err
 }
 
 func (p *fakeProjectContextProvider) GetProject(_ context.Context, ref string) (projects.Project, error) {
@@ -1022,6 +1034,34 @@ func TestServiceIncludesAuthorizedCRMOverviewContextInPrompt(t *testing.T) {
 	}
 	if provider.customerID != 0 || provider.pipelineUserID != 42 || provider.dueTodayInput.UserID != 42 || provider.dueTodayInput.Limit != 20 || !strings.Contains(streamer.request.UserPrompt, `"due_today":2`) {
 		t.Fatalf("CRM overview context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesUserMaintainedProfileContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "业务规划", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合业务档案回答"}}
+	provider := &fakeProfileContextProvider{profile: account.ProfileContext{
+		UserID: 42,
+		Groups: []account.ProfileGroup{
+			{Key: account.ProfileGroupBusiness, Title: "我的业务/公司", Fields: map[string]string{"company": "智活科技"}},
+			{Key: account.ProfileGroupProducts, Title: "产品与服务", Fields: map[string]string{"product": "AI 销售助手"}},
+			{Key: account.ProfileGroupGoals, Title: "目标与阶段", Fields: map[string]string{"goal": "验证首批付费客户"}},
+		},
+	}}
+	service := NewService(repository, streamer, WithProfileContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "下一步应该做什么？",
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.userID != 42 ||
+		!strings.Contains(streamer.request.UserPrompt, "用户维护的业务档案") ||
+		!strings.Contains(streamer.request.UserPrompt, "智活科技") ||
+		!strings.Contains(streamer.request.UserPrompt, "AI 销售助手") ||
+		!strings.Contains(streamer.request.UserPrompt, "验证首批付费客户") {
+		t.Fatalf("profile context not included: %s", streamer.request.UserPrompt)
 	}
 }
 
