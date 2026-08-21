@@ -74,7 +74,7 @@ function LearningReportPage() {
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>报告边界说明</p></div></header>
           <div className="learning-chat"><article><span className="ai-avatar">A</span><p>当前没有实现 PDF 导出，因此这里只提供持久化网页报告。</p></article></div>
           <nav className="learning-copilot-actions" aria-label="诊断报告助手快捷入口"><Link to="/learning/plan">查看学习计划 <span aria-hidden="true">›</span></Link><Link to="/learning/diagnosis">重新诊断 <span aria-hidden="true">›</span></Link></nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "report" }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

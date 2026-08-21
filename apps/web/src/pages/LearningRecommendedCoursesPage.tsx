@@ -38,7 +38,7 @@ function LearningRecommendedCoursesPage() {
         </div>
         <aside className={`learning-copilot recommended-copilot ${copilotOpen ? "" : "collapsed"}`} aria-label="智活 Copilot 课程助手">
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>课程选择说明</p></div><button aria-expanded={copilotOpen} aria-label={copilotOpen ? "收起推荐课程助手" : "展开推荐课程助手"} onClick={() => setCopilotOpen((open) => !open)} type="button">{copilotOpen ? "⌃" : "⌄"}</button></header>
-          {copilotOpen ? <><div className="learning-chat"><article><span className="ai-avatar">A</span><p>当前诊断建议与课程目录还没有可验证的自动匹配规则，请按课程标题、简介和标签自行核对。</p></article></div><nav className="learning-copilot-actions" aria-label="课程助手快捷入口"><Link to="/learning/recommendation">查看诊断学习建议 ›</Link><Link to="/learning/plan">查看学习路径 ›</Link></nav><MiniCopilotForm className="learning-copilot-input" /></> : null}
+          {copilotOpen ? <><div className="learning-chat"><article><span className="ai-avatar">A</span><p>当前诊断建议与课程目录还没有可验证的自动匹配规则，请按课程标题、简介和标签自行核对。</p></article></div><nav className="learning-copilot-actions" aria-label="课程助手快捷入口"><Link to="/learning/recommendation">查看诊断学习建议 ›</Link><Link to="/learning/plan">查看学习路径 ›</Link></nav><MiniCopilotForm activeFilters={{ module: "learning", view: "recommended" }} className="learning-copilot-input" /></> : null}
         </aside>
       </section>
     </V4PageShell>

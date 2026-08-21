@@ -259,7 +259,7 @@ function LearningDiagnosisPage() {
             <Link to="/learning/diagnosis">补充诊断信息 <span aria-hidden="true">›</span></Link>
             <Link to="/learning/recommended-courses">查看学习建议 <span aria-hidden="true">›</span></Link>
           </nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "diagnosis" }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

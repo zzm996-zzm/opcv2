@@ -59,7 +59,7 @@ function LearningHistoryPage() {
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>学习进度说明</p></div></header>
           <div className="learning-chat"><article><span className="ai-avatar">A</span><p>当前只记录课程百分比、最近课节和后续动作；学习时长、连续天数和打卡趋势尚未采集。</p></article></div>
           <nav className="learning-copilot-actions" aria-label="学习历史助手快捷入口"><Link to="/learning/courses">浏览课程 ›</Link><Link to="/learning/plan">学习计划管理 ›</Link></nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "history" }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

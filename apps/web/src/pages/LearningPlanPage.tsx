@@ -117,7 +117,7 @@ function LearningPlanPage() {
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>学习路径说明</p></div></header>
           <div className="learning-chat"><article><span className="ai-avatar">A</span><p>路径来自诊断快照；课程自动匹配尚未实现时会明确显示为空。</p></article></div>
           <nav className="learning-copilot-actions" aria-label="学习路径助手快捷入口"><Link to="/learning/courses">浏览课程目录 <span aria-hidden="true">›</span></Link><Link to="/learning/history">查看课程进度 <span aria-hidden="true">›</span></Link></nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "plan" }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

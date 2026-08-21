@@ -13,6 +13,7 @@ import (
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/growth"
+	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/projects"
 	"github.com/zzm/opcv2/internal/tasks"
@@ -344,6 +345,49 @@ type fakeProjectContextProvider struct {
 	projectRef string
 	userID     int64
 	matchID    int64
+}
+
+type fakeLearningContextProvider struct {
+	course          learning.Course
+	progress        learning.Progress
+	progresses      []learning.Progress
+	diagnosis       learning.Diagnosis
+	plan            learning.DiagnosisPlan
+	courseSlug      string
+	progressUserID  int64
+	progressSlug    string
+	progressUser    int64
+	diagnosisUser   int64
+	planUserID      int64
+	planDiagnosisID int64
+	diagnosisErr    error
+}
+
+func (p *fakeLearningContextProvider) GetCourse(_ context.Context, slug string) (learning.Course, error) {
+	p.courseSlug = slug
+	return p.course, nil
+}
+
+func (p *fakeLearningContextProvider) GetProgress(_ context.Context, userID int64, courseSlug string) (learning.Progress, error) {
+	p.progressUserID = userID
+	p.progressSlug = courseSlug
+	return p.progress, nil
+}
+
+func (p *fakeLearningContextProvider) ListProgress(_ context.Context, userID int64) ([]learning.Progress, error) {
+	p.progressUser = userID
+	return p.progresses, nil
+}
+
+func (p *fakeLearningContextProvider) LatestDiagnosis(_ context.Context, userID int64) (learning.Diagnosis, error) {
+	p.diagnosisUser = userID
+	return p.diagnosis, p.diagnosisErr
+}
+
+func (p *fakeLearningContextProvider) GetPlan(_ context.Context, userID, diagnosisID int64) (learning.DiagnosisPlan, error) {
+	p.planUserID = userID
+	p.planDiagnosisID = diagnosisID
+	return p.plan, nil
 }
 
 func (p *fakeProjectContextProvider) GetProject(_ context.Context, ref string) (projects.Project, error) {
@@ -774,6 +818,51 @@ func TestServiceIncludesPublishedProjectAndOwnedMatchContextInPrompt(t *testing.
 		!strings.Contains(streamer.request.UserPrompt, "先与三位目标客户访谈") ||
 		!strings.Contains(streamer.request.UserPrompt, `"current_section":"path"`) {
 		t.Fatalf("project context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesAuthorizedLearningContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "学习计划", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合学习上下文回答"}}
+	provider := &fakeLearningContextProvider{
+		course:    learning.Course{ID: 6, Slug: "ai-market-analysis", Title: "AI 行业分析方法", Outline: []string{"行业地图", "竞品拆解"}},
+		progress:  learning.Progress{UserID: 42, CourseSlug: "ai-market-analysis", CourseTitle: "AI 行业分析方法", Percent: 35, LastLesson: "行业地图"},
+		diagnosis: learning.Diagnosis{ID: 23, UserID: 42, Goal: "提升市场分析能力", Project: "企业服务项目", Recommendations: []string{"完成一次竞品拆解"}},
+		plan:      learning.DiagnosisPlan{DiagnosisID: 23, Title: "市场分析学习路径", Stages: []learning.PlanStage{{Number: 1, Title: "行业研究基础", Milestone: "输出市场地图"}}},
+	}
+	service := NewService(repository, streamer, WithLearningContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "我应该先学什么？", CurrentView: "/learning/plan",
+		ActiveFilters: map[string]string{"module": "learning", "view": "plan", "course_slug": "ai-market-analysis"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.courseSlug != "ai-market-analysis" || provider.progressUserID != 42 || provider.progressSlug != "ai-market-analysis" ||
+		provider.diagnosisUser != 42 || provider.planUserID != 42 || provider.planDiagnosisID != 23 ||
+		!strings.Contains(streamer.request.UserPrompt, "AI 行业分析方法") ||
+		!strings.Contains(streamer.request.UserPrompt, `"percent":35`) ||
+		!strings.Contains(streamer.request.UserPrompt, "完成一次竞品拆解") ||
+		!strings.Contains(streamer.request.UserPrompt, "市场分析学习路径") {
+		t.Fatalf("learning context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceAllowsLearningChatWithoutSavedDiagnosis(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "学习咨询", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"可以先从课程目录开始。"}}
+	provider := &fakeLearningContextProvider{diagnosisErr: learning.ErrDiagnosisNotFound}
+	service := NewService(repository, streamer, WithLearningContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "我该从哪里开始？", ActiveFilters: map[string]string{"module": "learning", "view": "home"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if !strings.Contains(streamer.request.UserPrompt, `"view":"home"`) || strings.Contains(streamer.request.UserPrompt, "\"diagnosis\"") {
+		t.Fatalf("unexpected learning prompt: %s", streamer.request.UserPrompt)
 	}
 }
 

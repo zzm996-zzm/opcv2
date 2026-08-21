@@ -65,7 +65,7 @@ function LearningRecommendationPage() {
         <aside className="learning-copilot diagnosis-copilot recommendation-copilot" aria-label="智活 Copilot 推荐方案助手">
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>学习建议说明</p></div></header>
           <div className="learning-chat"><article><span className="ai-avatar">A</span><p>这些建议来自诊断时保存的快照，不会随页面刷新自行改写。</p></article></div>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "recommendations" }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

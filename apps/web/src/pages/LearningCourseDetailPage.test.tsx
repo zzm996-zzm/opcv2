@@ -18,6 +18,11 @@ describe("LearningCourseDetailPage", () => {
       if (url === "/api/v1/learning/courses/ai-market-analysis/materials") return Promise.resolve(new Response(JSON.stringify({ materials: [{ id: 9, course_slug: "ai-market-analysis", title: "行业分析讲义", material_type: "article", content_url: "/content/9", position: 1, downloadable: false, created_at: "", updated_at: "" }] }), { status: 200 }));
       if (url === "/api/v1/learning/progress/ai-market-analysis" && init?.method === "GET") return Promise.resolve(new Response(JSON.stringify({ id: 7, course_slug: "ai-market-analysis", course_title: "AI行业分析方法", percent: 32, last_lesson: "行业地图", recommended_action: "继续学习", updated_at: "" }), { status: 200 }));
       if (url === "/api/v1/learning/progress/ai-market-analysis" && init?.method === "PUT") return Promise.resolve(new Response(JSON.stringify({ id: 7, course_slug: "ai-market-analysis", course_title: "AI行业分析方法", percent: 60, last_lesson: "竞品拆解", recommended_action: "继续学习", updated_at: "" }), { status: 200 }));
+      if (url === "/api/v1/copilot/threads" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ id: 99, user_id: 7, title: "页面助手：下一步", mode: "chat", model: "deepseek", created_at: "", updated_at: "" }), { status: 200 }));
+      if (url === "/api/v1/copilot/threads/99/messages" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({
+        user_message: { id: 1, user_id: 7, thread_id: 99, role: "user", content: "下一步学什么", status: "completed", model: "deepseek", created_at: "" },
+        assistant_message: { id: 2, user_id: 7, thread_id: 99, role: "assistant", content: "先完成行业地图。", status: "completed", model: "deepseek", created_at: "" }
+      }), { status: 200 }));
       return Promise.reject(new Error(`unexpected request: ${url}`));
     });
     render(<MemoryRouter><LearningCourseDetailPage /></MemoryRouter>);
@@ -29,5 +34,12 @@ describe("LearningCourseDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存学习进度" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/learning/progress/ai-market-analysis", expect.objectContaining({ method: "PUT", body: JSON.stringify({ percent: 60, last_lesson: "竞品拆解", recommended_action: "继续选择下一课节学习" }) })));
     expect(await screen.findByRole("status")).toHaveTextContent("学习进度已保存");
+    fireEvent.change(screen.getByLabelText("向 Copilot 提问"), { target: { value: "下一步学什么" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/v1/copilot/threads/99/messages", expect.objectContaining({ method: "POST" })));
+    const sendCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/copilot/threads/99/messages");
+    expect(JSON.parse(String(sendCall?.[1]?.body))).toEqual(expect.objectContaining({
+      active_filters: { module: "learning", view: "course", course_slug: "ai-market-analysis" }
+    }));
   });
 });

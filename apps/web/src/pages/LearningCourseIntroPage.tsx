@@ -69,7 +69,7 @@ function LearningCourseIntroPage() {
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>课程介绍说明</p></div></header>
           <div className="learning-chat"><article><span className="ai-avatar">A</span><p>课程信息来自已发布目录；当前没有生成 PDF 报告或自动课程推荐。</p></article></div>
           <nav className="learning-copilot-actions" aria-label="课程介绍助手快捷入口"><Link to="/learning/courses">返回课程目录 ›</Link></nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "course_intro", course_slug: course.slug }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

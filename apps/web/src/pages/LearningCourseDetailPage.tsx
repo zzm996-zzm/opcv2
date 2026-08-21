@@ -85,7 +85,7 @@ function LearningCourseDetailPage() {
         <aside className="learning-copilot course-study-copilot" aria-label="智活 Copilot 课程学习助手">
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>学习进度说明</p></div></header>
           <div className="learning-chat"><article><span className="ai-avatar">A</span><p>请按实际学习情况选择课节和百分比；系统不会自动推断观看时长或掌握程度。</p></article></div>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "course", course_slug: course.slug }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

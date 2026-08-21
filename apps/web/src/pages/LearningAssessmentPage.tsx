@@ -107,7 +107,7 @@ function LearningAssessmentPage() {
             <Link to="/learning/diagnosis">重新诊断 <span aria-hidden="true">›</span></Link>
             <Link to="/learning/recommendation">查看学习建议 <span aria-hidden="true">›</span></Link>
           </nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "assessment" }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

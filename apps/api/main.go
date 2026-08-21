@@ -231,6 +231,7 @@ func main() {
 		copilot.WithGrowthContextProvider(growthService),
 		copilot.WithMonitoringContextProvider(competitorService),
 		copilot.WithProjectContextProvider(projectsService),
+		copilot.WithLearningContextProvider(learningService),
 	)
 	copilotHTTP := copilot.NewHTTPHandler(copilotService)
 

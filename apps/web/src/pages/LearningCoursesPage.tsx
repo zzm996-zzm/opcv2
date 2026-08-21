@@ -61,7 +61,7 @@ function LearningCoursesPage() {
         </div>
         <aside className={`learning-copilot courses-copilot ${copilotOpen ? "" : "collapsed"}`} aria-label="智活 Copilot 课程助手">
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>课程目录说明</p></div><button aria-expanded={copilotOpen} aria-label={copilotOpen ? "收起课程助手" : "展开课程助手"} onClick={() => setCopilotOpen((open) => !open)} type="button">{copilotOpen ? "⌃" : "⌄"}</button></header>
-          {copilotOpen ? <><div className="learning-chat"><article><span className="ai-avatar">A</span><p>这里展示全部已发布课程。诊断与课程自动匹配尚未实现，因此不会伪装成个性化推荐。</p></article></div><nav className="learning-copilot-actions" aria-label="课程助手快捷入口"><Link to="/learning/diagnosis">发起能力诊断 ›</Link><Link to="/learning/plan">查看学习计划 ›</Link></nav><MiniCopilotForm className="learning-copilot-input" /></> : null}
+          {copilotOpen ? <><div className="learning-chat"><article><span className="ai-avatar">A</span><p>这里展示全部已发布课程。诊断与课程自动匹配尚未实现，因此不会伪装成个性化推荐。</p></article></div><nav className="learning-copilot-actions" aria-label="课程助手快捷入口"><Link to="/learning/diagnosis">发起能力诊断 ›</Link><Link to="/learning/plan">查看学习计划 ›</Link></nav><MiniCopilotForm activeFilters={{ module: "learning", view: "courses" }} className="learning-copilot-input" /></> : null}
         </aside>
       </section>
     </V4PageShell>

@@ -84,7 +84,7 @@ function LearningGapAnalysisPage() {
             <article><span className="ai-avatar">A</span><p>差距排序来自本次持久化模型评估快照，仅用于安排学习优先级。</p></article>
           </div>
           <nav className="learning-copilot-actions" aria-label="差距分析助手快捷入口"><Link to="/learning/recommendation">查看学习建议 <span aria-hidden="true">›</span></Link></nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "gaps" }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>

@@ -65,7 +65,7 @@ function LearningPage() {
           <header><div><strong><span aria-hidden="true">✦</span> 智活 <b>Copilot</b></strong><p>AI教学使用说明</p></div></header>
           <div className="learning-chat"><article><span className="ai-avatar">A</span><p>课程目录与学习进度来自已保存记录；完成诊断后，页面会明确显示模型假设和数据依据。</p></article></div>
           <nav className="learning-copilot-actions" aria-label="课程助手快捷入口"><Link to="/learning/diagnosis">发起能力诊断 ›</Link><Link to="/learning/plan">查看学习计划 ›</Link><Link to="/learning/history">查看学习进度 ›</Link></nav>
-          <MiniCopilotForm className="learning-copilot-input" />
+          <MiniCopilotForm activeFilters={{ module: "learning", view: "home" }} className="learning-copilot-input" />
         </aside>
       </section>
     </V4PageShell>
