@@ -18,6 +18,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/competitor"
+	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/growth"
 	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
@@ -96,6 +97,14 @@ type SandboxContextProvider interface {
 	ListV2Runs(ctx context.Context, userID int64, limit int) ([]sandbox.V2SandboxRun, error)
 }
 
+type CRMContextProvider interface {
+	GetCustomer(ctx context.Context, userID, customerID int64) (crm.Customer, error)
+	ListActivities(ctx context.Context, userID, customerID int64, limit int) ([]crm.Activity, error)
+	ListFollowUps(ctx context.Context, input crm.ListFollowUpsInput) ([]crm.FollowUp, error)
+	ListDueCustomers(ctx context.Context, input crm.ListDueInput) ([]crm.Customer, error)
+	PipelineStats(ctx context.Context, userID int64) (crm.PipelineStats, error)
+}
+
 type QuotaConsumer interface {
 	CheckAndConsume(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
 	RefundUsage(ctx context.Context, input membership.ConsumeInput) (membership.UsageItem, error)
@@ -115,6 +124,7 @@ type Service struct {
 	projects    ProjectContextProvider
 	learning    LearningContextProvider
 	sandbox     SandboxContextProvider
+	crm         CRMContextProvider
 	models      []ModelOption
 	quota       QuotaConsumer
 	now         func() time.Time
@@ -183,6 +193,15 @@ type sandboxContext struct {
 	View       string                 `json:"view"`
 	Run        *sandbox.V2SandboxRun  `json:"run,omitempty"`
 	RecentRuns []sandbox.V2SandboxRun `json:"recent_runs,omitempty"`
+}
+
+type crmContext struct {
+	View       string             `json:"view"`
+	Customer   *crm.Customer      `json:"customer,omitempty"`
+	Activities []crm.Activity     `json:"activities,omitempty"`
+	FollowUps  []crm.FollowUp     `json:"follow_ups,omitempty"`
+	DueToday   []crm.Customer     `json:"due_today,omitempty"`
+	Pipeline   *crm.PipelineStats `json:"pipeline,omitempty"`
 }
 
 const (
@@ -261,6 +280,10 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 	if err != nil {
 		return SendMessageResult{}, err
 	}
+	crmContext, err := s.loadCRMContext(ctx, input)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
 	memories, _ := s.repository.ListMemories(ctx, input.UserID, 20)
 	messages, _ := s.repository.ListMessages(ctx, input.UserID, thread.ID, 12)
 	quotaKey := "copilot-message-" + s.normalizeRequestID(input.RequestID, input.UserID, input.ThreadID)
@@ -292,7 +315,7 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 	streamResult, err := s.streamer.GenerateTextStream(ctx, ai.GenerateTextRequest{
 		UserID: input.UserID, Feature: "copilot.chat_stream", PromptVersion: "copilot_chat_stream_v1", Model: model,
 		SystemPrompt: "你是智活 Copilot，回答要直接、可执行。请使用清晰的 Markdown，不要返回 JSON。",
-		UserPrompt:   buildUserPrompt(thread, memories, messages, references, taskContext, competitorContext, growthContext, monitoringContext, projectContext, learningContext, sandboxContext, content, false),
+		UserPrompt:   buildUserPrompt(thread, memories, messages, references, taskContext, competitorContext, growthContext, monitoringContext, projectContext, learningContext, sandboxContext, crmContext, content, false),
 	}, func(delta []byte) error {
 		return onEvent(StreamEvent{Type: StreamEventDelta, Delta: string(delta)})
 	})
@@ -745,6 +768,54 @@ func (s *Service) loadSandboxContext(ctx context.Context, input SendMessageInput
 	return context, nil
 }
 
+func (s *Service) loadCRMContext(ctx context.Context, input SendMessageInput) (*crmContext, error) {
+	filters := normalizeContextFilters(input.ActiveFilters)
+	if filters["module"] != "crm" {
+		return nil, nil
+	}
+	if s.crm == nil {
+		return nil, ErrServiceNotReady
+	}
+	context := &crmContext{View: strings.TrimSpace(filters["view"])}
+	customerIDValue := strings.TrimSpace(filters["customer_id"])
+	if customerIDValue != "" {
+		customerID, err := strconv.ParseInt(customerIDValue, 10, 64)
+		if err != nil || customerID <= 0 {
+			return nil, ErrInvalidInput
+		}
+		customer, err := s.crm.GetCustomer(ctx, input.UserID, customerID)
+		if err != nil {
+			return nil, err
+		}
+		context.Customer = &customer
+		activities, err := s.crm.ListActivities(ctx, input.UserID, customerID, 20)
+		if err != nil {
+			return nil, err
+		}
+		context.Activities = activities
+		followUps, err := s.crm.ListFollowUps(ctx, crm.ListFollowUpsInput{UserID: input.UserID, CustomerID: customerID, Limit: 20})
+		if err != nil {
+			return nil, err
+		}
+		context.FollowUps = followUps
+	}
+	if context.View == "overview" || context.View == "customers" || context.View == "" {
+		pipeline, err := s.crm.PipelineStats(ctx, input.UserID)
+		if err != nil {
+			return nil, err
+		}
+		context.Pipeline = &pipeline
+		if customerIDValue == "" {
+			dueToday, err := s.crm.ListDueCustomers(ctx, crm.ListDueInput{UserID: input.UserID, Limit: 20})
+			if err != nil {
+				return nil, err
+			}
+			context.DueToday = dueToday
+		}
+	}
+	return context, nil
+}
+
 func NewServiceWithModels(repository Repository, generator JSONGenerator, models []ModelOption, options ...Option) *Service {
 	service := NewService(repository, generator, options...)
 	service.models = normalizeModelOptions(models)
@@ -802,6 +873,12 @@ func WithLearningContextProvider(provider LearningContextProvider) Option {
 func WithSandboxContextProvider(provider SandboxContextProvider) Option {
 	return func(service *Service) {
 		service.sandbox = provider
+	}
+}
+
+func WithCRMContextProvider(provider CRMContextProvider) Option {
+	return func(service *Service) {
+		service.crm = provider
 	}
 }
 
@@ -963,6 +1040,10 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 	if err != nil {
 		return SendMessageResult{}, err
 	}
+	crmContext, err := s.loadCRMContext(ctx, input)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
 	quotaKey := "copilot-message-" + s.normalizeRequestID(input.RequestID, input.UserID, input.ThreadID)
 	if err := s.consumeQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey); err != nil {
 		return SendMessageResult{}, err
@@ -988,7 +1069,7 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 		}
 		return SendMessageResult{UserMessage: userMessage, AssistantMessage: assistantMessage}, nil
 	}
-	aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, references, taskContext, competitorContext, growthContext, monitoringContext, projectContext, learningContext, sandboxContext)
+	aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, references, taskContext, competitorContext, growthContext, monitoringContext, projectContext, learningContext, sandboxContext, crmContext)
 	if err != nil {
 		_, _ = s.repository.CreateMessage(ctx, Message{
 			UserID:    input.UserID,
@@ -1062,7 +1143,7 @@ func (s *Service) CompareMessages(ctx context.Context, input CompareMessagesInpu
 	answers := make([]CompareAnswer, 0, len(models))
 	failedCalls := 0
 	for _, model := range models {
-		aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, nil, nil, nil, nil, nil, nil, nil, nil)
+		aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 		if err != nil {
 			failedCalls++
 			message, _ := s.repository.CreateMessage(ctx, Message{
@@ -1349,7 +1430,7 @@ func (s *Service) referenceFiles(ctx context.Context, userID int64, ids []int64)
 	return files, nil
 }
 
-func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread, content, model string, references []File, taskContext *TaskContext, competitorContext *competitorScanContext, growthContext *growthModelContext, monitoringContext *monitoringContext, projectContext *projectContext, learningContext *learningContext, sandboxContext *sandboxContext) (ai.GenerateJSONResult, chatAIResult, error) {
+func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread, content, model string, references []File, taskContext *TaskContext, competitorContext *competitorScanContext, growthContext *growthModelContext, monitoringContext *monitoringContext, projectContext *projectContext, learningContext *learningContext, sandboxContext *sandboxContext, crmContext *crmContext) (ai.GenerateJSONResult, chatAIResult, error) {
 	memories, _ := s.repository.ListMemories(ctx, userID, 20)
 	messages, _ := s.repository.ListMessages(ctx, userID, thread.ID, 12)
 	aiResult, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
@@ -1358,7 +1439,7 @@ func (s *Service) generateReply(ctx context.Context, userID int64, thread Thread
 		PromptVersion:  "copilot_chat_v1",
 		Model:          model,
 		SystemPrompt:   "你是智活 Copilot，回答要直接、可执行。必须只返回 JSON，字段严格匹配 copilot_chat_response。",
-		UserPrompt:     buildUserPrompt(thread, memories, messages, references, taskContext, competitorContext, growthContext, monitoringContext, projectContext, learningContext, sandboxContext, content, true),
+		UserPrompt:     buildUserPrompt(thread, memories, messages, references, taskContext, competitorContext, growthContext, monitoringContext, projectContext, learningContext, sandboxContext, crmContext, content, true),
 		SchemaName:     "copilot_chat_response",
 		Validate:       validateChatJSON,
 		RepairAttempts: 1,
@@ -1402,7 +1483,7 @@ func (s *Service) generateSummary(ctx context.Context, userID int64, prompt, mod
 	return aiResult, result, nil
 }
 
-func buildUserPrompt(thread Thread, memories []Memory, messages []Message, references []File, taskContext *TaskContext, competitorContext *competitorScanContext, growthContext *growthModelContext, monitoringContext *monitoringContext, projectContext *projectContext, learningContext *learningContext, sandboxContext *sandboxContext, content string, includeResponseSchema bool) string {
+func buildUserPrompt(thread Thread, memories []Memory, messages []Message, references []File, taskContext *TaskContext, competitorContext *competitorScanContext, growthContext *growthModelContext, monitoringContext *monitoringContext, projectContext *projectContext, learningContext *learningContext, sandboxContext *sandboxContext, crmContext *crmContext, content string, includeResponseSchema bool) string {
 	var builder strings.Builder
 	builder.WriteString("会话标题：")
 	builder.WriteString(thread.Title)
@@ -1482,6 +1563,14 @@ func buildUserPrompt(thread Thread, memories []Memory, messages []Message, refer
 		payload, err := json.Marshal(sandboxContext)
 		if err == nil {
 			builder.WriteString("\n当前商业沙盘上下文（运行记录和报告已按当前用户权限读取，结论为模型推演，不是实时市场数据）：")
+			builder.WriteString(truncateForPrompt(string(payload), 16000))
+			builder.WriteString("\n")
+		}
+	}
+	if crmContext != nil {
+		payload, err := json.Marshal(crmContext)
+		if err == nil {
+			builder.WriteString("\n当前 CRM 上下文（客户、活动、跟进和概览统计已按当前用户权限读取）：")
 			builder.WriteString(truncateForPrompt(string(payload), 16000))
 			builder.WriteString("\n")
 		}

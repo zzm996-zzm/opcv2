@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from "../App";
 import { authSession } from "../lib/authSession";
+import { copilotApi } from "../lib/copilotApi";
 import { membershipApi } from "../lib/membershipApi";
 
 vi.mock("../lib/membershipApi", async (importActual) => {
@@ -292,6 +293,47 @@ describe("CrmPage", () => {
     expect(await screen.findByRole("heading", { name: "30人销售团队需要AI获客陪跑" })).toBeInTheDocument();
     expect(screen.getAllByText("企业交付").length).toBeGreaterThan(0);
     expect(await screen.findByText("企业交付客户复盘下一步")).toBeInTheDocument();
+  });
+
+  it("passes the selected CRM customer identifier to Copilot", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 100,
+        user_id: 7,
+        import_key: "lead:99",
+        name: "成都启明星教育",
+        stage: "qualified",
+        source: "lead",
+        created_at: "2026-07-07T13:30:00Z",
+        updated_at: "2026-07-07T13:30:00Z"
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        total: 1, new: 0, contacted: 0, qualified: 1, proposal: 0, won: 0, lost: 0, due_today: 0
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activities: [] }), { status: 200 }));
+    const createThread = vi.spyOn(copilotApi, "createThread").mockResolvedValue({
+      id: 81, user_id: 7, title: "页面助手：下一步怎么推进", mode: "chat", created_at: "2026-07-07T13:30:00Z", updated_at: "2026-07-07T13:30:00Z"
+    });
+    const sendMessage = vi.spyOn(copilotApi, "sendMessage").mockResolvedValue({
+      user_message: { id: 1, user_id: 7, thread_id: 81, role: "user", content: "下一步怎么推进", status: "completed", created_at: "2026-07-07T13:30:00Z" },
+      assistant_message: { id: 2, user_id: 7, thread_id: 81, role: "assistant", content: "先确认演示时间。", status: "completed", created_at: "2026-07-07T13:30:01Z" }
+    });
+    signIn();
+
+    render(
+      <MemoryRouter initialEntries={["/crm?customer_id=100"]}>
+        <App />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole("heading", { name: "成都启明星教育" });
+    fireEvent.change(screen.getByLabelText("询问CRM Copilot"), { target: { value: "下一步怎么推进" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await waitFor(() => expect(createThread).toHaveBeenCalled());
+    expect(sendMessage).toHaveBeenCalledWith(81, expect.objectContaining({
+      active_filters: { module: "crm", view: "customer", customer_id: "100" }
+    }));
   });
 
   it("filters CRM customers by enterprise delivery source", async () => {

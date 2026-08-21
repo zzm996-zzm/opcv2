@@ -233,6 +233,7 @@ func main() {
 		copilot.WithProjectContextProvider(projectsService),
 		copilot.WithLearningContextProvider(learningService),
 		copilot.WithSandboxContextProvider(sandboxService),
+		copilot.WithCRMContextProvider(crmService),
 	)
 	copilotHTTP := copilot.NewHTTPHandler(copilotService)
 

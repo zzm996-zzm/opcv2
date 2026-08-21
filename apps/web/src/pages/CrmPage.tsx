@@ -584,7 +584,15 @@ function CrmPage({ variant = "customers" }: CrmPageProps) {
   return (
     <V4PageShell className="crm-page-shell" showCopilotMini={false}>
       <main className="cdk-analysis-page cdk-crm-page crm-reference-page">
-        <CrmReferenceDashboard customers={visibleCustomers} stats={stats} />
+        <CrmReferenceDashboard
+          customers={visibleCustomers}
+          stats={stats}
+          copilotActiveFilters={{
+            module: "crm",
+            view: requestedCustomerID > 0 ? "customer" : "overview",
+            ...(requestedCustomerID > 0 ? { customer_id: String(requestedCustomerID) } : {})
+          }}
+        />
 
         <section id="crm-operations" className="cdk-crm-operations" aria-label="CRM业务操作区">
         <section className="cdk-crm-operation-head">
@@ -847,12 +855,14 @@ function CrmReferenceDashboard({
   customers,
   stats,
   locked = false,
-  display
+  display,
+  copilotActiveFilters
 }: {
   customers: CustomerCard[];
   stats: CrmPipelineStats | null;
   locked?: boolean;
   display?: CrmReferenceDisplay;
+  copilotActiveFilters?: Record<string, string>;
 }) {
   const total = display?.overview?.total ?? stats?.total ?? 0;
   const following = display?.overview?.following ?? (stats?.contacted ?? 0) + (stats?.qualified ?? 0) + (stats?.proposal ?? 0);
@@ -980,6 +990,7 @@ function CrmReferenceDashboard({
         ariaLabel="CRM Copilot"
         className="crm-ref-copilot"
         inputAriaLabel="询问CRM Copilot"
+        activeFilters={copilotActiveFilters}
         response="我可以帮你梳理客户阶段、推荐重点跟进对象，并生成可执行的跟进建议。"
         userPrompt="帮我看看今天应该优先跟进哪些客户。"
       />

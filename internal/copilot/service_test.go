@@ -12,6 +12,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/competitor"
+	"github.com/zzm/opcv2/internal/crm"
 	"github.com/zzm/opcv2/internal/growth"
 	"github.com/zzm/opcv2/internal/learning"
 	"github.com/zzm/opcv2/internal/membership"
@@ -373,6 +374,19 @@ type fakeSandboxContextProvider struct {
 	listLimit  int
 }
 
+type fakeCRMContextProvider struct {
+	customer        crm.Customer
+	activities      []crm.Activity
+	followUps       []crm.FollowUp
+	pipeline        crm.PipelineStats
+	userID          int64
+	customerID      int64
+	activitiesLimit int
+	followUpsInput  crm.ListFollowUpsInput
+	dueTodayInput   crm.ListDueInput
+	pipelineUserID  int64
+}
+
 func (p *fakeLearningContextProvider) GetCourse(_ context.Context, slug string) (learning.Course, error) {
 	p.courseSlug = slug
 	return p.course, nil
@@ -410,6 +424,34 @@ func (p *fakeSandboxContextProvider) ListV2Runs(_ context.Context, userID int64,
 	p.listUserID = userID
 	p.listLimit = limit
 	return p.runs, nil
+}
+
+func (p *fakeCRMContextProvider) GetCustomer(_ context.Context, userID, customerID int64) (crm.Customer, error) {
+	p.userID = userID
+	p.customerID = customerID
+	return p.customer, nil
+}
+
+func (p *fakeCRMContextProvider) ListActivities(_ context.Context, userID, customerID int64, limit int) ([]crm.Activity, error) {
+	p.userID = userID
+	p.customerID = customerID
+	p.activitiesLimit = limit
+	return p.activities, nil
+}
+
+func (p *fakeCRMContextProvider) ListFollowUps(_ context.Context, input crm.ListFollowUpsInput) ([]crm.FollowUp, error) {
+	p.followUpsInput = input
+	return p.followUps, nil
+}
+
+func (p *fakeCRMContextProvider) ListDueCustomers(_ context.Context, input crm.ListDueInput) ([]crm.Customer, error) {
+	p.dueTodayInput = input
+	return nil, nil
+}
+
+func (p *fakeCRMContextProvider) PipelineStats(_ context.Context, userID int64) (crm.PipelineStats, error) {
+	p.pipelineUserID = userID
+	return p.pipeline, nil
 }
 
 func (p *fakeProjectContextProvider) GetProject(_ context.Context, ref string) (projects.Project, error) {
@@ -932,6 +974,54 @@ func TestServiceIncludesAuthorizedSandboxHistoryInPrompt(t *testing.T) {
 	}
 	if provider.listUserID != 42 || provider.listLimit != 10 || !strings.Contains(streamer.request.UserPrompt, `"recent_runs"`) || !strings.Contains(streamer.request.UserPrompt, "门店 AI 运营助手") {
 		t.Fatalf("sandbox history context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesAuthorizedCRMCustomerContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "客户跟进", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合 CRM 上下文回答"}}
+	provider := &fakeCRMContextProvider{
+		customer:   crm.Customer{ID: 17, UserID: 42, Name: "启明星教育", Stage: crm.StageQualified, Source: crm.SourceLead},
+		activities: []crm.Activity{{ID: 3, CustomerID: 17, Type: crm.ActivityFollowUpRecorded, Note: "确认了演示时间"}},
+		followUps:  []crm.FollowUp{{ID: 5, CustomerID: 17, Note: "准备演示案例"}},
+		pipeline:   crm.PipelineStats{Total: 9, Qualified: 2, DueToday: 1},
+	}
+	service := NewService(repository, streamer, WithCRMContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "下一步如何跟进？", CurrentView: "/crm?customer_id=17",
+		ActiveFilters: map[string]string{"module": "crm", "view": "customers", "customer_id": "17"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.userID != 42 || provider.customerID != 17 || provider.activitiesLimit != 20 ||
+		provider.followUpsInput.UserID != 42 || provider.followUpsInput.CustomerID != 17 || provider.followUpsInput.Limit != 20 || provider.pipelineUserID != 42 || provider.dueTodayInput.UserID != 0 ||
+		!strings.Contains(streamer.request.UserPrompt, "启明星教育") ||
+		!strings.Contains(streamer.request.UserPrompt, "确认了演示时间") ||
+		!strings.Contains(streamer.request.UserPrompt, "准备演示案例") ||
+		!strings.Contains(streamer.request.UserPrompt, `"qualified":2`) {
+		t.Fatalf("CRM context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesAuthorizedCRMOverviewContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "今日跟进", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合 CRM 概览回答"}}
+	provider := &fakeCRMContextProvider{
+		pipeline: crm.PipelineStats{Total: 9, DueToday: 2},
+	}
+	service := NewService(repository, streamer, WithCRMContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "今天先跟进谁？",
+		ActiveFilters: map[string]string{"module": "crm", "view": "overview"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.customerID != 0 || provider.pipelineUserID != 42 || provider.dueTodayInput.UserID != 42 || provider.dueTodayInput.Limit != 20 || !strings.Contains(streamer.request.UserPrompt, `"due_today":2`) {
+		t.Fatalf("CRM overview context not included: %s", streamer.request.UserPrompt)
 	}
 }
 
