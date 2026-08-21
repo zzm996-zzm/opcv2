@@ -228,6 +228,8 @@ func main() {
 		copilot.WithToolExecutor(copilot.NewToolRegistry(tasksService, projectsService)),
 		copilot.WithTaskContextProvider(tasksService),
 		copilot.WithCompetitorContextProvider(competitorService),
+		copilot.WithGrowthContextProvider(growthService),
+		copilot.WithMonitoringContextProvider(competitorService),
 	)
 	copilotHTTP := copilot.NewHTTPHandler(copilotService)
 

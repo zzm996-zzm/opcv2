@@ -16458,7 +16458,22 @@ a:active {
 }
 
 .competitor-monitoring-page {
-  max-width: 1240px;
+  grid-template-columns: minmax(0, 1fr) 384px;
+  max-width: 1600px;
+  align-items: start;
+}
+
+.competitor-monitoring-content,
+.growth-calculator-content {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
+}
+
+.competitor-monitoring-page .unified-copilot-panel,
+.growth-calculator-page .unified-copilot-panel {
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .competitor-monitoring-hero {
@@ -16977,7 +16992,9 @@ a:active {
 }
 
 .growth-calculator-page {
-  max-width: 1240px;
+  grid-template-columns: minmax(0, 1fr) 384px;
+  max-width: 1600px;
+  align-items: start;
 }
 
 .growth-hero {
@@ -37316,6 +37333,17 @@ a:active {
 }
 
 @media (max-width: 1180px) {
+  .competitor-monitoring-page,
+  .growth-calculator-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .competitor-monitoring-page .unified-copilot-panel,
+  .growth-calculator-page .unified-copilot-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
   .sandbox-hero,
   .sandbox-grid,
   .sandbox-lower-grid,

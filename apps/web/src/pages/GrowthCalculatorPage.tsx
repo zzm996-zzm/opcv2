@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import UnifiedCopilotPanel from "../components/UnifiedCopilotPanel";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { tasksApi, type Task, type TaskAIDraft } from "../lib/tasksApi";
@@ -115,6 +116,7 @@ function riskLevelLabel(level: "low" | "medium" | "high") {
 }
 
 function GrowthCalculatorPage() {
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const requestedModelID = modelIDFromQuery(searchParams.get("model_id"));
   const [latestModel, setLatestModel] = useState<GrowthModel | null>(null);
@@ -409,10 +411,17 @@ function GrowthCalculatorPage() {
     setTaskSyncMessage("任务草稿已取消，尚未创建正式任务");
   }
 
+  const growthCopilotFilters = {
+    module: "growth",
+    view: location.pathname.endsWith("/report") ? "report" : location.pathname.endsWith("/questions") ? "questions" : "home",
+    ...(latestModel ? { model_id: String(latestModel.id) } : {})
+  };
+
   return (
     <V4PageShell className="growth-calculator-shell">
       <section className="module-page growth-calculator-page" aria-label="增长测算">
-        {taskDraft ? (
+        <div className="growth-calculator-content">
+          {taskDraft ? (
           <div className="task-modal-backdrop">
             <section aria-label="增长任务草稿预览" aria-modal="true" className="task-ai-draft-dialog" role="dialog">
               <header>
@@ -765,6 +774,16 @@ function GrowthCalculatorPage() {
             ) : null}
           </aside>
         </section>
+        </div>
+        <UnifiedCopilotPanel
+          activeFilters={growthCopilotFilters}
+          ariaLabel="增长测算 Copilot"
+          className="growth-copilot-panel"
+          currentView={`${location.pathname}${location.search}`}
+          inputAriaLabel="向增长测算 Copilot 提问"
+          response={latestModel ? "我会结合当前测算模型的收入、成本、转化和风险，帮你判断优先行动。" : "请先描述业务并完成测算，我会结合结果解释关键假设、风险和下一步动作。"}
+          userPrompt={latestModel ? `分析当前测算：${latestModel.name}` : "帮我梳理当前增长测算需要补齐的信息"}
+        />
       </section>
     </V4PageShell>
   );

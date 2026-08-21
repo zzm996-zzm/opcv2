@@ -1,29 +1,31 @@
 import { type FormEvent, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 
+import UnifiedCopilotPanel from "../components/UnifiedCopilotPanel";
 import V4PageShell from "../components/V4PageShell";
 import { apiErrorMessage } from "../lib/apiErrors";
 import { competitorApi, type CompetitorEvent, type CompetitorWatchItem } from "../lib/competitorApi";
 import { tasksApi } from "../lib/tasksApi";
 
 const emptyMonitoringStats = [
-  ["监测中竞品", "0"],
-  ["今日新增动态", "0"],
-  ["高风险预警", "0"],
+  ["关注对象", "0"],
+  ["已记录动态", "0"],
+  ["待处理提醒", "0"],
   ["已生成任务", "0"]
 ] as const;
 
-const channelHealth = [
-  ["官网 / 价格页", "每 6 小时", "正常"],
-  ["招聘动态", "每 12 小时", "正常"],
-  ["内容矩阵", "每 3 小时", "密集"],
-  ["投放素材", "每日", "排队"]
+const observationDimensions = [
+  ["官网 / 价格页", "记录价格与权益变化", "关注中"],
+  ["招聘动态", "记录组织与岗位信号", "关注中"],
+  ["内容发布", "记录主题与营销动作", "关注中"],
+  ["产品动态", "记录产品与定位变化", "关注中"]
 ] as const;
 
 const alertRules = [
-  ["价格变化", "捕捉套餐、权益、免费试用和低价入口调整"],
-  ["招聘扩张", "识别销售、增长、AI 产品岗位的异常增长"],
-  ["内容爆发", "监测公众号、视频号、SEO 页面标题变化"],
-  ["产品转向", "从产品页和案例页判断定位、场景和客群变化"]
+  ["价格变化", "归类套餐、权益、免费试用和低价入口调整"],
+  ["招聘扩张", "归类销售、增长和 AI 产品岗位相关的变化"],
+  ["内容爆发", "归类公众号、视频号和 SEO 页面标题变化"],
+  ["产品转向", "归类定位、场景和客群相关的信息"]
 ] as const;
 
 const defaultWatchChannels = ["官网 / 价格页", "招聘动态"] as const;
@@ -49,6 +51,8 @@ function formatLastSeen(value: string) {
 function toTrackedCompetitor(item: CompetitorWatchItem) {
   return {
     ...item,
+    status: item.status === "监测中" ? "已关注" : item.status,
+    signal: item.signal === "已创建监测规则，等待首次巡检。" ? "已添加关注对象，等待补充动态。" : item.signal,
     lastSeen: formatLastSeen(item.last_seen_at)
   };
 }
@@ -58,6 +62,7 @@ function toTimelineRow(item: CompetitorEvent) {
 }
 
 function CompetitorMonitoringPage() {
+  const location = useLocation();
   const [watchlist, setWatchlist] = useState<CompetitorWatchItem[]>([]);
   const [events, setEvents] = useState<CompetitorEvent[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -98,9 +103,9 @@ function CompetitorMonitoringPage() {
   const visibleTimeline = events.map(toTimelineRow);
   const highRiskCount = watchlist.filter((item) => item.threat === "强").length + events.filter((item) => item.level === "强").length;
   const visibleStats = watchlist.length > 0 || events.length > 0 ? [
-    ["监测中竞品", String(watchlist.length)],
-    ["今日新增动态", String(events.length)],
-    ["高风险预警", String(highRiskCount)],
+    ["关注对象", String(watchlist.length)],
+    ["已记录动态", String(events.length)],
+    ["待处理提醒", String(highRiskCount)],
     ["已生成任务", String(generatedTaskCount)]
   ] as const : emptyMonitoringStats;
   const firstAlert = visibleTimeline.find(([, , , , level]) => level === "强") ?? visibleTimeline[0] ?? null;
@@ -147,9 +152,9 @@ function CompetitorMonitoringPage() {
     try {
       await competitorApi.startWatchItemScan(item.id);
       setLoadError("");
-      setScanLaunchMessage(`已发起${item.name}全盘破解，任务排队中。`);
+      setScanLaunchMessage(`已创建 ${item.name} 的分析任务，正在排队处理。`);
     } catch (error) {
-      setLoadError(apiErrorMessage(error, "暂时无法发起全盘破解"));
+      setLoadError(apiErrorMessage(error, "暂时无法创建分析任务"));
     } finally {
       setStartingScanItemId(null);
     }
@@ -161,7 +166,7 @@ function CompetitorMonitoringPage() {
     setTaskMessage("");
     try {
       const task = await tasksApi.createTask({
-        title: `预警反击：${firstAlert[1]} ${firstAlert[2]}`,
+        title: `竞品动态跟进：${firstAlert[1]} ${firstAlert[2]}`,
         project: "竞品动态监测",
         priority: firstAlert[4] === "强" ? "high" : "medium",
         tools: ["竞品动态监测", "任务中心"],
@@ -172,9 +177,9 @@ function CompetitorMonitoringPage() {
       });
       setLoadError("");
       setGeneratedTaskCount((count) => count + 1);
-      setTaskMessage(`已生成反击任务：${task.title}`);
+      setTaskMessage(`已生成跟进任务：${task.title}`);
     } catch (error) {
-      setLoadError(apiErrorMessage(error, "暂时无法生成反击任务"));
+      setLoadError(apiErrorMessage(error, "暂时无法生成跟进任务"));
     } finally {
       setIsCreatingTask(false);
     }
@@ -183,13 +188,14 @@ function CompetitorMonitoringPage() {
   return (
     <V4PageShell className="competitor-monitoring-shell">
       <section className="module-page competitor-monitoring-page" aria-label="竞品动态监测">
-        <div className="page-title-row">
+        <div className="competitor-monitoring-content">
+          <div className="page-title-row">
           <div>
             <h1>竞品动态监测</h1>
-            <p>持续盯住竞品的价格、招聘、内容、投放和产品页变化，把异常信号自动沉淀成反击动作</p>
+            <p>集中记录竞品的价格、招聘、内容和产品变化，由 AI 帮你梳理影响并形成下一步动作</p>
           </div>
           <button className="module-primary-action" onClick={() => setShowWatchForm((visible) => !visible)} type="button">新增监测对象</button>
-        </div>
+          </div>
         {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
         {scanLaunchMessage ? <p className="form-success" role="status">{scanLaunchMessage}</p> : null}
         {taskMessage ? <p className="form-success" role="status">{taskMessage}</p> : null}
@@ -213,9 +219,9 @@ function CompetitorMonitoringPage() {
 
         <section className="module-overview-card competitor-monitoring-hero">
           <div className="module-overview-copy">
-            <span className="module-kicker">实时竞争雷达</span>
-            <h2>从“偶尔看看竞品”升级成持续预警系统</h2>
-            <p>监测规则会自动巡检竞品公开页面和内容渠道，识别高频变化、定位漂移与获客动作，并把可执行建议推送到任务中心。</p>
+            <span className="module-kicker">测试版 · 竞品观察</span>
+            <h2>把零散的竞品信息整理成可执行的判断</h2>
+            <p>基于已添加的关注对象和已记录动态，生成分析建议并整理下一步动作。</p>
             <div className="module-stat-strip">
               {visibleStats.map(([label, value]) => (
                 <article key={label}>
@@ -233,9 +239,9 @@ function CompetitorMonitoringPage() {
               <i className="dot warm" aria-hidden="true" />
               <i className="dot cool" aria-hidden="true" />
               <strong>{highRiskCount}</strong>
-              <small>高风险预警</small>
+              <small>待处理提醒</small>
             </div>
-            <p>{firstAlert ? `${firstAlert[1]}：${firstAlert[2]}` : "暂无高风险预警，新增监测对象后这里会展示最新异常信号。"}</p>
+            <p>{firstAlert ? `${firstAlert[1]}：${firstAlert[2]}` : "暂无待处理提醒，添加关注对象或记录动态后可在这里查看优先事项。"}</p>
           </div>
         </section>
 
@@ -243,8 +249,8 @@ function CompetitorMonitoringPage() {
           <div className="monitoring-main-card">
             <div className="module-section-head">
               <div>
-                <h2>监测中竞品</h2>
-                <p>按威胁等级和最近变化排序，点击后可进入全盘数据破解</p>
+                <h2>关注对象</h2>
+                <p>查看已添加的关注对象，并基于已记录动态安排后续分析</p>
               </div>
               <div className="module-chip-row compact">
                 {["全部", "强预警", "价格变化", "招聘扩张"].map((view, index) => (
@@ -268,13 +274,13 @@ function CompetitorMonitoringPage() {
                   {item.id ? (
                     <div className="monitoring-row-actions">
                       <button
-                        aria-label={`全盘破解 ${item.name}`}
+                        aria-label={`分析 ${item.name}`}
                         className="monitoring-scan-button"
                         disabled={startingScanItemId === item.id}
                         onClick={() => void startWatchItemScan(item)}
                         type="button"
                       >
-                        {startingScanItemId === item.id ? "发起中" : "全盘破解"}
+                        {startingScanItemId === item.id ? "创建中" : "创建分析"}
                       </button>
                       <button
                         aria-label={`移除 ${item.name}`}
@@ -296,13 +302,13 @@ function CompetitorMonitoringPage() {
             </div>
           </div>
 
-          <aside className="monitoring-side-card" aria-label="监测频率">
-            <h2>监测频率</h2>
-            {channelHealth.map(([source, frequency, status]) => (
+          <aside className="monitoring-side-card" aria-label="关注维度">
+            <h2>关注维度</h2>
+            {observationDimensions.map(([source, description, status]) => (
               <article key={source}>
                 <span>
                   <strong>{source}</strong>
-                  <small>{frequency}</small>
+                  <small>{description}</small>
                 </span>
                 <em>{status}</em>
               </article>
@@ -336,14 +342,14 @@ function CompetitorMonitoringPage() {
           </div>
 
           <aside className="monitoring-action-card" aria-label="预警动作">
-            <h2>今日预警</h2>
-            <strong>{firstAlert ? `先处理${firstAlert[1]}动态` : "暂无今日预警"}</strong>
+            <h2>优先处理</h2>
+            <strong>{firstAlert ? `先处理${firstAlert[1]}动态` : "暂无待处理动态"}</strong>
             <p>{firstAlert ? firstAlert[3] : "后端返回监测事件后，这里会展示需要优先处理的预警动作。"}</p>
             <div>
-              {firstAlert ? <span>{firstAlert[2]}</span> : <span>暂无反击任务</span>}
+              {firstAlert ? <span>{firstAlert[2]}</span> : <span>暂无跟进任务</span>}
             </div>
             <button disabled={!firstAlert || isCreatingTask} onClick={() => void createAlertTask()} type="button">
-              {isCreatingTask ? "生成中..." : "生成反击任务"}
+              {isCreatingTask ? "生成中..." : "生成跟进任务"}
             </button>
           </aside>
         </section>
@@ -352,7 +358,7 @@ function CompetitorMonitoringPage() {
           <div className="module-section-head">
             <div>
               <h2>预警规则</h2>
-              <p>第一版先用固定规则承接，后续可接入真实爬虫、队列和模型评分</p>
+              <p>测试版先按固定规则归类已记录动态，方便 AI 解读优先级和建议动作</p>
             </div>
           </div>
           <div className="monitoring-rule-grid">
@@ -364,6 +370,16 @@ function CompetitorMonitoringPage() {
             ))}
           </div>
         </section>
+        </div>
+        <UnifiedCopilotPanel
+          activeFilters={{ module: "monitoring", view: "home" }}
+          ariaLabel="竞品动态监测 Copilot"
+          className="monitoring-copilot-panel"
+          currentView={`${location.pathname}${location.search}`}
+          inputAriaLabel="向竞品动态监测 Copilot 提问"
+          response={firstAlert ? "我会结合待处理事项、关注对象和已记录动态，分析影响并给出应对动作。" : "关注对象和动态会在这里形成上下文；有数据后我可以帮你排序优先级和安排动作。"}
+          userPrompt={firstAlert ? `分析待处理事项：${firstAlert[1]} ${firstAlert[2]}` : "分析当前关注对象和动态"}
+        />
       </section>
     </V4PageShell>
   );

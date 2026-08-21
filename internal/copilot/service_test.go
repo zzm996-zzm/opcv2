@@ -12,6 +12,7 @@ import (
 
 	"github.com/zzm/opcv2/internal/ai"
 	"github.com/zzm/opcv2/internal/competitor"
+	"github.com/zzm/opcv2/internal/growth"
 	"github.com/zzm/opcv2/internal/membership"
 	"github.com/zzm/opcv2/internal/tasks"
 )
@@ -302,6 +303,38 @@ type fakeCompetitorContextProvider struct {
 	userID int64
 	scanID int64
 	err    error
+}
+
+type fakeGrowthContextProvider struct {
+	model     growth.Model
+	models    []growth.Model
+	userID    int64
+	modelID   int64
+	listLimit int
+}
+
+func (p *fakeGrowthContextProvider) GetModel(_ context.Context, userID, modelID int64) (growth.Model, error) {
+	p.userID = userID
+	p.modelID = modelID
+	return p.model, nil
+}
+
+func (p *fakeGrowthContextProvider) ListModels(_ context.Context, userID int64, limit int) ([]growth.Model, error) {
+	p.userID = userID
+	p.listLimit = limit
+	return p.models, nil
+}
+
+type fakeMonitoringContextProvider struct {
+	snapshot competitor.MonitoringSnapshot
+	userID   int64
+	limit    int
+}
+
+func (p *fakeMonitoringContextProvider) GetMonitoring(_ context.Context, userID int64, limit int) (competitor.MonitoringSnapshot, error) {
+	p.userID = userID
+	p.limit = limit
+	return p.snapshot, nil
 }
 
 func (p *fakeCompetitorContextProvider) GetScan(_ context.Context, userID, scanID int64) (competitor.Scan, error) {
@@ -648,6 +681,49 @@ func TestServiceIncludesAuthorizedCompetitorContextInPrompt(t *testing.T) {
 	}
 	if provider.userID != 42 || provider.scanID != 13 || !strings.Contains(streamer.request.UserPrompt, "小鹅通") || !strings.Contains(streamer.request.UserPrompt, "强化差异化") {
 		t.Fatalf("competitor context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesAuthorizedGrowthContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "增长测算", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合增长测算上下文回答"}}
+	provider := &fakeGrowthContextProvider{model: growth.Model{
+		ID: 21, UserID: 42, Name: "SaaS 续费提升", BusinessType: "saas", RiskLevel: "medium",
+		Assumptions: growth.Assumptions{MonthlyVisits: 12000, LeadRate: 0.08, DealRate: 0.2, AverageOrder: 3800, AcquisitionCost: 600, DeliveryCost: 900},
+		Result:      growth.Result{MonthlyRevenue: 729600, Deals: 192, PaybackDays: 38, NetMargin: 0.31},
+	}}
+	service := NewService(repository, streamer, WithGrowthContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "分析当前测算", CurrentView: "/growth-calculator/report?model_id=21",
+		ActiveFilters: map[string]string{"module": "growth", "view": "report", "model_id": "21"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.userID != 42 || provider.modelID != 21 || !strings.Contains(streamer.request.UserPrompt, "SaaS 续费提升") || !strings.Contains(streamer.request.UserPrompt, "729600") {
+		t.Fatalf("growth context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesAuthorizedMonitoringContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "动态监测", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合监测上下文回答"}}
+	provider := &fakeMonitoringContextProvider{snapshot: competitor.MonitoringSnapshot{
+		Watchlist: []competitor.WatchItem{{ID: 7, Name: "小鹅通", Category: "SaaS", Threat: "强", Signal: "招聘扩张"}},
+		Events:    []competitor.Event{{Company: "小鹅通", Title: "招聘增长岗位", Detail: "新增多个增长岗位", Level: "强"}},
+	}}
+	service := NewService(repository, streamer, WithMonitoringContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "分析当前预警", CurrentView: "/competitor-monitoring",
+		ActiveFilters: map[string]string{"module": "monitoring", "view": "home"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.userID != 42 || provider.limit != 20 || !strings.Contains(streamer.request.UserPrompt, "招聘增长岗位") || !strings.Contains(streamer.request.UserPrompt, "新增多个增长岗位") {
+		t.Fatalf("monitoring context not included: %s", streamer.request.UserPrompt)
 	}
 }
 

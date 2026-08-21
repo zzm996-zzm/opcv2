@@ -564,10 +564,10 @@ func TestServiceCreateWatchItemNormalizesInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateWatchItem() error = %v", err)
 	}
-	if item.Name != "增长雷达" || item.Category != "商业情报" || item.Status != "监测中" || item.Threat != "中" {
+	if item.Name != "增长雷达" || item.Category != "商业情报" || item.Status != "已关注" || item.Threat != "中" {
 		t.Fatalf("item = %+v", item)
 	}
-	if item.LastSeenAt != now || len(item.Channels) != 2 || item.Channels[0] != "价格页" || item.Signal != "已创建监测规则，等待首次巡检。" {
+	if item.LastSeenAt != now || len(item.Channels) != 2 || item.Channels[0] != "价格页" || item.Signal != "已添加关注对象，等待补充动态。" {
 		t.Fatalf("item = %+v", item)
 	}
 	if repository.createdWatch.UserID != 42 {

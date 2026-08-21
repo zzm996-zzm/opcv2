@@ -293,11 +293,11 @@ func (s *Service) CreateWatchItem(ctx context.Context, input CreateWatchItemInpu
 		UserID:     input.UserID,
 		Name:       name,
 		Category:   category,
-		Status:     "监测中",
+		Status:     "已关注",
 		Threat:     "中",
 		LastSeenAt: s.now(),
 		Channels:   channels,
-		Signal:     "已创建监测规则，等待首次巡检。",
+		Signal:     "已添加关注对象，等待补充动态。",
 	})
 }
 
@@ -355,13 +355,13 @@ func (s *Service) AddScanCompetitorToWatchlist(ctx context.Context, userID, scan
 		}
 		signal := strings.TrimSpace(competitor.Signal)
 		if signal == "" {
-			signal = "已从全盘破解结果加入动态监测。"
+			signal = "已从 AI 分析结果加入关注对象。"
 		}
 		return s.repository.CreateWatchItem(ctx, WatchItem{
 			UserID:     userID,
 			Name:       competitor.Name,
 			Category:   category,
-			Status:     "监测中",
+			Status:     "已关注",
 			Threat:     threat,
 			LastSeenAt: s.now(),
 			Channels:   []string{"产品页", "价格页", "内容矩阵"},

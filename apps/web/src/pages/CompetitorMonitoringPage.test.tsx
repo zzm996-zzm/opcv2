@@ -44,7 +44,7 @@ describe("CompetitorMonitoringPage", () => {
 
     expect(screen.getByRole("heading", { name: "竞品动态监测" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "新增监测对象" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "监测中竞品" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "关注对象" })).toBeInTheDocument();
     expect(await screen.findByText("暂无监测对象")).toBeInTheDocument();
     expect(screen.queryByText("小鹅通")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "动态时间线" })).toBeInTheDocument();
@@ -126,7 +126,8 @@ describe("CompetitorMonitoringPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存监测对象" }));
 
     expect(await screen.findByRole("heading", { name: "增长雷达" })).toBeInTheDocument();
-    expect(screen.getByText("已创建监测规则，等待首次巡检。")).toBeInTheDocument();
+    expect(screen.getByText("已添加关注对象，等待补充动态。")).toBeInTheDocument();
+    expect(screen.getByText("已关注")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/competitor/monitoring/watchlist",
       expect.objectContaining({
@@ -173,7 +174,7 @@ describe("CompetitorMonitoringPage", () => {
     );
   });
 
-  it("starts full scans from monitoring watch items", async () => {
+  it("creates analysis tasks from monitoring watch items", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = String(input);
       if (url === "/api/v1/competitor/monitoring?limit=20" && init?.method === "GET") {
@@ -213,9 +214,9 @@ describe("CompetitorMonitoringPage", () => {
     renderMonitoringRoute();
 
     expect(await screen.findByRole("heading", { name: "增长雷达" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "全盘破解 增长雷达" }));
+    fireEvent.click(screen.getByRole("button", { name: "分析 增长雷达" }));
 
-    expect(await screen.findByText("已发起增长雷达全盘破解，任务排队中。")).toBeInTheDocument();
+    expect(await screen.findByText("已创建 增长雷达 的分析任务，正在排队处理。")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/competitor/monitoring/watchlist/77/scan",
       expect.objectContaining({ method: "POST" })
@@ -243,7 +244,7 @@ describe("CompetitorMonitoringPage", () => {
         return Promise.resolve(new Response(JSON.stringify({
           id: 88,
           user_id: 7,
-          title: "预警反击：增长雷达 自动任务派发上线",
+          title: "竞品动态跟进：增长雷达 自动任务派发上线",
           project: "竞品动态监测",
           status: "todo",
           priority: "high",
@@ -259,9 +260,9 @@ describe("CompetitorMonitoringPage", () => {
     renderMonitoringRoute();
 
     expect(await screen.findByRole("heading", { name: "自动任务派发上线" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "生成反击任务" }));
+    fireEvent.click(screen.getByRole("button", { name: "生成跟进任务" }));
 
-    expect(await screen.findByText("已生成反击任务：预警反击：增长雷达 自动任务派发上线")).toBeInTheDocument();
+    expect(await screen.findByText("已生成跟进任务：竞品动态跟进：增长雷达 自动任务派发上线")).toBeInTheDocument();
     const generatedTaskStat = screen.getByText("已生成任务").closest("article");
     expect(generatedTaskStat).not.toBeNull();
     expect(within(generatedTaskStat as HTMLElement).getByText("1")).toBeInTheDocument();
@@ -270,7 +271,7 @@ describe("CompetitorMonitoringPage", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          title: "预警反击：增长雷达 自动任务派发上线",
+          title: "竞品动态跟进：增长雷达 自动任务派发上线",
           project: "竞品动态监测",
           priority: "high",
           tools: ["竞品动态监测", "任务中心"],
