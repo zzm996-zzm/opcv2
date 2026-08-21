@@ -14,6 +14,7 @@ import (
 	"github.com/zzm/opcv2/internal/competitor"
 	"github.com/zzm/opcv2/internal/growth"
 	"github.com/zzm/opcv2/internal/membership"
+	"github.com/zzm/opcv2/internal/projects"
 	"github.com/zzm/opcv2/internal/tasks"
 )
 
@@ -335,6 +336,25 @@ func (p *fakeMonitoringContextProvider) GetMonitoring(_ context.Context, userID 
 	p.userID = userID
 	p.limit = limit
 	return p.snapshot, nil
+}
+
+type fakeProjectContextProvider struct {
+	project    projects.Project
+	match      projects.MatchWorkflowResponse
+	projectRef string
+	userID     int64
+	matchID    int64
+}
+
+func (p *fakeProjectContextProvider) GetProject(_ context.Context, ref string) (projects.Project, error) {
+	p.projectRef = ref
+	return p.project, nil
+}
+
+func (p *fakeProjectContextProvider) GetProjectMatch(_ context.Context, userID, matchID int64) (projects.MatchWorkflowResponse, error) {
+	p.userID = userID
+	p.matchID = matchID
+	return p.match, nil
 }
 
 func (p *fakeCompetitorContextProvider) GetScan(_ context.Context, userID, scanID int64) (competitor.Scan, error) {
@@ -724,6 +744,36 @@ func TestServiceIncludesAuthorizedMonitoringContextInPrompt(t *testing.T) {
 	}
 	if provider.userID != 42 || provider.limit != 20 || !strings.Contains(streamer.request.UserPrompt, "招聘增长岗位") || !strings.Contains(streamer.request.UserPrompt, "新增多个增长岗位") {
 		t.Fatalf("monitoring context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesPublishedProjectAndOwnedMatchContextInPrompt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "项目评估", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合项目上下文回答"}}
+	provider := &fakeProjectContextProvider{
+		project: projects.Project{
+			ID: 11, Slug: "ai-sales", Title: "AI 销售顾问", Summary: "为销售团队梳理线索和跟进流程。",
+			BudgetBand: "1 万以内", Difficulty: "中等", Tags: []string{"企业服务"}, ResourceRequirements: []string{"销售经验"},
+		},
+		match: projects.MatchWorkflowResponse{
+			MatchID: 19, Need: "寻找适合一人启动的销售服务", Status: "ready", AnalysisSummary: "已有销售经验，可先验证单一行业。",
+			Assumptions: []string{"先与三位目标客户访谈"}, Completeness: 0.8,
+		},
+	}
+	service := NewService(repository, streamer, WithProjectContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "这个项目下一步怎么验证？", CurrentView: "/projects/ai-sales?section=path",
+		ActiveFilters: map[string]string{"module": "projects", "view": "detail", "project_ref": "ai-sales", "match_id": "19", "section": "path"},
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if provider.projectRef != "ai-sales" || provider.userID != 42 || provider.matchID != 19 ||
+		!strings.Contains(streamer.request.UserPrompt, "AI 销售顾问") ||
+		!strings.Contains(streamer.request.UserPrompt, "先与三位目标客户访谈") ||
+		!strings.Contains(streamer.request.UserPrompt, `"current_section":"path"`) {
+		t.Fatalf("project context not included: %s", streamer.request.UserPrompt)
 	}
 }
 

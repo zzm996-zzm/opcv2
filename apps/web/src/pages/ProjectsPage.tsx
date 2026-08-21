@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, BookOpenCheck, Check, ChevronRight, ChevronUp, ExternalLink, Flame, Search, ShieldCheck, TriangleAlert } from "lucide-react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { useRegisteredCopilotPanel } from "../components/CopilotPanelVisibility";
 import FloatingCopilotOrb from "../components/FloatingCopilotOrb";
@@ -2531,6 +2531,7 @@ function Considerations() {
 
 function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   const copilotPanel = useRegisteredCopilotPanel();
+  const location = useLocation();
   const { matchId, opportunitySlug, projectRef } = useParams();
   const activeProjectRef = projectRef ?? opportunitySlug;
   const [searchParams] = useSearchParams();
@@ -2584,6 +2585,13 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
   const activeDetailTitle = detailTabs.find(([key]) => key === activeDetailKey)?.[2];
   const activeDetailSection = contextOpportunity?.sections?.find((section) => section.key === activeDetailKey || section.title === activeDetailTitle)
     ?? (activeDetailKey === "path" ? contextOpportunity?.sections?.[0] : undefined);
+  const copilotActiveFilters = {
+    module: "projects",
+    view: variant,
+    ...(activeProjectRef ? { project_ref: activeProjectRef } : {}),
+    ...(matchId ? { match_id: matchId } : {}),
+    ...((variant === "detail" || variant === "diagnosis") ? { section: activeDetailKey } : {})
+  };
   const detailItems = (activeDetailSection?.items?.length
     ? activeDetailSection.items
     : activeDetailSection?.blocks?.flatMap((block) => block.items?.map((item) => item.title || item.value || "").filter(Boolean) ?? []) ?? []).slice(0, 4);
@@ -2665,7 +2673,13 @@ function ProjectCopilot({ variant }: { variant: ProjectMarketVariant }) {
           <Link to="/tools/recommend">推荐工具</Link>
           <Link to="/tasks">制定落地计划</Link>
         </nav>
-        <MiniCopilotForm className="pm-copilot-input" attachIcon="＋" sendIcon="↗" />
+        <MiniCopilotForm
+          activeFilters={copilotActiveFilters}
+          className="pm-copilot-input"
+          currentView={`${location.pathname}${location.search}`}
+          attachIcon="＋"
+          sendIcon="↗"
+        />
       </div>
     </aside>
   );

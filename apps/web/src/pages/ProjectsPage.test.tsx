@@ -837,6 +837,42 @@ describe("ProjectsPage", () => {
     expect(screen.getByRole("link", { name: "查看首要来源" })).toHaveAttribute("href", "https://example.com/case");
   });
 
+  it("sends the active project reference and section to Copilot", async () => {
+    const project = {
+      id: 42, slug: "ai-sales", title: "AI销售顾问", summary: "销售流程试点", industry: "企业服务", tags: ["B端"],
+      budget_band: "1万", difficulty: "中等", resource_requirements: [], sections: [{ key: "data", title: "当前数据", body: "当前数据正文", items: [] }]
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url === "/api/v1/projects/ai-sales") return Promise.resolve(new Response(JSON.stringify(project), { status: 200 }));
+      if (url === "/api/v1/project-cases?page_size=100") return Promise.resolve(new Response(JSON.stringify({ items: [], page: 1, page_size: 100, total: 0 }), { status: 200 }));
+      if (url === "/api/v1/projects/project-favorites" || url === "/api/v1/projects/compare-items") return Promise.resolve(new Response(JSON.stringify({ items: [], favorites: [] }), { status: 200 }));
+      if (url === "/api/v1/copilot/threads" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({
+        id: 99, user_id: 7, title: "页面助手：如何验证", mode: "chat", model: "deepseek", created_at: "2026-08-21T08:00:00Z", updated_at: "2026-08-21T08:00:00Z"
+      }), { status: 200 }));
+      if (url === "/api/v1/copilot/threads/99/messages" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({
+        user_message: { id: 1, user_id: 7, thread_id: 99, role: "user", content: "如何验证", status: "completed", model: "deepseek", created_at: "2026-08-21T08:00:00Z" },
+        assistant_message: { id: 2, user_id: 7, thread_id: 99, role: "assistant", content: "先与目标客户访谈。", status: "completed", model: "deepseek", created_at: "2026-08-21T08:00:01Z" }
+      }), { status: 200 }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    });
+    renderProjectRoute("/projects/ai-sales?section=data");
+
+    await screen.findByRole("heading", { name: "当前数据" });
+    fireEvent.change(screen.getByLabelText("向 Copilot 提问"), { target: { value: "如何验证" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/copilot/threads/99/messages",
+      expect.objectContaining({ method: "POST" })
+    ));
+    const sendCall = fetchMock.mock.calls.find(([input]) => String(input) === "/api/v1/copilot/threads/99/messages");
+    expect(JSON.parse(String(sendCall?.[1]?.body))).toEqual(expect.objectContaining({
+      current_view: "/projects/ai-sales?section=data",
+      active_filters: { module: "projects", view: "detail", project_ref: "ai-sales", section: "data" }
+    }));
+  });
+
   it("keeps opportunity detail visible when the cases API fails", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const url = String(input);
