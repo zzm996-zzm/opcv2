@@ -367,6 +367,7 @@ func (p *fakeMonitoringContextProvider) GetMonitoring(_ context.Context, userID 
 type fakeProjectContextProvider struct {
 	project    projects.Project
 	match      projects.MatchWorkflowResponse
+	catalog    []projects.Opportunity
 	projectRef string
 	userID     int64
 	matchID    int64
@@ -497,6 +498,10 @@ func (p *fakeProjectContextProvider) GetProjectMatch(_ context.Context, userID, 
 	p.userID = userID
 	p.matchID = matchID
 	return p.match, nil
+}
+
+func (p *fakeProjectContextProvider) ListOpportunities(_ context.Context, _ projects.OpportunityFilters) ([]projects.Opportunity, error) {
+	return p.catalog, nil
 }
 
 func (p *fakeCompetitorContextProvider) GetScan(_ context.Context, userID, scanID int64) (competitor.Scan, error) {
@@ -934,6 +939,25 @@ func TestServiceIncludesPublishedProjectAndOwnedMatchContextInPrompt(t *testing.
 		!strings.Contains(streamer.request.UserPrompt, "先与三位目标客户访谈") ||
 		!strings.Contains(streamer.request.UserPrompt, `"current_section":"path"`) {
 		t.Fatalf("project context not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesProjectCatalogForProjectMarketQuestion(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "智活 Copilot", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合项目目录回答"}}
+	provider := &fakeProjectContextProvider{catalog: []projects.Opportunity{
+		{Slug: "ai-sales", Title: "AI 销售顾问", Summary: "帮助企业整理销售线索", Industry: "企业服务", Tags: []string{"一人公司"}, BudgetBand: "1 万以内", Difficulty: "低"},
+	}}
+	service := NewService(repository, streamer, WithProjectContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "请推荐项目超市里的项目",
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if !strings.Contains(streamer.request.UserPrompt, "AI 销售顾问") || !strings.Contains(streamer.request.UserPrompt, "一人公司") {
+		t.Fatalf("project catalog not included: %s", streamer.request.UserPrompt)
 	}
 }
 

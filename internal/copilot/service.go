@@ -84,6 +84,7 @@ type MonitoringContextProvider interface {
 type ProjectContextProvider interface {
 	GetProject(ctx context.Context, ref string) (projects.Project, error)
 	GetProjectMatch(ctx context.Context, userID, id int64) (projects.MatchWorkflowResponse, error)
+	ListOpportunities(ctx context.Context, filters projects.OpportunityFilters) ([]projects.Opportunity, error)
 }
 
 type LearningContextProvider interface {
@@ -184,7 +185,19 @@ type monitoringContext struct {
 type projectContext struct {
 	Project        *projects.Project               `json:"project,omitempty"`
 	Match          *projects.MatchWorkflowResponse `json:"match,omitempty"`
+	Catalog        []projectCatalogItem            `json:"catalog,omitempty"`
 	CurrentSection string                          `json:"current_section,omitempty"`
+}
+
+type projectCatalogItem struct {
+	Slug                 string   `json:"slug"`
+	Title                string   `json:"title"`
+	Summary              string   `json:"summary,omitempty"`
+	Industry             string   `json:"industry,omitempty"`
+	Tags                 []string `json:"tags,omitempty"`
+	BudgetBand           string   `json:"budget_band,omitempty"`
+	Difficulty           string   `json:"difficulty,omitempty"`
+	ResourceRequirements []string `json:"resource_requirements,omitempty"`
 }
 
 type learningContext struct {
@@ -665,18 +678,31 @@ func (s *Service) loadMonitoringContext(ctx context.Context, input SendMessageIn
 
 func (s *Service) loadProjectContext(ctx context.Context, input SendMessageInput) (*projectContext, error) {
 	filters := normalizeContextFilters(input.ActiveFilters)
-	if filters["module"] != "projects" {
-		return nil, nil
-	}
 	projectRef := strings.TrimSpace(filters["project_ref"])
 	matchIDValue := strings.TrimSpace(filters["match_id"])
-	if projectRef == "" && matchIDValue == "" {
+	moduleProjects := filters["module"] == "projects"
+	wantsProjectCatalog := moduleProjects || mentionsProjectCatalog(input.Content)
+	if !wantsProjectCatalog && projectRef == "" && matchIDValue == "" {
 		return nil, nil
 	}
 	if s.projects == nil {
 		return nil, ErrServiceNotReady
 	}
 	context := &projectContext{CurrentSection: strings.TrimSpace(filters["section"])}
+	if wantsProjectCatalog {
+		items, err := s.projects.ListOpportunities(ctx, projects.OpportunityFilters{Limit: 30})
+		if err != nil {
+			return nil, err
+		}
+		context.Catalog = make([]projectCatalogItem, 0, len(items))
+		for _, item := range items {
+			context.Catalog = append(context.Catalog, projectCatalogItem{
+				Slug: item.Slug, Title: item.Title, Summary: item.Summary, Industry: item.Industry,
+				Tags: append([]string(nil), item.Tags...), BudgetBand: item.BudgetBand,
+				Difficulty: item.Difficulty, ResourceRequirements: append([]string(nil), item.ResourceRequirements...),
+			})
+		}
+	}
 	if projectRef != "" {
 		project, err := s.projects.GetProject(ctx, projectRef)
 		if err != nil {
@@ -696,6 +722,16 @@ func (s *Service) loadProjectContext(ctx context.Context, input SendMessageInput
 		context.Match = &match
 	}
 	return context, nil
+}
+
+func mentionsProjectCatalog(content string) bool {
+	content = strings.ToLower(strings.TrimSpace(content))
+	for _, keyword := range []string{"项目超市", "项目目录", "项目库", "数据库里的项目", "数据库存的项目", "项目推荐", "项目机会"} {
+		if strings.Contains(content, keyword) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) loadLearningContext(ctx context.Context, input SendMessageInput) (*learningContext, error) {
