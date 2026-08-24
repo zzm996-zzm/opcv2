@@ -41,7 +41,7 @@ services:
         GO_BUILDER_IMAGE: ${OPCV2_GO_BUILDER_IMAGE:-docker.m.daocloud.io/library/golang:1.22.3-alpine}
         RUNTIME_IMAGE: ${OPCV2_RUNTIME_IMAGE:-docker.m.daocloud.io/library/alpine:3.20}
         GOPROXY: ${OPCV2_GOPROXY:-https://goproxy.cn,direct}
-        ALPINE_REPOSITORY: ${OPCV2_ALPINE_REPOSITORY:-https://mirrors.aliyun.com/alpine}
+        ALPINE_REPOSITORY: ${OPCV2_ALPINE_REPOSITORY:-}
     image: opcv2-server-api:latest
     container_name: opcv2-server-api
     restart: unless-stopped
@@ -103,7 +103,7 @@ services:
         GO_BUILDER_IMAGE: ${OPCV2_GO_BUILDER_IMAGE:-docker.m.daocloud.io/library/golang:1.22.3-alpine}
         RUNTIME_IMAGE: ${OPCV2_RUNTIME_IMAGE:-docker.m.daocloud.io/library/alpine:3.20}
         GOPROXY: ${OPCV2_GOPROXY:-https://goproxy.cn,direct}
-        ALPINE_REPOSITORY: ${OPCV2_ALPINE_REPOSITORY:-https://mirrors.aliyun.com/alpine}
+        ALPINE_REPOSITORY: ${OPCV2_ALPINE_REPOSITORY:-}
     image: opcv2-server-worker:latest
     container_name: opcv2-server-worker
     restart: unless-stopped
