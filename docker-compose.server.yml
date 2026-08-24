@@ -147,7 +147,7 @@ services:
       args:
         NODE_BUILDER_IMAGE: ${OPCV2_NODE_BUILDER_IMAGE:-docker.m.daocloud.io/library/node:20-alpine}
         NGINX_IMAGE: ${OPCV2_NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:1.27-alpine}
-        NPM_CONFIG_REGISTRY: ${OPCV2_NPM_REGISTRY:-https://registry.npmmirror.com}
+        NPM_CONFIG_REGISTRY: ${OPCV2_NPM_REGISTRY:-https://registry.npmjs.org/}
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     image: opcv2-server-web:latest
     container_name: opcv2-server-web

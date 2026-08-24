@@ -11,7 +11,7 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 COPY package.json package-lock.json ./
 # The Alpine/npm combination can crash while resolving optional native bundles.
 # They are not required for the Vite production build.
-RUN npm install --no-audit --no-fund --omit=optional
+RUN npm ci --no-audit --no-fund --omit=optional
 
 COPY . .
 RUN npm run build
