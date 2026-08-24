@@ -961,6 +961,45 @@ func TestServiceIncludesProjectCatalogForProjectMarketQuestion(t *testing.T) {
 	}
 }
 
+func TestServiceIncludesProjectCatalogForNaturalLanguageProjectSearch(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "智活 Copilot", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合区块链项目目录回答"}}
+	provider := &fakeProjectContextProvider{catalog: []projects.Opportunity{
+		{Slug: "chain-credit", Title: "ChainCredit", Summary: "B2B 嵌入式贷款基础设施", Industry: "金融科技", Tags: []string{"区块链"}},
+	}}
+	service := NewService(repository, streamer, WithProjectContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "我想找一个区块链的项目",
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if !strings.Contains(streamer.request.UserPrompt, "ChainCredit") || !strings.Contains(streamer.request.UserPrompt, "区块链") {
+		t.Fatalf("natural-language project catalog not included: %s", streamer.request.UserPrompt)
+	}
+}
+
+func TestServiceIncludesProjectCatalogForProjectsPageView(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "项目超市", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{deltas: []string{"结合当前项目页回答"}}
+	provider := &fakeProjectContextProvider{catalog: []projects.Opportunity{
+		{Slug: "ai-sales", Title: "AI 销售顾问", Summary: "销售线索服务"},
+	}}
+	service := NewService(repository, streamer, WithProjectContextProvider(provider))
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "帮我看看这个页面",
+		CurrentView: "/projects",
+	}, func(StreamEvent) error { return nil })
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	if !strings.Contains(streamer.request.UserPrompt, "AI 销售顾问") {
+		t.Fatalf("projects page catalog not included: %s", streamer.request.UserPrompt)
+	}
+}
+
 func TestServiceIncludesAuthorizedLearningContextInPrompt(t *testing.T) {
 	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "学习计划", Mode: ModeChat}}}
 	streamer := &fakeTextStreamer{deltas: []string{"结合学习上下文回答"}}

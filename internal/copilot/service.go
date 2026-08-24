@@ -680,7 +680,7 @@ func (s *Service) loadProjectContext(ctx context.Context, input SendMessageInput
 	filters := normalizeContextFilters(input.ActiveFilters)
 	projectRef := strings.TrimSpace(filters["project_ref"])
 	matchIDValue := strings.TrimSpace(filters["match_id"])
-	moduleProjects := filters["module"] == "projects"
+	moduleProjects := filters["module"] == "projects" || strings.HasPrefix(strings.TrimSpace(input.CurrentView), "/projects")
 	wantsProjectCatalog := moduleProjects || mentionsProjectCatalog(input.Content)
 	if !wantsProjectCatalog && projectRef == "" && matchIDValue == "" {
 		return nil, nil
@@ -729,6 +729,16 @@ func mentionsProjectCatalog(content string) bool {
 	for _, keyword := range []string{"项目超市", "项目目录", "项目库", "数据库里的项目", "数据库存的项目", "项目推荐", "项目机会"} {
 		if strings.Contains(content, keyword) {
 			return true
+		}
+	}
+	// Natural-language queries such as "找一个区块链项目" do not mention
+	// the product name, but still clearly ask for a catalog lookup.
+	hasProject := strings.Contains(content, "项目")
+	if hasProject {
+		for _, keyword := range []string{"找", "查", "搜", "推荐", "适合", "哪些", "哪个", "有没有", "想要", "想找", "筛选"} {
+			if strings.Contains(content, keyword) {
+				return true
+			}
 		}
 	}
 	return false
@@ -1661,7 +1671,7 @@ func buildUserPrompt(thread Thread, memories []Memory, messages []Message, refer
 	if projectContext != nil {
 		payload, err := json.Marshal(projectContext)
 		if err == nil {
-			builder.WriteString("\n当前项目超市上下文（项目目录来自应用数据库中的已发布项目，不是实时平台抓取；匹配记录已按当前用户权限读取）：")
+			builder.WriteString("\n当前项目超市上下文（项目目录来自应用数据库中的已发布项目；匹配记录已按当前用户权限读取）。如果目录中有符合用户条件的项目，必须优先从目录推荐并说明依据，不要回答‘找不到项目’或声称需要读取外部实时平台；只有目录为空时才说明暂无可推荐项目：")
 			builder.Write(payload)
 			builder.WriteString("\n")
 		}
