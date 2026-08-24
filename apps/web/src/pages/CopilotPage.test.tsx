@@ -68,6 +68,20 @@ describe("CopilotPage", () => {
     );
   });
 
+  it("keeps sent content and partial AI output when a stream is interrupted", async () => {
+    mockCopilotBackend({ streamInterrupted: true });
+    renderPage();
+
+    await screen.findByText("智能客服系统项目机会分析");
+    const input = screen.getByLabelText("输入你的问题");
+    fireEvent.change(input, { target: { value: "保留这条测试消息" } });
+    fireEvent.click(screen.getByRole("button", { name: "发送" }));
+
+    await waitFor(() => expect(document.body.textContent).toContain("已经生成的部分回答"));
+    expect(input).toHaveValue("");
+    expect(screen.getByText("流式回复中断，请重试")).toBeInTheDocument();
+  });
+
   it("replaces a stale active thread and retries the message", async () => {
     const fetchMock = mockCopilotBackend({ missingThreadOnce: true });
     renderPage();
@@ -567,7 +581,7 @@ describe("CopilotPage", () => {
   });
 });
 
-function mockCopilotBackend(options: { emptyThreads?: boolean; historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean; missingThreadOnce?: boolean; toolMessage?: boolean; previewMessage?: boolean } = {}) {
+function mockCopilotBackend(options: { emptyThreads?: boolean; historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean; missingThreadOnce?: boolean; toolMessage?: boolean; previewMessage?: boolean; streamInterrupted?: boolean } = {}) {
   let returnedMissingThread = false;
   return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = String(input);
@@ -858,6 +872,13 @@ function mockCopilotBackend(options: { emptyThreads?: boolean; historicalCompare
         model: "deepseek",
         created_at: "2026-07-01T09:56:00Z"
       };
+      if (options.streamInterrupted) {
+        return Promise.resolve(new Response([
+          `event: user_message\ndata: ${JSON.stringify({ type: "user_message", user_message: userMessage })}`,
+          `event: delta\ndata: ${JSON.stringify({ type: "delta", delta: "已经生成的部分回答" })}`,
+          `event: error\ndata: {"error":"stream_failed"}`
+        ].join("\n\n") + "\n\n", { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+      }
       const response = new Response([
         `event: user_message\ndata: ${JSON.stringify({ type: "user_message", user_message: userMessage })}`,
         `event: delta\ndata: ${JSON.stringify({ type: "delta", delta: "后端返回的" })}`,

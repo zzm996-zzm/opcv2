@@ -320,8 +320,14 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
     setStreamingContent("");
     setError("");
     setIsSending(true);
+    let streamAccepted = false;
+    let streamedAssistant: CopilotMessage | null = null;
+    let streamedContent = "";
+    let sentThreadID: number | null = activeThreadID;
+    let sentUserMessage: CopilotMessage | null = null;
     try {
       let thread = activeThread ?? await startThread(content);
+      sentThreadID = thread.id;
       if (isCompare) {
         const models = compareModelValues.length > 0 ? compareModelValues : [selectedModel];
         const showOptimisticQuestion = (targetThread: CopilotThread) => {
@@ -373,15 +379,24 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         userID: thread.user_id
       });
       setMessages((current) => [...current, optimisticUserMessage]);
+      sentUserMessage = optimisticUserMessage;
       const sendChatMessage = async (targetThread: CopilotThread, optimisticMessageID: number) => {
         let usedFallback = false;
         let result: SendMessageResult;
         try {
           result = await copilotApi.streamMessage(targetThread.id, messageInput, {
             onUserMessage: (message) => {
+              streamAccepted = true;
               setMessages((current) => [...current.filter((item) => item.id !== optimisticMessageID && item.id !== message.id), message]);
             },
-            onDelta: (delta) => setStreamingContent((current) => current + delta)
+            onDelta: (delta) => {
+              streamedContent += delta;
+              setStreamingContent((current) => current + delta);
+            },
+            onAssistantMessage: (message) => {
+              streamAccepted = true;
+              streamedAssistant = message;
+            }
           }, abortController.signal);
         } catch (streamError) {
           const canFallback = streamError instanceof ApiRequestError && streamError.code !== "thread_not_found" && (
@@ -401,6 +416,7 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
         setStreamingContent("");
         setMessages((current) => current.filter((message) => message.id !== optimisticUserMessage.id));
         thread = await replaceMissingThread(thread.id, content);
+        sentThreadID = thread.id;
         optimisticUserMessage = optimisticMessage({
           content,
           model: selectedModel,
@@ -408,7 +424,11 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
           threadID: thread.id,
           userID: thread.user_id
         });
+        sentUserMessage = optimisticUserMessage;
         setMessages((current) => [...current, optimisticUserMessage]);
+        streamAccepted = false;
+        streamedAssistant = null;
+        streamedContent = "";
         sendResult = await sendChatMessage(thread, optimisticUserMessage.id);
       }
       if (abortController.signal.aborted) return;
@@ -424,15 +444,56 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       await refreshUsage();
     } catch (requestError) {
       if (abortController.signal.aborted) {
-        setMessages((current) => current.filter((message) => message.id >= 0));
+        setMessages((current) => {
+          const next = current.filter((message) => message.id >= 0);
+          const targetThreadID = sentThreadID ?? sentUserMessage?.thread_id;
+          const hasServerUser = next.some((message) => message.role === "user" && message.thread_id === targetThreadID && message.content === content);
+          if (!hasServerUser && sentUserMessage && (streamAccepted || streamedContent.trim())) next.push(sentUserMessage);
+          if (streamedAssistant && !next.some((message) => message.id === streamedAssistant?.id)) next.push(streamedAssistant);
+          else if (streamedContent.trim() && targetThreadID) next.push({
+            id: -Date.now(),
+            user_id: sentUserMessage?.user_id ?? 0,
+            thread_id: targetThreadID,
+            role: "assistant",
+            content: streamedContent.trim(),
+            status: "failed",
+            model: selectedModel,
+            created_at: new Date().toISOString()
+          });
+          return next;
+        });
         setStreamingContent("");
         if (isCompare) setCompareQuestion((current) => current && current.id < 0 ? null : current);
         setError("已暂停本次对话");
         return;
       }
-      setDraft(content);
+      if (!streamAccepted && !streamedAssistant && !streamedContent.trim()) {
+        setDraft(content);
+      } else {
+        setDraft("");
+      }
       setStreamingContent("");
-      setMessages((current) => current.filter((message) => message.id >= 0));
+      setMessages((current) => {
+        const next = current.filter((message) => message.id >= 0);
+        const targetThreadID = sentThreadID ?? sentUserMessage?.thread_id;
+        const hasServerUser = next.some((message) => message.role === "user" && message.thread_id === targetThreadID && message.content === content);
+        if (!hasServerUser && sentUserMessage && (streamAccepted || streamedContent.trim())) next.push(sentUserMessage);
+        if (streamedAssistant && !next.some((message) => message.id === streamedAssistant?.id)) {
+          next.push(streamedAssistant);
+        } else if (streamedContent.trim() && targetThreadID && !next.some((message) => message.role === "assistant" && message.thread_id === targetThreadID && message.content === streamedContent.trim())) {
+          next.push({
+            id: -Date.now(),
+            user_id: sentUserMessage?.user_id ?? 0,
+            thread_id: targetThreadID,
+            role: "assistant",
+            content: streamedContent.trim(),
+            status: "failed",
+            model: selectedModel,
+            created_at: new Date().toISOString()
+          });
+        }
+        return next;
+      });
       if (isCompare) {
         setCompareQuestion((current) => current && current.id < 0 ? null : current);
       }
