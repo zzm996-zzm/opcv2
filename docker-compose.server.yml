@@ -36,6 +36,7 @@ services:
   api:
     build:
       context: .
+      network: host
       args:
         APP: api
         GO_BUILDER_IMAGE: ${OPCV2_GO_BUILDER_IMAGE:-docker.m.daocloud.io/library/golang:1.22.3-alpine}
@@ -98,6 +99,7 @@ services:
   worker:
     build:
       context: .
+      network: host
       args:
         APP: worker
         GO_BUILDER_IMAGE: ${OPCV2_GO_BUILDER_IMAGE:-docker.m.daocloud.io/library/golang:1.22.3-alpine}
@@ -144,6 +146,7 @@ services:
   web:
     build:
       context: ./apps/web
+      network: host
       args:
         NODE_BUILDER_IMAGE: ${OPCV2_NODE_BUILDER_IMAGE:-docker.m.daocloud.io/library/node:20-alpine}
         NGINX_IMAGE: ${OPCV2_NGINX_IMAGE:-docker.m.daocloud.io/library/nginx:1.27-alpine}
