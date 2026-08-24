@@ -2,6 +2,7 @@ import { ChangeEvent, DragEvent, FormEvent, forwardRef, useEffect, useMemo, useR
 import { Link } from "react-router-dom";
 
 import V4PageShell from "../components/V4PageShell";
+import MarkdownMessage from "../components/MarkdownMessage";
 import { ApiRequestError } from "../lib/apiRequest";
 import { copilotApi, type CompareAnswer, type CopilotAIRun, type CopilotFile, type CopilotMemory, type CopilotMessage, type CopilotModelOption, type CopilotThread, type ModelSmokeResult, type SendMessageResult } from "../lib/copilotApi";
 import { membershipApi, type MembershipUsageItem } from "../lib/membershipApi";
@@ -923,7 +924,7 @@ function ChatThread({
               </div>
             ) : (
               <div className={"copilot-bubble compact " + (typewriterContent && message.id in typewriterContent ? "typing" : "")}>
-                <p>{typewriterContent?.[message.id] ?? message.content}</p>
+                <MarkdownMessage content={typewriterContent?.[message.id] ?? message.content} />
                 {message.metadata?.tool_preview?.status === "pending" && (
                   <ToolPreviewCard
                     preview={message.metadata.tool_preview}
@@ -993,7 +994,7 @@ function StreamingMessage({ content }: { content: string }) {
   return (
     <article className="copilot-message assistant streaming">
       <span className="v4-logo" aria-hidden="true" />
-      <div className="copilot-bubble compact typing"><p>{content}</p></div>
+      <div className="copilot-bubble compact typing"><MarkdownMessage content={content} /></div>
     </article>
   );
 }
@@ -1123,9 +1124,7 @@ function CompareConversation({
               <time>{formatTime(answer.assistant_message.created_at)}</time>
             </header>
             <section>
-              {answer.assistant_message.content.split("\n").map((line, index) => (
-                line ? <p className={line.startsWith("一、") || line.startsWith("二、") || line.startsWith("三、") || line.startsWith("四、") ? "compare-section-title" : ""} key={`${answer.model}-${index}`}>{line}</p> : null
-              ))}
+              <MarkdownMessage content={answer.assistant_message.content} />
             </section>
           </article>
         ))}
@@ -1139,7 +1138,7 @@ function CompareConversation({
             <time>{formatTime(summary.created_at)}</time>
           </header>
           <section>
-            <p>{summary.content}</p>
+            <MarkdownMessage content={summary.content} />
           </section>
         </article>
       )}

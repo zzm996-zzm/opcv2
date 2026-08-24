@@ -2,6 +2,7 @@ import { FormEvent, ReactNode, useState } from "react";
 
 import { ApiRequestError } from "../lib/apiRequest";
 import { copilotApi, type CopilotMessage } from "../lib/copilotApi";
+import MarkdownMessage from "./MarkdownMessage";
 
 type InitialMessage = {
   content: ReactNode;
@@ -130,7 +131,7 @@ export function MiniCopilotForm({
             <article className={message.role === "user" ? "user" : ""} key={message.id}>
               {message.role === "assistant" && <span className="ai-avatar">A</span>}
               <div>
-                <p>{message.content}</p>
+                {message.role === "assistant" ? <MarkdownMessage content={message.content} /> : <p>{message.content}</p>}
                 {message.metadata?.tool_preview?.status === "pending" && (
                   <div className="mini-copilot-tool-actions" aria-label="待确认操作">
                     <button disabled={toolBusyID !== null} onClick={() => void decideTool(message, "cancel")} type="button">取消</button>

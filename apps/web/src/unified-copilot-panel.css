@@ -439,6 +439,22 @@
   font-size: 13px;
 }
 
+.unified-copilot-thread .copilot-markdown {
+  padding: 13px 14px;
+  color: #485572;
+  background: #f8fafe;
+  border: 1px solid #e8edf5;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.unified-copilot-thread .copilot-markdown p {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
 .unified-copilot-thread article.user {
   display: flex;
   justify-content: flex-end;
