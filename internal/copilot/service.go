@@ -1661,7 +1661,7 @@ func buildUserPrompt(thread Thread, memories []Memory, messages []Message, refer
 	if projectContext != nil {
 		payload, err := json.Marshal(projectContext)
 		if err == nil {
-			builder.WriteString("\n当前项目超市上下文（项目目录为已发布内容，匹配记录已按当前用户权限读取）：")
+			builder.WriteString("\n当前项目超市上下文（项目目录来自应用数据库中的已发布项目，不是实时平台抓取；匹配记录已按当前用户权限读取）：")
 			builder.Write(payload)
 			builder.WriteString("\n")
 		}
