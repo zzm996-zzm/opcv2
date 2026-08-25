@@ -1688,6 +1688,52 @@ button.sb-role-card {
   font-size: 12px;
 }
 
+.sb-run-role-strip {
+  margin-top: 12px;
+  padding: 15px 18px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(74, 67, 165, 0.07);
+  border-radius: 8px;
+  box-shadow: 0 14px 36px rgba(52, 47, 138, 0.055);
+}
+
+.sb-run-role-strip header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  color: #7a82a5;
+  font-size: 10px;
+}
+
+.sb-run-role-strip header strong {
+  color: #333878;
+  font-size: 12px;
+}
+
+.sb-run-progress-track {
+  display: block;
+  height: 6px;
+  margin-top: 11px;
+  overflow: hidden;
+  background: #ebeafa;
+  border-radius: 999px;
+}
+
+.sb-run-progress-track > span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  background: linear-gradient(90deg, #6544e8, #3187ef);
+  border-radius: inherit;
+  transition: width 400ms ease;
+}
+
+.sb-run-progress-track > span.is-indeterminate {
+  width: 34% !important;
+  animation: sb-progress-sweep 1.6s ease-in-out infinite;
+}
+
 .sb-run-role-tabs {
   display: flex;
   gap: 7px;
@@ -1790,6 +1836,40 @@ button.sb-role-card {
   background: #fbfbff;
   border: 1px solid rgba(74, 67, 165, 0.06);
   border-radius: 6px;
+}
+
+.sb-run-status-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  color: #6a56df;
+  border-radius: 50%;
+  place-items: center;
+}
+
+.sb-run-message.is-queued .sb-run-status-icon {
+  animation: sb-spin 1.05s linear infinite;
+}
+
+.sb-run-message.is-running {
+  background: #faf9ff;
+  border-color: rgba(100, 77, 230, 0.3);
+}
+
+.sb-run-message.is-running .sb-run-status-icon {
+  color: #4f3fe0;
+  background: #f0edff;
+  animation: sb-status-pulse 1.35s ease-in-out infinite;
+}
+
+.sb-run-message.is-done .sb-run-status-icon {
+  color: #2aa584;
+  background: #eaf9f4;
+}
+
+.sb-run-message.is-failed .sb-run-status-icon {
+  color: #ca4e58;
+  background: #fff1f2;
 }
 
 .sb-run-message time {
@@ -2633,6 +2713,16 @@ button.sb-role-card {
 
 @keyframes sb-spin { to { transform: rotate(360deg); } }
 @keyframes sb-pulse { 50% { transform: scale(1.06); box-shadow: 0 0 0 10px rgba(92, 72, 218, 0.08); } }
+@keyframes sb-progress-sweep { 0% { transform: translateX(-115%); } 55% { transform: translateX(185%); } 100% { transform: translateX(185%); } }
+@keyframes sb-status-pulse { 50% { transform: scale(1.08); box-shadow: 0 0 0 7px rgba(79, 63, 224, 0.12); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-run-message.is-queued .sb-run-status-icon,
+  .sb-run-message.is-running .sb-run-status-icon,
+  .sb-run-progress-track > span.is-indeterminate {
+    animation: none;
+  }
+}
 
 @media (max-width: 1390px) {
   .sb-shell .v4-sidebar {
