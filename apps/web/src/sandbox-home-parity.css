@@ -191,18 +191,23 @@
   }
 
   .sb-home-frame .sb-page-grid:not(:has(.sb-copilot)) .sb-home-start {
-    top: clamp(380px, 54%, 410px);
+    position: relative;
+    top: auto;
+    bottom: auto;
     width: 35%;
-    min-height: 37%;
+    min-height: 250px;
+    margin: 24px 0 0;
   }
 
   .sb-home-frame .sb-home-start {
+    position: relative;
     top: auto;
-    bottom: clamp(22px, 2.1vw, 34px);
+    bottom: auto;
     left: 0;
     width: 37.7%;
     min-height: 250px;
-    max-height: calc(100% - 230px);
+    max-height: none;
+    margin: 24px 0 0;
     padding: clamp(34px, 2.57vw, 43px) clamp(22px, 2.15vw, 36px) clamp(20px, 1.56vw, 26px);
   }
 
