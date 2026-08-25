@@ -2284,13 +2284,13 @@
   text-decoration: none;
 }
 .project-market-shell .ref-project-badges article:last-child { border-right: 0; }
-.project-market-shell .pm-home-badge-icon { grid-row: 1 / 3; width: 38px; height: 38px; background-position: center; background-repeat: no-repeat; background-size: cover; border-radius: 8px; }
-.project-market-shell .pm-home-badge-icon.badge-1 { background-image: url("/project-market/home-badge-1.jpg"); }
-.project-market-shell .pm-home-badge-icon.badge-2 { background-image: url("/project-market/home-badge-2.jpg"); }
-.project-market-shell .pm-home-badge-icon.badge-3 { background-image: url("/project-market/home-badge-3.jpg"); }
-.project-market-shell .pm-home-badge-icon.badge-4 { background-image: url("/project-market/home-badge-4.jpg"); }
-.project-market-shell .pm-home-badge-icon.badge-5 { background-image: url("/project-market/home-badge-5.jpg"); }
-.project-market-shell .pm-home-badge-icon.badge-6 { background-image: url("/project-market/home-badge-6.jpg"); }
+.project-market-shell .pm-home-badge-icon { grid-row: 1 / 3; width: 38px; height: 38px; background-position: center; background-repeat: no-repeat; background-size: contain; border-radius: 8px; }
+.project-market-shell .pm-home-badge-icon.badge-1 { background-image: url("/project-market/home-badge-1-hd.jpg"); }
+.project-market-shell .pm-home-badge-icon.badge-2 { background-image: url("/project-market/home-badge-2-hd.jpg"); }
+.project-market-shell .pm-home-badge-icon.badge-3 { background-image: url("/project-market/home-badge-3-hd.jpg"); }
+.project-market-shell .pm-home-badge-icon.badge-4 { background-image: url("/project-market/home-badge-4-hd.jpg"); }
+.project-market-shell .pm-home-badge-icon.badge-5 { background-image: url("/project-market/home-badge-5-hd.jpg"); }
+.project-market-shell .pm-home-badge-icon.badge-6 { background-image: url("/project-market/home-badge-6-hd.jpg"); }
 .project-market-shell .ref-project-badges strong { overflow: hidden; color: #172d69; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .project-market-shell .ref-project-badges small { overflow: hidden; margin-top: 3px; color: #7b89a9; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .project-market-shell .ref-project-core > h2,
