@@ -323,6 +323,7 @@
 }
 
 .sb-copilot-thread p {
+  min-width: 0;
   margin: 0;
   padding: 13px 14px;
   color: #323a77;
@@ -331,6 +332,7 @@
   font-size: 12px;
   line-height: 1.75;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .sb-copilot-progress {
@@ -758,6 +760,7 @@ button.sb-role-card {
 }
 
 .sb-work-panel {
+  min-width: 0;
   padding: 28px 30px 24px;
 }
 
@@ -895,6 +898,10 @@ button.sb-role-card {
   grid-template-columns: 150px minmax(0, 1fr) auto;
 }
 
+.sb-initial-idea-card > * {
+  min-width: 0;
+}
+
 .sb-recognized-facts {
   margin-top: 16px;
 }
@@ -964,6 +971,7 @@ button.sb-role-card {
 
 .sb-question-focus {
   display: grid;
+  min-width: 0;
   gap: 12px;
   margin-top: 18px;
   padding: 24px;
@@ -1051,6 +1059,7 @@ button.sb-role-card {
 
 .sb-question-focus footer {
   justify-content: flex-end;
+  flex-wrap: wrap;
   margin-top: 6px;
 }
 
@@ -1074,6 +1083,11 @@ button.sb-role-card {
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
+}
+
+.sb-question-focus footer button {
+  min-width: 0;
+  white-space: normal;
 }
 
 .sb-question-focus footer button.is-primary,
@@ -1331,13 +1345,14 @@ button.sb-role-card {
 
 .sb-flow-footer {
   justify-content: space-between;
+  flex-wrap: wrap;
   margin: 22px -30px -24px;
   padding: 18px 30px 22px;
   border-top: 1px solid var(--sb-line);
 }
 
 .sb-flow-footer > .is-primary {
-  min-width: 330px;
+  min-width: min(330px, 100%);
 }
 
 .sb-start-panel {
@@ -2635,6 +2650,70 @@ button.sb-role-card {
   .sb-page-grid {
     grid-template-columns: minmax(0, 1fr) 270px;
     gap: 20px;
+  }
+}
+
+/* The fixed sidebar leaves substantially less room than the viewport width
+   suggests. Stack the assistant before the workflow cards become compressed. */
+@media (max-width: 1320px) {
+  .sb-page-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .sb-copilot {
+    position: static;
+    width: 100%;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .sb-question-panel.is-smart-completion .sb-recognized-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sb-role-select-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sb-start-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sb-start-roles {
+    padding: 24px 0 0;
+    border-top: 1px solid var(--sb-line);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 960px) {
+  .sb-panel-header,
+  .sb-question-counter,
+  .sb-flow-footer {
+    align-items: flex-start;
+  }
+
+  .sb-panel-header,
+  .sb-question-counter {
+    flex-wrap: wrap;
+  }
+
+  .sb-question-panel.is-smart-completion .sb-initial-idea-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sb-role-select-grid,
+  .sb-start-role-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sb-question-focus footer button {
+    flex: 1 1 180px;
+  }
+
+  .sb-flow-footer > .is-primary {
+    width: 100%;
   }
 }
 

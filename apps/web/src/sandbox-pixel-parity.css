@@ -40,6 +40,11 @@
     width: 100%;
   }
 
+  .v4-shell.sb-shell .sb-page-grid:not(:has(.sb-copilot)) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
   .v4-shell.sb-shell .sb-page-title {
     min-height: 36px;
     margin-bottom: 12px;
@@ -236,5 +241,27 @@
     align-self: start;
     align-content: start;
     min-height: 0;
+  }
+}
+
+/* Keep the desktop calibration from reserving a fixed Copilot column after
+   the sidebar has reduced the usable workflow width. */
+@media (min-width: 1181px) and (max-width: 1320px) {
+  .v4-shell.sb-shell .sb-page-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .v4-shell.sb-shell .sb-copilot {
+    position: static;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .v4-shell.sb-shell .sb-question-focus footer button,
+  .v4-shell.sb-shell .sb-question-panel.is-smart-completion .sb-question-focus footer .is-secondary {
+    min-width: 0;
   }
 }
