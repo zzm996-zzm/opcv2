@@ -1,6 +1,11 @@
 package projects
 
-import "context"
+import (
+	"context"
+	"errors"
+
+	"github.com/jackc/pgx/v5"
+)
 
 func (r *PostgresRepository) CreateUserProject(ctx context.Context, project UserProject) (UserProject, error) {
 	err := r.db.QueryRow(ctx, `
@@ -17,10 +22,10 @@ func (r *PostgresRepository) CreateUserProject(ctx context.Context, project User
 	return project, err
 }
 
-func (r *PostgresRepository) ListUserProjects(ctx context.Context, userID, limit int) ([]UserProject, error) {
+func (r *PostgresRepository) ListUserProjects(ctx context.Context, userID int64, limit int) ([]UserProject, error) {
 	rows, err := r.db.Query(ctx, `
 		SELECT id, user_id, name, description, status, source_type, source_id, idempotency_key, created_at, updated_at
-		FROM user_projects WHERE user_id = $1 AND status <> 'archived'
+		FROM user_projects WHERE user_id = $1
 		ORDER BY created_at DESC, id DESC LIMIT $2
 	`, userID, limit)
 	if err != nil {
@@ -36,4 +41,47 @@ func (r *PostgresRepository) ListUserProjects(ctx context.Context, userID, limit
 		items = append(items, item)
 	}
 	return items, rows.Err()
+}
+
+func (r *PostgresRepository) UpdateUserProject(ctx context.Context, userID, id int64, name, description string) (UserProject, error) {
+	var item UserProject
+	err := r.db.QueryRow(ctx, `
+		UPDATE user_projects SET name = $3, description = $4, updated_at = NOW()
+		WHERE user_id = $1 AND id = $2
+		RETURNING id, user_id, name, description, status, source_type, source_id, idempotency_key, created_at, updated_at
+	`, userID, id, name, description).Scan(
+		&item.ID, &item.UserID, &item.Name, &item.Description, &item.Status, &item.SourceType,
+		&item.SourceID, &item.IdempotencyKey, &item.CreatedAt, &item.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UserProject{}, ErrUserProjectNotFound
+	}
+	return item, err
+}
+
+func (r *PostgresRepository) SetUserProjectStatus(ctx context.Context, userID, id int64, status string) (UserProject, error) {
+	var item UserProject
+	err := r.db.QueryRow(ctx, `
+		UPDATE user_projects SET status = $3, updated_at = NOW()
+		WHERE user_id = $1 AND id = $2
+		RETURNING id, user_id, name, description, status, source_type, source_id, idempotency_key, created_at, updated_at
+	`, userID, id, status).Scan(
+		&item.ID, &item.UserID, &item.Name, &item.Description, &item.Status, &item.SourceType,
+		&item.SourceID, &item.IdempotencyKey, &item.CreatedAt, &item.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UserProject{}, ErrUserProjectNotFound
+	}
+	return item, err
+}
+
+func (r *PostgresRepository) DeleteUserProject(ctx context.Context, userID, id int64) error {
+	result, err := r.db.Exec(ctx, `DELETE FROM user_projects WHERE user_id = $1 AND id = $2`, userID, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrUserProjectNotFound
+	}
+	return nil
 }

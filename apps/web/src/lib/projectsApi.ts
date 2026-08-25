@@ -283,6 +283,25 @@ export const projectsApi = {
     return apiRequest<{ projects: UserProject[] }>(`/api/v1/projects/user-projects?limit=${limit}`, { method: "GET" });
   },
 
+  updateUserProject(id: number, input: { name: string; description: string }) {
+    return apiRequest<UserProject>(`/api/v1/projects/user-projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  },
+
+  archiveUserProject(id: number) {
+    return apiRequest<UserProject>(`/api/v1/projects/user-projects/${id}/archive`, { method: "POST" });
+  },
+
+  publishUserProject(id: number) {
+    return apiRequest<UserProject>(`/api/v1/projects/user-projects/${id}/publish`, { method: "POST" });
+  },
+
+  deleteUserProject(id: number) {
+    return apiRequest<void>(`/api/v1/projects/user-projects/${id}`, { method: "DELETE" });
+  },
+
   getPublicConfig() {
     return apiRequest<ProjectPublicConfig>("/api/v1/config", { method: "GET" });
   },

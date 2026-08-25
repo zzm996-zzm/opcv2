@@ -7,7 +7,11 @@ import (
 	"time"
 )
 
-var ErrInvalidUserProject = errors.New("invalid user project")
+var (
+	ErrInvalidUserProject      = errors.New("invalid user project")
+	ErrUserProjectNotFound     = errors.New("user project not found")
+	ErrInvalidUserProjectState = errors.New("invalid user project state")
+)
 
 type UserProject struct {
 	ID             int64     `json:"id"`
@@ -34,6 +38,9 @@ type CreateUserProjectInput struct {
 type UserProjectRepository interface {
 	CreateUserProject(context.Context, UserProject) (UserProject, error)
 	ListUserProjects(context.Context, int64, int) ([]UserProject, error)
+	UpdateUserProject(context.Context, int64, int64, string, string) (UserProject, error)
+	SetUserProjectStatus(context.Context, int64, int64, string) (UserProject, error)
+	DeleteUserProject(context.Context, int64, int64) error
 }
 
 func (s *Service) CreateUserProject(ctx context.Context, input CreateUserProjectInput) (UserProject, error) {
@@ -68,4 +75,47 @@ func (s *Service) ListUserProjects(ctx context.Context, userID int64, limit int)
 		limit = 100
 	}
 	return repository.ListUserProjects(ctx, userID, limit)
+}
+
+func (s *Service) UpdateUserProject(ctx context.Context, userID, id int64, name, description string) (UserProject, error) {
+	repository, ok := s.repository.(UserProjectRepository)
+	if !ok || repository == nil {
+		return UserProject{}, ErrServiceNotReady
+	}
+	name = strings.TrimSpace(name)
+	description = strings.TrimSpace(description)
+	if userID <= 0 || id <= 0 || name == "" || len([]rune(name)) > 120 || len([]rune(description)) > 10000 {
+		return UserProject{}, ErrInvalidUserProject
+	}
+	return repository.UpdateUserProject(ctx, userID, id, name, description)
+}
+
+func (s *Service) ArchiveUserProject(ctx context.Context, userID, id int64) (UserProject, error) {
+	return s.setUserProjectStatus(ctx, userID, id, "archived")
+}
+
+func (s *Service) PublishUserProject(ctx context.Context, userID, id int64) (UserProject, error) {
+	return s.setUserProjectStatus(ctx, userID, id, "active")
+}
+
+func (s *Service) setUserProjectStatus(ctx context.Context, userID, id int64, status string) (UserProject, error) {
+	repository, ok := s.repository.(UserProjectRepository)
+	if !ok || repository == nil {
+		return UserProject{}, ErrServiceNotReady
+	}
+	if userID <= 0 || id <= 0 || (status != "active" && status != "archived") {
+		return UserProject{}, ErrInvalidUserProjectState
+	}
+	return repository.SetUserProjectStatus(ctx, userID, id, status)
+}
+
+func (s *Service) DeleteUserProject(ctx context.Context, userID, id int64) error {
+	repository, ok := s.repository.(UserProjectRepository)
+	if !ok || repository == nil {
+		return ErrServiceNotReady
+	}
+	if userID <= 0 || id <= 0 {
+		return ErrInvalidUserProject
+	}
+	return repository.DeleteUserProject(ctx, userID, id)
 }

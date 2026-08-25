@@ -11,6 +11,15 @@
 .user-project-status { color: #2161ef; font-weight: 700; }
 .user-project-card h2 { margin: 28px 0 10px; color: #102b63; font-size: 20px; }
 .user-project-card p { margin: 0; color: #64769e; line-height: 1.7; white-space: pre-wrap; }
+.user-project-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.user-project-actions button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 6px 10px; border: 1px solid #d5e0f4; border-radius: 6px; background: #fff; color: #31538e; cursor: pointer; font: inherit; font-size: 12px; }
+.user-project-actions button:hover { border-color: #7ea1ea; color: #2161ef; }
+.user-project-actions button:disabled { cursor: wait; opacity: .55; }
+.user-project-actions button.danger { color: #b64b5a; }
+.user-project-edit-form { display: grid; gap: 12px; margin-top: 20px; }
+.user-project-edit-form label { display: grid; gap: 6px; color: #62759c; font-size: 12px; font-weight: 700; }
+.user-project-edit-form input, .user-project-edit-form textarea { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #cbd8ef; border-radius: 6px; color: #1b356b; font: inherit; }
+.user-project-edit-form textarea { resize: vertical; line-height: 1.5; }
 .user-projects-state { color: #64769e; }
 .user-projects-state.is-error { color: #c84a54; }
 .user-projects-empty { padding: 54px 24px; border: 1px dashed #cbd8f1; border-radius: 8px; text-align: center; color: #64769e; }

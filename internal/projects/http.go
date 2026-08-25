@@ -45,6 +45,10 @@ type MatchWorkflowApplication interface {
 type UserProjectApplication interface {
 	CreateUserProject(context.Context, CreateUserProjectInput) (UserProject, error)
 	ListUserProjects(context.Context, int64, int) ([]UserProject, error)
+	UpdateUserProject(context.Context, int64, int64, string, string) (UserProject, error)
+	ArchiveUserProject(context.Context, int64, int64) (UserProject, error)
+	PublishUserProject(context.Context, int64, int64) (UserProject, error)
+	DeleteUserProject(context.Context, int64, int64) error
 }
 
 type MatchGenerationApplication interface {
@@ -134,6 +138,10 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.GET("/projects/project-favorites", h.listFavoriteProjects)
 	router.GET("/projects/user-projects", h.listUserProjects)
 	router.POST("/projects/user-projects", h.createUserProject)
+	router.PATCH("/projects/user-projects/:id", h.updateUserProject)
+	router.POST("/projects/user-projects/:id/archive", h.archiveUserProject)
+	router.POST("/projects/user-projects/:id/publish", h.publishUserProject)
+	router.DELETE("/projects/user-projects/:id", h.deleteUserProject)
 	router.POST("/projects/:id/diagnose", h.diagnoseProject)
 	router.POST("/projects/comparisons", h.createComparison)
 	router.GET("/projects/comparisons/:id", h.getComparison)
@@ -188,6 +196,80 @@ func (h *HTTPHandler) createUserProject(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, item)
+}
+
+func (h *HTTPHandler) updateUserProject(c *gin.Context) {
+	app, ok := h.userProjectApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := positivePathID(c, "id", "invalid_user_project_id")
+	if !valid {
+		return
+	}
+	var request struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	item, err := app.UpdateUserProject(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id, request.Name, request.Description)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *HTTPHandler) archiveUserProject(c *gin.Context) {
+	h.updateUserProjectStatus(c, true)
+}
+
+func (h *HTTPHandler) publishUserProject(c *gin.Context) {
+	h.updateUserProjectStatus(c, false)
+}
+
+func (h *HTTPHandler) updateUserProjectStatus(c *gin.Context, archive bool) {
+	app, ok := h.userProjectApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := positivePathID(c, "id", "invalid_user_project_id")
+	if !valid {
+		return
+	}
+	var (
+		item UserProject
+		err  error
+	)
+	if archive {
+		item, err = app.ArchiveUserProject(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	} else {
+		item, err = app.PublishUserProject(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id)
+	}
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *HTTPHandler) deleteUserProject(c *gin.Context) {
+	app, ok := h.userProjectApplication(c)
+	if !ok {
+		return
+	}
+	id, valid := positivePathID(c, "id", "invalid_user_project_id")
+	if !valid {
+		return
+	}
+	if err := app.DeleteUserProject(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), id); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // RegisterAdmin mounts project content operations. Service methods still verify the admin role.
@@ -1352,6 +1434,10 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_import_batch"})
 	case errors.Is(err, ErrInvalidUserProject):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_user_project"})
+	case errors.Is(err, ErrInvalidUserProjectState):
+		c.JSON(http.StatusConflict, gin.H{"error": "invalid_user_project_state"})
+	case errors.Is(err, ErrUserProjectNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "user_project_not_found"})
 	case errors.Is(err, ErrImportBatchNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "import_batch_not_found"})
 	case errors.Is(err, ErrImportBatchState):
