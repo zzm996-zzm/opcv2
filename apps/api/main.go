@@ -225,7 +225,7 @@ func main() {
 		aiService,
 		copilotModelOptions(cfg),
 		copilot.WithQuotaConsumer(membershipService),
-		copilot.WithToolExecutor(copilot.NewToolRegistry(tasksService, projectsService)),
+		copilot.WithToolExecutor(copilot.NewToolRegistry(tasksService, projectsService, projectsService)),
 		copilot.WithTaskContextProvider(tasksService),
 		copilot.WithCompetitorContextProvider(competitorService),
 		copilot.WithGrowthContextProvider(growthService),

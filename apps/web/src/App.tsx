@@ -46,6 +46,7 @@ import MembershipPaymentPage from "./pages/MembershipPaymentPage";
 import MessagesPage from "./pages/MessagesPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ProjectsPage from "./pages/ProjectsPage";
+import UserProjectsPage from "./pages/UserProjectsPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterDetailsPage from "./pages/RegisterDetailsPage";
 import SandboxPage from "./pages/SandboxPage";
@@ -489,6 +490,7 @@ function AppRoutes() {
         }
         path="/projects"
       />
+      <Route element={<RequireAuth><UserProjectsPage /></RequireAuth>} path="/projects/mine" />
       <Route
         element={
           <RequireAuth>

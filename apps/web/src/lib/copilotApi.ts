@@ -29,7 +29,7 @@ export type CopilotMessage = {
     active_filters?: Record<string, string>;
     tool_preview?: CopilotToolPreview;
     tool_result?: {
-      tool: "create_task" | "project_match" | string;
+      tool: "create_task" | "create_project" | "project_match" | string;
       status: string;
       entity_id: number;
       title: string;
@@ -44,7 +44,7 @@ export type CopilotToolPreview = {
   id: string;
   source_message_id: number;
   call: {
-    tool: "create_task" | "project_match" | string;
+    tool: "create_task" | "create_project" | "project_match" | string;
     arguments: {
       title?: string;
       description?: string;

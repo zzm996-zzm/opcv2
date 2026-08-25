@@ -237,6 +237,7 @@ const (
 	ToolNone             = "none"
 	ToolCreateTask       = "create_task"
 	ToolProjectMatch     = "project_match"
+	ToolCreateProject    = "create_project"
 	ToolPreviewPending   = "pending"
 	ToolPreviewExecuting = "executing"
 	ToolPreviewConfirmed = "confirmed"

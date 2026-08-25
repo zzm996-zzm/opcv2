@@ -961,13 +961,15 @@ function ToolPreviewCard({
   onDecision: (decision: "confirm" | "cancel") => void;
 }) {
   const isTask = preview.call.tool === "create_task";
-  const title = isTask ? preview.call.arguments.title : preview.call.arguments.intent;
+  const isProject = preview.call.tool === "create_project";
+  const title = isTask || isProject ? preview.call.arguments.title : preview.call.arguments.intent;
   return (
     <div className="copilot-tool-preview" role="group" aria-label="待确认的 Copilot 操作">
-      <strong>{isTask ? "准备创建任务" : "准备发起项目匹配"}</strong>
+      <strong>{isTask ? "准备创建任务" : isProject ? "准备创建项目草稿" : "准备发起项目匹配"}</strong>
       <p>{title || "未命名操作"}</p>
       {isTask && <small>确认后进入正式任务统计，并按任务权限处理通知。</small>}
-      {!isTask && <small>确认后创建正式项目匹配会话。</small>}
+      {isProject && <small>确认后只保存到你的项目列表，不会发布到项目超市。</small>}
+      {!isTask && !isProject && <small>确认后创建正式项目匹配会话。</small>}
       <div>
         <button disabled={busy} onClick={() => onDecision("cancel")} type="button">取消</button>
         <button disabled={busy} onClick={() => onDecision("confirm")} type="button">{busy ? "执行中..." : "确认执行"}</button>
@@ -977,7 +979,7 @@ function ToolPreviewCard({
 }
 
 function ToolResultCard({ result }: { result: NonNullable<NonNullable<CopilotMessage["metadata"]>["tool_result"]> }) {
-  const action = result.tool === "create_task" ? "查看任务" : "查看匹配";
+  const action = result.tool === "create_task" ? "查看任务" : result.tool === "create_project" ? "查看我的项目" : "查看匹配";
   return (
     <div className="copilot-tool-result">
       <span className="copilot-ui-icon check" aria-hidden="true" />

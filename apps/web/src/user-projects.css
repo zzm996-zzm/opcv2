@@ -1,0 +1,24 @@
+.user-projects-shell { min-height: 100vh; }
+.user-projects-page { max-width: 1180px; margin: 0 auto; padding: 56px 32px 80px; }
+.user-projects-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 34px; }
+.user-projects-eyebrow { margin: 0 0 8px; color: #5277c8; font-size: 13px; font-weight: 700; }
+.user-projects-head h1 { margin: 0; color: #102b63; font-size: 36px; }
+.user-projects-head > div > p:last-child { margin: 12px 0 0; color: #6c7da5; }
+.user-projects-back, .user-projects-empty a { color: #2161ef; font-weight: 700; text-decoration: none; }
+.user-projects-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.user-project-card { min-height: 190px; padding: 22px; border: 1px solid #dfe7f7; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(39, 79, 158, .06); }
+.user-project-card-head { display: flex; justify-content: space-between; gap: 12px; color: #8493b4; font-size: 12px; }
+.user-project-status { color: #2161ef; font-weight: 700; }
+.user-project-card h2 { margin: 28px 0 10px; color: #102b63; font-size: 20px; }
+.user-project-card p { margin: 0; color: #64769e; line-height: 1.7; white-space: pre-wrap; }
+.user-projects-state { color: #64769e; }
+.user-projects-state.is-error { color: #c84a54; }
+.user-projects-empty { padding: 54px 24px; border: 1px dashed #cbd8f1; border-radius: 8px; text-align: center; color: #64769e; }
+.user-projects-empty strong { display: block; color: #102b63; font-size: 20px; }
+.user-projects-empty p { margin: 12px 0 20px; }
+@media (max-width: 760px) {
+  .user-projects-page { padding: 32px 18px 60px; }
+  .user-projects-head { display: block; }
+  .user-projects-back { display: inline-block; margin-top: 20px; }
+  .user-projects-grid { grid-template-columns: 1fr; }
+}

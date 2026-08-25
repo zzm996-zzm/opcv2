@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zzm/opcv2/internal/auth"
+	"github.com/zzm/opcv2/internal/platform/httpapi"
 	projectfiles "github.com/zzm/opcv2/internal/projects/files"
 )
 
@@ -39,6 +40,11 @@ type MatchWorkflowApplication interface {
 	ListProjectMatches(context.Context, int64, int) ([]MatchWorkflowResponse, error)
 	AnswerProjectMatch(context.Context, AnswerProjectMatchInput) (MatchWorkflowResponse, error)
 	GetProjectMatch(context.Context, int64, int64) (MatchWorkflowResponse, error)
+}
+
+type UserProjectApplication interface {
+	CreateUserProject(context.Context, CreateUserProjectInput) (UserProject, error)
+	ListUserProjects(context.Context, int64, int) ([]UserProject, error)
 }
 
 type MatchGenerationApplication interface {
@@ -126,6 +132,8 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.POST("/projects/:id/favorite", h.favoriteProject)
 	router.DELETE("/projects/:id/favorite", h.unfavoriteProject)
 	router.GET("/projects/project-favorites", h.listFavoriteProjects)
+	router.GET("/projects/user-projects", h.listUserProjects)
+	router.POST("/projects/user-projects", h.createUserProject)
 	router.POST("/projects/:id/diagnose", h.diagnoseProject)
 	router.POST("/projects/comparisons", h.createComparison)
 	router.GET("/projects/comparisons/:id", h.getComparison)
@@ -135,6 +143,51 @@ func (h *HTTPHandler) RegisterProtected(router *gin.RouterGroup) {
 	router.POST("/projects/exports", h.createExport)
 	router.GET("/projects/exports/:id", h.getExport)
 	router.GET("/projects/exports/:id/download", h.downloadExport)
+}
+
+func (h *HTTPHandler) userProjectApplication(c *gin.Context) (UserProjectApplication, bool) {
+	app, ok := h.app.(UserProjectApplication)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "service_not_ready"})
+		return nil, false
+	}
+	return app, true
+}
+
+func (h *HTTPHandler) listUserProjects(c *gin.Context) {
+	app, ok := h.userProjectApplication(c)
+	if !ok {
+		return
+	}
+	limit, valid := positiveQueryInt(c, "limit", 50)
+	if !valid {
+		return
+	}
+	items, err := app.ListUserProjects(c.Request.Context(), c.GetInt64(auth.UserIDContextKey), limit)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"projects": httpapi.EnsureSlice(items)})
+}
+
+func (h *HTTPHandler) createUserProject(c *gin.Context) {
+	app, ok := h.userProjectApplication(c)
+	if !ok {
+		return
+	}
+	var request CreateUserProjectInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		httpapi.BadRequest(c, "invalid_request")
+		return
+	}
+	request.UserID = c.GetInt64(auth.UserIDContextKey)
+	item, err := app.CreateUserProject(c.Request.Context(), request)
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, item)
 }
 
 // RegisterAdmin mounts project content operations. Service methods still verify the admin role.
@@ -1297,6 +1350,8 @@ func writeError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "admin_required"})
 	case errors.Is(err, ErrInvalidImportBatch):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_import_batch"})
+	case errors.Is(err, ErrInvalidUserProject):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_user_project"})
 	case errors.Is(err, ErrImportBatchNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "import_batch_not_found"})
 	case errors.Is(err, ErrImportBatchState):

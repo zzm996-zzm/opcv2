@@ -211,6 +211,17 @@ export type ProjectExport = {
   error_code?: string;
 };
 
+export type UserProject = {
+  id: number;
+  user_id: number;
+  name: string;
+  description?: string;
+  status: "draft" | "active" | "archived" | string;
+  source_type?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ProjectHome = {
   hero: { title: string; subtitle: string; desc: string; image_url?: string };
   quick_tags: { code: string; name: string; filters: Record<string, unknown> }[];
@@ -268,6 +279,10 @@ export type EvidenceCasePage = {
 };
 
 export const projectsApi = {
+  listUserProjects(limit = 50) {
+    return apiRequest<{ projects: UserProject[] }>(`/api/v1/projects/user-projects?limit=${limit}`, { method: "GET" });
+  },
+
   getPublicConfig() {
     return apiRequest<ProjectPublicConfig>("/api/v1/config", { method: "GET" });
   },

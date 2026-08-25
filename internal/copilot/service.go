@@ -378,8 +378,8 @@ func (s *Service) detectToolCall(ctx context.Context, userID int64, content, mod
 	}
 	result, err := s.generator.GenerateJSON(ctx, ai.GenerateJSONRequest{
 		UserID: userID, Feature: "copilot.tool_intent", PromptVersion: "copilot_tool_intent_v1", Model: model,
-		SystemPrompt: "识别用户是否明确要求代执行。只允许 create_task、project_match、none。不得从普通咨询推断执行意图。必须返回 JSON。",
-		UserPrompt:   fmt.Sprintf("%s\n用户请求：%s\n返回 {\"tool\":\"create_task|project_match|none\",\"arguments\":{\"title\":\"\",\"description\":\"\",\"priority\":\"low|medium|high\",\"tags\":[],\"intent\":\"\"}}", taskContextPrompt(taskContext), content),
+		SystemPrompt: "识别用户是否明确要求代执行。只允许 create_task、create_project、project_match、none。不得从普通咨询推断执行意图。create_project 只能创建当前用户自己的项目草稿，不得创建公共项目超市内容。必须返回 JSON。",
+		UserPrompt:   fmt.Sprintf("%s\n用户请求：%s\n返回 {\"tool\":\"create_task|create_project|project_match|none\",\"arguments\":{\"title\":\"\",\"description\":\"\",\"priority\":\"low|medium|high\",\"tags\":[],\"intent\":\"\"}}", taskContextPrompt(taskContext), content),
 		SchemaName:   "copilot_tool_intent", Validate: validateToolCallJSON, RepairAttempts: 1,
 	})
 	if err != nil {
@@ -398,7 +398,7 @@ func (s *Service) detectToolCall(ctx context.Context, userID int64, content, mod
 
 func likelyToolRequest(content string) bool {
 	content = strings.ToLower(strings.TrimSpace(content))
-	keywords := []string{"创建任务", "新建任务", "添加任务", "建个任务", "项目匹配", "匹配项目", "帮我匹配", "create task", "match project"}
+	keywords := []string{"创建任务", "新建任务", "添加任务", "建个任务", "创建项目", "新建项目", "建立项目", "项目匹配", "匹配项目", "帮我匹配", "create task", "create project", "match project"}
 	for _, keyword := range keywords {
 		if strings.Contains(content, keyword) {
 			return true
@@ -419,6 +419,10 @@ func validateToolCallJSON(data []byte) error {
 	case ToolCreateTask:
 		if call.Arguments.Title == "" {
 			return errors.New("task title is required")
+		}
+	case ToolCreateProject:
+		if call.Arguments.Title == "" {
+			return errors.New("project name is required")
 		}
 	case ToolProjectMatch:
 		if call.Arguments.Intent == "" {
@@ -464,6 +468,8 @@ func toolPreviewContent(call ToolCall) string {
 	switch call.Tool {
 	case ToolCreateTask:
 		return fmt.Sprintf("我准备创建任务“%s”。确认后会进入正式任务统计，并可能向相关成员发送通知。", call.Arguments.Title)
+	case ToolCreateProject:
+		return fmt.Sprintf("我准备创建项目草稿“%s”。确认后只会保存到你的项目列表，不会发布到项目超市。", call.Arguments.Title)
 	case ToolProjectMatch:
 		return fmt.Sprintf("我准备发起项目匹配“%s”。确认后会创建一条正式匹配会话。", call.Arguments.Intent)
 	default:

@@ -17,13 +17,22 @@ type ProjectMatcher interface {
 	CreateMatch(ctx context.Context, input projects.MatchInput) (projects.MatchResult, error)
 }
 
+type ProjectCreator interface {
+	CreateUserProject(ctx context.Context, input projects.CreateUserProjectInput) (projects.UserProject, error)
+}
+
 type ToolRegistry struct {
 	tasks    TaskCreator
 	projects ProjectMatcher
+	creator  ProjectCreator
 }
 
-func NewToolRegistry(taskCreator TaskCreator, projectMatcher ProjectMatcher) *ToolRegistry {
-	return &ToolRegistry{tasks: taskCreator, projects: projectMatcher}
+func NewToolRegistry(taskCreator TaskCreator, projectMatcher ProjectMatcher, projectCreators ...ProjectCreator) *ToolRegistry {
+	registry := &ToolRegistry{tasks: taskCreator, projects: projectMatcher}
+	if len(projectCreators) > 0 {
+		registry.creator = projectCreators[0]
+	}
+	return registry
 }
 
 func (r *ToolRegistry) Execute(ctx context.Context, userID, sourceMessageID int64, call ToolCall) (ToolExecutionResult, error) {
@@ -63,6 +72,22 @@ func (r *ToolRegistry) Execute(ctx context.Context, userID, sourceMessageID int6
 		return ToolExecutionResult{
 			Tool: call.Tool, Status: result.Status, EntityID: result.SessionID,
 			Title: strings.TrimSpace(call.Arguments.Intent), URL: fmt.Sprintf("/projects/matches/%d", result.SessionID), Message: message,
+		}, nil
+	case ToolCreateProject:
+		if r == nil || r.creator == nil {
+			return ToolExecutionResult{}, ErrToolNotAvailable
+		}
+		item, err := r.creator.CreateUserProject(ctx, projects.CreateUserProjectInput{
+			UserID: userID, Name: call.Arguments.Title, Description: call.Arguments.Description,
+			SourceType: "copilot_message", SourceID: &sourceMessageID,
+			IdempotencyKey: fmt.Sprintf("copilot-tool-project-%d", sourceMessageID),
+		})
+		if err != nil {
+			return ToolExecutionResult{}, err
+		}
+		return ToolExecutionResult{
+			Tool: call.Tool, Status: "completed", EntityID: item.ID, Title: item.Name,
+			URL: "/projects/mine", Message: fmt.Sprintf("已保存项目草稿：%s", item.Name),
 		}, nil
 	default:
 		return ToolExecutionResult{}, ErrToolNotAvailable

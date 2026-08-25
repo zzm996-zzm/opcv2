@@ -22,6 +22,15 @@ func (m *fakeProjectMatcher) CreateMatch(_ context.Context, input projects.Match
 	return projects.MatchResult{SessionID: 91, Status: projects.StatusNeedsInput, Questions: []projects.Question{{Key: "budget", Text: "预算"}}}, nil
 }
 
+type fakeProjectCreator struct {
+	input projects.CreateUserProjectInput
+}
+
+func (c *fakeProjectCreator) CreateUserProject(_ context.Context, input projects.CreateUserProjectInput) (projects.UserProject, error) {
+	c.input = input
+	return projects.UserProject{ID: 101, Name: input.Name, Status: "draft"}, nil
+}
+
 func TestToolRegistryCreatesAuditedTask(t *testing.T) {
 	creator := &fakeTaskCreator{}
 	registry := NewToolRegistry(creator, nil)
@@ -52,5 +61,20 @@ func TestToolRegistryStartsProjectMatch(t *testing.T) {
 	}
 	if matcher.input.UserID != 42 || result.EntityID != 91 || result.URL != "/projects/matches/91" || result.Status != projects.StatusNeedsInput {
 		t.Fatalf("result/input = %+v/%+v", result, matcher.input)
+	}
+}
+
+func TestToolRegistryCreatesUserProjectDraft(t *testing.T) {
+	creator := &fakeProjectCreator{}
+	registry := NewToolRegistry(nil, nil, creator)
+
+	result, err := registry.Execute(context.Background(), 42, 7, ToolCall{
+		Tool: ToolCreateProject, Arguments: ToolArguments{Title: "AI 客户洞察", Description: "整理客户反馈并生成机会清单"},
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.EntityID != 101 || result.URL != "/projects/mine" || result.Status != "completed" || creator.input.UserID != 42 || creator.input.SourceID == nil || *creator.input.SourceID != 7 {
+		t.Fatalf("result/input = %+v/%+v", result, creator.input)
 	}
 }
