@@ -153,6 +153,46 @@ func TestProcessProjectMatchMarksInsufficientEvidencePartial(t *testing.T) {
 	}
 }
 
+func TestProcessProjectMatchFallsBackToPublishedCatalogWhenRetrievalMisses(t *testing.T) {
+	content, _ := json.Marshal(MatchResult{Projects: []ProjectMatch{{Rank: 1, OpportunitySlug: "ai-sales", Title: "AI销售顾问", Score: 82, Tags: []string{"B端"}, Budget: "1万", Reasons: []string{"项目目录匹配"}, Risk: "需验证获客"}}})
+	repository := &generationMemoryRepository{workflowMemoryRepository: &workflowMemoryRepository{
+		memoryRepository: &memoryRepository{opportunities: []Opportunity{
+			{Slug: "ai-sales", Title: "AI销售顾问", Summary: "企业销售提效", Status: OpportunityStatusPublished},
+			{Slug: "ai-service", Title: "AI客服服务", Summary: "企业客服提效", Status: OpportunityStatusPublished},
+		}},
+		runs: []MatchRun{{ID: 202, UserID: 42, WorkflowVersion: 2, Need: "做一个小生意", Status: MatchStatusQueued, GenerationAttempt: 1}},
+	}}
+	service := NewService(repository, &fakeJSONGenerator{result: ai.GenerateJSONResult{Content: content}}, WithProjectRetrievalProvider(retrieval.DevelopmentProvider{Documents: []retrieval.Document{{ID: "unrelated", Title: "不相关资料", Text: "完全不同的主题", Score: 0.1}}}))
+	if err := service.ProcessProjectMatch(context.Background(), 42, 202, 1); err != nil {
+		t.Fatalf("ProcessProjectMatch() error = %v", err)
+	}
+	run := repository.runs[0]
+	if run.Status != MatchStatusCompleted || len(run.Result.Projects) != 1 || len(run.Result.Evidence) < 2 {
+		t.Fatalf("run = %+v", run)
+	}
+	if run.Result.Evidence[0].Publisher != "项目超市" {
+		t.Fatalf("evidence = %+v", run.Result.Evidence)
+	}
+}
+
+func TestProcessProjectMatchFallsBackToPublishedCatalogWhenKBIsEmpty(t *testing.T) {
+	repository := &generationMemoryRepository{workflowMemoryRepository: &workflowMemoryRepository{
+		memoryRepository: &memoryRepository{opportunities: []Opportunity{
+			{Slug: "ai-sales", Title: "AI 销售顾问", Summary: "企业获客", Status: OpportunityStatusPublished},
+			{Slug: "sales-automation", Title: "销售自动化服务", Summary: "线索跟进", Status: OpportunityStatusPublished},
+		}},
+		runs: []MatchRun{{ID: 202, UserID: 42, WorkflowVersion: 2, Need: "销售项目", Status: MatchStatusQueued, GenerationAttempt: 1}},
+	}}
+	service := NewService(repository, &fakeJSONGenerator{}, WithProjectRetrievalProvider(retrieval.DevelopmentProvider{}))
+	if err := service.ProcessProjectMatch(context.Background(), 42, 202, 1); err != nil {
+		t.Fatalf("ProcessProjectMatch() error = %v", err)
+	}
+	run := repository.runs[0]
+	if run.Status != MatchStatusPartial || run.ErrorCode != "generation_degraded" || len(run.Result.Projects) != 2 {
+		t.Fatalf("run = %+v", run)
+	}
+}
+
 func TestCanceledProjectMatchStopsBeforeGeneration(t *testing.T) {
 	repository := &generationMemoryRepository{workflowMemoryRepository: &workflowMemoryRepository{memoryRepository: &memoryRepository{}, runs: []MatchRun{{ID: 200, UserID: 42, WorkflowVersion: 2, Status: MatchStatusCanceled, GenerationAttempt: 1}}}}
 	service := NewService(repository, &fakeJSONGenerator{err: context.Canceled})

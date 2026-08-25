@@ -70,6 +70,47 @@ func (s *Service) buildMatchEvidence(ctx context.Context, run MatchRun) (matchEv
 		}
 	}
 	bundle.Evidence = deduplicateMatchEvidence(bundle.Evidence)
+	// The catalog is the source of truth for project matching. Retrieval can
+	// miss Chinese phrasing or an out-of-date KB index, so keep published
+	// projects available as a low-confidence fallback instead of reporting no
+	// candidates when the database already contains them.
+	if len(bundle.Catalog) == 0 || len(bundle.Evidence) < minimumEvidenceCount {
+		fallback, listErr := s.repository.ListOpportunities(ctx, OpportunityFilters{Limit: 8})
+		if listErr != nil {
+			return matchEvidenceBundle{}, listErr
+		}
+		knownCatalog := make(map[string]bool, len(bundle.Catalog))
+		for _, item := range bundle.Catalog {
+			knownCatalog[item.Slug] = true
+		}
+		knownEvidence := make(map[string]bool, len(bundle.Evidence))
+		for _, item := range bundle.Evidence {
+			knownEvidence[item.SourceType+":"+item.SourceID] = true
+		}
+		for _, item := range fallback {
+			if knownCatalog[item.Slug] {
+				continue
+			}
+			bundle.Catalog = append(bundle.Catalog, item)
+			knownCatalog[item.Slug] = true
+			key := "project_catalog:" + item.Slug
+			if !knownEvidence[key] {
+				bundle.Evidence = append(bundle.Evidence, MatchEvidence{
+					SourceType: "project_catalog",
+					SourceID:   item.Slug,
+					URL:        "/projects/" + item.Slug,
+					Title:      item.Title,
+					Publisher:  "项目超市",
+					Excerpt:    opportunityEvidenceExcerpt(item),
+					Quality:    0.45,
+				})
+				knownEvidence[key] = true
+			}
+			if len(bundle.Evidence) >= minimumEvidenceCount && len(bundle.Catalog) >= 3 {
+				break
+			}
+		}
+	}
 	if len(bundle.Catalog) == 0 || len(bundle.Evidence) < minimumEvidenceCount {
 		return bundle, ErrInsufficientEvidence
 	}
