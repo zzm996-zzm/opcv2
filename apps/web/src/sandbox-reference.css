@@ -89,6 +89,7 @@
 
 .sb-page-grid:not(:has(.sb-copilot)) {
   grid-template-columns: minmax(0, 1fr);
+  width: 100%;
 }
 
 .sb-page-content {
@@ -1765,10 +1766,11 @@ button.sb-role-card {
 
 .sb-run-message {
   display: grid;
-  grid-template-columns: 38px 122px minmax(0, 1fr);
+  grid-template-columns: 28px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
   min-height: 64px;
+  min-width: 0;
   padding: 13px 14px;
   background: #fbfbff;
   border: 1px solid rgba(74, 67, 165, 0.06);
@@ -1784,6 +1786,23 @@ button.sb-role-card {
 .sb-run-message strong {
   color: #303675;
   font-size: 11px;
+}
+
+.sb-run-message > div {
+  min-width: 0;
+}
+
+.sb-run-message header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.sb-run-message header small {
+  color: #858baa;
+  font-size: 9px;
 }
 
 .sb-run-message p {
@@ -1857,7 +1876,10 @@ button.sb-role-card {
 
 .sb-run-side-panel > section {
   display: grid;
+  align-self: start;
+  align-content: start;
   gap: 8px;
+  min-height: 0;
   padding: 13px 14px;
 }
 
