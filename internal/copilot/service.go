@@ -348,11 +348,6 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 		return onEvent(StreamEvent{Type: StreamEventDelta, Delta: string(delta)})
 	})
 	if err != nil {
-		_, _ = s.repository.CreateMessage(ctx, Message{
-			UserID: input.UserID, ThreadID: input.ThreadID, Role: RoleAssistant,
-			Content: "AI 回复暂时不可用，请稍后重试。", Status: MessageStatusFailed,
-			Model: model, ErrorCode: "stream_failed", CreatedAt: s.now(),
-		})
 		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "generation")
 		return SendMessageResult{}, fmt.Errorf("%w: %v", ErrInvalidAIResult, err)
 	}
@@ -1162,17 +1157,6 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Send
 	}
 	aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, references, taskContext, competitorContext, growthContext, monitoringContext, projectContext, learningContext, sandboxContext, crmContext, profileContext)
 	if err != nil {
-		_, _ = s.repository.CreateMessage(ctx, Message{
-			UserID:    input.UserID,
-			ThreadID:  input.ThreadID,
-			Role:      RoleAssistant,
-			Content:   "AI 回复暂时不可用，请稍后重试。",
-			Status:    MessageStatusFailed,
-			Model:     model,
-			ErrorCode: "invalid_ai_result",
-			Metadata:  sendMessageMetadata(input),
-			CreatedAt: s.now(),
-		})
 		s.refundQuota(ctx, input.UserID, membership.FeatureCopilotMessages, 1, quotaKey, "generation")
 		return SendMessageResult{}, err
 	}
@@ -1241,7 +1225,8 @@ func (s *Service) CompareMessages(ctx context.Context, input CompareMessagesInpu
 		aiResult, result, err := s.generateReply(ctx, input.UserID, thread, content, model, nil, nil, nil, nil, nil, nil, nil, nil, nil, profileContext)
 		if err != nil {
 			failedCalls++
-			message, _ := s.repository.CreateMessage(ctx, Message{
+			message := Message{
+				ID:        -int64(failedCalls),
 				UserID:    input.UserID,
 				ThreadID:  input.ThreadID,
 				Role:      RoleAssistant,
@@ -1251,7 +1236,7 @@ func (s *Service) CompareMessages(ctx context.Context, input CompareMessagesInpu
 				ErrorCode: "invalid_ai_result",
 				Metadata:  messageKindMetadata(messageKindCompareAnswer),
 				CreatedAt: s.now(),
-			})
+			}
 			answers = append(answers, CompareAnswer{Model: model, AssistantMessage: message, ErrorCode: "invalid_ai_result"})
 			continue
 		}

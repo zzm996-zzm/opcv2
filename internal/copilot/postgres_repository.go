@@ -177,7 +177,7 @@ func (r *PostgresRepository) ListMessages(ctx context.Context, userID, threadID 
 		FROM (
 			SELECT id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at
 			FROM copilot_messages
-			WHERE user_id = $1 AND thread_id = $2
+			WHERE user_id = $1 AND thread_id = $2 AND status <> 'failed'
 			ORDER BY created_at DESC, id DESC
 			LIMIT $3
 		) AS recent_messages

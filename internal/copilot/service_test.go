@@ -710,6 +710,23 @@ func TestServiceStreamsMessageDeltasAndPersistsFinalReply(t *testing.T) {
 	}
 }
 
+func TestServiceStreamFailureDoesNotPersistAssistantPlaceholder(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "机会分析", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{err: errors.New("provider unavailable")}
+	service := NewService(repository, streamer)
+
+	_, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "分析机会", RequestID: "stream-002",
+	}, func(StreamEvent) error { return nil })
+
+	if !errors.Is(err, ErrInvalidAIResult) {
+		t.Fatalf("err = %v, want ErrInvalidAIResult", err)
+	}
+	if len(repository.createdMessages) != 1 || repository.createdMessages[0].Role != RoleUser {
+		t.Fatalf("failed stream persisted assistant message: %+v", repository.createdMessages)
+	}
+}
+
 func TestServiceStreamExtractsStableMemoryAfterReply(t *testing.T) {
 	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "偏好设置", Mode: ModeChat}}}
 	streamer := &fakeTextStreamer{
@@ -1183,6 +1200,9 @@ func TestServiceSendMessageRefundsQuotaWhenGenerationFails(t *testing.T) {
 	if len(quota.refunded) != 1 || quota.refunded[0].IdempotencyKey != "copilot-message-msg-002-refund-generation" {
 		t.Fatalf("refunded = %+v", quota.refunded)
 	}
+	if len(repository.createdMessages) != 1 || repository.createdMessages[0].Role != RoleUser {
+		t.Fatalf("failed generation persisted assistant message: %+v", repository.createdMessages)
+	}
 }
 
 func TestServiceSendMessageStopsWhenQuotaIsExceeded(t *testing.T) {
@@ -1434,6 +1454,28 @@ func TestServiceCompareMessagesConsumesOneQuotaUnitPerModel(t *testing.T) {
 	consume := quota.consumed[0]
 	if consume.FeatureKey != membership.FeatureCopilotCompareCalls || consume.Amount != 2 || consume.IdempotencyKey != "copilot-compare-compare-001" {
 		t.Fatalf("consume = %+v", consume)
+	}
+}
+
+func TestServiceCompareFailureReturnsTransientPlaceholderWithoutPersistingIt(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "机会分析", Mode: ModeCompare}}}
+	service := NewServiceWithModels(repository, &fakeGeneratorQueue{err: errors.New("provider unavailable")}, []ModelOption{
+		{Name: "A", Value: "model-a", IsDefault: true},
+		{Name: "B", Value: "model-b"},
+	})
+
+	result, err := service.CompareMessages(context.Background(), CompareMessagesInput{
+		UserID: 42, ThreadID: 99, Content: "分析机会", Models: []string{"model-a", "model-b"},
+	})
+
+	if err != nil {
+		t.Fatalf("CompareMessages() error = %v", err)
+	}
+	if len(result.Answers) != 2 || result.Answers[0].AssistantMessage.Status != MessageStatusFailed || result.Answers[0].AssistantMessage.ID >= 0 {
+		t.Fatalf("answers = %+v", result.Answers)
+	}
+	if len(repository.createdMessages) != 1 || repository.createdMessages[0].Role != RoleUser {
+		t.Fatalf("failed comparisons persisted assistant messages: %+v", repository.createdMessages)
 	}
 }
 

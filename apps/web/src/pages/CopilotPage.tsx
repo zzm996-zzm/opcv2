@@ -170,12 +170,13 @@ function CopilotPage({ variant = "home" }: { variant?: CopilotVariant }) {
       .listMessages(activeThreadID)
       .then((payload) => {
         if (!active) return;
+        const visibleMessages = payload.messages.filter((message) => message.status !== "failed");
         setMessages((current) => {
           const optimisticMessages = current.filter((message) => message.id < 0 && message.thread_id === activeThreadID);
-          return optimisticMessages.length > 0 ? [...payload.messages, ...optimisticMessages] : payload.messages;
+          return optimisticMessages.length > 0 ? [...visibleMessages, ...optimisticMessages] : visibleMessages;
         });
         if (isCompare) {
-          const rebuilt = rebuildCompareState(payload.messages);
+          const rebuilt = rebuildCompareState(visibleMessages);
           setCompareQuestion(rebuilt.question);
           setCompareAnswers(rebuilt.answers);
           setCompareSummary(rebuilt.summary);

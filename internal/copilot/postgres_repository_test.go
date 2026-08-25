@@ -99,6 +99,47 @@ func TestPostgresRepositoryCreatesMessage(t *testing.T) {
 	}
 }
 
+func TestPostgresRepositoryListsMessagesWithoutFailedPlaceholders(t *testing.T) {
+	db, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("NewPool() error = %v", err)
+	}
+	defer db.Close()
+
+	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
+	db.ExpectQuery(regexp.QuoteMeta(`
+		SELECT id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at
+		FROM (
+			SELECT id, user_id, thread_id, role, content, status, model, error_code, input_tokens, output_tokens, metadata, created_at
+			FROM copilot_messages
+			WHERE user_id = $1 AND thread_id = $2 AND status <> 'failed'
+			ORDER BY created_at DESC, id DESC
+			LIMIT $3
+		) AS recent_messages
+		ORDER BY created_at ASC, id ASC
+	`)).
+		WithArgs(int64(42), int64(99), 50).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "user_id", "thread_id", "role", "content", "status", "model", "error_code",
+			"input_tokens", "output_tokens", "metadata", "created_at",
+		}).AddRow(
+			int64(7), int64(42), int64(99), RoleAssistant, "正常回复", MessageStatusCompleted,
+			"deepseek", "", 12, 24, []byte(`{}`), now,
+		))
+
+	repository := NewPostgresRepository(db)
+	messages, err := repository.ListMessages(context.Background(), 42, 99, 50)
+	if err != nil {
+		t.Fatalf("ListMessages() error = %v", err)
+	}
+	if len(messages) != 1 || messages[0].Content != "正常回复" {
+		t.Fatalf("messages = %+v", messages)
+	}
+	if err := db.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPostgresRepositoryUpsertsMemory(t *testing.T) {
 	db, err := pgxmock.NewPool()
 	if err != nil {

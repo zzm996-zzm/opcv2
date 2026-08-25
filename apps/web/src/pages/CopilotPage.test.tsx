@@ -49,6 +49,14 @@ describe("CopilotPage", () => {
     expect(screen.getByRole("complementary", { name: "会话记录" })).toBeInTheDocument();
   });
 
+  it("does not render failed assistant placeholders from persisted history", async () => {
+    mockCopilotBackend({ failedMessage: true });
+    renderPage();
+
+    expect(await screen.findByText("正常历史回复")).toBeInTheDocument();
+    expect(screen.queryByText("AI 回复暂时不可用，请稍后重试。")).not.toBeInTheDocument();
+  });
+
   it("creates a real thread before sending when the account has no conversation history", async () => {
     const fetchMock = mockCopilotBackend({ emptyThreads: true });
     renderPage();
@@ -581,7 +589,7 @@ describe("CopilotPage", () => {
   });
 });
 
-function mockCopilotBackend(options: { emptyThreads?: boolean; historicalCompare?: boolean; delayCompare?: boolean; delayMessage?: boolean; missingThreadOnce?: boolean; toolMessage?: boolean; previewMessage?: boolean; streamInterrupted?: boolean } = {}) {
+function mockCopilotBackend(options: { emptyThreads?: boolean; historicalCompare?: boolean; failedMessage?: boolean; delayCompare?: boolean; delayMessage?: boolean; missingThreadOnce?: boolean; toolMessage?: boolean; previewMessage?: boolean; streamInterrupted?: boolean } = {}) {
   let returnedMissingThread = false;
   return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = String(input);
@@ -776,7 +784,28 @@ function mockCopilotBackend(options: { emptyThreads?: boolean; historicalCompare
           }
         ] }), { status: 200 }));
       }
-	      return Promise.resolve(new Response(JSON.stringify({ messages: [] }), { status: 200 }));
+	      return Promise.resolve(new Response(JSON.stringify({ messages: options.failedMessage ? [
+	        {
+	          id: 42,
+	          user_id: 7,
+	          thread_id: 99,
+	          role: "assistant",
+	          content: "正常历史回复",
+	          status: "completed",
+	          model: "deepseek",
+	          created_at: "2026-07-01T09:57:00Z"
+	        },
+	        {
+	          id: 43,
+	          user_id: 7,
+	          thread_id: 99,
+	          role: "assistant",
+	          content: "AI 回复暂时不可用，请稍后重试。",
+	          status: "failed",
+	          model: "deepseek",
+	          created_at: "2026-07-01T09:58:00Z"
+	        }
+	      ] : [] }), { status: 200 }));
 	    }
 	    if (url === "/api/v1/copilot/threads/100/messages?limit=50") {
 	      return Promise.resolve(new Response(JSON.stringify({ messages: [] }), { status: 200 }));
