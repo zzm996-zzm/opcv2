@@ -197,10 +197,12 @@
   }
 
   .sb-home-frame .sb-home-start {
-    top: clamp(380px, 54%, 410px);
+    top: auto;
+    bottom: clamp(22px, 2.1vw, 34px);
     left: 0;
     width: 37.7%;
-    min-height: 36.57%;
+    min-height: 250px;
+    max-height: calc(100% - 230px);
     padding: clamp(34px, 2.57vw, 43px) clamp(22px, 2.15vw, 36px) clamp(20px, 1.56vw, 26px);
   }
 
@@ -229,7 +231,7 @@
   .sb-home-frame .sb-pillar-strip {
     width: calc(100% - 8px);
     min-height: 100px;
-    margin: -14px 0 0 10px;
+    margin: 10px 0 0 10px;
   }
 
   .sb-home-frame .sb-home-actions {
