@@ -29,8 +29,23 @@ describe("SandboxPage V1.2 flow", () => {
   it("opens the description step directly and validates empty input", () => {
     signIn(); render(<MemoryRouter initialEntries={["/sandbox/new"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "商业沙盘" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /开始多角色推演/ })).toHaveAttribute("href", "/sandbox/new");
+    expect(screen.getByRole("link", { name: /查看推演思路/ })).toHaveAttribute("href", "/sandbox/new");
+    expect(screen.getByRole("link", { name: /生成推演大纲/ })).toHaveAttribute("href", "/sandbox/new");
+    expect(screen.getByRole("link", { name: /历史推演记录/ })).toHaveAttribute("href", "/sandbox/history");
     fireEvent.click(screen.getByRole("button", { name: /开始推演/ }));
     expect(screen.getByRole("alert")).toHaveTextContent("请先描述要推演的项目或情况");
+  });
+
+  it("uses canonical links for run-specific Copilot actions", async () => {
+    signIn();
+    const completed = fixture({ status: "done", done: true, completeness: 1, report });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => String(input) === "/api/v1/sandbox-runs/42" ? response(completed) : Promise.reject(new Error(`unexpected ${String(input)}`)));
+    render(<MemoryRouter initialEntries={["/sandbox-runs/42/report"]}><App /></MemoryRouter>);
+    await screen.findByRole("heading", { name: "企业 AI 运营平台" });
+    const copilot = screen.getByRole("complementary", { name: "智活 Copilot" });
+    expect(within(copilot).getByRole("link", { name: /查看完整建议动作/ })).toHaveAttribute("href", "/sandbox-runs/42/report");
+    expect(within(copilot).getByRole("link", { name: /返回推演记录/ })).toHaveAttribute("href", "/sandbox/history");
   });
 
   it("creates a V1.2 run and enters bounded clarification", async () => {

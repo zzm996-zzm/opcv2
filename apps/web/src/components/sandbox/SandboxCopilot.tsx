@@ -60,6 +60,15 @@ const modeCopy: Record<SandboxCopilotMode, { user: string; assistant: string; ac
   }
 };
 
+function actionHref(mode: SandboxCopilotMode, href: string, runID?: number) {
+  if (href === "/sandbox/setup") return runID ? `/sandbox/new?run=${runID}&step=2` : "/sandbox/new";
+  if (href === "/sandbox/questions") return runID ? `/sandbox/new?run=${runID}&step=2` : "/sandbox/new";
+  if (href === "/sandbox/roles") return runID ? `/sandbox/new?run=${runID}&step=3` : "/sandbox/new";
+  if (href === "/sandbox/run") return runID ? `/sandbox-runs/${runID}` : "/sandbox/history";
+  if (href === "/sandbox/report") return runID ? `/sandbox-runs/${runID}/report` : "/sandbox/history";
+  return href;
+}
+
 function SandboxCopilot({ children, facts = [], mode, progress, project, runID }: SandboxCopilotProps) {
   const copilotPanel = useRegisteredCopilotPanel();
   const openPanel = copilotPanel.openPanel;
@@ -113,7 +122,7 @@ function SandboxCopilot({ children, facts = [], mode, progress, project, runID }
           )}
           {!isQuestionAnalysis ? <nav aria-label="Copilot 快捷操作">
             {copy.actions.map(([label, href]) => (
-              <Link key={label} to={href}><span>{label}</span><ChevronRight size={16} /></Link>
+              <Link key={label} to={actionHref(mode, href, runID)}><span>{label}</span><ChevronRight size={16} /></Link>
             ))}
           </nav> : null}
           {!isQuestionAnalysis ? <MiniCopilotForm
