@@ -7,7 +7,6 @@ import {
   Database,
   Diamond,
   Flag,
-  FolderKanban,
   House,
   MessageCircle,
   Radar,
@@ -35,7 +34,6 @@ const defaultSidebarGroups = [
     title: "项目确定及拆解",
     items: [
       { label: "项目超市", href: "/projects", icon: "grid" },
-      { label: "我的项目", href: "/projects/mine", icon: "folder" },
       { label: "商业沙盘", href: "/sandbox", icon: "home" }
     ]
   },
@@ -74,7 +72,6 @@ const sidebarIcons: Record<string, LucideIcon> = {
   check: CircleCheckBig,
   diamond: Diamond,
   flag: Flag,
-  folder: FolderKanban,
   grid: Store,
   home: House,
   pulse: Activity,

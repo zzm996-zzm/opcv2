@@ -15,7 +15,7 @@ describe("V4PageShell", () => {
 
     expect(screen.getByRole("button", { name: "项目确定及拆解" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "项目超市" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "我的项目" })).toHaveAttribute("href", "/projects/mine");
+    expect(screen.queryByRole("link", { name: "我的项目" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "竞品全盘数据破解" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "增长洞察" })).toHaveAttribute("href", "/growth-calculator");
     expect(screen.getByRole("link", { name: "CRM客户管理" })).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe("V4PageShell", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByRole("link", { name: "我的项目" })).toHaveClass("active");
+    expect(screen.queryByRole("link", { name: "我的项目" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "项目超市" })).not.toHaveClass("active");
   });
 
