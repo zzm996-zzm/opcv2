@@ -212,7 +212,7 @@ func (s *Service) processV2Role(ctx context.Context, repository V2OrchestrationR
 		return 0
 	}
 	startedAt := s.now()
-	systemPrompt := role.SystemPrompt + "\n你是商业沙盘中的" + config.DisplayName + "。只根据当前项目输入独立分析，不得假设或引用其他角色的输出。返回符合 schema 的 JSON。"
+	systemPrompt := role.SystemPrompt + "\n你是商业沙盘中的" + config.DisplayName + "。只根据当前项目输入独立分析，不得假设或引用其他角色的输出。" + v2RoleOutputSchemaInstruction(role.RoleCode, role.Dimensions)
 	var content []byte
 	var inputTokens, outputTokens int
 	if streaming, ok := s.generator.(v2StreamingGenerator); ok {
@@ -478,11 +478,38 @@ func appendUniqueStrings(values []string, additions ...string) []string {
 }
 
 func safeV2ErrorCode(err error) string {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "timeout"
-	}
-	if errors.Is(err, context.Canceled) {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, ai.ErrProviderTimeout):
+		return ai.ErrorProviderTimeout
+	case errors.Is(err, context.Canceled):
 		return "cancelled"
+	case errors.Is(err, ai.ErrProviderRateLimited):
+		return ai.ErrorProviderRateLimited
+	case errors.Is(err, ai.ErrProviderAuthentication):
+		return ai.ErrorProviderAuthentication
+	case errors.Is(err, ai.ErrProviderPermission):
+		return ai.ErrorProviderPermission
+	case errors.Is(err, ai.ErrProviderModelNotFound):
+		return ai.ErrorProviderModelNotFound
+	case errors.Is(err, ai.ErrProviderBadRequest):
+		return ai.ErrorProviderBadRequest
+	case errors.Is(err, ai.ErrProviderUnavailable):
+		return ai.ErrorProviderUnavailable
+	case errors.Is(err, ai.ErrInvalidModelJSON), errors.Is(err, ErrInvalidAIResult):
+		return ai.ErrorInvalidModelJSON
+	default:
+		return ai.ErrorInternal
 	}
-	return "ai_failed"
+}
+
+func v2RoleOutputSchemaInstruction(roleCode string, dimensions []string) string {
+	dimensionJSON := make([]string, 0, len(dimensions))
+	for _, dimension := range dimensions {
+		dimensionJSON = append(dimensionJSON, fmt.Sprintf("{\"code\":%q,\"score\":整数0-100,\"basis\":\"评分依据\",\"confidence\":0到1之间的小数,\"evidence_refs\":[]}", dimension))
+	}
+	extra := ""
+	if roleCode == "skeptic" {
+		extra = " risks 至少包含 3 项，kill_criteria 至少包含 1 项。"
+	}
+	return fmt.Sprintf(" 必须只返回一个 JSON 对象，不要 Markdown 或解释文字。字段必须包括 role_code=%q、stance（support/neutral/oppose）、verdict、content、dimension_scores、key_findings、risks、recommendations、questions_to_validate、assumptions、kill_criteria、is_model_generated。dimension_scores 必须逐项包含以下维度：[%s]。每项 risks 使用 {point,severity,basis}，recommendations 使用 {action,why}。%s", roleCode, strings.Join(dimensionJSON, ","), extra)
 }

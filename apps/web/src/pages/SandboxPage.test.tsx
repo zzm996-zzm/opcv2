@@ -48,6 +48,23 @@ describe("SandboxPage V1.2 flow", () => {
     expect(within(copilot).getByRole("link", { name: /返回推演记录/ })).toHaveAttribute("href", "/sandbox/history");
   });
 
+  it("renders actionable Chinese guidance for role generation failures", async () => {
+    signIn();
+    const failedRun = fixture({
+      status: "partial",
+      done: true,
+      run_roles: [{
+        run_id: 42, role_code: "customer", seq: 1, role_session_id: "role-1", model_route: "deepseek",
+        prompt_version: "sandbox_role_v1", analysis_dimensions: ["dimension"], input_context_hash: "hash",
+        status: "failed", input_tokens: 0, output_tokens: 0, retry_count: 0, error_code: "invalid_model_json",
+      }],
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => String(input) === "/api/v1/sandbox-runs/42" ? response(failedRun) : Promise.reject(new Error(`unexpected ${String(input)}`)));
+    render(<MemoryRouter initialEntries={["/sandbox-runs/42"]}><App /></MemoryRouter>);
+    expect(await screen.findByText("生成失败：模型返回格式不正确，请重试。")).toBeInTheDocument();
+    expect(screen.queryByText("invalid_model_json")).not.toBeInTheDocument();
+  });
+
   it("creates a V1.2 run and enters bounded clarification", async () => {
     signIn(); const created = fixture(); const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => String(input) === "/api/v1/sandbox-runs" && init?.method === "POST" ? response(created, 201) : String(input) === "/api/v1/sandbox-runs/42" ? response(created) : Promise.reject(new Error(`unexpected ${String(input)}`)));
     render(<MemoryRouter initialEntries={["/sandbox"]}><App /></MemoryRouter>);

@@ -3,8 +3,11 @@ package sandbox
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/zzm/opcv2/internal/ai"
 )
 
 type fakeV2Repository struct {
@@ -151,5 +154,35 @@ func TestV2RoleValidationRequiresDimensionsAndSkepticObjections(t *testing.T) {
 	}
 	if err := validateV2RoleOutput([]byte(base), "skeptic", []string{"fatal_assumption", "cash_break"}); !errors.Is(err, ErrInvalidAIResult) {
 		t.Fatalf("missing dimension error = %v", err)
+	}
+}
+
+func TestV2RolePromptDescribesRequiredJSONShape(t *testing.T) {
+	prompt := v2RoleOutputSchemaInstruction("skeptic", []string{"fatal_assumption", "cash_break"})
+	for _, required := range []string{"role_code", "dimension_scores", "fatal_assumption", "cash_break", "risks", "kill_criteria", "只返回一个 JSON 对象"} {
+		if !strings.Contains(prompt, required) {
+			t.Fatalf("role prompt missing %q: %s", required, prompt)
+		}
+	}
+}
+
+func TestSafeV2ErrorCodePreservesActionableFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"timeout", ai.ErrProviderTimeout, ai.ErrorProviderTimeout},
+		{"rate limit", ai.ErrProviderRateLimited, ai.ErrorProviderRateLimited},
+		{"invalid JSON", ai.ErrInvalidModelJSON, ai.ErrorInvalidModelJSON},
+		{"validation", ErrInvalidAIResult, ai.ErrorInvalidModelJSON},
+		{"unknown", errors.New("unexpected"), ai.ErrorInternal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := safeV2ErrorCode(tt.err); got != tt.want {
+				t.Fatalf("safeV2ErrorCode() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
