@@ -368,6 +368,9 @@ func (s *Service) StreamMessage(ctx context.Context, input SendMessageInput, onE
 }
 
 func (s *Service) detectToolCall(ctx context.Context, userID int64, content, model string, taskContext *TaskContext) *ToolCall {
+	if call, ok := explicitProjectCreationCall(content); ok {
+		return &call
+	}
 	if s.generator == nil || !likelyToolRequest(content) {
 		return nil
 	}
@@ -389,6 +392,61 @@ func (s *Service) detectToolCall(ctx context.Context, userID int64, content, mod
 		return nil
 	}
 	return &call
+}
+
+func explicitProjectCreationCall(content string) (ToolCall, bool) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return ToolCall{}, false
+	}
+	lowerContent := strings.ToLower(content)
+	markers := []string{
+		"帮我创建一个项目", "帮我创建项目", "创建一个项目", "创建项目",
+		"新建一个项目", "新建项目", "建立一个项目", "建立项目", "建个项目",
+		"create a project", "create project",
+	}
+	markerEnd := -1
+	for _, marker := range markers {
+		if index := strings.Index(lowerContent, marker); index >= 0 {
+			markerEnd = index + len(marker)
+			break
+		}
+	}
+	if markerEnd < 0 {
+		return ToolCall{}, false
+	}
+
+	remainder := strings.TrimSpace(content[markerEnd:])
+	for _, prefix := range []string{"，名称是", ",名称是", "名称是", "，名称为", ",名称为", "名称为", "，名为", ",名为", "名为", "，叫", ",叫", "叫", "：", ":"} {
+		if strings.HasPrefix(remainder, prefix) {
+			remainder = strings.TrimSpace(strings.TrimPrefix(remainder, prefix))
+			break
+		}
+	}
+	if remainder == "" {
+		return ToolCall{}, false
+	}
+
+	title := remainder
+	description := ""
+	for _, separator := range []string{"\n描述：", "\n描述:", "，描述：", "，描述:", ",描述：", ",描述:", " 描述：", " 描述:"} {
+		if index := strings.Index(title, separator); index >= 0 {
+			description = strings.TrimSpace(title[index+len(separator):])
+			title = strings.TrimSpace(title[:index])
+			break
+		}
+	}
+	title = strings.Trim(strings.TrimSpace(title), "。.!！;；?？")
+	if title == "" || title == "吗" || title == "么" || title == "呢" || len([]rune(title)) > 120 {
+		return ToolCall{}, false
+	}
+	return ToolCall{
+		Tool: ToolCreateProject,
+		Arguments: ToolArguments{
+			Title:       title,
+			Description: description,
+		},
+	}, true
 }
 
 func likelyToolRequest(content string) bool {

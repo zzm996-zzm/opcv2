@@ -827,6 +827,43 @@ func TestServicePreviewsWhitelistedToolAndExecutesOnlyAfterConfirmation(t *testi
 	}
 }
 
+func TestServiceRecognizesExplicitProjectCreationWithoutAIIntentCall(t *testing.T) {
+	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "项目计划", Mode: ModeChat}}}
+	streamer := &fakeTextStreamer{err: errors.New("provider unavailable")}
+	executor := &fakeToolExecutor{}
+	service := NewService(repository, streamer, WithToolExecutor(executor))
+
+	result, err := service.StreamMessage(context.Background(), SendMessageInput{
+		UserID: 42, ThreadID: 99, Content: "帮我创建一个项目：AI 客服助手，描述：先验证客服问答场景", RequestID: "project-tool-001",
+	}, func(StreamEvent) error { return nil })
+
+	if err != nil {
+		t.Fatalf("StreamMessage() error = %v", err)
+	}
+	var metadata messageMetadata
+	if err := json.Unmarshal(result.AssistantMessage.Metadata, &metadata); err != nil {
+		t.Fatalf("metadata error = %v", err)
+	}
+	if metadata.ToolPreview == nil || metadata.ToolPreview.Call.Tool != ToolCreateProject {
+		t.Fatalf("tool preview = %+v", metadata.ToolPreview)
+	}
+	if metadata.ToolPreview.Call.Arguments.Title != "AI 客服助手" || metadata.ToolPreview.Call.Arguments.Description != "先验证客服问答场景" {
+		t.Fatalf("tool arguments = %+v", metadata.ToolPreview.Call.Arguments)
+	}
+	if streamer.jsonRequest.Feature != "" || streamer.request.Feature != "" {
+		t.Fatalf("explicit project creation unexpectedly called AI: json=%+v stream=%+v", streamer.jsonRequest, streamer.request)
+	}
+}
+
+func TestExplicitProjectCreationRequiresProjectName(t *testing.T) {
+	if call, ok := explicitProjectCreationCall("怎么创建项目？"); ok {
+		t.Fatalf("unexpected tool call = %+v", call)
+	}
+	if call, ok := explicitProjectCreationCall("帮我创建一个项目"); ok {
+		t.Fatalf("unexpected nameless tool call = %+v", call)
+	}
+}
+
 func TestServiceCancelsToolPreviewWithoutExecution(t *testing.T) {
 	repository := &fakeRepository{threads: []Thread{{ID: 99, UserID: 42, Title: "执行计划", Mode: ModeChat}}}
 	streamer := &fakeTextStreamer{jsonContent: []byte(`{"tool":"create_task","arguments":{"title":"整理访谈记录"}}`)}
