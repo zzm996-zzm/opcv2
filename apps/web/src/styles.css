@@ -52242,3 +52242,39 @@ a:active {
     flex-wrap: nowrap;
   }
 }
+
+/* Keep the monitoring workspace readable while the navigation rail is still visible. */
+@media (min-width: 1181px) and (max-width: 1500px) {
+  .competitor-monitoring-page {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 1220px;
+  }
+
+  .competitor-monitoring-page .unified-copilot-panel {
+    grid-column: auto;
+    grid-row: auto;
+    position: static;
+    width: 100%;
+    min-width: 0;
+    height: auto !important;
+    min-height: 600px !important;
+    max-height: none !important;
+  }
+
+  .competitor-monitoring-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  }
+
+  .monitoring-grid,
+  .monitoring-lower-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+  }
+
+  .monitoring-competitor-list article {
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+  }
+
+  .monitoring-state {
+    grid-column: 2;
+  }
+}
