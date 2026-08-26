@@ -42,7 +42,9 @@
 .community-ref-page:not(:has(.unified-copilot-panel)),
 .crm-ref-shell:not(:has(.unified-copilot-panel)),
 .tools-shell .toolhub-page.with-copilot:not(:has(.unified-copilot-panel)),
-.public-profile-shell .profile-layout.content-mode:not(:has(.unified-copilot-panel)) {
+.public-profile-shell .profile-layout.content-mode:not(:has(.unified-copilot-panel)),
+.competitor-monitoring-page:not(:has(.unified-copilot-panel)),
+.growth-calculator-page:not(:has(.unified-copilot-panel)) {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 

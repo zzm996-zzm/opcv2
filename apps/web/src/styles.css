@@ -52245,12 +52245,14 @@ a:active {
 
 /* Keep the monitoring workspace readable while the navigation rail is still visible. */
 @media (min-width: 1181px) and (max-width: 1500px) {
-  .competitor-monitoring-page {
+  .competitor-monitoring-page,
+  .growth-calculator-page {
     grid-template-columns: minmax(0, 1fr);
     max-width: 1220px;
   }
 
-  .competitor-monitoring-page .unified-copilot-panel {
+  .competitor-monitoring-page .unified-copilot-panel,
+  .growth-calculator-page .unified-copilot-panel {
     grid-column: auto;
     grid-row: auto;
     position: static;
@@ -52261,7 +52263,8 @@ a:active {
     max-height: none !important;
   }
 
-  .competitor-monitoring-hero {
+  .competitor-monitoring-hero,
+  .growth-hero {
     grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
   }
 
